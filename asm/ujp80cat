@@ -1,0 +1,449 @@
+* JOL COPYRIGHT CCS 1976                                                00001000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00002000
+           SPACE 3                                                      00003000
+*                                                                       00004000
+* THIS ROUTINE MAY BE 'INVOKED' AS AN INSTRUCTION IN THE PREPROCESSOR.  00005000
+*  TO SEARCH THE CATALOG DURING THE PRE-PROCESSOR PHASE OF JOL.         00006000
+*                                                                       00007000
+* THE RETURN IS:-                                                       00008000
+*        %SYSRC = 0 | 4 (IF ERROR)                                      00009000
+*        %SYSDSN= A STRING | '' (IF ERROR)                              00010000
+*                                                                       00011000
+*              THE STRING CONSISTS OF THE FOLLOWING INFORMATION :-      00012000
+*                                                                       00013000
+*              2 CHARS INDICATING THE LENGTH OF THE DSNAME              00014000
+*              44 CHARS OF DSNAME (MAY BE ALTERED IF GDG RELATIVE       00015000
+*                                  USED AS INPUT).                      00016000
+*              8  CHARS (OR BLANK) BEING A GOOVOO NUMBER, EG            00017000
+*                                  G0002V00                             00018000
+*              2  CHARS FOR DSORG (IF AVAILABLE) PO PS IS VS            00019000
+*              8  CHARS CONTAINING A UNIT RETURNED FROM THE CATALOGUE   00020000
+*              3  CHARS CONTAINING A BLANK OR A LABEL (FILE) NUMBER     00021000
+*                                  FOR A TAPE DATA SET                  00022000
+*              1  CHAR  INDICATING THE NUMBER OF VOLUMES (MAX 6)        00023000
+*              2  CHAR FIELD INDICATING LENGTH OF VOLUME FIELD          00024000
+*              42 CHARS CONTAINING UP TO 6 VOLUMES (SEPERATED BY        00025000
+*                                  COMMAS, BUT IN FIXED FIELD           00026000
+*                                  FORMAT, IE BLANKS MAY BE PRESENT     00027000
+*                                  IF THE VOLUME NAMES ARE LESS THAN    00028000
+*                                  6 CHARACTERS IN LENGTH).             00029000
+*                                                                       00030000
+* THE INPUT MAY BE :-                                                   00031000
+*        DSN.DSN                                                        00032000
+*        'DSNAME'                                                       00033000
+*        DSN.DSN(REL | ABS GDG NUMBER)                                  00034000
+*                                                                       00035000
+           SPACE 3                                                      00036000
+         PRINT OFF                                                      00037000
+         COPY JOLCOM                                                    00038000
+         PRINT ON,GEN,DATA                                              00039000
+         SPACE 3                                                        00040000
+P80CATR    DSECT                                                        00041000
+P80LDSN   DS   H     LENGTH OD RETURNED DSNAME                          00042000
+P80DSN    DS   CL44                                                     00043000
+P80GOOV   DS   CL8   GENERATION NUMBER OR BLANK                         00044000
+P80DSORG  DS   CL2   'PS' 'PO' 'IS' 'NA' ETC                            00045000
+P80UNIT   DS   CL8   UNIT FROM CATLG                                    00046000
+P80FILEN  DS   CL3   FILE NUMBER (IF TAPE)                              00047000
+P80NOVOL  DS   CL2   NUMBER OF VOLUMES (5 MAX AT MOMENT)                00048000
+P80VOLS   DS   CL42  VOLS, 6 CHARS WITH NO COMMAS                       00049000
+           TITLE 'CATALOG SEARCHING'                                    00050000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974            00051000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00052000
+           SPACE 3                                                      00053000
+*                   J             000000            L                   00054000
+*                   J            0      0           L                   00055000
+*                   J           0        0          L                   00056000
+*                   J          0          0         L                   00057000
+*                   J         0            0        L                   00058000
+*                   J         0            0        L                   00059000
+*                   J         0            0        L                   00060000
+*                   J         0            0        L                   00061000
+*                   J         0            0        L                   00062000
+*                   J         0            0        L                   00063000
+*                   J         0            0        L                   00064000
+*        J          J         0            0        L                   00065000
+*         J        J           0          0         L                   00066000
+*          J      J             0        0          L                   00067000
+*           J    J               0      0           L                   00068000
+*            JJJJ                 000000            LLLLLLLLLLL         00069000
+           SPACE 3                                                      00070000
+           JOLSAVE CSECT=UJP80CAT                                       00071000
+* THIS ROUTINE DOES THE CATALOGUE SEARCHING                             00072000
+           SPACE                                                        00073000
+           USING JOLCOM,R2                                              00074000
+         USING DDDSNDET,R8                                    NEW 76200 00075000
+         LA    R8,WORK+200+300                                NEW 76200 00076000
+         CLEAR DDMBR,DDBLKSZE,DDLRECL,DDDSORG,DDRECFM         NEW 76200 00077000
+           CLEAR DDVOLUME,DDUNIT,DDLABEL                                00078000
+           SPACE 3                                                      00079000
+*                                                                       00080000
+* NOW FORM UP PARAMETERS (INPUT)                                        00081000
+*                                                                       00082000
+         GETTKN 1                                                  SOCO 00083000
+         CLC   TKN(8),=C'INVOKE  ' IS IT INVOKE ?                       00084000
+         BNE   P80NINV                                                  00085000
+         GETTKN (R1)               GET NEXT                             00086000
+P80NINV  CLC   =C'$CATSRCH ',TKN                                        00087000
+         BNE   P80STRT                                                  00088000
+         GETTKN (R1)                                                    00089000
+P80STRT  EQU   *                                                        00090000
+         SPACE 2                                                        00091000
+         MVC   #WORK(L'TKN),#TKN   SHIFT TOKEN TO 'WORK'                00092000
+         CLI   WORK,C''''          QUOTED DSNAME ?                      00093000
+         BNE   P80DSNST                                                 00094000
+* HERE DROP QUOTES. EASIEST WAY IS AS FOLOWS                            00095000
+         MVC  #TKN(L'TKN),#TKNSTRG                                      00096000
+         BAL  R14,DROPQUOT                                              00097000
+         MVC #TKNSTRG(L'TKN),#TKN                                       00098000
+         $CALL UJSPLIT                                                  00099000
+         B     P80STRT                                                  00100000
+P80DSNST MVC   #WORK(2),=H'0'      CLEAR WORK FIRST                     00101000
+P80DSNLP GETTKN (R1)               GET NEXT                             00101100
+         CLI   TKN,C' '            END DSNAME ?                         00102000
+         BE    P80EDSN1            YES -> OUT                           00103000
+         CLI   TKN,C'('            GDG | MEMBER START ?                 00104000
+         BE    P80TGDG             YES -> ANALYSE                       00105000
+         CLI   TKN,C'.'            QUALIFIER ?                          00106000
+         BNE   P80ERRDS            ERROR THEN                           00107000
+* HERE A '.'                                                            00108000
+         BAL   R14,CONCAT          CONCAT '.'                           00109000
+         GETTKN (R1)          GET ITEM AFTER '.'                        00110000
+         BAL   R14,CONCAT     CONCATENATE IT THEN                       00111000
+         B     P80DSNLP       LOOP                                      00112000
+         SPACE 3                                                        00113000
+P80TGDG  MVC   DDDSNAME,WORK  SAVE FOR A WHILE(WE MAY HAVE ENDED)       00114000
+         GETTKN (R1)          GET ITEM AFTER '('                        00115000
+         CLI   TKN,C' '       ' ' -> ERROR                              00116000
+         BE    P80ERRDS                                                 00117000
+         CLI   TKN,C'+'                                                 00118000
+         BE    P80PLUS                                                  00119000
+         CLI   TKN,C'-'                                                 00120000
+         BE    P80MINUS                                                 00121000
+         CLI   TKNTYPE,0      NUMBER ?                                  00122000
+         BE    P80ABS         ABSOLUTE ->                               00123000
+* OK, ASSUME MEMBER NAME HERE, IGNORE IT                                00124000
+         B     P80EDSN2                                                 00125000
+ FIX 'CHECK END TOKENS, ELSE ERROR'                                     00126000
+         SPACE 1                                                        00127000
+P80PLUS  MVI   TKN,C'('       OVER-WRITE '+'                            00128000
+         BAL   R14,CONCAT     CONCATENATE IT                            00129000
+         MVI   TKN,C'+'       PUT '+' BACK                              00130000
+         BAL   R14,CONCAT     CONCAT IT TO TOO.                         00131000
+P80CONTR GETTKN (R1)          GET NEXT (S/B <NUMBER>)                   00132000
+         CLI   TKNTYPE,0      <NUMBER> ?                                00133000
+         BNE   P80ERRDS       NOPE -> ERROR                             00134000
+         BAL   R14,CONCAT                                               00135000
+         MVI   #TKN+1,1       SET L'TKN TO 1                            00136000
+         MVI   TKN,C')'                                                 00137000
+         BAL   R14,CONCAT                                               00138000
+         B     P80EDSN1                                                 00139000
+         SPACE 3                                                        00140000
+P80MINUS MVI   TKN,C'('       OVER-WRITE '-'                            00141000
+         BAL   R14,CONCAT     CONCAT '('                                00142000
+         MVI   TKN,C'-'       RESET '-'                                 00143000
+         MVI   DDMBR,C'-'                                               00144000
+         BAL   R14,CONCAT     CONCAT                                    00145000
+         B     P80CONTR       GO AND CONTINUE WITH GDG REL              00146000
+         SPACE 3                                                        00147000
+P80ABS   EQU   *                                                        00148000
+         MVC   DDMBR,=C'G0000V00'                                       00149000
+         LA    R15,DDMBR+5    -> BYTE BEFORE 'V'                        00150000
+         LH    R14,#TKN       LOAD CURRENT LENGTH OF TOKEN              00151000
+         SR    R15,R14        -L'TKN GIVES BYTE TO MOVE NUMBER TO       00152000
+         BCTR  R14,0          -1 TO R14                                 00153000
+         EX    R14,P80MVCAN   MOVE ABSOLUTE NUMBER                      00154000
+         MVI   #TKN+1,9       SET LENGTH OF TKN TO 9                    00155000
+         MVI   TKN,C'.'       PUT IN DOT                                00156000
+         MVC   TKN+1(L'DDMBR),DDMBR                                     00157000
+         BAL   R14,CONCAT     FORM UP FULL DSNAME                       00158000
+         SPACE 3                                                        00159000
+P80EDSN1 MVC   DDDSNAME,WORK                                            00160000
+P80EDSN2 EQU   *                                                        00161000
+         SPACE 3                                                        00162000
+* NOW SET UP THE EQUIVALENT OF 'CAMLST' MACRO CAUSE WE CAN'T USE IT     00163000
+*    AS IT USES ADDRESS CONSTANTS AND I WANT LAOD ADDRESSES             00164000
+           XC  CALLAREA(20),CALLAREA    CLEAR IR                        00165000
+           MVI  CALLAREA,68                                             00166000
+           LA R1,DDDSNAME                                               00167000
+           ST R1,CALLAREA+4                                             00168000
+           LA   R1,WORK+200             GET WORK AND ON DOUBLE WD 75311 00169000
+           SRL  R1,3                                                    00170000
+           SLL  R1,3                                                    00171000
+           ST R1,CALLAREA+12                                            00172000
+           AGO .SKIPVS                                                  00172005
+**** NOTE,THE NEXT BIT OF CODE MAY BE INCORRECT,BUT IT WILL BE    74303 00173000
+*    ZAPABLE TO CORRECT ANY PROBLEMS,ESPECIALLY WITH THE ZAP AREA 74303 00174000
+*    DOWN THE BACK (OR SO WE HOPE).                               74303 00175000
+         L     R1,AJOLGEN                                               00176000
+         USING    GENDETS,R1                                            00177000
+           TM  THISSYS,X'80'   ARE WE RUNNING UNDER VS ?          74303 00178000
+           BZ  P80NOTVS        NOPE                                     00179000
+         DROP  R1                                                       00180000
+           LA  R1,X'3C'        MODE-SET,CAN'T USE MACRO ON OS/360 74303 00181000
+*                                  ASSEMBLER                      74303 00182000
+           SVC 107             NOW IN SUPERVISOR STATE            74303 00183000
+           LOCATE CALLAREA     NOW SEARCH THE CATALOG             74303 00184000
+           LR  R6,R1           SAVE R1                            74303 00185000
+           LR  R7,R15          AND  R15                           74303 00186000
+           LA  R1,X'24'                                           74303 00187000
+           SVC 107             NOW BACK IN PROBLEM STATE          74303 00188000
+           LTR R1,R6           RELOAD R1,AND TEST                 74303 00189000
+           BNM P80NOVSA        NOT NEGATIVE MEANS NOT VSAM ?      74303 00190000
+           B   *+4                                                74303 00191000
+           B   *+4                                                74303 00192000
+         OI    DDSPECT2,X'20' TURN ON VSAM                        75128 00193000
+.SKIPVS    ANOP                                                         00193005
+P80NOVSA   LR  R15,R7          RELOAD R15                         74303 00194000
+           B   P80STR15        GO TO NORMAL PROCESSING NOW        74303 00195000
+P80NOTVS   EQU *                                                  74303 00196000
+           LOCATE CALLAREA                                              00197000
+P80STR15   EQU *                                                  74303 00198000
+P80TRET1   LTR R15,R15         DID CATALOG FAIL ?                 75128 00199000
+           BZ  RETND0          OK,IT DIDN'T SO GET VOLS ETC             00200000
+           TITLE 'CATLG SEARCH RETURNED 0'                              00201000
+RETND0     EQU *                                                        00202000
+* THE CATALOG HAS RETURNED A UNIT/VOLUME TO US.                         00203000
+*                                                                       00204000
+           LA  R10,WORK+200             GET WORK AND ON DOUBLE WD 75311 00205000
+           SRL  R10,3                                                   00206000
+           SLL  R10,3                                                   00207000
+           USING VOLINFO,R10                                            00208000
+           SPACE 2                                                      00209000
+           SPACE 3                                                      00210000
+* NOW IF VOL FIELD BLANK,SET UP VOLS. FIRST THOUGH WE MUST CHECK        00211000
+*    THAT ALL THE UNITS ARE THE SAME,OR THAT THERE ARE NOT A HORRENDOUS 00212000
+*    NUMBER OF VOLUMES.IF SO,OS CAN HANDLE THE MOUNTING ETC OF THESE    00213000
+*    THINGS.                                                            00214000
+TNOVOLS    EQU *                                                        00215000
+           CLC NOVOLS,=AL2(L'DDVOLUME/6) TOO MANY VOLUMES?              00216000
+           CLC NOVOLS,=AL2(5) ***************************************   00217000
+           BL  NOVOLSOK                                                 00218000
+         $CALL UJP80SET   SET UP FIRST PART OF ERROR MESSAGE            00219000
+         JOLERR 101,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *00220000
+               'HAS TOO MANY VOLUMES:-',                               *00221000
+               'FIRST 5 RETURNED ONLY'                                  00222000
+NOVOLSOK   EQU *                                                        00223000
+     FIX 'COPY S01CAT INFO'                                             00224000
+MUVVOLS    CLEAR DDVOLUME      CLEAR DDVOL FIELD BEFORE PUTTING IN VOLS 00225000
+           LA  R9,DDVOLUME     FROM THE CATALOG                         00226000
+           LA  R1,CATVOL                                                00227000
+           LH R15,NOVOLS                       NO OF VOLS               00228000
+         CH    R15,=H'6'                                                00229000
+         BL    *+8                                                      00230000
+         LA    R15,5                                                    00231000
+           BCTR R15,0                                                   00232000
+           MH R15,=H'12'                       MULT BY 12 TO GET        00233000
+*                                              CORRECT STOP ADDRESS     00234000
+           AR R15,R1                                                    00235000
+           LA  R14,L'CATDEV+L'CATVOL+L'CATLABEL                         00236000
+VOLUP1     MVC 0(6,R9),0(R1)                                            00237000
+           LA  R9,6(R9)                                                 00238000
+           BXLE R1,R14,VOLUP1                                           00239000
+***************** NEW *********** JAN 16TH 1976                         00240000
+*                                                                       00241000
+* NOW WE WILL SEARCH THE 'DEVNAMET' TABLE FOR THE UNIT                  00242000
+* AND IF ITS STILL NOT THERE, THEN WE ARE IN TROUBLE                    00243000
+P80TDEVN L     R1,AJOLGEN                                               00244000
+         USING GENDETS,R1                                               00245000
+         L     R1,ADEVNAME    LAOD ADDRESS OF THE TABLE                 00246000
+         DROP  R1                                                       00247000
+         LTR   R1,R1          DID WE LOAD IT?                           00248000
+         BZ    P80UNBAD       NO,SO ERROR                               00249000
+         L     R15,0(R1)      LOAD NUMBER OF ENTRIES IN TABLE           00250000
+         MH    R15,=H'12'     MULT BY TABLE ENTRY SIZE                  00251000
+         LA    R1,4(R1)       ADD 4 TO START ADDRESS OF TABLE           00252000
+         AR    R15,R1         CALC END OF TABLE                         00253000
+         LA    R14,12         INCREMENT                                 00254000
+         CLC   CATDEV,8(R1)   FIND CATLG UNIT IN 'DEVNAMET'             00255000
+         BE    P80DEVUN                                                 00256000
+         BXLE  R1,R14,*-10    ROUND ROBIN                               00257000
+         B     *+4                                                      00258000
+         B     *+4                                                      00259000
+P80UNBAD   EQU *                                                  74303 00260000
+         $CALL UJP80SET   SET UP FIRST PART OF ERROR MESSAGE            00261000
+         JOLERR 217,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *00262000
+               'SPECIFIES UNIT ',DDUNIT,' WHICH IS UNKNOWN, OR DEVICE T*00263000
+               YPE RETURNED FROM CATLG NOT IN DEVNAMET'           75311 00264000
+           JOLRETN RC=16                                          74256 00265000
+         SPACE 3                                                        00266000
+P80DEVUN EQU   *              WE HAVE FOUND THE DEVICE IN 'DEVNAMET'    00267000
+         MVC   DDUNIT,0(R1)   SHIFT IN UNIT NAME                        00268000
+         MVI   DDUNITYP,X'80' SET UP 'DISK' INDICATOR                   00269000
+         CLI   CATDEV+2,X'80'    TAPE??                                 00270000
+         BNE   P80TLABL                                                 00271000
+         MVI   DDUNITYP,4     SET UP TAPE IN 'DDUNITYP'                 00272000
+*                             (NOT REALLY CHECKED ANYWHERE)             00273000
+         B     P80TLABL                                                 00274000
+P80TLABL   EQU *                                                        00275000
+TCATLABL  IFNULL CATLABEL,TLBLNUL                                       00276000
+           LH  R15,CATLABEL                                             00277000
+           CVD R15,DBL                                                  00278000
+           UNPK Z4,DBL                                                  00279000
+           OI  Z4+3,X'F0'                                               00280000
+           MVC DDLABEL,Z4+2                                             00281000
+TLBLNUL   EQU *                                                         00282000
+* NOW RETURN REQUESTED INFO.                                            00283000
+           LA  R6,WORK                                                  00284000
+          USING P80CATR,R6                                              00285000
+       LA   R1,DDDSNAME                                                 00286000
+       LA   R15,DDDSNAME+L'DDDSNAME-1                                   00287000
+       LA   R14,1                                                       00288000
+       CLI 0(R1),C' '     END DSNAME?                                   00289000
+       BE   P80EDSN                                                     00290000
+       BXLE  R1,R14,*-8                                                 00291000
+P80EDSN EQU *                                                           00292000
+        LA  R14,DDDSNAME                                                00293000
+        SR  R1,R14                                                      00294000
+        CVD R1,DBL                                                      00295000
+        UNPK P80LDSN(2),DBL                                             00296000
+        OI  P80LDSN+1,C'0'      MAKE  PRINTABLE                         00297000
+        MVC P80DSN,DDDSNAME                                             00298000
+        FIX GOOVOO                                                      00299000
+        MVC P80DSORG,DDDSORG                                            00300000
+        FIX ABOVE                                                       00301000
+        MVC P80UNIT,DDUNIT                                              00302000
+        MVC P80FILEN,DDLABEL                                            00303000
+        LH  R1,NOVOLS                                              SOCO 00304000
+        CVD R1,DBL                                                      00305000
+        UNPK P80NOVOL,DBL                                               00306000
+        OI   P80NOVOL+1,C'0'                                            00307000
+*       MVC  P80NOVOL,VOL*6CONS                                    SOCO 00308000
+        MVC   P80VOLS,DDVOLUME                                          00309000
+        MVC   #WORK,=AL2(P80VOLS+L'P80VOLS-P80CATR)                     00310000
+        MVC  SYMBOLIC,=CL8'SYSDSN'                                      00311000
+        $CALL UJP85ASN                                                  00312000
+        MVC   #WORK,=H'1'                                               00313000
+        MVI WORK,C'0'                                                   00314000
+         MVC  SYMBOLIC,=CL8'SYSRC'                                      00315000
+        $CALL UJP85ASN                                                  00316000
+        JOLRETN                                                         00317000
+           JOLRETN RC=0                                           74256 00318000
+           TITLE 'CATLG SEARCH RETURNED 4'                              00319000
+RETND4    $CALL UJP80SET   SET UP FIRST PART OF ERROR MESSAGE           00320000
+         JOLERR 103,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *00321000
+               'CATLG VOL NOT MOUNTED',                                *00322000
+               ' NOTHING RETURNED'                                      00323000
+         B     P80NFOUN                                                 00324000
+RETND8     EQU *                                                  75311 00325000
+* CATLG SEARCH FAILED.                                            75311 00326000
+P80REAL8  $CALL UJP80SET    SET UP FIRST PART OF ERROR MESSAGE 75311    00327000
+           TITLE 'CATLG SEARCH RETURNED 8'                              00328000
+         JOLERR 404,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *00329000
+               ':- CATLOG SEARCH FAILED'                                00330000
+         B     P80NFOUN                                                 00331000
+           TITLE 'CATLG SEARCH RETURNED 12'                             00332000
+RETND12    EQU *                                                  75    00333000
+* THE CATLG SEARCH RTN SAID THAT WE STRUCK AN INDEX NAME BEFORE WE75    00334000
+*  FOUND A DATA SET NAME, SO I GUESS WE'D BETTER NOW CHECK TO           00335000
+*  SEE IF IT IS GDG ALL. HAVING CHECKED THE RETURN CODES                00336000
+*  UNDER TSO FROM THE 'LOCATE' MACRO, IT SEEMS THAT YOU HAVE            00337000
+*  TO GO TO A LOT OF TROUBLE TO FIND OUT WHETHER IT IS GDG ALL          00338000
+*  OR NOT, PRESUMABLY YOU HAVE TO READ THE CATLG NOW BY TTR'S           00339000
+*  ETC, BUT WE'LL TAKE THE SIMPLE WAY OUT (OF COURSE) AND               00340000
+*  WE'LL LET THE INIATOR DO IT.....                                     00341000
+           LA  R15,DDDSNAME+L'DDDSNAME-1 GET LAST CHAR OF DSN           00342000
+           CLI 0(R15),C' '   FIND END OF DSNAME                         00343000
+           BNE *+8           NOT ' ',GOT IT                             00344000
+           BCT R15,*-8       BACK LOOK AT PREVIOUS CHAR                 00345000
+           MVC 1(3,R15),=C'(0)' SHIFT IN REL GEN OF ZERO                00346000
+           LR  R8,R15        SAVE R15                                   00347000
+           LOCATE CALLAREA   DO CATLG SEARCH                            00348000
+           MVC 1(9,R8),BLANKS RETURN DSNAME AS IT WAS                   00349000
+           LTR R15,R15       HOW DID WE GO THIS TIME ?                  00350000
+           BNZ P80IS12       NO GOOD,THEREFORE A REAL ERROR.            00351000
+          MVC  DDMBR,=CL8'GDGALL'                                       00352000
+           JOLRETN RC=0      AND RETURN                                 00353000
+P80IS12    EQU *                                                        00354000
+         $CALL UJP80SET   SET UP FIRST PART OF ERROR MESSAGE            00355000
+         JOLERR 405,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *00356000
+               ':- SPECIFIED AN INDEX BLOCK'                            00357000
+         B     P80NFOUN                                                 00358000
+           TITLE 'CATLG SEARCH RETURNED 16'                             00359000
+RETND16  $CALL UJP80SET   SET UP FIRST PART OF ERROR MESSAGE            00360000
+         JOLERR 406,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *00361000
+               ':- ANOTHER DATA SET WAS FOUND AT A LOWER INDEX LEVEL'   00362000
+         B     P80NFOUN                                                 00363000
+           TITLE 'CATLG SEARCH RETURNED 20'                             00364000
+RETND20    $CALL UJP80SET   SET UP FIRST PART OF ERROR MESSAGE          00365000
+         JOLERR 407,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *00366000
+               'HAS INCORRECT SYNTAX'                                   00367000
+         B     P80NFOUN                                                 00368000
+           TITLE 'CATLG SEARCH RETURNED 24'                             00369000
+RETND24   $CALL UJP80SET   SET UP FIRST PART OF ERROR MESSAGE           00370000
+         JOLERR 408,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *00371000
+               ':- PERM I/O ERR ON CATLG'                               00372000
+           WTO 'UJP80-08 JOL COMPILER:-I/O ERR ON CATLG'          74303 00373000
+         B     P80NFOUN                                                 00374000
+           TITLE 'CATLG SEARCH RETURNED 28'                             00375000
+RETND28   $CALL UJP80SET   SET UP FIRST PART OF ERROR MESSAGE           00376000
+         JOLERR 409,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *00377000
+               ':- CAT RTN RETND 28'                                    00378000
+         B     P80NFOUN                                                 00379000
+           TITLE 'CATLG SEARCH RETURNED 32'                             00380000
+RETND32   $CALL UJP80SET   SET UP FIRST PART OF ERROR MESSAGE           00381000
+         JOLERR 510,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *00382000
+               'INV WORK AREA'                                          00383000
+         B     P80NFOUN                                                 00384000
+DIFFDEVT     EQU   *                                                    00385000
+         $CALL UJP80SET   SET UP FIRST PART OF ERROR MESSAGE            00386000
+         JOLERR 102,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *00387000
+               'CONTAINS DIFFERING UNIT TYPES:-'                       *00388000
+               'OS WILL SEARCH CATLG AT EXECUTION'                      00389000
+         B     P80NFOUN                                                 00390000
+DIFFLABL EQU   *                                                  75128 00391000
+         $CALL UJP80SET   SET UP FIRST PART OF ERROR MESSAGE            00392000
+         JOLERR 112,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *00393000
+               'HAS DIFFERING FILENOS/LABELNOS',                       *00394000
+               'NO INFORMATION RETURNED'                                00395000
+P80NFOUN   EQU  *                                                       00396000
+          MVC  SYMBOLIC,=CL8'SYSRC'                                     00397000
+          MVC  #WORK,=H'1'                                              00398000
+          MVI  WORK,C'4'                                                00399000
+          $CALL UJP85ASN                                                00400000
+          MVC   #WORK,=H'0'                                             00401000
+          MVC  SYMBOLIC,=CL8'SYSDSN'                                    00402000
+          $CALL UJP85ASN                                                00403000
+           LTORG                                                        00404000
+P80MVCAN MVC   0(*-*,R15),TKN EXECUTED *******                          00405000
+P80ERRDS   JOLERR 211,'ERROR IN DSNAME'                            SOCO 00406000
+         B P80NFOUN                                                     00407000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00408000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00409000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00410000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00411000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00412000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00413000
+              JOLSAVE  CSECT=UJP80SET                                   00414000
+* THIS ROUTINE SETS UP THE FIRST PART OF THE ERROR MESSAGE IN     75128 00415000
+*  '#STRING'                                                      75128 00416000
+         CLEAR STRING                                             75128 00417000
+         LA    R10,STRING                                         75128 00418000
+         CONCAT 'DSNAME ''',DDDSNAME                                    00419000
+         CLI   0(R10),C' '    DROP TRAILING BLANKS                75128 00420000
+         BNE   P80ENBLK                                           75128 00421000
+         BCT   R10,*-8                                            75128 00422000
+P80ENBLK LA    R10,1(R10)     STEP BACK UP TO BLANK               75128 00423000
+           CLI DDMBR,C'('                                         75311 00424000
+           BNE P80CDCL                                            75311 00425000
+           CONCAT DDMBR,')'                                       75311 00426000
+P80CDCL    EQU *                                                  75311 00427000
+         CONCAT ''''                                                    00428000
+         LA    R1,STRING      GET ADDRESS OF STRING               75128 00429000
+         SR    R10,R1         - WHERE WE ARE UP TO                75128 00430000
+         STH   R10,#STRING    SET LENGTH OF STRING                75128 00431000
+             JOLRETN  RC=0                                              00432000
+         SPACE 3                                                  75128 00433000
+           LTORG                                                        00434000
+           DC   S(*),S(*),S(*),S(*)                                     00435000
+           DC   S(*),S(*),S(*),S(*)                                     00436000
+           DC   S(*),S(*),S(*),S(*)                                     00437000
+           DC   S(*),S(*),S(*),S(*)                                     00438000
+           DC   S(*),S(*),S(*),S(*)                                     00439000
+           DC   S(*),S(*),S(*),S(*)                                     00440000
+VOLINFO    DSECT                                                        00441000
+NOVOLS     DS  H                                                        00442000
+CATDEV     DS  XL4                                                      00443000
+CATVOL     DS  CL6                                                      00444000
+CATLABEL   DS  H                                                        00445000
+         END                                                            00446000

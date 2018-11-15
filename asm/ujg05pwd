@@ -1,0 +1,45 @@
+RACFUSER TITLE 'UJG05PWD:OBTAIN AND DECRIPT RACF PASSWORD FOR USER'     00010000
+         SPACE                                                          00011000
+         EXTRN UJG04JOB            ENSURE LINKAGE IS AUTOMATIC          00012000
+         PRINT OFF SUPPRESS JOLCOM                                      00013000
+         COPY  JOLCOM                                                   00014000
+         PRINT ON                                                       00015000
+         JOLSAVE CSECT=UJG05PWD                                         00016000
+         USING JOLCOM,R2                                                00017000
+         USING JOBDETS,R4                                               00018000
+         USING ACEE,R3                                                  00019000
+         L     R4,AJOBDETS                                              00020000
+         ICM   R9,7,ACEEIEP+1      ADDRESS INSTALLATION FIELD           00021000
+         BZ    G05DONE             SKIP IF ABSENT                       00022000
+         TM    ACEEFLG1,ACEERACF   Q... RACF DEFINED?                   00023000
+         BZ    G05DONE             A... NO: SKIP THE RACF BITS          00024000
+         CLI   ACEEUSRL,0          Q... USER-ID PRESENT?                00025000
+         BE    G05DONE             A... NO: IGNORE RACF STUFF????       00026000
+         SLR   R15,R15             AND PUT THIS ONE IN                  00027000
+         ICM   R15,1,4(R9)                                              00028000
+         BZ    G05DONE             EXIT IF ABSENT                       00029000
+         BCTR  R15,0                                                    00030000
+         EX    R15,*+4                                                  00031000
+         MVC   JOBPASS1(0),5(R9)   THE PASSWORD                         00032000
+************************************************************            00033000
+*    PASSWORD DECRIPTION ALGORITHM                         *            00034000
+************************************************************            00035000
+         LA    R10,JOBPASS1       R10 --> PASSWORD                      00038000
+         SLR   R8,R8              ZERO OUT REGISTER 8                   00039000
+         ICM   R8,1,4(R9)         R8 CONTAINS PASSWORD LENGTH           00040000
+LOOP     DS    0H                                                       00041000
+         L     R6,0(R10)          R6 CONTAINS PASSWORD CHARACTER        00042000
+         L     R7,0(R10)          R7 --> SAME AS R6                     00043000
+         SLL   R6,4               DECRIPT                               00044000
+         SRL   R6,28                     THE                            00045000
+         SLDL  R6,28                        CHARACTER                   00046000
+         STCM  R6,8,0(R10)        DECRIPTED CHAR INTO PASSWORD          00047000
+         LA    R10,1(R10)         NEXT CHARACTER OF PASSWORD            00048000
+         BCT   R8,LOOP            KEEP GOING UNTIL PASSWORD END         00049000
+G05DONE  DS    0H                 RETURN TO CALLER                      00053000
+         JOLRETN                                                        00054000
+         SPACE 3                                                        00055000
+         SPACE 3                                                        00059000
+         TITLE 'RACF STUFF'                                             00060000
+         KDSACEE                                                        00061000
+         END   UJG04JOB                                                 00062000

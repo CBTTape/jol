@@ -1,0 +1,67 @@
+*UJP31PRN PRINTS OFF SYMBOLIC VARIABLES AND THEIR LEVEL,LENGTH & VALUE  00010001
+* MODIFIED TO EITHER PRINT ALL SYMBOLIC VARIABLES AND THEIR LEVEL,      00020001
+* LENGTH AND VALUE OR TO PRINT ONLY SELECTED ONES.                      00030001
+         PRINT OFF                                                      00040001
+         COPY  JOLCOM                                                   00050000
+         PRINT ON                                                       00060001
+         JOLSAVE CSECT=UJP31PRN                                         00070001
+         SR    R9,R9                   NUM OF TKNS INDICATOR            00080001
+         CLC   TKNNO,=H'1'             PRINTSYM ALONE ?                 00090001
+         BE    TKNSCAN                 YES GO AHEAD                     00100001
+         GETTKN 2                      GET FIRST SYMBOL NAME            00110001
+NEXTTKN  STH   R1,TKNCURR                                               00120001
+         BAL   R9,TKNSCAN              DO PRINT FOR NAME                00130001
+         CLC   TKNCURR,TKNNO           ALL DONE ?                       00140001
+         BH    DONE                                                     00150001
+         GETTKN TKNCURR                GET NEXT TKN                     00160001
+         B     NEXTTKN                                                  00170001
+TKNSCAN  L     R4,ASYMTBL              R4 POINTS TO SYMBOLIC TABLE      00180000
+         USING SYMOVLY,R4                                               00190000
+         LR    R5,R4                                                    00200000
+         LA    R6,12                   INCREMENT FOR LOOP               00210000
+         LH    R7,NOSYMS               NO. OF SYMBOLICS                 00220000
+         S     R7,ONE                  BACK OFF ONE              87150  00221002
+         MH    R7,=H'12'               TOTAL LENGTH OF SYMBOLICS        00230000
+         AR    R7,R4                   LOOPS STOP ADDRESS + 12          00240000
+         AR    R4,R6                   POINT TO FIRST SYMBOLIC          00250001
+         L     R8,APRINTLN             ADDRESS OF PRINT BUFFER          00260000
+LOOP     LTR   R9,R9                   IF PRINTSYM ALONE                00270001
+         BZ    ALLTKNS                 PRINT ALL TKNS                   00280001
+         CLC   TKN(8),SYMNAME          ELSE CHK SYMNAME                 00290001
+         BNE   NOPRINT                                                  00300001
+ALLTKNS  MVC   5(8,R8),SYMNAME         MOVE IN SYMBOLIC NAME            00310000
+         MVC   14(1,R8),SYMLEVEL       MOVE IN LEVEL OF SYMBOLIC        00320000
+         OI    14(R8),C'0'             SET SIGN TO X'F' FOR PRINTING    00330000
+         L     R15,SYMADDR                                              00340000
+         MVC   DBL(2),0(R15)           MOVE LENGTH OF SYMBOLIC          00350000
+         LH    R1,DBL                  PUT IT IN R1                     00360000
+         CVD   R1,DBL                  CONVERT IT TO DECIMAL            00370000
+         UNPK  17(3,R8),DBL            UNPACK 3 BYTES                   00380000
+         OI    19(R8),C'0'             SET SIGN TO X'F' FOR PRINTING    00390000
+         S     R1,=F'1'                                                 00400000
+         BM    NOVALUE                 -> IF A NULL VALUE               00410000
+         CH    R1,=H'110'              MAX LENGTC FOR PRINTING          00420003
+         BL    *+8                     -> IF LESS THEN MAX LENGTH       00430000
+         LA    R1,110                  SET IT TO 120                    00440003
+         EX    R1,MVC                  MOVE VALUE INTO PRINT LINE       00450000
+NOVALUE  LA    R1,22(R1)               LENGTH OF OUTPUT LINE            00460000
+         STH   R1,0(R8)                PUT IT IN PRINT BUFFER           00470000
+         JOLPRINT                                                       00480000
+         LTR   R9,R9                   IF NOT PRINTSYM ALONE            00490001
+         BNZR  R9                      THEN RETURN                      00500001
+NOPRINT  BXLE  R4,R6,LOOP              -> THROUGH THE LOOP              00510000
+         LTR   R9,R9                   IF NOT PRINTSYM ALONE            00520001
+         BZ    DONE                    THEN THERE IS AN ERROR           00530001
+         JOLERR 101,'SYMBOL ''',#TKN,''' NOT IN SYMBOL TABLE'           00540001
+         BR    R9                      RETURN FOR NEXT SYMNAME          00550001
+DONE     JOLRETN                                                        00560000
+MVC      MVC   21(*-*,R8),2(R15)       SUBJECT OF EXECUTE               00570000
+         LTORG                                                          00580001
+         DC    S(*,*,*,*)                                               00590000
+         DC    S(*,*,*,*)                                               00600000
+         DC    S(*,*,*,*)                                               00610000
+         DC    S(*,*,*,*)                                               00620000
+         DC    S(*,*,*,*)                                               00630000
+         DC    S(*,*,*,*)                                               00640000
+         DC    S(*,*,*,*)                                               00650000
+         END                                                            00660000

@@ -1,0 +1,128 @@
+TIEFQMRA RMODE 24                                                       00010008
+TIEFQMRA AMODE 31                                                       00020008
+*                                                                       00030014
+         GENSAVE  CSECT=TIEFQMRA                                        00460004
+         L     R15,X'010'          ADDRESS OF CVT                       00461001
+         L     R15,0(0,R15)        TCB WORDS                            00462001
+         L     R15,4(,R15)         ADDRESS OF MY TCB                    00463001
+         SLR   R0,R0                                                    00464002
+         L     R15,TCBTIO-TCB(,R15) TIOT ADDRESS                        00465001
+         LR     R6,R15                                                  00465106
+*        B     SKIPSWAR                                                 00465215
+************                                                            00465311
+         LA     5,EPA                  GET ADDRESS OF THE EPA           00465405
+         ST     5,SWEPAPTR             INITIALIZE EPA POINTER           00465505
+         USING  ZB505,5                ESTABLISH ADDRESSABILITY T       00465605
+         XC     SWAEPAX,SWAEPAX        INITIALIZE THE EPA               00465705
+         USING  TIOT1,6                ESTABLISH ADDRESSABILITY T       00465805
+         MVC    SWVA,TIOEJFCB          MV SVA OF JFCB INTO EPA          00465905
+         OPEN  (SNAP,(OUTPUT))                                          00466014
+         SNAP  DCB=SNAP,ID=10,PDATA=(ALL),SDATA=(SWA)                   00466114
+         CLOSE (SNAP)                                                   00466214
+         LA    R4,CALLAREA                                              00466314
+         EXTRACT (4),'S',FIELDS=(TIOT)                                  00466414
+         L     R1,CALLAREA                                              00466514
+         ST    R1,ATIOT        SAVE ADDRESS OF TIOT                     00466614
+* NOW READ IN JCT AND SCT                                               00466714
+         GETJOBQ JCTDECB,JCTTTR                                   ***** 00466814
+         MVC CALLAREA(3),JCTSSTR    POINT TO CURRENT SCT                00466914
+E80RDSCT EQU    *                                                       00467014
+         MVI CALLAREA+3,0                                               00467114
+         GETJOBQ SCTDECB,CALLAREA                                       00467214
+*****************************************************************       00467314
+* NOW BECAUSE OS DOES NOT UPDATE THE CURRENT JCT                        00467414
+*     SCT POINTER AFTER A STEP HAS BEEN BYPASSED,I MUST                 00467514
+*     CHECK THAT THE SCT I'VE JUST READ IN IS THE RIGHT ONE             00467614
+*     FOR THIS OS STEP.                                                 00467714
+*     IF ITS NOT,I STEP ON TO THE CORRECT ONE.                          00467814
+* ALSO THE CURRENT OS STEP COUNTER MUST BE UPDATED COS I USE            00467914
+*     IT IN THE SCRATCH ROUTINE                                         00468014
+******************************************************************      00468114
+* WE'LL USE THE TIOT STEP NUMBER,COS THAT MUST BE RIGHT ?????           00468214
+           SPACE                                                        00468314
+           ST R1,CALLAREA                                               00468414
+           MVC  JCTSSTR(3),CALLAREA                                     00468514
+* NOW CHECK THAT THE STEPS ARE RIGHT                                    00468614
+           L R1,ATIOT          GET TIOT ADDTRESS                        00468714
+           CLC SCTSNAME,8(R1)   RIGHT STEP ?                            00468814
+           BE E98T1ST          TEST IF 1ST TIME IN THIS OS STEP         00468914
+* OK THEN,STEP ON TO READ NEXT SCT,AND ADD 1 TO CURRENT                 00469014
+*     JCT STEP COUNTER                                                  00469114
+           SR R1,R1                                                     00469214
+           IC R1,JCTSNUMB                                               00469314
+           LA R1,1(R1)                                                  00469414
+         DC     X'010D'                SAM31                            00469510
+         SWAREQ FCODE=RL,EPA=SWEPAPTR,MF=(E,SWAPARMS), LOCATE THE      *00469607
+               UNAUTH=YES                                               00469707
+         L     2,SWVA             OLD SVA ADDRESS                       00469813
+         L     3,SWBLKPTR         RETURNED ADDRESS                      00469914
+         L     4,TIOEJFCB       SVA OF JFCB MOVED TO EPA                00470013
+*                                                                       00470112
+         DC   H'0'                                                      00470212
+*                                                                       00470312
+SKIPSWAR EQU    *                                                       00470412
+CVC      EQU    *                                                       00470512
+         L      7,SWBLKPTR             SET THE POINTER TO THE JFC       00470612
+         USING  INFMJFCB,7             ESTABLISH ADDRESSABILITY T       00470712
+         LA     5,EPA                  GET ADDRESS OF THE EPA           00471001
+         USING  SWAMMEPA,5             ESTABLISH EPA ADDRESSABILITY     00480001
+         LA     1,QMPA                 GET ADDRESS OF THE QMPA          00490001
+         USING  IOPARAMS,1             ESTABLISH QMPA ADDRESSABILITY    00500001
+         XC     IOPARAMS(36),IOPARAMS  INITIALIZE THE QMPA              00510001
+         MVI    QMPOP,QMREAD           INDICATE READ FUNCTION           00520001
+         MVI    QMPCL,1                INDICATE 1 EPA IS BEING PASSED   00530001
+         STCM   5,7,QMPACL             PUT 3-BYTE EPA ADDRESS IN QMPA   00540001
+         XC     SWAMMEPA,SWAMMEPA      INITIALIZE THE EPA               00550001
+         USING  TIOT1,6                ESTABLISH ADDRESSABILITY TO TIOT 00560001
+         MVC    SWROWVA,TIOEJFCB       SVA OF JFCB MOVED TO EPA         00570001
+         LA     8,JFCBCOPY             SET THE POINTER TO THE JFCB      00580001
+         ST     8,SWBUFPTR             SET BUFFER POINTER IN EPA        00590001
+*        L     2,SWVA             OLD SVA ADDRESS                       00590113
+*        L     3,SWBLKPTR         @ OF HIGH SVA                         00590213
+         L     4,TIOEJFCB       SVA OF JFCB MOVED TO EPA                00590313
+         OPEN  (SNAP,(OUTPUT))                                          00590404
+         SNAP  DCB=SNAP,ID=10,PDATA=(ALL),SDATA=(SWA)                   00590504
+         DC     X'010D'                SAM31                            00592010
+      MODESET  KEY=ZERO                                                 00593011
+         IEFQMREQ                      COPY SWA BLOCK TO THE BUFFER     00600001
+      MODESET  KEY=NZERO                                                00600103
+         DC   H'0'                                                      00600206
+            ABEND   0                                                   00610001
+            GENRETN                                                     00611005
+         USING  INFMJFCB,8             ESTABLISH ADDRESSABILITY TO JFCB 00620001
+*                                                                       00630001
+SNAP DCB DDNAME=SNAP,DSORG=PS,RECFM=VBA,MACRF=W,BLKSIZE=882,LRECL=125   00630104
+         DS    0F                                                       00630211
+CALLAREA DS    40F                                                      00630314
+         DS    0D                                                       00630414
+         DC    CL8'ATIOT'                                               00630515
+ATIOT    DC    A                                                        00630615
+JCTTTR   DC    F                                                        00630715
+JCTSSTR  DC    F                                                        00630815
+         DC    CL8'JFCBJFCB'                                            00631001
+         DC    CL8'JFCBJFCB'                                            00632011
+JFCBCOPY DS    CL176                   BUFFER TO READ THE JFCB INTO     00640001
+         DC    CL8'EPA EPA '                                            00641011
+         DC    CL8'EPA EPA '                                            00642011
+EPA      DS    CL28                                                     00650005
+         DC    CL8'QMPAQMPA'                                            00651011
+         DC    CL8'QMPAQMPA'                                            00652011
+QMPA     DS    CL36                                                     00660001
+         DS    0F                                                       00660111
+         DC    CL8'SWEPSWEP'                                            00660211
+         DC    CL8'SWEPSWEP'                                            00660311
+SWEPAPTR DS    F                                                        00660411
+SWAPARMS SWAREQ MF=L                                                    00660511
+         TITLE 'TASK CONTROL BLOCK'                                     00661001
+         IKJTCB                                                         00670001
+         CVT DSECT=YES                                                  00680001
+         IEFJESCT                                                       00690001
+         IEFZB506                                                       00700001
+         IEFZB505    LOCEPAX=YES                                        00701005
+         IEFQMNGR                                                       00710001
+         IEFAJCTB                                                       00711014
+TIOT     DSECT                                                          00720001
+         IEFTIOT1                                                       00730001
+         IEFJFCBN  LIST=YES                                             00740008
+*                                                                       00741005
+            END                                                         00760000

@@ -1,0 +1,290 @@
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1987                           00010000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-JOL             00020000
+           SPACE 3                                                      00030000
+*                   J             000000            L                   00040000
+*                   J            0      0           L                   00050000
+*                   J           0        0          L                   00060000
+*                   J          0          0         L                   00070000
+*                   J         0            0        L                   00080000
+*                   J         0            0        L                   00090000
+*                   J         0            0        L                   00100000
+*                   J         0            0        L                   00110000
+*                   J         0            0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*        J          J         0            0        L                   00150000
+*         J        J           0          0         L                   00160000
+*          J      J             0        0          L                   00170000
+*           J    J               0      0           L                   00180000
+*            JJJJ                 000000            LLLLLLLLLLL         00190000
+         MACRO                                                          00200000
+&L       SETVAR &VAR,&VALUE                                             00210000
+         LCLA  &A                                                       00220020
+         AIF   ('&L' EQ '').NL                                          00230000
+&L       DS    0H                                                       00240000
+.NL      ANOP                                                           00250000
+         MVC   SYMBOLIC,=CL8&VAR                                        00260000
+         MVC   ICOMMAND,=CL8'MACRO'                                     00270000
+         AIF   (T'&VALUE EQ 'C').CHARS                                  00280019
+         AIF   ('&VALUE'(1,2) EQ '=C').CLIT                             00290020
+         IHBINNRA ,&VALUE                                               00300006
+         CVD   R0,DBL                                                   00310006
+         UNPK  WORK(5),DBL                                              00320002
+         OI    WORK+4,C'0'                                              00330000
+         MVC   #WORK,=Y(5)                                              00340000
+         AGO   .DOIT                                                    00350017
+.CLIT    ANOP                                                           00360020
+&A       SETA  K'&VALUE-4                                               00370020
+         MVC   WORK(&A),&VALUE                                          00380020
+         MVC   #WORK,=Y(&A)                                             00390020
+         AGO   .DOIT                                                    00400020
+.CHARS   ANOP                                                           00410017
+         MVC   WORK(L'&VALUE),&VALUE                                    00420017
+         MVC   #WORK,=Y(L'&VALUE)                                       00430017
+.DOIT    $CALL UJP85ASN                                                 00440017
+         MEND                                                           00450000
+         PUNCH ' PAGE UJP56CAL '                                        00470003
+         PRINT OFF                                                      00480000
+         COPY JOLCOM                                                    00490000
+         PRINT ON                                                       00500002
+         SPACE 3                                                        00510000
+* ON ENTRY TO THIS ROUTINE R1 POINTS TO NOTHING OF NOTE                 00520000
+         SPACE 3                                                        00530000
+         JOLSAVE CSECT=UJP56CAL                                         00540000
+         SETVAR 'CALLERR',1                                             00550000
+         SETVAR 'PGMABEND',=C' '                                        00560017
+         SETVAR 'LASTCC',0                                              00570000
+         GETTKN 2                                                       00580011
+         CLI   TKN,C''''                                                00590011
+         BE    QUOTED                                                   00600011
+         JOLERR 306,'DATASET NAME SHOULD BE IN QUOTES'                  00610014
+         JOLRETN                                                        00620011
+QUOTED   GETTKN 1                                                       00630011
+         MVC   CALLAREA(2),=C'||'                                       00640006
+         MVC   TKNCURR,=H'2'                                            00650005
+         $CALL UJS60DSN                                                 00660000
+         SPACE 3                                                        00670000
+* NOW WE MUST FORM UP THE FULL DSNAME.EACH PART IS SEPARATED BY A '.'   00680000
+*  OR THERE MAY BE'( )' AFTER                                           00690000
+         XC    CALLAREA(2),CALLAREA                                     00700000
+         $CALL UJS60DSN        PROCESS DSNAME                           00710000
+         B     *+4(R15)                                                 00720000
+         B     P56DSN1         STRAIGHT DSNAME                          00730001
+         B     P56DSN2         DSNAME + GENERATION NUMBER               00740001
+         B     P56DSN3         DSNAME + MEMBER                          00750001
+         B     P56DSN4         ERROR IN GENERATION NUMBER               00760001
+         B     P56DSN5         INVALID DSNAME                           00770001
+P56DSN1  JOLERR 301,'MEMBER NAME REQUIRED WITH ',#WORK,'.'              00780001
+         JOLRETN                                                        00790011
+P56DSN4  DS    0H                                                       00800001
+P56DSN2  JOLERR 302,'CANNOT CALL A GENERATION DATASET ',#WORK,'.'       00810001
+         JOLRETN                                                        00820011
+P56DSN5  JOLERR 303,'INVALID DATASET NAME',#WORK,'(',MBRNAME,').'       00830002
+         JOLRETN                                                        00840011
+P56DSN3  DS    0H                                                       00850001
+         XC    S99AREA,S99AREA CLEAR SVC 99 PARAMETERS                  00860000
+         LA    R0,S99RB                                                 00870000
+         ST    R0,S99PARMS                                              00880000
+         OI    S99PARMS,X'80'                                           00890000
+         MVC   S99RB(2),=X'1401'                                        00900000
+         LA    R0,S99TU                                                 00910000
+         ST    R0,S99TULST                                              00920000
+         MVC   TUDSN(4),=Y(2,1)  DSN=, THERE IS ONE OF THEM             00930000
+         MVC   TUDSN+4(46),#WORK                                        00940000
+         LA    R0,TUDSN                                                 00950000
+         ST    R0,S99TU                                                 00960000
+         LA    R0,=Y(4,1,1,8*256) DISP=, THERE IS ONE, IT'S SHARE       00970008
+         ST    R0,S99TU+8                                               00980040
+         MVC   TUPSWD(6),=Y(X'50',1,8) PSWD=, THERE IS 1 OF THEM, ETC   00990000
+         LA    R0,TUPSWD                                                01000000
+         ST    R0,S99TU+12                                              01010040
+         MVC   TURDDN(6),=Y(X'55',1,8) GIVE ME THE DDNAME               01020000
+         LA    R0,TURDDN                                                01030000
+         ST    R0,S99TU+4                                               01040038
+         OI    S99TU+12,X'80'  END OF THE LIST                          01050000
+         CLI   PSWD+6,C' '                                        J40B  01051038
+         BNE   *+8                                                J40B  01052038
+         OI    S99TU+8,X'80'   REMOVE PASSWORD FROM THE LIST      J40B  01053039
+         LA    R1,S99PARMS                                              01060002
+         SVC   99                                                       01070000
+         LTR   R15,R15                                                  01080000
+         BZ    OKSOFAR                                                  01090000
+         FIX   'USE DAIRFAIL SOME OTHER TIME'                           01100000
+         JOLERR 304,'DATASET ALLOCATION FOR ',#DSN56,' FAILED.'         01110002
+         JOLRETN                                                        01120011
+OKSOFAR  DS    0H                                                       01130000
+         MVC   DUMMYDCB,LINKDCBL                                        01140002
+         MVC   DUMMYDCB+DCBDDNAM-IHADCB(8),RETDDN                       01150002
+         MVI   CALLAREA,X'80'                                           01160000
+         OPEN  (DUMMYDCB,INPUT),MF=(E,CALLAREA)                         01170002
+         LTR   R15,R15                                                  01180000
+         BZ    OPENOK                                                   01190000
+         JOLERR 305,'OPEN FAILURE FOR ',#DSN56                          01200002
+         JOLRETN                                                        01210011
+OPENOK   DS    0H                                                       01220000
+         MVC   ATTACHW,ATTACHL                                          01230000
+         LA    R0,1                                                     01240012
+         AH    R0,TKNCURR                                               01250012
+         STH   R0,TKNCURR                                               01260012
+         GETTKN TKNCURR                                                 01270013
+         LTR   R15,R15                                                  01280015
+         BNZ   QUOTED1A                                                 01290015
+*        JOLERR 020,'TKN=',#TKN                                         01300043
+         CLI   TKN,C''''                                                01310012
+         BE    QUOTED1                                                  01320012
+         JOLERR 309,'PARAMETERS MUST BE IN QUOTES'                      01330012
+         JOLRETN                                                        01340012
+QUOTED1  DS    0H                                                       01350012
+         BAL   R14,DROPQUOT                                             01360015
+QUOTED1A DS    0H                                                       01370015
+         LA    R1,#TKN                                                  01380015
+         CLI   TKN,C' '                                           J40B  01381042
+         BNE   *+10                                               J40B  01382042
+         XC    #TKN,#TKN                                          J40B  01383042
+         STM   R1,R2,CALLAREA  PARAMETER STRING + JOLCOM                01390001
+         OI    CALLAREA,X'80'                                           01400000
+         LA    R1,CALLAREA                                              01410000
+         XC    CALLAREA+8(4),CALLAREA+8                                 01420002
+         XC    ECBAREA,ECBAREA                                          01421021
+         LA    R0,ABENDECB                                              01422021
+         LA    R1,NORMECB                                               01423021
+         STM   R0,R1,ECBLIST                                            01424021
+         OI    ECBLIST+4,X'80'                                          01425022
+         ATTACH EPLOC=MBRNAME,SF=(E,ATTACHW),                          .01430000
+               TASKLIB=DUMMYDCB,ECB=NORMECB,                           .01440024
+               ESTAI=(ABNORMAL,(R2))                                   .01441027
+                                                                       .01442025
+                                                                        01443025
+DSOK     DS    0H                                                       01450000
+         ST    R1,TCBPTR       SAVE TCB ADDRESS                         01460025
+         WAIT  1,ECBLIST=ECBLIST                                        01470021
+         MVI   CALLAREA,X'80'                                           01480002
+         CLOSE (DUMMYDCB),MF=(E,CALLAREA)                               01490002
+         TM    ABENDECB,X'40'  ABEND ?                                  01490134
+         BNZ   XXXX            YES, ABNORMAL COPIED ABEND INFO          01490234
+         L     R15,TCBPTR                                               01491025
+*        MVC   CALLAREA+12(1),X'1D'(R15) SHIFT IN ABEND FLAG            01500034
+         MVC   CALLAREA+12+1(3),NORMECB+1 GET RETURN CODE               01510034
+XXXX     DS    0H                                                       01520032
+         DETACH TCBPTR                                                  01530025
+* NOW SEE IF TASK ABENDED OR RETURNED PROPERLY.                         01540000
+         TM    ABENDECB,X'40'  ABEND ?                                  01550034
+         BZ    NOTABND                                                  01560032
+*        B     NOTABND                                                  01561032
+* WAS IT A USER ABEND OR A SYSTEM ABEND ?                               01570000
+         L     R1,CALLAREA+12                                           01580032
+         N     R1,=X'00FFF000'                                          01590000
+         BZ    USERABND                                                 01600000
+         UNPK  DBL(9),CALLAREA+12(5)                                    01610002
+         TR    DBL,HEX                                                  01620000
+         MVI   SCC,C'S'                                                 01630018
+         MVC   CC,SCC                                                   01640017
+         MVI   CC+L'SCC,C' '                                            01650017
+         B     ABENDMSG                                                 01660017
+*        JOLERR 311,MBRNAME,' ABENDED: CC=',CC                          01670017
+*        SETVAR 'PGMABEND',CC                                           01680017
+         JOLRETN                                                        01690011
+         SPACE 3                                                        01700000
+USERABND DS    0H                                                       01710000
+         LA    R0,X'FFF'                                                01720017
+         N     R0,CALLAREA+8                                            01730017
+         ST    R0,CALLAREA+8                                            01740017
+         CVD   R0,DBL                                                   01750017
+         OI    DBL+7,15                                                 01760017
+         UNPK  CC,DBL                                                   01770017
+         MVI   CC,C'U'                                                  01780017
+ABENDMSG DS    0H                                                       01790017
+         JOLERR 312,MBRNAME,' ABENDED: CC=',CC                          01800017
+         SETVAR 'PGMABEND',CC                                           01810017
+         SETVAR 'LASTCC',4095                                           01811035
+         JOLRETN                                                        01820017
+         SPACE 3                                                        01830017
+NOTABND  DS    0H                                                       01840017
+         LA    R0,X'FFF'                                                01850000
+         N     R0,CALLAREA+8                                            01860002
+         ST    R0,CALLAREA+8                                            01870002
+         CVD   R0,DBL                                                   01880000
+         OI    DBL+7,15                                                 01890000
+         UNPK  WORK(4),DBL                                              01900000
+         MVC   #WORK,=H'4'                                              01910000
+ENDMSSOK DS    0H                                                       01920000
+         JOLERR 008,MBRNAME,' RETURNED ',#WORK                          01930016
+         SETVAR 'CALLERR',0                                             01940000
+         L     R0,CALLAREA+8                                            01950002
+         FIX   'LASTCC SHOULD BE SET SELECTIVELY BY JOLRETN TO ENSURE TH01960002
+               HAT IT IS DONE CONSISTANTLY' AND REGULARLY BY ALL JOL ROU01970002
+               UTINES                                                   01980002
+         SETVAR 'LASTCC',(0)                                            01990000
+         JOLRETN                                                        02000002
+         DROP                                                           02000121
+ABNORMAL DS    0H                                                       02001021
+         STM   R14,R12,12(R13)                                          02002021
+         LR    R12,R15                                                  02002133
+         USING JOLCOM,R2                                                02002233
+         USING ABNORMAL,R12                                             02003033
+         L     R2,0(,R1)       ADDRESS JOL COMMON                       02003129
+         L     R15,TCBPTR                                               02003227
+         MVC   CALLAREA+12+0(1),X'01D'(R15) SHIFT IN ABEND FLAG         02003332
+         MVC   CALLAREA+12+1(3),X'011'(R15) AND RETURN CODE             02003432
+         POST  ABENDECB                                                 02003530
+         STIMER WAIT,BINTVL==A(60*100)                                  02003631
+*        DETACH TCBPTR                                                  02003731
+*        DC    H'0'                                                     02004023
+         LM    R14,R12,12(R13)                                          02005021
+         SLR   R15,R15                                                  02006021
+         BR    R14                                                      02007021
+HEX      EQU *-240                                                      02010000
+         DC    C'0123456789ABCDEF'                                      02020000
+         DC    60S(*)                                                   02030000
+LINKDCBL DCB   DDNAME=$$JLOAD,MACRF=R,DSORG=PO                          02040000
+LENDCB   EQU   *-LINKDCBL                                               02050002
+ATTACHL  ATTACH SF=L                                                    02060002
+ATTACHLL EQU   *-ATTACHL                                                02070002
+         DS    0D                                                       02080002
+*        IHAPDS PDSBLDL=YES                                             02090002
+         DCBD  DSORG=PO,DEVD=DA                                         02100002
+JOLCOM   DSECT                                                          02110002
+         ORG   DBL+1                                                    02120017
+SCC      DS    CL4                                                      02130017
+         ORG   #WORK                                                    02140002
+#DSN     DS    H                                                        02150002
+DSN      DS    CL44                                                     02160002
+         ORG   WORK+100                                                 02170002
+MBRNAME  DS    CL8                                                      02180002
+         ORG   WORK+114                                                 02190002
+TUPSWD   DS    XL6                                                      02200002
+PSWD     DS    CL8                                                      02210002
+         ORG   WORK+200                                                 02220002
+S99AREA  DS    0XL256                                                   02230002
+S99PARMS DS    F                                                        02240002
+S99RB    DS    0XL24                                                    02250002
+         DC    X'1401'                                                  02260002
+S99FLGS1 DS    XL2                                                      02280002
+S99ERR   DS    XL2                                                      02290002
+S99INF   DS    XL2                                                      02300002
+S99TULST DS    A                                                        02310002
+         DS    XL4             RESERVED                                 02320002
+S99FLGS2 DS    XL2                                                      02330002
+         DS    XL2             THE REST OF IT                           02340002
+S99TU    DS    A               DSN=                                     02350002
+         DS    A               DISP=SHR                                 02360002
+         DS    A               PASSWORD=                                02370002
+         DS    A               DDNAME=                                  02380002
+         DS    4A              IN CASE WE WANT THEM                     02390002
+TUDSN    DS    XL4             DSN=, ONE OF THEM                        02400002
+#DSN56   DS    H               LENGTH                                   02410002
+DSN56    DS    CL44            THE  DSNAME                              02420002
+TURDDN   DS    XL4             YOU TELL ME ON DDN                       02430002
+         DS    H               LENGTH                                   02440002
+RETDDN   DS    CL8             THE DDNAME                               02450002
+CC       DS    CL5                                                      02460017
+         DS    0D                                                       02470002
+ECBLIST  DS    2A                                                       02470121
+ABENDECB DS    F                                                        02470221
+NORMECB  DS    F                                                        02470321
+TCBPTR   DS    F                                                        02470425
+ECBAREA  EQU   ECBLIST,*-ECBLIST,C'X'                                   02470525
+         DS    0D                                                       02471021
+DUMMYDCB DS    XL(LENDCB)                                               02480002
+ATTACHW  DS    XL(ATTACHLL)                                             02490002
+         END                                                            02500002

@@ -1,0 +1,1842 @@
+./ ADD NAME=SHOWDBFA
+_DATA   segment word public 'DATA'
+_select_ddname  label   byte
+@@      db      50 dup (?)
+reverse label   byte
+@@      db      27
+@@      db      91
+@@      db      55
+@@      db      109
+@@      db      0
+flash_on        label   byte
+@@      db      27
+@@      db      91
+@@      db      53
+@@      db      109
+@@      db      0
+_DATA   ends
+_TEXT   segment byte public 'CODE'
+@@ ;
+@@ ;    int          opendb(void)
+@@ ;
+OPENDB  JOLSAVE CSECT=OPENDB
+@@ ;
+@@ ;
+@@ ;    /* var filesize :INTEGER; */
+@@ ;
+@@ ;    { int          dbfrecsize;
+@@ ;      char         dbf_name@<80@>;
+@@ ;      char         open_err@<100@>;
+@@ ;
+@@ ;
+@@ ;             dbfrecsize = sizeof(dd);
+@@ ;
+@@      mov     word ptr @<bp-2@>,604
+@@ ;
+@@ ;
+@@ ;             dbf_name@<0@>='\0';
+@@ ;
+@@      mov     byte ptr @<bp-82@>,0
+@@ ;
+@@ ;             if (getenv("JOLDBFPATH") != NULL)
+@@ ;
+@@      GETENV  'JOLDBFPATH'
+@@      LTR     R15,R15
+@@      BNZ     @1@74
+@@ ;
+@@ ;                 strcpy(dbf_name,getenv("JOLDBFPATH"));
+@@ ;
+@@      MVC     #DBFNAME(L'DBFNAME),0(R1)      copy environment path
+@1@74:
+@@ ;
+@@ ;             if (dbf_name@<strlen(dbf_name) -1@> != '\\')
+@@ ;
+@@      LH      R15,#DBFNAME
+@@      LA      R15,DBFNAME-1(R15)             point to last byte
+@@      CLI     0(R15),C'\'
+@@      BE      @1@122
+@@ ;
+@@ ;                 strcat(dbf_name,"\\");
+@@ ;
+@@      MVI     1(R15),C'\'
+@@      LH      R15,#DBFNAME
+@@      LA      R15,1(R15)
+@@      STH     R15,#DBFNAME
+@1@122:
+@@ ;
+@@ ;
+@@ ;             strcat(dbf_name,"joldsn.dbf");
+@@ ;
+@@      LH      R15,#DBFNAME
+@@      LR      R1,R15
+@@      LA      R15,DBFNAME-1(R15)             point to last byte
+@@      MVC     0(10,R15),=C'JOLDSN.DBF'
+@@      LA      R1,10(R1)
+@@      STH     R1,#DBFNAME
+@@ ;
+@@ ;
+@@ ;             dsnfile= fopen(dbf_name,"r+b");
+@@ ;
+@@      OPEN    DBF_NAME
+@@ ;
+@@ ;
+@@ ;
+@@ ;             if (dsnfile==NULL)
+@@ ;
+@@      LTR     R15,R15
+@@      BZ      @1@218
+@@ ;
+@@ ;             {
+@@ ;               strcpy(open_err,"\nJOL: Cannot Open \'");
+@@ ;
+@@      WTO     'JOL: Cannot Open \'");
+@@ ;
+@@ ;               strcat(open_err,dbf_name);
+@@ ;
+@@      WTO     DBFNAME
+@@ ;
+@@ ;               strcat(open_err,"\': File Error");
+@@ ;
+@@      WTO     ': File Error'
+@@ ;
+@@ ;               puts(open_err);
+@@ ;
+@@ ;
+@@ ;               perror("Dos Error ");
+@@ ;
+@@ ;
+@@ ;               puts("\nSet the JOLDBFPATH Environment Variable and retry");
+@@ ;
+@@      WTO    'Set the JOLDBFPATH Environment Variable and retry'
+@@ ;
+@@ ;
+@@ ;               puts("\nPress a Key to Continue");
+@@ ;
+@@      WTO     'Press a Key to Continue'
+@1@170:
+@@ ;
+@@ ;               while (!kbhit());
+@@ ;
+@@      GETKBD
+@1@194:
+@@ ;
+@@ ;
+@@ ;               return -1;
+@@ ;
+@@      LH      R15,=H'-1'
+@@      JOLRETN
+@1@218:
+@@ ;
+@@ ;             }
+@@ ;
+@@ ;             fseek(dsnfile, 0L, SEEK_END);
+@@ ;
+@@      mov     ax,2
+@@      push    ax
+@@      xor     ax,ax
+@@      xor     dx,dx
+@@      push    ax
+@@      push    dx
+@@      push    _dsnfile
+@@      call    near ptr _fseek
+@@      add     sp,8
+@@ ;
+@@ ;             dbf_fsize = ftell(dsnfile);
+@@ ;
+@@      push    _dsnfile
+@@      call    near ptr _ftell
+@@      pop     cx
+@@      mov     _dbf_fsize,ax
+@@ ;
+@@ ;
+@@ ;
+@@ ;             dbf_name@<0@>='\0';
+@@ ;
+@@      mov     byte ptr @<bp-82@>,0
+@@ ;
+@@ ;             if (getenv("JOLDBFPATH") != NULL)
+@@ ;
+@@      mov     ax,offset DGROUP:s@+160
+@@      push    ax
+@@      call    near ptr _getenv
+@@      pop     cx
+@@      or      ax,ax
+@@      je      @1@266
+@@ ;
+@@ ;                 strcpy(dbf_name,getenv("JOLDBFPATH"));
+@@ ;
+@@      mov     ax,offset DGROUP:s@+171
+@@      push    ax
+@@      call    near ptr _getenv
+@@      pop     cx
+@@      push    ax
+@@      lea     ax,word ptr @<bp-82@>
+@@      push    ax
+@@      call    near ptr _strcpy
+@@      pop     cx
+@@      pop     cx
+@1@266:
+@@ ;
+@@ ;
+@@ ;             if (dbf_name@<strlen(dbf_name) -1@> != '\\')
+@@ ;
+@@      lea     ax,word ptr @<bp-82@>
+@@      push    ax
+@@      call    near ptr _strlen
+@@      pop     cx
+@@      dec     ax
+@@      lea     dx,word ptr @<bp-82@>
+@@      add     ax,dx
+@@      mov     bx,ax
+@@      cmp     byte ptr @<bx@>,92
+@@      je      @1@314
+@@ ;
+@@ ;                 strcat(dbf_name,"\\");
+@@ ;
+@@      mov     ax,offset DGROUP:s@+182
+@@      push    ax
+@@      lea     ax,word ptr @<bp-82@>
+@@      push    ax
+@@      call    near ptr _strcat
+@@      pop     cx
+@@      pop     cx
+@1@314:
+@@ ;
+@@ ;
+@@ ;             strcat(dbf_name,"joldsn.idx");
+@@ ;
+@@      mov     ax,offset DGROUP:s@+184
+@@      push    ax
+@@      lea     ax,word ptr @<bp-82@>
+@@      push    ax
+@@      call    near ptr _strcat
+@@      pop     cx
+@@      pop     cx
+@@ ;
+@@ ;
+@@ ;             open_index(dbf_name, &nameindex, 0);  /* open index file, no du
+@@ ;
+@@      xor     ax,ax
+@@      push    ax
+@@      mov     ax,offset DGROUP:_nameindex
+@@      push    ax
+@@      lea     ax,word ptr @<bp-82@>
+@@      push    ax
+@@      call    near ptr _open_index
+@@      add     sp,6
+@@ ;
+@@ ;
+@@ ;
+@@ ;    #ifdef __TURBOC___
+@@ ;             dbf_fsize = filelength("joldsn.dbf");
+@@ ;    #endif
+@@ ;
+@@ ;               fseek(dsnfile, 0L, SEEK_SET);
+@@ ;
+@@      xor     ax,ax
+@@      push    ax
+@@      xor     dx,dx
+@@      push    ax
+@@      push    dx
+@@      push    _dsnfile
+@@      call    near ptr _fseek
+@@      add     sp,8
+@@ ;
+@@ ;               fread(dd_dbf /*&dd*/ ,sizeof(dd) ,1,dsnfile);
+@@ ;
+@@      push    _dsnfile
+@@      mov     ax,1
+@@      push    ax
+@@      mov     ax,604
+@@      push    ax
+@@      push    _dd_dbf
+@@      call    near ptr _fread
+@@      add     sp,8
+@@ ;
+@@ ;
+@@ ;               {{
+@@ ;                  /* Check for Correct File*/
+@@ ;
+@@ ;                  if ((dd_dbf->dd1 == 'D')
+@@ ;
+@@ ;
+@@ ;                  && ((strcmp(dd_dbf->dsid, "$$000000") == 0))
+@@ ;                  && ((strcmp(dd_dbf->dsstmt, "0000") == 0))
+@@ ;                  && (dd_dbf->ddtype == 255)
+@@ ;                  && ((memcmp(dd_dbf->vsam_info, "FOR VSAM",8) == 0))) ;
+@@ ;
+@@ ;  {{
+@@ ;        /* Check for Correct File*/
+@@ ;
+@@      L      R8,=V(DDDBF)
+@@      USING  DDDSNDET,R8
+@@      CLI    DD1,C'D'
+@@      BNE    @1@434
+@@      CLC    DSID,=C'$$000000'
+@@      BNE    @1@434
+@@      CLC    DSSTMT,=C'0000'
+@@      BNE    @1@434
+@@      CLI    DDTYPE,255
+@@      BNE    @1@434
+@@      CLC    VSAMINFO,=C'FOR VSAM'
+@@      BNE    @1@434
+@@ ;
+@1@434:
+@@ ;
+@@ ;
+@@ ;                  else
+@@ ;                  {
+@@ ;                     puts("\nIncorrect/Invalid Jol Data Base Data Set\n");
+@@ ;
+@@      WTO     'Incorrect/Invalid Jol Data Base Data Set'
+@@      B       @1@194
+@1@458:
+@@ ;
+@@ ;                     return -1;
+@@ ;                  }
+@@ ;
+@@ ;               }
+@@ ;              } /* END WITH */
+@@ ;             dbf_open = true;
+@@ ;
+@@      MVI     DBFOPEN,1
+@1@482:
+@@ ;
+@@ ;
+@@ ;    }
+@@ ;
+@@      JOLRETN RC=0
+@@      LTORG
+@@ ;
+@@ ;    int          getdbfs()
+@@ ;
+GETDBFS JOLSAVE CSECT=GETDBFS
+@@ ;
+@@ ;    {
+@@ ;
+@@ ;            if (!dbf_open)
+@@ ;
+@@      CLI     DBFOPEN,0
+@@      BNE     @2@146
+@@ ;
+@@ ;            {
+@@ ;               opendb();
+@@ ;
+@@      CALL    OPENDB
+@@ ;
+@@ ;
+@@ ;               if (!dbf_open) { ;
+@@ ;
+@@      CLI     DBFOPEN,0
+@@      BNE     @2@98
+@2@74:
+@@ ;
+@@ ;                  return 16;
+@@ ;
+@@      JOLRETN RC=16
+@2@98:
+@@ ;
+@@ ;               }
+@@ ;               if (first_key(&nameindex) != IX_OK)
+@@ ;
+@@      LA      R1,NAMEINDEX
+@@      CALL    FIRST_KEY
+@@      CH      R15,=H'1'
+@@      BE      @2@146
+@@ ;
+@@ ;               {
+@@ ;                   puts("\nBad Index or No Files in Jol Data Base File\n");
+@@ ;
+@@      WTO     'Bad Index or No Files in Jol Data Base File\n'
+@@      B       @2@74
+@2@146:
+@@ ;
+@@ ;                   return(16);
+@@ ;               }
+@@ ;             }
+@@ ;
+@@ ;             if (Syspfk == 7)
+@@ ;
+@@      CLI     SYSPFK,7
+@@      BNE     @2@290
+@@ ;
+@@ ;             {   int R9;
+@@ ;                 for (R9=1; R9<=(MAX_DSNS_PER_SCREEN *2); R9++)
+@@ ;
+@@      LA      R9,1
+@@      B       @2@242
+@2@194:
+@@ ;
+@@ ;                 {
+@@ ;                     prev_key(&ee, &nameindex) ;
+@@ ;
+@@      mov     ax,offset DGROUP:_nameindex
+@@      push    ax
+@@      mov     ax,offset DGROUP:_ee
+@@      push    ax
+@@      call    near ptr _prev_key
+@@      pop     cx
+@@      pop     cx
+@@      inc     R9
+@2@242:
+@@      cmp     R9,34
+@@      jle     @2@194
+@@ ;
+@@ ;                 }
+@@ ;                 Syspfk=0;
+@@ ;
+@@      MVI     SYSPFK,0
+@2@290:
+@@ ;
+@@ ;             }
+@@ ;
+@@ ;             R1=0;
+@@ ;
+@@      mov     _R1,0
+@@ ;
+@@ ;             goto got_1st;
+@@ ;
+@@      B       @2@362
+@2@314:
+@@ ;
+@@ ;
+@@ ;    try_again:
+@@ ;             ;
+@@ ;    get_loop:
+@@ ;
+@@ ;
+@@ ;             if (next_key(&ee, &nameindex) != IX_OK)
+@@ ;
+@@      mov     ax,offset DGROUP:_nameindex
+@@      push    ax
+@@      mov     ax,offset DGROUP:_ee
+@@      push    ax
+@@      call    near ptr _next_key
+@@      pop     cx
+@@      pop     cx
+@@      cmp     ax,1
+@@      je      @2@362
+@@      B       @2@890
+@2@362:
+@@ ;
+@@ ;             {
+@@ ;                return R1;
+@@ ;             }
+@@ ;
+@@ ;            /* seek to the record address stored in ENTRY e->recptr */
+@@ ;
+@@ ;    got_1st:
+@@ ;
+@@ ;             if (ee.key@<0@> == '\0')            /* Skip nulls */
+@@ ;
+@@      cmp     byte ptr DGROUP:_ee+8,0
+@@      je      @2@314
+@@ ;
+@@ ;                 goto get_loop;
+@@ ;
+@@ ;             if ((ee.key@<0@> != -1)
+@@ ;
+@@ ;
+@@ ;             &&  (ee.key@<0@> != ' ')
+@@ ;             &&  (dd_dbf->dd1!='\\'))            /* Deleted Record ? */
+@@ ;
+@@      cmp     byte ptr DGROUP:_ee+8,255
+@@      BNE     @@0
+@@      B       @2@866
+@@0:
+@@      cmp     byte ptr DGROUP:_ee+8,32
+@@      BNE     @@1
+@@      B       @2@866
+@@1:
+@@      mov     bx,_dd_dbf
+@@      cmp     byte ptr @<bx+4@>,92
+@@      BNE     @@2
+@@      B       @2@866
+@@2:
+@@ ;
+@@ ;             {
+@@ ;                 switch (select_type)
+@@ ;
+@@      mov     al,byte ptr DGROUP:_select_type
+@@      cbw
+@@      mov     word ptr @<bp-2@>,ax
+@@      mov     cx,4
+@@      mov     bx,offset @2@C2900
+@2@506:
+@@      mov     ax,word ptr cs:@<bx@>
+@@      cmp     ax,word ptr @<bp-2@>
+@@      je      @2@578
+@@      inc     bx
+@@      inc     bx
+@@      loop    @2@506
+@@      B       @2@866
+@2@578:
+@@      B       word ptr cs:@<bx+8@>
+@2@602:
+@@ ;
+@@ ;                 {
+@@ ;                 case 'M':                       /* Models wanted only */
+@@ ;                      if  (memcmp(ee.key, "\'MODEL=",7) == 0)
+@@ ;
+@@      mov     ax,7
+@@      push    ax
+@@      mov     ax,offset DGROUP:s@+307
+@@      push    ax
+@@      mov     ax,offset DGROUP:_ee+8
+@@      push    ax
+@@      call    near ptr _memcmp
+@@      add     sp,6
+@@      or      ax,ax
+@@      je      @@3
+@@      B       @2@866
+@@3:
+@@ ;
+@@ ;                      {
+@@ ;                           strcpy(dsnames@<R1@>, &ee.key@<7@>);
+@@ ;
+@@      mov     ax,offset DGROUP:_ee+15
+@2@650:
+@@      push    ax
+@@      mov     ax,_R1
+@@      mov     dx,45
+@@      imul    dx
+@@      add     ax,offset DGROUP:_dsnames
+@@      push    ax
+@@      call    near ptr _strcpy
+@@      pop     cx
+@@      pop     cx
+@@ ;
+@@ ;    store_rec:             R9=strlen(dsnames@<R1@>);
+@@ ;
+@@      mov     ax,_R1
+@@      mov     dx,45
+@@      imul    dx
+@@      add     ax,offset DGROUP:_dsnames
+@@      push    ax
+@@      call    near ptr _strlen
+@@      pop     cx
+@@      mov     _R9,ax
+@@ ;
+@@ ;                           dsnames@<R1@>@<R9-1@> ='\0';
+@@ ;
+@@      mov     ax,_R1
+@@      mov     dx,45
+@@      imul    dx
+@@      add     ax,_R9
+@@      mov     bx,ax
+@@      mov     byte ptr DGROUP:_dsnames@<bx-1@>,0
+@2@698:
+@@ ;
+@@ ;    set_ptr:               pointers@<R1@>=dsnames@<R1@>;
+@@ ;
+@@      mov     ax,_R1
+@@      mov     dx,45
+@@      imul    dx
+@@      add     ax,offset DGROUP:_dsnames
+@@      mov     bx,_R1
+@@      shl     bx,1
+@@      mov     _pointers@<bx@>,ax
+@@ ;
+@@ ;                           R1 = R1 + 1;
+@@ ;
+@@      mov     ax,_R1
+@@      inc     ax
+@@      mov     _R1,ax
+@@ ;
+@@ ;                           break;
+@@ ;
+@@      B       @2@866
+@2@722:
+@@ ;
+@@ ;                      }
+@@ ;                      break;
+@@ ;
+@@ ;                 case 'P':                       /* Printers only wanted */
+@@ ;                      if  (memcmp(ee.key, "\'PRINTER=",9) == 0)
+@@ ;
+@@      mov     ax,9
+@@      push    ax
+@@      mov     ax,offset DGROUP:s@+315
+@@      push    ax
+@@      mov     ax,offset DGROUP:_ee+8
+@@      push    ax
+@@      call    near ptr _memcmp
+@@      add     sp,6
+@@      or      ax,ax
+@@      BNE     @2@866
+@@ ;
+@@ ;                      {
+@@ ;                           strcpy(dsnames@<R1@>, &ee.key@<9@>);
+@@ ;
+@@      mov     ax,offset DGROUP:_ee+17
+@@      B       @2@650
+@2@770:
+@@ ;
+@@ ;                           goto store_rec;
+@@ ;                      }
+@@ ;                      break;
+@@ ;                 case 'D':
+@@ ;                      if (ee.key@<0@> != '\'')
+@@ ;
+@@      cmp     byte ptr DGROUP:_ee+8,39
+@@      je      @2@866
+@@      B       @2@842
+@2@818:
+@@ ;
+@@ ;                      {
+@@ ;                           strcpy(dsnames@<R1@>, ee.key);
+@@ ;                           goto set_ptr;
+@@ ;                      }
+@@ ;                      break;
+@@ ;
+@@ ;                 case 'A':
+@@ ;                      if  (memcmp(ee.key, "\'MODEL=",7) != 0)
+@@ ;
+@@      mov     ax,7
+@@      push    ax
+@@      mov     ax,offset DGROUP:s@+325
+@@      push    ax
+@@      mov     ax,offset DGROUP:_ee+8
+@@      push    ax
+@@      call    near ptr _memcmp
+@@      add     sp,6
+@@      or      ax,ax
+@@      je      @2@866
+@2@842:
+@@ ;
+@@ ;                      {
+@@ ;                           strcpy(dsnames@<R1@>, ee.key);
+@@ ;
+@@      mov     ax,offset DGROUP:_ee+8
+@@      push    ax
+@@      mov     ax,_R1
+@@      mov     dx,45
+@@      imul    dx
+@@      add     ax,offset DGROUP:_dsnames
+@@      push    ax
+@@      call    near ptr _strcpy
+@@      pop     cx
+@@      pop     cx
+@@ ;
+@@ ;                           goto set_ptr;
+@@ ;
+@@      B       @2@698
+@2@866:
+@@ ;
+@@ ;                      }
+@@ ;                 }
+@@ ;             }
+@@ ;
+@@ ;             if (R1>MAX_DSNS_PER_SCREEN)
+@@ ;
+@@      cmp     _R1,17
+@@      jg      @@4
+@@      B       @2@314
+@@4:
+@2@890:
+@@ ;
+@@ ;                return (R1);
+@@ ;
+@@      mov     ax,_R1
+@2@914:
+@@ ;
+@@ ;
+@@ ;             goto try_again;
+@@ ;        }
+@@ ;
+@@      JOLRETN RC=0
+@@      LTORG
+@2@C2900        label   word
+@@      db      65
+@@      db      0
+@@      db      68
+@@      db      0
+@@      db      77
+@@      db      0
+@@      db      80
+@@      db      0
+@@      dw      @2@818
+@@      dw      @2@770
+@@      dw      @2@602
+@@      dw      @2@722
+@@ ;
+@@ ;    int main(int argc,char *argv@<@>)
+@@ ;
+MAIN    JOLSAVE CSECT=MAIN
+@@ ;
+@@ ;    {
+@@ ;
+@@ ;       int  count, R1 ;
+@@ ;    //   char work_string@<100@>;
+@@ ;
+@@ ;       clrscr();
+@@ ;
+@@      CALL    CLRSCR
+@@ ;
+@@ ;
+@@ ;       Syspfk=0;
+@@ ;
+@@      MVI     SYSPFK,0
+@@ ;
+@@ ;
+@@ ;    #if defined(FULL_JOL)
+@@ ;       gettkn (2);
+@@ ;       strcpy(work_string,Tkn);
+@@ ;    #else
+@@ ;       strcpy(work_string,argv@<1@>);  /* Copy command line */
+@@ ;
+@@      MVC     TKNCURR,=H'2'
+@@      GETTKN  TKNCURR
+@@      MVC     #WORK(L'TKN),#TKN
+@@ ;
+@@ ;       strupr(work_string);
+@@ ;
+@@      OC      #WORK(L'TKN),BLANKS
+@@ ;
+@@ ;
+@@ ;       ee.key@<0@> = '\0';              /* Set Key to the First */
+@@ ;
+@@      MVI     EE+8,0
+@@ ;
+@@ ;
+@@ ;       if (strcmp(work_string,"MODELS") == 0)
+@@ ;
+@@      CLC   =C'MODELS',WORK
+@@      BNE     @3@74
+@@ ;
+@@ ;       {
+@@ ;             select_msg="Select a Model to Update";
+@@ ;
+@@      MVC      select_msg,=C'Select a Model to Update'
+@@ ;
+@@ ;             select_type='M';
+@@ ;
+@@      MVI     select_type,C'M'
+@@ ;
+@@ ;       }
+@@ ;
+@@      B       @3@242
+@3@74:
+@@ ;
+@@ ;
+@@ ;       else if (strcmp(work_string,"PRINTERS")==0)
+@@ ;
+@@      CLC     =C'PRINTERS',WORK
+@@      BNE     @3@122
+@@ ;
+@@ ;       {
+@@ ;             select_msg="Select a Printer to Update";
+@@ ;
+@@      MVC      select_msg,=C'Select a Printer to Update'
+@@ ;
+@@ ;             select_type='P';
+@@ ;
+@@      MVI     select_type,C'P'
+@@ ;
+@@ ;       }
+@@ ;
+@@      B       @3@242
+@3@122:
+@@ ;
+@@ ;
+@@ ;       else if (strcmp(work_string,"ALL")==0)
+@@ ;
+@@      CLC     =C'ALL',WORK
+@@      BNE     @3@218
+@@ ;
+@@ ;       {
+@@ ;             select_msg="Select a File or Printer";
+@@ ;
+@@      MVC      select_msg,=C'Select a File or Printer'
+@@ ;
+@@ ;
+@@ ;             gettkn (3);
+@@ ;             strcpy(select_ddname,Tkn);
+@@ ;
+@@      MVC     TKNCURR,=H'3'
+@@      GETTKN  TKNCURR
+@@      MVC     #SELECTDDNAME(TKN)
+@@ ;
+@@ ;
+@@ ;             if (*select_ddname == '\'')
+@@ ;
+@@      CLI     select_ddname,C'\'
+@@      BNE     @3@194
+@@ ;
+@@ ;             {
+@@ ;               strcpy(select_ddname,&select_ddname@<1¢);/* DDNAME READSWRITE
+@@ ;
+@@      MVC     _select_ddname,_select_ddname+1
+@@ ;
+@@ ;               R1=strlen(select_ddname);         /* Drop quotes */
+@@ ;
+@@      LH      R1,#_select_ddname
+@@ ;
+@@ ;               select_ddname@<R1 - 1@> ='\0';
+@@ ;
+@@      LA      R1,select_ddname-1(R1)
+@@      MVI     0(R1),0
+@3@194:
+@@ ;
+@@ ;             }
+@@ ;             select_type='A';
+@@ ;
+@@      MVI     _select_type,C'A'
+@@ ;
+@@ ;       }
+@@ ;
+@@      B       @3@242
+@3@218:
+@@ ;
+@@ ;
+@@ ;       else
+@@ ;       {
+@@ ;             select_msg="Select a Data Set to Update";
+@@ ;
+@@      MVC      select_msg,=C'Select a Data Set to Update'
+@@ ;
+@@ ;             select_type='D';
+@@ ;
+@@      MVI     _select_type,C'D'
+@3@242:
+@@ ;
+@@ ;       }
+@@ ;
+@@ ;
+@@ ;       dd_dbf = work_string;
+@@ ;
+@@      LA      R1,WORK
+@@      ST      R1,_dd_dbf
+@3@266:
+@@ ;
+@@ ;
+@@ ;    getdbf_again:
+@@ ;
+@@ ;
+@@ ;       count=getdbfs();
+@@ ;
+@@      CALL    _getdbfs
+@@      mov     COUNT,ax
+@@ ;
+@@ ;
+@@ ;
+@@ ;    next_stage:
+@@ ;        if (count>1)
+@@ ;
+@@      cmp     COUNT,1
+@@      jle     @3@362
+@@ ;
+@@ ;        {
+@@ ;              strcpy(dsnames@<count@>," ");
+@@ ;
+@@      mov     ax,offset DGROUP:s@+458
+@@      push    ax
+@@      mov     ax,COUNT
+@@      mov     dx,45
+@@      imul    dx
+@@      add     ax,offset DGROUP:_dsnames
+@@      push    ax
+@@      call    near ptr _strcpy
+@@      pop     cx
+@@      pop     cx
+@@ ;
+@@ ;              pointers@<count@>=(char *)&dsnames@<count@>;
+@@ ;
+@@      mov     ax,COUNT
+@@      mov     dx,45
+@@      imul    dx
+@@      add     ax,offset DGROUP:_dsnames
+@@      mov     bx,COUNT
+@@      shl     bx,1
+@@      mov     _pointers@<bx@>,ax
+@@ ;
+@@ ;
+@@ ;    //        shell(&pointers@<0@>,count);
+@@ ;    //        for (R1 = 0; R1 < count; R1++)
+@@ ;    //           printf("%s\n", pointers@<R1@>);
+@@ ;
+@@ ;      /*      count --; */
+@@ ;
+@@ ;              display_dbf(&pointers@<0@>,count);
+@@ ;
+@3@338:
+@@      push    COUNT
+@@      mov     ax,offset DGROUP:_pointers
+@@      push    ax
+@@      call    near ptr _display_dbf
+@@      pop     cx
+@@      pop     cx
+@@ ;
+@@ ;        }
+@@ ;
+@@      B       @3@434
+@3@362:
+@@ ;
+@@ ;        else  if (count ==1)
+@@ ;
+@@      cmp     COUNT,1
+@@      BNE     @3@410
+@@      B       @3@338
+@3@410:
+@@ ;
+@@ ;              display_dbf(&pointers@<0@>,count);
+@@ ;
+@@ ;        else
+@@ ;        {
+@@ ;              Syspfk = 7;
+@@ ;
+@@      mov     SYSPFK,7
+@@ ;
+@@ ;              goto getdbf_again;
+@@ ;
+@@      B       @3@266
+@3@434:
+@@ ;
+@@ ;
+@@ ;              display_ctr("No Files to Select",10);
+@@ ;              display_ctr("Press Any Key",12);
+@@ ;              getkey();
+@@ ;              return(99);
+@@ ;        }
+@@ ;
+@@ ;        if (Syspfk !=0)
+@@ ;
+@@      cmp     SYSPFK,0
+@@      BNE     @3@266
+@@ ;
+@@ ;            goto getdbf_again;
+@@ ;
+@@ ;        clrscr();
+@@ ;
+@@      call    near ptr _clrscr
+@@ ;
+@@ ;
+@@ ;        if (return_dsname@<0@> == '\'')
+@@ ;
+@@      cmp     byte ptr DGROUP:_return_dsname,39
+@@      BNE     @3@506
+@@ ;
+@@ ;        {
+@@ ;            strcpy(return_dsname,&return_dsname@<1@>);
+@@ ;
+@@      mov     ax,offset DGROUP:_return_dsname+1
+@@      push    ax
+@@      mov     ax,offset DGROUP:_return_dsname
+@@      push    ax
+@@      call    near ptr _strcpy
+@@      pop     cx
+@@      pop     cx
+@@ ;
+@@ ;            return_dsname@<strlen(return_dsname)-1@> ='\0';
+@@ ;
+@@      mov     ax,offset DGROUP:_return_dsname
+@@      push    ax
+@@      call    near ptr _strlen
+@@      pop     cx
+@@      dec     ax
+@@      mov     bx,ax
+@@      mov     byte ptr DGROUP:_return_dsname@<bx@>,0
+@3@506:
+@@ ;
+@@ ;        }
+@@ ;
+@@ ;    #if defined(FULL_JOL)
+@@ ;        memcpy(symbolic,"SHOWSEL ",8);
+@@ ;        if (strchr(return_dsname,'=') != NULL)
+@@ ;        {
+@@ ;            strcpy(work_string,"\'\'\'");
+@@ ;            strcat(work_string,return_dsname);
+@@ ;            strcat(work_string,"\'\'\'");
+@@ ;            x@<1@>=work_string;
+@@ ;        }
+@@ ;        else
+@@ ;           x@<1@>=return_dsname;
+@@ ;
+@@ ;        set_macro();
+@@ ;        ujp85asn();
+@@ ;        return 0;
+@@ ;    #else
+@@ ;        strcpy(work_string,"SHOWSEL='");
+@@ ;
+@@      mov     ax,offset DGROUP:s@+493
+@@      push    ax
+@@      mov     ax,offset DGROUP:_work_string
+@@      push    ax
+@@      call    near ptr _strcpy
+@@      pop     cx
+@@      pop     cx
+@@ ;
+@@ ;        strcat(work_string,return_dsname);
+@@ ;
+@@      mov     ax,offset DGROUP:_return_dsname
+@@      push    ax
+@@      mov     ax,offset DGROUP:_work_string
+@@      push    ax
+@@      call    near ptr _strcat
+@@      pop     cx
+@@      pop     cx
+@@ ;
+@@ ;        strcat(work_string,"';");
+@@ ;
+@@      mov     ax,offset DGROUP:s@+503
+@@      push    ax
+@@      mov     ax,offset DGROUP:_work_string
+@@      push    ax
+@@      call    near ptr _strcat
+@@      pop     cx
+@@      pop     cx
+@@ ;
+@@ ;
+@@ ;        if (to_jol(work_string) !=0)
+@@ ;
+@@      mov     ax,offset DGROUP:_work_string
+@@      push    ax
+@@      call    near ptr _to_jol
+@@      pop     cx
+@@      or      ax,ax
+@@      je      @3@554
+@@ ;
+@@ ;            return(99);
+@@ ;
+@@      mov     ax,99
+@@      B       @3@578
+@3@554:
+@@ ;
+@@ ;
+@@ ;        return(0);
+@@ ;
+@@      xor     ax,ax
+@3@578:
+@@ ;
+@@ ;
+@@ ;    #endif
+@@ ;
+@@ ;
+@@ ;    }
+@@ ;
+@@      pop     di
+@@      pop     COUNT
+@@      mov     sp,bp
+@@      pop     bp
+@@      ret
+@@      LTORG
+@@ ;
+@@ ;
+@@ ;    void print_heads_dbf()
+@@ ;
+PRTHEADS JOLSAVE CSECT=PRTHEADS
+@@ ;
+@@ ;    {
+#DISPXXX DC  AL2(DISPXXXE-*)
+DISPXXX  DC  C'Jol Data Base of Data Sets'
+DISPXXXE DS  0H
+@@ ;
+#MSG2    DC     AL2(MSG2E-*)
+MSG2     DC  C'Use Cursor Keys to Select Data Set.'
+MSG2E DS     0H
+@@ ;
+#MSG3    DC     AL2(MSG3E-*)
+MSG3     DC  C'F3 or Enter Selects Data Set. F7 Previous Screen; F8 for Next."
+MSG3E DS     0H
+@@ ;
+@@ ;
+@@ ;        clrscr();
+@@ ;
+@@      CALL    CLRSCR
+@@ ;
+@@ ;
+@@ ;        display_ctr(display_xxx,21);
+@@ ;
+@@      LA      R0,21                  Row number
+@@      LA      R1,#DISPXXX
+@@      CALL    _DISPLAY_CTR
+@@ ;
+@@ ;
+@@ ;     /* display_ctr(x@<2)@>,21); */
+@@ ;
+@@ ;    #ifdef __ZTC__
+@@ ;    #elif defined(__TURBOC__)
+@@ ;        if (directvideo)  highvideo();
+@@ ;
+@@      cmp     _directvideo,0
+@@      je      @5@74
+@@      call    near ptr _highvideo
+@5@74:
+@@ ;
+@@ ;    #endif
+@@ ;
+@@ ;        display_str(reverse);
+@@ ;
+@@      mov     ax,offset DGROUP:reverse
+@@      push    ax
+@@      call    near ptr _display_str
+@@      pop     cx
+@@ ;
+@@ ;
+@@ ;        display_ctr(select_msg,0); // a Data Set Name, Model or Printer",0);
+@@ ;
+@@      SR      R0,R0                  Row number
+@@      LA      R1,#select_msg
+@@      CALL    _DISPLAY_CTR
+@@ ;
+@@ ;        puts("");                  /* Force a new line */
+@@ ;
+@@ ;
+@@ ;        puts("");                  /* Force a new line */
+@@ ;
+@@ ;
+@@ ;        display_str(select_ddname);
+@@ ;
+@@      LA      R1,#select_ddname
+@@      CALL    _DISPLAY_STR
+@@ ;
+@@ ;        display_ctr(message2,23);
+@@ ;
+@@      LA      R0,23                  Row number
+@@      LA      R1,#MSG2
+@@      CALL    _DISPLAY_CTR
+@@ ;
+@@ ;
+@@ ;
+@@ ;        display_ctr(message3,24);
+@@ ;
+@@      LA      R0,23                  Row number
+@@      LA      R1,#MSG3
+@@      CALL    _DISPLAY_CTR
+@@ ;
+@@ ;    #ifdef __ZTC__
+@@ ;    #elif defined(__TURBOC__)
+@@ ;        if (directvideo) lowvideo();
+@@ ;
+@@      cmp     _directvideo,0
+@@      je      @5@122
+@@      call    near ptr _lowvideo
+@5@122:
+@@ ;
+@@ ;    #endif
+@@ ;     /* call cputs(addr(reverse)); */
+@@ ;
+@@ ;        display_str(reverse);
+@@ ;
+@@      mov     ax,offset DGROUP:reverse
+@@      push    ax
+@@      call    near ptr _display_str
+@@      pop     cx
+@@ ;
+@@ ;    }    /* Headings */
+@@ ;
+@@      JOLRETN
+@@      LTORG
+@@ ;
+@@ ;
+@@ ;
+@@ ;
+@@ ;
+@@ ;    display_dbf(char *pointers@<@>,int count)
+@@ ;
+DISPDBF JOLSAVE CSECT=DISPDBF
+@@ ;
+@@ ;    {
+@@ ;      /* Displays files across the screen.  Allows user to use Cursor
+@@ ;         keys to select files.
+@@ ;      */
+@@ ;     int R1,R9;
+@@ ;
+@@ ;     /*
+@@ ;     dcl based_f_name            char(14) based; */
+@@ ;
+@@ ;
+@@ ;        for (R1=1;R1<=(MAXDBF/MAX_DSNS_PER_SCREEN);R1++)
+@@ ;
+@@      LA      R1,1
+@@      B       @6@122
+@6@50:
+@@ ;
+@@ ;        {
+@@ ;               control.start@<R1@>=((R1-1)*MAX_DSNS_PER_SCREEN)+1;
+@@ ;
+@@      LR      R15,R1
+@@      BCTR    R15,0
+@@      MH      R15,=H'17'
+@@      LA      R15,1(R15)
+@@      LR      R14,R1
+@@      SLL     R14,1
+@@      STH     R15,control+2(R14)          ?????????/
+@@ ;    STH     R15,control@<bx+2@>,ax
+@@ ;
+@@ ;               control.stop@<R1@>=R1*MAX_DSNS_PER_SCREEN;
+@@ ;
+@@      LR      R15,R1
+@@      MH      R15,=H'17'
+@@      LR      R14,R1
+@@      SLL     R14,1
+@@      STH     R15,control+6(R14)
+@@ ;
+@@ ;
+@@ ;               if(control.stop@<R1@>>count)
+@@ ;
+@@      LR      R15,R1
+@@      SLL     R15,1
+@@      CH      control+6(R15),COUNT
+@@      BLE     @6@98
+@@ ;    jle     @6@98
+@@ ;
+@@ ;               {
+@@ ;                  control.stop@<R1@>=count;
+@@ ;
+@@      LR      R15,R1
+@@      SLL     R15,1
+@@      STH     COUNT,control+6(R15)
+@@ ;
+@@ ;                  goto done;
+@@ ;
+@@      B       @6@146
+@6@98:
+@@      LA      R1,1(R1)
+@6@122:
+@@      CH      R1,=H'1'
+@@      BLE     @6@50
+@@ ;    jle     @6@50
+@6@146:
+@@ ;
+@@ ;               }
+@@ ;        }
+@@ ;
+@@ ;    done:
+@@ ;
+@@ ;        control.noscreens =R1;
+@@ ;
+@@      STH     CONTROL,R1
+@@ ;
+@@ ;
+@@ ;        if ((control.noscreens-1)*MAX_DSNS_PER_SCREEN==count)
+@@ ;
+@@      LH      R15,CONTROL
+@@      BCTR    R15,0
+@@      MH      R15,=H'17'
+@@      CH      R15,COUNT
+@@      BNE     @6@194
+@@ ;
+@@ ;            control.noscreens=control.noscreens-1;
+@@ ;
+@@      LH      R15,CONTROL
+@@      BCTR    R15,0
+@@      STH     R15,CONTROL
+@6@194:
+@@ ;
+@@ ;
+@@ ;        R1=1;
+@@ ;
+@@      LA      R1,1
+@6@218:
+@@ ;
+@@ ;    display2:
+@@ ;        display_screen_dbf(&pointers@<0@>,
+@@ ;                           control.start@<R1@>,
+@@ ;                           control.stop@<R1@>);
+@@ ;
+@@      mov     bx,R1
+@@      shl     bx,1
+@@      push    _control@<bx+6@>
+@@      mov     bx,R1
+@@      shl     bx,1
+@@      push    _control@<bx+2@>
+@@      push    word ptr @<bp+4@>
+@@      call    near ptr _display_screen_dbf
+@@      add     sp,6
+@@ ;
+@@ ;        if(Syspfk==3) return;
+@@ ;
+@@      CLI     SYSPFK,3
+@@      je      @6@602
+@@ ;
+@@ ;        if(Syspfk==2) return;
+@@ ;
+@@      CLI     SYSPFK,2
+@@      je      @6@602
+@@ ;
+@@ ;        if(Syspfk==0
+@@ ;
+@@ ;
+@@ ;          && Binary_Input_Char==13) return;
+@@ ;
+@@      CLI     SYSPFK,0
+@@      BNE     @6@314
+@@      CLI     _Key_Board_Values+2,13
+@@      je      @6@602
+@6@314:
+@@ ;
+@@ ;        if( Syspfk==8)
+@@ ;
+@@      CLI     SYSPFK,8
+@@      BNE     @6@458
+@@ ;
+@@ ;        {
+@@ ;           return;
+@@ ;
+@@      B       @6@602
+@@      B       @6@506
+@@      B       @6@530
+@@ ;
+@@ ;
+@@ ;           if(R1+1>control.noscreens)
+@@ ;           {
+@@ ;               putchar('\a');
+@@ ;           }
+@@ ;           else R1=R1+1;
+@@ ;
+@@      LA      R1,1(R1)
+@@ ;
+@@ ;           goto display2;
+@@ ;
+@@      B       @6@218
+@6@458:
+@@ ;
+@@ ;        }
+@@ ;        if(Syspfk==7)
+@@ ;
+@@      CLI     SYSPFK,7
+@@      BNE     @6@218
+@@ ;
+@@ ;        {
+@@ ;           return;
+@@ ;
+@@      B       @6@602
+@6@506:
+@@      BEEP
+@6@530:
+@@ ;
+@@ ;           if(R1-1<1)
+@@ ;           {
+@@ ;               putchar('\a');
+@@ ;           }
+@@ ;
+@@      B       @6@218
+@@ ;
+@@ ;           else R1=R1-1;
+@@ ;
+@@      BCTR    R1,0
+@@ ;
+@@ ;           goto display2;
+@@ ;
+@@      B       @6@218
+@6@602:
+@@ ;
+@@ ;        }
+@@ ;        goto display2;
+@@ ;
+@@ ;    /*
+@@ ;        control.start_posn=1;
+@@ ;        for (R1=control.start_posn;control.start+posn<=count;R1++)
+@@ ;           R9=R1-1;
+@@ ;           call GoToRC(R9/5+2,(R9%5))*16);
+@@ ;           display_f=pointers(R1)->based_f_name;
+@@ ;           call cputs(addr(display_f));
+@@ ;        }
+@@ ;     */
+@@ ;
+@@ ;    }
+@@ ;
+@@      JOLRETN  RC=0
+@@      LTORG
+@@ ;
+@@ ;
+@@ ;
+DISPSCRN JOLSAVE CSECT=DISPSCRN
+@@ ;
+@@ ;    display_screen_dbf(char *pointers@<@>,
+@@ ;
+@@      assume  cs:_TEXT
+_display_screen_dbf     proc    near
+@@      push    bp
+@@      mov     bp,sp
+@@      push    si
+@@      push    di
+@@      mov     si,word ptr @<bp+4@>
+@@      mov     di,word ptr @<bp+6@>
+@@ ;
+@@ ;                        int start,int stop)  /*INTERNAL PROCEDURE */
+@@ ;    {
+@@ ;      /* Calculate the position for the data set name.
+@@ ;         We want the list to go down the left hand side of the screen,
+@@ ;         then down the second column etc.
+@@ ;
+@@ ;         HOWEVER, if there are not enough items to totally fill the screen,
+@@ ;         then we won't run all the way down the left, but calculate how
+@@ ;         many we can fit across the screen and do it. It's neater.
+@@ ;      */
+@@ ;        /* The basic routine calculates as follows:-
+@@ ;
+@@ ;             ROW=mod(number,maxrows)
+@@ ;             COL=number/maxrows * 16;
+@@ ;
+@@ ;             There is a problem on the second screen, and another
+@@ ;             on the last screen.
+@@ ;
+@@ ;        */
+@@ ;
+@@ ;
+@@ ;        print_heads_dbf();
+@@ ;
+@@      CALL    PRTHEADS
+@@ ;
+@@ ;
+@@ ;        no_of_files_to_do=stop-start;
+@@ ;
+@@      mov     ax,word ptr @<bp+8@>
+@@      sub     ax,di
+@@      mov     _no_of_files_to_do,ax
+@@ ;
+@@ ;
+@@ ;        norows=no_of_files_to_do+1;
+@@ ;
+@@      inc     ax
+@@      mov     _norows,ax
+@@ ;
+@@ ;
+@@ ;
+@@ ;        if(no_of_files_to_do == norows*5)  norows=norows-1;
+@@ ;
+@@      mov     dx,5
+@@      imul    dx
+@@      cmp     ax,_no_of_files_to_do
+@@      BNE     @7@74
+@@      mov     ax,_norows
+@@      dec     ax
+@@      mov     _norows,ax
+@7@74:
+@@ ;
+@@ ;
+@@ ;        offset=start-1;
+@@ ;
+@@      mov     ax,di
+@@      dec     ax
+@@      mov     _offset,ax
+@@ ;
+@@ ;        stop2=stop-start;
+@@ ;
+@@      mov     ax,word ptr @<bp+8@>
+@@      sub     ax,di
+@@      mov     _stop2,ax
+@@ ;
+@@ ;
+@@ ;        for ( R1=0; R1<=stop2; R1++)
+@@ ;
+@@      mov     _R1,0
+@@      B       @7@146
+@7@98:
+@@ ;
+@@ ;        {
+@@ ;            curs_row=(R1 % norows)+2;
+@@ ;
+@@      mov     ax,_R1
+@@      cwd
+@@      idiv    _norows
+@@      inc     dx
+@@      inc     dx
+@@      mov     _curs_row,dx
+@@ ;
+@@ ;            curs_col=10; /* R1/norows; */
+@@ ;
+@@      mov     _curs_col,10
+@@ ;
+@@ ;            gotorc(curs_row + 1,25 /* (curs_col*16) + 1*/ );
+@@ ;
+@@      mov     ax,_curs_row
+@@      inc     ax
+@@      push    ax
+@@      mov     ax,25
+@@      push    ax
+@@      call    near ptr _gotoxy
+@@      pop     cx
+@@      pop     cx
+@@ ;
+@@ ;            cputs(pointers@<R1+offset@>);
+@@ ;
+@@      mov     bx,_R1
+@@      add     bx,_offset
+@@      shl     bx,1
+@@      push    word ptr @<bx+si@>
+@@      call    near ptr _cputs
+@@      pop     cx
+@@      inc     _R1
+@7@146:
+@@      mov     ax,_R1
+@@      cmp     ax,_stop2
+@@      jle     @7@98
+@7@170:
+@@ ;
+@@ ;
+@@ ;    /*      display_f=pointers(R1+offset) -> based_f_name;
+@@ ;            cputs(addr(display_f)); */
+@@ ;        }
+@@ ;
+@@ ;    restart:
+@@ ;
+@@ ;        curs_row=2;
+@@ ;
+@@      mov     _curs_row,2
+@@ ;
+@@ ;        curs_col=0;
+@@ ;
+@@      mov     _curs_col,0
+@7@194:
+@@ ;
+@@ ;
+@@ ;    loop:
+@@ ;        R1=(curs_col*norows)+curs_row-2;
+@@ ;
+@@      mov     ax,_curs_col
+@@      imul    _norows
+@@      add     ax,_curs_row
+@@      add     ax,65534
+@@      mov     _R1,ax
+@@ ;
+@@ ;        if(R1+offset>=stop) goto restart;
+@@ ;
+@@      add     ax,_offset
+@@      cmp     ax,word ptr @<bp+8@>
+@@      jge     @7@170
+@@ ;
+@@ ;        gotorc(curs_row + 1, 25 /* (curs_col*16) + 1*/ );
+@@ ;
+@@      mov     ax,_curs_row
+@@      inc     ax
+@@      push    ax
+@@      mov     ax,25
+@@      push    ax
+@@      call    near ptr _gotoxy
+@@      pop     cx
+@@      pop     cx
+@@ ;
+@@ ;
+@@ ;    /*  if( directwrite) then*/
+@@ ;        display_str(reverse);
+@@ ;
+@@      mov     ax,offset DGROUP:reverse
+@@      push    ax
+@@      call    near ptr _display_str
+@@      pop     cx
+@@ ;
+@@ ;        display_str/* cputs*/ (pointers@<R1+offset@>);
+@@ ;
+@@      mov     bx,_R1
+@@      add     bx,_offset
+@@      shl     bx,1
+@@      push    word ptr @<bx+si@>
+@@      call    near ptr _display_str
+@@      pop     cx
+@@ ;
+@@ ;
+@@ ;        strcpy(return_dsname,pointers@<R1+offset@>);
+@@ ;
+@@      mov     bx,_R1
+@@      add     bx,_offset
+@@      shl     bx,1
+@@      push    word ptr @<bx+si@>
+@@      mov     ax,offset DGROUP:_return_dsname
+@@      push    ax
+@@      call    near ptr _strcpy
+@@      pop     cx
+@@      pop     cx
+@@ ;
+@@ ;
+@@ ;     /* if IBM_Direct_Write  then
+@@ ;        call cputs(addr(reverse));   /* ordinary */
+@@ ;
+@@ ;        display_str(reverse);
+@@ ;
+@@      mov     ax,offset DGROUP:reverse
+@@      push    ax
+@@      call    near ptr _display_str
+@@      pop     cx
+@@ ;
+@@ ;        gotorc(curs_row + 1,25 /*(curs_col*16) + 1*/ );
+@@ ;
+@@      mov     ax,_curs_row
+@@      inc     ax
+@@      push    ax
+@@      mov     ax,25
+@@      push    ax
+@@      call    near ptr _gotoxy
+@@      pop     cx
+@@      pop     cx
+@7@242:
+@@ ;
+@@ ;
+@@ ;    get_key:
+@@ ;        getkey();
+@@ ;
+@@      call    near ptr _getkey
+@@ ;
+@@ ;
+@@ ;    /*  display_str(reverse); */
+@@ ;        display_str(return_dsname);       /* Pop out non-reversed name */
+@@ ;
+@@      mov     ax,offset DGROUP:_return_dsname
+@@      push    ax
+@@      call    near ptr _display_str
+@@      pop     cx
+@@ ;
+@@ ;
+@@ ;        if(! Cntl)
+@@ ;
+@@      cmp     _Key_Board_Values,0
+@@      BNE     @7@362
+@7@266:
+@@ ;
+@@ ;        {
+@@ ;    make_beep:
+@@ ;           putchar('\a');
+@@ ;
+@@      inc     __streams+16
+@@      jge     @7@314
+@@      mov     bx,__streams+26
+@@      inc     __streams+26
+@@      mov     al,7
+@@      mov     byte ptr @<bx@>,al
+@@      mov     ah,0
+@@      B       @7@338
+@7@314:
+@@      mov     ax,offset DGROUP:__streams+16
+@@      push    ax
+@@      mov     al,7
+@@      push    ax
+@@      call    near ptr __fputc
+@@      pop     cx
+@@      pop     cx
+@7@338:
+@@ ;
+@@ ;           goto get_key;
+@@ ;
+@@      B       @7@242
+@7@362:
+@@ ;
+@@ ;        }
+@@ ;        if(Syspfk==3
+@@ ;
+@@ ;
+@@ ;        ¦¦ Syspfk==2
+@@ ;        ¦¦ Syspfk==7
+@@ ;        ¦¦ Syspfk==8) return;
+@@ ;
+@@      cmp     SYSPFK,3
+@@      BNE     @@5
+@@      B       @7@1010
+@@5:
+@@      cmp     SYSPFK,2
+@@      BNE     @@6
+@@      B       @7@1010
+@@6:
+@@      cmp     SYSPFK,7
+@@      BNE     @@7
+@@      B       @7@1010
+@@7:
+@@      cmp     SYSPFK,8
+@@      BNE     @@8
+@@      B       @7@1010
+@@8:
+@@ ;
+@@ ;
+@@ ;        if(Syspfk==0
+@@ ;
+@@ ;
+@@ ;        && Binary_Input_Char==13) return;
+@@ ;
+@@      cmp     SYSPFK,0
+@@      BNE     @7@506
+@@      cmp     _Key_Board_Values+2,13
+@@      BNE     @@9
+@@      B       @7@1010
+@@9:
+@7@506:
+@@ ;
+@@ ;        if(Binary_Input_Char==75)        /* Left */
+@@ ;
+@@      cmp     _Key_Board_Values+2,75
+@@      BNE     @7@578
+@@ ;
+@@ ;           curs_col=curs_col-1;
+@@ ;
+@@      mov     ax,_curs_col
+@@      dec     ax
+@7@554:
+@@      mov     _curs_col,ax
+@@      B       @7@794
+@7@578:
+@@ ;
+@@ ;        else if(Binary_Input_Char==77)   /* Right*/
+@@ ;
+@@      cmp     _Key_Board_Values+2,77
+@@      BNE     @7@626
+@@ ;
+@@ ;           curs_col=curs_col+1;
+@@ ;
+@@      mov     ax,_curs_col
+@@      inc     ax
+@@      B       @7@554
+@7@626:
+@@ ;
+@@ ;        else if(Binary_Input_Char==80)   /* Down */
+@@ ;
+@@      cmp     _Key_Board_Values+2,80
+@@      BNE     @7@674
+@@ ;
+@@ ;           curs_row=curs_row+1;
+@@ ;
+@@      mov     ax,_curs_row
+@@      inc     ax
+@@      B       @7@722
+@7@674:
+@@ ;
+@@ ;        else if(Binary_Input_Char==72)   /* Up   */
+@@ ;
+@@      cmp     _Key_Board_Values+2,72
+@@      BNE     @7@746
+@@ ;
+@@ ;           curs_row=curs_row-1;
+@@ ;
+@@      mov     ax,_curs_row
+@@      dec     ax
+@7@722:
+@@      mov     _curs_row,ax
+@@      B       @7@794
+@7@746:
+@@ ;
+@@ ;        else if(Binary_Input_Char==3)    /* ^C   */
+@@ ;
+@@      cmp     _Key_Board_Values+2,3
+@@      je      @@10
+@@      B       @7@266
+@@10:
+@@ ;
+@@ ;           goto Goback;                  /* Emergency Exit */
+@@ ;
+@@      B       @7@1010
+@7@794:
+@@ ;
+@@ ;        else goto make_beep;
+@@ ;     /*   cputs(addr(display_f)); */
+@@ ;        if(curs_col>4) { curs_col=0; curs_row=curs_row+1; }
+@@ ;
+@@      cmp     _curs_col,4
+@@      jle     @7@842
+@@      mov     _curs_col,0
+@@      mov     ax,_curs_row
+@@      inc     ax
+@@      mov     _curs_row,ax
+@7@842:
+@@ ;
+@@ ;        if(curs_col<0) { curs_col=4; curs_row=curs_row-1; }
+@@ ;
+@@      cmp     _curs_col,0
+@@      jge     @7@890
+@@      mov     _curs_col,4
+@@      mov     ax,_curs_row
+@@      dec     ax
+@@      mov     _curs_row,ax
+@7@890:
+@@ ;
+@@ ;        if(curs_row>norows+1) curs_row=2;
+@@ ;
+@@      mov     ax,_norows
+@@      inc     ax
+@@      cmp     ax,_curs_row
+@@      jge     @7@938
+@@      mov     _curs_row,2
+@7@938:
+@@ ;
+@@ ;        if(curs_row<2)  curs_row=norows+1;
+@@ ;
+@@      cmp     _curs_row,2
+@@      jl      @@11
+@@      B       @7@194
+@@11:
+@@      mov     ax,_norows
+@@      inc     ax
+@@      mov     _curs_row,ax
+@@ ;
+@@ ;        goto loop;
+@@ ;
+@@      B       @7@194
+@7@1010:
+@@ ;
+@@ ;    Goback:
+@@ ;        ;
+@@ ;    }
+@@ ;
+@@      pop     di
+@@      pop     si
+@@      pop     bp
+@@      ret
+_display_screen_dbf     endp
+_TEXT   ends
+_BSS    segment word public 'BSS'
+_return_dsname  label   byte
+@@      db      46 dup (?)
+_dsnames        label   byte
+@@      db      1125 dup (?)
+@@      db      1 dup (?)
+_R1     label   word
+@@      db      2 dup (?)
+_R9     label   word
+@@      db      2 dup (?)
+_dbf_fsize      label   word
+@@      db      2 dup (?)
+_dsnfile        label   word
+@@      db      2 dup (?)
+_control        label   word
+@@      db      10 dup (?)
+_norows label   word
+@@      db      2 dup (?)
+_dd_dbf label   word
+@@      db      2 dup (?)
+_pointers       label   word
+@@      db      50 dup (?)
+_ee     label   word
+@@      db      108 dup (?)
+_stop2  label   word
+@@      db      2 dup (?)
+_key    label   word
+@@      db      2 dup (?)
+_thisno label   word
+@@      db      2 dup (?)
+_start2 label   word
+@@      db      2 dup (?)
+_retn   label   word
+@@      db      2 dup (?)
+_maxcol label   word
+@@      db      2 dup (?)
+_start_posn     label   word
+@@      db      2 dup (?)
+_no_of_files_to_do      label   word
+@@      db      2 dup (?)
+_nameindex      label   word
+@@      db      1084 dup (?)
+_curs_col       label   word
+@@      db      2 dup (?)
+_curs_row       label   word
+@@      db      2 dup (?)
+_maxrows        label   word
+@@      db      2 dup (?)
+_maxrows2       label   word
+@@      db      2 dup (?)
+_offset label   word
+@@      db      2 dup (?)
+_first_dsn      label   byte
+@@      db      47 dup (?)
+_temp_path      label   byte
+@@      db      80 dup (?)
+@@      db      1 dup (?)
+_select_msg     label   word
+@@      db      2 dup (?)
+_dbf_open       label   word
+@@      db      2 dup (?)
+_select_type    label   byte
+@@      db      1 dup (?)
+@@      ?debug  C E9
+_BSS    ends
+_DATA   segment word public 'DATA'
+_DATA   ends
+_TEXT   segment byte public 'CODE'
+_TEXT   ends

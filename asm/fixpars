@@ -1,0 +1,148 @@
+         PRINT  OFF                                               J52   00010000
+         COPY  JOLCOM                                             J52   00020000
+         PRINT ON,DATA                                            J52   00030000
+         JOLSAVE CSECT=UJP04FXP                                   J52   00040000
+* NOW WHAT I INTEND TO DO HERE IS TO COPY TO THE AREA 'WORK' THE TOKEN  00050000
+*    STRING PRETTY WELL AS IS EXCEPT THAT ANY SYMBOLIC PARAMETER        00060000
+*    IS GOING TO HAVE QUOTES DROPPED AROUND IT                          00070000
+*    IF %A ='A' WILL THEN LOOK LIKE IF'%A'¬ 'A'.THIS IS NECESSARY       00080000
+* BECAUSE I DON'T WANT THE PROGRAMMER TO BE FORCED TO SAY IF '%A'='A'   00090000
+*** NOTE THAT THIS DOES LIMIT THE IF STATMENT A LITTLE BECAUSE          00100000
+*    BY RIGHT HE SHOULD BE ABLE TO SAY'IF %X' WHERE %X='X ¬=0' BUT      00110000
+*    THIS MINOR PROBLEM WILL BE FIXED UP IN A LATER RELEASE             00120000
+           MVC #WORK,=H'2'                                              00130000
+           LA  R1,WORK                                          80290   00140000
+           USING  WORK,R1                                       80290   00150000
+           CLEAR WORK                                                   00160000
+           DROP R1                                                      00170000
+           MVC TKNCURR,=H'1'                   START AT TKN(1)    J52   00180000
+*                                              THE 'IF' WHICH IS NO     00190000
+*                                              LONGER REQUIRED          00200000
+           SPACE 2                                                      00210000
+* NOW SET UP A FEW INITAL VALUES                                        00220000
+           SR  R6,R6                           USED AS A TEMPORARY      00230000
+*                                              HOLDING AREA FOR THE     00240000
+*                                              PREVIOUS TKNTYPE SO      00250000
+*                                              THAT WHEN CONCATENATING  00260000
+*                                              I CAN CHECK THAT IF      00270000
+*                                              EITHER TOKEN IS A SPECIA 00280000
+*                                              L CHARACTER NO INTERVEN- 00290000
+*                                              ING BLANKS ARE REQUIRED  00300000
+           SR R6,R6                            SET INITIALLY TO SPECIAL 00310000
+*                                              FOR THE ABOVE REASON.    00320000
+           LA  R7,WORK                         R7 IS USED TO CONTAIN    00330000
+*                                              THE ADDRESS OF THE       00340000
+*                                              NEXT POSITION TO MOVE    00350000
+*                                              A TOKEN TO IN WORK STRIN 00360000
+*                                              -G                       00370000
+           LA  R8,L'WORK(R7)                   R8 IS THE STOP ADDR      00380000
+P04QELUP   CLC TKNCURR,TKNNO                   DONE THEM ALL?     74303 00390000
+           BH  P04QUEND                        YEP,ADJUST #WORK OR74303 00400000
+*                                              LENGTH OF WORK           00410000
+           GETTKN LOCN=TKNCURR                                          00420000
+           STH R1,TKNCURR                                               00430000
+           CH  R6,=H'1'                        PREVIOUS TOKEN A SPECIAL 00440000
+*                                              CHARACTER ?              00450000
+           BE  P04SPEC1                                           74303 00460000
+           CLI TKNTYPE,1                       IS THIS ONE A SPECIAL ?  00470000
+           BE  P04SPEC1                                           74303 00480000
+* WELL I THINK WE HAD BETTER MOVE A BLANK IN TO BE SAFE                 00490000
+           MVI 0(R7),C' '                                               00500000
+           LA  R7,1(R7)                                                 00510000
+P04SPEC1   EQU *                                                  74303 00520000
+           IC  R6,TKNTYPE                      SAVE THIS TOKENS TYPE    00530000
+           CLI TKN,C'%'                        SYMBOLIC PARM ?          00540000
+           BNE P04CONTK                        NO,SO MERELY ||    74303 00550000
+*                                              IT INTO WORK AFTER TEST- 00560000
+*                                              ING THAT IT WILL FIT OK  00570000
+           MVI 0(R7),C''''                                              00580000
+           LA  R7,1(R7)                                                 00590000
+P04CONTK   LH  R14,#TKN                        LENGTH OF TKN      74303 00600000
+           LA  R15,0(R7,R14)                   ADDR AREA NEXT + L'TKN   00610000
+           CR  R15,R8                           WILL IT FIT             00620000
+           BH  P04TOOB                         -NO,GIVE ERROR     74303 00630000
+           BCTR R14,0                          -1 FOR MOVE              00640000
+           EX  R14,P04MUV2                     MOVE OR ||         74303 00650000
+*                                              #TKN TO #WORK            00660000
+           LR  R7,R15                                                   00670000
+           CLI TKN,C'%'                        SYMBOLIC PARM ?          00680000
+           BNE P04QELUP                                           74303 00690000
+* NOW WE MUST SEE IF THIS SYMBOLIC IS A %LIST,AND IF SO                 00700000
+*     TAKE SPECIAL ACTION                                               00710000
+           CLC =C'%LIST',TKN                                            00720000
+           BE  P04LIST1                                           75311 00730000
+           CLC =C'%CARD ',TKN                                     75311 00740000
+           BNE P04NLIST                        NO,SHIFT IN QUOTE        00750000
+P04LIST1   EQU *                                                  75311 00760000
+           GETTKN TKNCURR                      GET THE '('              00770000
+           CLI TKN,C'('                                                 00780000
+           BNE P04NLIST                                                 00790000
+           MVI 0(R7),C'('                                               00800000
+***************************************************                     00810000
+***** TAKING A CHANCE THAT STRING WONT GET TOO BIG                      00820000
+***************************************************                     00830000
+           LA R7,1(R7)                                                  00840000
+           GETTKN (1)                                                   00850000
+P04SIGNC   EQU *                                                  75311 00860000
+           STH R1,TKNCURR                                               00870000
+           LH R14,#TKN                                                  00880000
+           LA  R15,0(R7,R14)                   ADDR AREA NEXT + L'TKN   00890000
+           CR  R15,R8                           WILL IT FIT             00900000
+           BH  P04TOOB                         -NO,GIVE ERROR     74303 00910000
+           BCTR R14,0                          -1 FOR MOVE              00920000
+           EX  R14,P04MUV2                     MOVE OR ||         74303 00930000
+*                                              #TKN TO #WORK            00940000
+           LR  R7,R15                                                   00950000
+           GETTKN TKNCURR                                               00960000
+            STH R1,TKNCURR                                              00970000
+           CLI  TKN,C')'                                                00980000
+           BE  P04ELIST        END OF LIST | CARD ITEM            75311 00990000
+           CLI TKN,C'+'                                           75311 01000000
+           BE  P04SIGN                                            75311 01010000
+           CLI TKN,C'-'                                           75311 01020000
+           BNE P04NLIST                                           75311 01030000
+P04SIGN    MVC 0(1,R7),TKN                                        75311 01040000
+           LA  R7,1(R7)                                           75311 01050000
+           GETTKN (R1)                                            75311 01060000
+           B   P04SIGNC                                           75311 01070000
+P04ELIST   EQU *                                                  75311 01080000
+           BNE P04NLIST                                                 01090000
+           MVI 0(R7),C')'                                               01100000
+           LA R7,1(R7)                                                  01110000
+P04NLIST   EQU *                                                        01120000
+           MVI 0(R7),C''''                                              01130000
+           LA  R7,1(R7)                                                 01140000
+           B   P04QELUP                                           74303 01150000
+P04MUV2    MVC 0(*-*,R7),TKN                   *** EXECUTED ***   74303 01160000
+           SPACE 3                                                      01170000
+P04TOOB  JOLERR 403,'IF TOO LONG WHILE PUTTING '' '' ROUND SYMBOLICS'   01180000
+           JOLRETN RC=16                                          74303 01190000
+P04QUEND   LA  R8,WORK                                            74303 01200000
+           SR R7,R8                                                     01210000
+           STH R7,#WORK                                                 01220000
+           MVC #TKNSTRG(256),#WORK                                      01230000
+           MVC #TKNSTRG+256(256),#WORK+256                              01240000
+           MVC #TKNSTRG+512(256),#WORK+512                              01250000
+           MVC #TKNSTRG+768(232),#WORK+768                              01260000
+          $CALL UJS20REP,(#TKNSTRG)                               74303 01270000
+           LTR R15,R15                                                  01280000
+           BZ  P04DOSYM                                           74303 01290000
+         JOLERR 405,'ERROR AFTER REPLACING SYMBOLICS'                   01300000
+           JOLRETN RC=16                                          74303 01310000
+           TITLE 'PERFORM SYMBOLIC PARAMETER TESTS'                     01320000
+P04DOSYM   EQU *                                                  74303 01330000
+* NOW CALL THE TOKEN SPLITTER AGAIN AFTER MOVING #WORK BACK TO #TKNSTRG 01340000
+           MVC #TKNSTRG(256),#WORK                                      01350000
+           MVC #TKNSTRG+256(256),#WORK+256                              01360000
+           MVC #TKNSTRG+512(256),#WORK+512                              01370000
+           MVC #TKNSTRG+768(232),#WORK+768                              01380000
+           FIX  'MAKE MOVE 3000 OR AS LONG AS STRING IS'                01390000
+          $CALL UJSPLIT                                           74303 01400000
+         LTR   R15,R15                                            76200 01410000
+           BZ  P04DOREP                                           74303 01420000
+         JOLERR 404,'ERROR AFTER REPLACING SYMBOLICS'                   01430000
+           JOLRETN RC=16                                          74303 01440000
+P04DOREP   EQU *                                                  74303 01450000
+           JOLRETN RC=0                                           74303 01460000
+           LTORG                                                  J52   01470000
+           END                                                          01480000

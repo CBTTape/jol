@@ -1,0 +1,326 @@
+P27TBA   TITLE 'P27TBA  Test Menubar Hot Key'                    J51    00010000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1980.                          00020000
+* JOL COPYRIGHT CCS-JOL 1988      1990                                  00030000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00040000
+           SPACE 3                                                      00050000
+*                   J             000000            L                   00060000
+*                   J            0      0           L                   00070000
+*                   J           0        0          L                   00080000
+*                   J          0          0         L                   00090000
+*                   J         0            0        L                   00100000
+*                   J         0  ¨     ¨   0        L                   00110000
+*                   J         0  O     O   0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0     V      0        L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0   <____>   0        L                   00160000
+*        J          J         0            0        L                   00170000
+*         J        J           0          0         L                   00180000
+*          J      J             0        0          L                   00190000
+*           J    J               0      0           L                   00200000
+*            JJJJ                 000000            LLLLLLLLLLL         00210000
+         SPACE 3                                                        00220000
+         PRINT OFF                                                J50   00230000
+         COPY  JOLCOM                                                   00240000
+*      COPY CPY/JOLCOMD.CPY                                             00250000
+         PRINT ON                                                 J50   00260000
+         COPY  P28PARMS                                           J50   00270000
+         TITLE 'P27TBA  Test Menubar Hot Key'                    J51    00280000
+UJP27TBR JOLSAVE CSECT=UJP27TBR                                         00290000
+*                                                                       00300000
+*                                                                       00310000
+* This routine gets called when the user specifies a MENUBAr, and the   00320000
+*     cursor is on the top line, or the returned key is in field 1.     00330000
+*                                                                       00340000
+*                                                                       00350000
+*       FIX     'Check for HOT KEY'                               PC    00360000
+*                                                                       00370000
+        CLI     WORK,C' '        Was a Hot Key entered?                 00380000
+        BNE     GOTHOTK          Yes, so get the result                 00390000
+*                                                                       00400000
+*  Here, a hot key hasn't been pressed, so we'll use the cursor         00410000
+*                                                                       00420000
+         L    R10,P27GBL                                                00430000
+         USING PANELWRK,R10                                             00440000
+*cvc    L       R6,=V(P29POPWK)                                         00450000
+*cvc    USING   P29POPWK,R6                                             00460000
+        LH      R1,WHEREX        Get the column.                        00470000
+        LA      R1,0(R1)         Add 8 (no of attribute bytes in < >)   00480000
+        CH      R1,ITEMPOSN      Check if lower than lowest LHS posn    00490000
+        BL      BADHOT           or should we ignore it?                00500000
+* OK, check for correct position.                                       00510000
+        LH      R15,ITEMCNTL     Get Stop address                       00520000
+        SLL     R15,1            *2                                     00530000
+        LH      R14,ITEMPOSN-2(R15) Get LAST posn                       00540000
+        AH      R14,ITEMLEN-2(R15) Add LAST length                      00550000
+        STH     R14,ITEMPOSN(R15) Fixes LAST item                       00560000
+        SR      R14,R14          Point to Table                         00570000
+GETHOTPN DS     0H                                                      00580000
+* Here, the cursor position is greater than the item we are looking at. 00590000
+* BUT, does it fit in the range?                                        00600000
+        CH      R1,ITEMPOSN+2(R14)                                      00610000
+        BL      USEITEM          Use it.                                00620000
+*       CH      R1,ITEMPOSN(R14) Check offset                           00630000
+*       BH      BUMPNXT                                                 00640000
+BUMPNXT LA      R14,2(R14)                                              00650000
+        CR      R14,R15                                                 00660000
+        BH      BADHOT                                                  00670000
+        B       GETHOTPN         Get the hot key posn                   00680000
+USEITEM LH      R1,ITEMPOSN(R14) Load Offset into MENTXT                00690000
+        LA      R15,MENTXT(R1)   Get Address of start of item           00700000
+         CLI   VIDSFE,0          Can we use extensions?           J52   00701000
+         BNE   MENUITOK          yes, so all is OK                J52   00702000
+         SH    R15,=H'1'         -1 for video cntl characters     J52   00703000
+MENUITOK DS    0H                                                 J52   00704000
+        LH      R14,ITEMLEN(R14) Get the length                         00710000
+        STH     R14,#WORK                                               00720000
+*cvc    MEMCPY  WORK,0(R15),R14                                         00730000
+        MVC     WORK(80),0(R15)                                         00740000
+        B       STRMEM           Store in Symbolic                      00750000
+*                                                                       00760000
+        SLL     R1,1             Multiply by 2                          00770000
+        LH      R15,ITEMPOSN(R1) Get start of Item Posn           J50   00780000
+        LH      R14,ITEMLEN(R1)  Get start of Item Posn           J50   00790000
+*                 if (Syspfk != 0)                                      00800000
+*                                                                       00810000
+*       HALT                                                      PC    00820000
+*                                                                       00830000
+*                                                                       00840000
+*FIX  ' OC      RETALTFL,BLANKS'                                        00850000
+*                                                                       00860000
+GOTHOTK DS      0H                                                      00870000
+        CLC     #HOTKEYS,=H'0'                                          00880000
+        LA      R1,HOTKEYS                                        PC    00890000
+        LA      R14,1                                             PC    00900000
+        LR      R15,R1                                            PC    00910000
+        AH      R15,#HOTKEYS                                      PC    00920000
+TRYHOT  CLC     WORK(1),0(R1)                                     PC    00930000
+        BE      GOTHOT                                            PC    00940000
+        BXLE    R1,R14,TRYHOT                                     PC    00950000
+BADHOT  DS      0H                                                J60   00960001
+*       CALL$   BEEP                                                    00961000
+        JOLRETN  RC=4              Bad Hot Key                    PC    00970000
+GOTHOT  DS      0H                                                PC    00980000
+        ENTRY   GOTHOT                                            PC    00990000
+*                 {                                                     01000000
+*                    strcpy(Ret_Alt_Field,Menu_Bar_Items›i®);           01010000
+*                                                                       01020000
+        LA      R15,HOTKEYS                                             01030000
+        SR      R1,R15                                                  01040000
+        LR      R14,R1                                                  01050000
+        SLL     R14,1                                                   01060000
+        B       USEITEM                                                 01070000
+*cvc    LH      R1,I                                                    01080000
+*cvc    SLL     R1,1                                                    01090000
+*cvc    L       R1,MENBARIT(R1)                                         01100000
+*cvc    MVC     RETALTFL,0(R1)                                          01110000
+*cvc    OC      RETALTFL,BLANKS                                         01120000
+*                                                                       01130000
+STRMEM  DS      0H                                                      01140000
+         STH   R1,MENUCOL                                         J52   01150000
+        MVC     SYMBOLIC,=CL8'SYSMENU'                                  01160000
+*                                                                       01170000
+*           x›1® = Ret_Alt_Field;                                       01180000
+*                                                                       01190000
+*cvc    MVC     #WORK(100),RETALTFL                                     01200000
+*                                                                       01210000
+*           ujp85asn();                                                 01220000
+*                                                                       01230000
+         OC    WORK(L'BLANKS),BLANKS                             J52    01231000
+        CALL$   UJP85ASN                                                01240000
+*                                                                       01250000
+*                                                                       01260000
+*           disp_pokebox(scrn_save,0,0,24,79);                          01270000
+*                                                                       01280000
+*                                                                       01290000
+        JOLRETN RC=0                                                    01300000
+        LTORG                                                           01310000
+         DC   140S(*)                                                   01320000
+*                                                                       01330000
+*                                                                       01340000
+*                                                                       01350000
+*cvc         p27display(void)                                           01360000
+*{*int          jl, jk;                                                 01370000
+*static char         *one_blank = " ";                                  01380000
+*                                                                       01390000
+*                                                                       01400000
+* /*  call curs_at(1,1);                                                01410000
+*   put skip edit('Control=',replycontrol,                              01420000
+*     'Length=',rplylen,' xxxxx')(a);                                   01430000
+*   get list(syspfk);                                                   01440000
+* /                                                                     01450000
+*                                                                       01460000
+*  if (menubar) {                                                       01470000
+*          gotorc(0,0);                                                 01480000
+*          menubar = false;                                             01490000
+*          display_str(blue_ascii); */                                  01500000
+*          display_str(white_ascii);                                    01510000
+*          display_str("› ® ");                                         01520000
+*          display_str(outtext_with_attrs);                             01530000
+*          Menu_Bar(outtext /*_with_attrs*/ );                          01540000
+*                                                                       01550000
+*          replycontrol++;                                              01560000
+*                                                                       01570000
+*          cpylit(symname_pan›replycontrol® , "SYSMENU");               01580000
+*          cpylit(symvalue_pan›replycontrol®, ""); /* Initialise to ''  01590000
+*          rplylen=1;                                                   01600000
+*          rrow =0;                                                     01610000
+*          rcol =1;                                                     01620000
+*                                                                       01630000
+*          gotorc(0,1);                                                 01640000
+*          Panel(" ", symvalue_pan›replycontrol®,                       01650000
+*              rplylen, symvalue_pan›replycontrol®);                    01660000
+*                                                                       01670000
+*          return;                                                      01680000
+*   }                                                                   01690000
+*                                                                       01700000
+*   if (helpline)                                                       01710000
+*   {      char temp_bold›40®;              /* Used if no attrs on help 01720000
+*          int j;                                                       01730000
+*                                                                       01740000
+*          helpline = false;                                            01750000
+*/*        display_str(blue_ascii);                                     01760000
+*          display_str("› ® ");                                         01770000
+*          display_str(outtext_with_attrs);                             01780000
+*/                                                                      01790000
+*          if (length(outtext_with_attrs) == length(outtext))           01800000
+*          {                                                            01810000
+*               strcpy (temp_bold,"\033›0;");                           01820000
+*               strcat (temp_bold,videobackground);                     01830000
+*               strcat (temp_bold,";");                                 01840000
+*               strcat (temp_bold , videohighlight);                    01850000
+*               strcat (temp_bold , "m");                               01860000
+*               display_str(temp_bold);                                 01870000
+*          }                                                            01880000
+*                                                                       01890000
+*         display_ctr(outtext_with_attrs,23); */                        01900000
+*          if (length(outtext) > 76)                                    01910000
+*          {                                                            01920000
+*               length(outtext) = 76;                                   01930000
+*               length(outtext_with_attrs) = 76;                        01940000
+*               outtext_with_attrs›length(outtext_with_attrs)® = '\0';  01950000
+*               outtext›length(outtext)® = '\0';                        01960000
+*          }                                                            01970000
+*                                                                       01980000
+*          j = length(outtext) / 2;                                     01990000
+*          j = 40 - j;                                                  02000000
+*          gotorc(23, j-1);                                             02010000
+*          display_str(" ");                                            02020000
+*          display_str(outtext_with_attrs);                             02030000
+*          display_str(" ");                                            02040000
+*                                                                       02050000
+*          return;                                                      02060000
+*   }                                                                   02070000
+*                                                                       02080000
+* /* Ordinary Panel here */                                             02090000
+*                                                                       02100000
+*   curs_at(rowno, colno);                                              02110000
+*                                                                       02120000
+*   if (! menubar)   display_str(outtext_with_attrs);                   02130000
+*                                                                       02140000
+*                                                                       02150000
+*   if (rplylen == -1)  return;/* Set >0 if a reply */                  02160000
+*   curs_at(rrow, rcol);                                                02170000
+*                                                                       02180000
+*   Panel(" ", symvalue_pan›replycontrol®,                              02190000
+*              rplylen, symvalue_pan›replycontrol®);                    02200000
+*   curs_at(rrow, rcol);                                                02210000
+*   display_str(default_with_attrs);                                    02220000
+*                                                                       02230000
+*/* fix cvc feb 29, 1988.  Oh for more code space */                    02240000
+*/* fix cvc feb 29, 1988.  Adds attributes to rest of field if default  02250000
+*                          < field length */                            02260000
+*                                                                       02270000
+*                                                                       02280000
+*   jk = rplylen - length(default_txt); /* Test for Blank on Right */   02290000
+*                                                                       02300000
+*test_jk:                                                               02310000
+*   if (jk >0)                                                          02320000
+*   {   if (jk < length(blanks))                                        02330000
+*       {   display_str(&blanks›length(blanks) - jk®);                  02340000
+*           return;                                                     02350000
+*       }                                                               02360000
+*       else                                                            02370000
+*       {                                                               02380000
+*           display_str(blanks);                                        02390000
+*           jk= jk -length(blanks);                                     02400000
+*           goto test_jk;                                               02410000
+*       }                                                               02420000
+*    }                                                                  02430000
+*                                                                       02440000
+*}*/* Procedure  */                                                     02450000
+*                                                                       02460000
+*                                                                       02470000
+*                                                                       02480000
+*void         panel_read(void)                                          02490000
+*{                                                                      02500000
+*/* with screenwork DO */ {                                             02510000
+*{                                                                      02520000
+*                                                                       02530000
+*    if (nowait) return;                                                02540000
+*                                                                       02550000
+*    if (re_read_addr != NULL)                                          02560000
+*    {                                                                  02570000
+*        if (replycontrol != 0)                                         02580000
+*        for (i = 1; i <= replycontrol; i++)   /* Copy Changed Data */  02590000
+*        {                                                              02600000
+*            getsym(symname_pan›i®);                                    02610000
+*            cpy(symvalue_pan›i® , op);                                 02620000
+*        }                                                              02630000
+*        Read_Panel_From(re_read_addr);                                 02640000
+*    }                                                                  02650000
+*    else Read_Panel();                                                 02660000
+*                                                                       02670000
+*        if (replycontrol != 0)                                         02680000
+*        for (i = 1; i <= replycontrol; i++)                            02690000
+*        {                                                              02700000
+*            cpy(symbolic , symname_pan›i®);                            02710000
+*/*          cpy(op,        symvalue_pan›i®);*/                         02720000
+*            x›1®=symvalue_pan›i®;                                      02730000
+*            if (caps == true)                                          02740000
+*                strupr(x›1®);                                          02750000
+*            ujp85asn();                                                02760000
+*        }                                                              02770000
+*    mvc(symbolic, "SYSPFK  ",8);                                       02780000
+*    x›1® = f2(Syspfk);                                                 02790000
+*    ujp85asn();                                                        02800000
+*                                                                       02810000
+*    mvc(symbolic, "SYSMENU ",8);                                       02820000
+*    x›1® = Ret_Alt_Field;                                              02830000
+*    ujp85asn();                                                        02840000
+*                                                                       02850000
+*    mvc(symbolic, "SYSPOP  ",8);                                       02860000
+*    x›1® = "";                                                         02870000
+*    ujp85asn();                                                        02880000
+*                                                                       02890000
+*    curs_at(24, 1); /* CVC FEB 11, 87 : Pretty Screen */               02900000
+*                                                                       02910000
+*    /* Overriding attribute */                                         02920000
+*                                                                       02930000
+*    cpylit (text , "\033›0;");                                         02940000
+*    cat    (text , videobackground);                                   02950000
+*    catchar(text , ';');                                               02960000
+*    cat    (text , videolowlight);                                     02970000
+*    catchar(text , 'm');                                               02980000
+*                                                                       02990000
+*  /* MOD CVC FEB 11, 1987  : Don't Clear Screen unless input           03000000
+*                             from terminal */                          03010000
+*/*     text:=videotempattr;  ( * +cls; * ) */                          03020000
+*                                                                       03030000
+*     if (eofsysin)                                                     03040000
+*     {  cat(text, cls);                                                03050000
+*     }                                                                 03060000
+*               /* last */                                              03070000
+*                                                                       03080000
+* /* fix */                                                             03090000
+* /*  errtext='Handle='+handle;                                         03100000
+*      call jolerr('P27324');                                           03110000
+* */                                                                    03120000
+* /* END MOD */                                                         03130000
+*                                                                       03140000
+*    display_str(text);                                                 03150000
+*/*  call writescr;*/                                                   03160000
+*} /* with */                                                           03170000
+* } /* END WITH */                                                      03180000
+*} /* Panel read */                                                     03190000
+*$$$ end read                                                           03200000

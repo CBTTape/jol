@@ -1,0 +1,374 @@
+P27MBAR  TITLE 'UJP27BAR  FIX MENU BAR'                          J51    00010000
+*********************************************************************** 00020000
+*                                                                       00030000
+*   /* This procedure prints the menu line on the top of the screen  */ 00040000
+*                                                                       00050000
+*   /*The menu bar can be something like:                               00060000
+*                                                                       00070000
+*           'File Sort Exec'                                            00080000
+*       or                                                              00090000
+*           'File S{o}rt Exec'                                          00100000
+*                                                                       00110000
+*      The {} (chosen because they are on 370 mainframes) indicate that 00120000
+*      the key inside the {} is the ALT key actioned for that field.    00130000
+*                                                                       00140000
+*      This is placed on the screen like this:                          00150000
+*                                                                       00160000
+*                                                                       00170000
+*           › ® File Sort Exec                                          00180000
+*                                                                       00190000
+*    We need to be able to to accept a hot key that is placed in the    00200000
+*    box provided, or work out where the cursor is, and accept the      00210000
+*    item where the cursor has been placed.                             00220000
+*                                                                       00230000
+*    SAA says that you can tab to the field too.                        00240000
+*       This is NOT implemented yet (July 5, 91)!                       00250000
+*       I think the hot key idea is easier.                             00260000
+*                                                                       00270000
+*                                                                       00280000
+*    To implement this, we need the start, length and hot key of        00290000
+*    each item.  Also, if {}'s are coded, we need to remove it          00300000
+*    before displaying it.                                              00310000
+*                                                                       00320000
+*                                                                       00330000
+*    NOTE: THIS DOES NOT FOLLOW THE C VERSION'S METHOD !!!!             00340000
+*                                                                       00350000
+*                                                                       00360000
+*********************************************************************** 00370000
+*                                                                       00380000
+* OK.  Lets suppose we have a MENUBAR like this:                        00390000
+*                                                                       00400000
+*      MENUBAR('Files Dir Copy')                                        00410000
+*                                                                       00420000
+* then, on the screen we will have:                                     00430000
+*                                                                       00440000
+*      0        1                                                       00450000
+*      1234567890123456789                                              00460000
+*      b< > Files Dir Copy                                              00470000
+*                                                                       00480000
+* and our table will look like this:                                    00490000
+*                                                                       00500000
+*                                                                       00510000
+*    StartPosn         Length       HotKey                              00520000
+*    ---------         ------       ------                              00530000
+*    |       |         |    |       |    |                              00540000
+*    |   6   |         | 5  |       | F  |     Files                    00550000
+*    |  12   |         | 3  |       | D  |     Dir                      00560000
+*    |  16   |         | 4  |       | C  |     Copy                     00570000
+*    |       |         |    |       |    |                              00580000
+*    |       |         |    |       |    |                              00590000
+*    ---------         ------       ------                              00600000
+*                                                                       00610000
+*                                                                       00620000
+* In addition, the HOTKEY variable will be set up as FDC, so            00630000
+*    that we can pick up the correct item if a HOTKEY is entered.       00640000
+*                                                                       00650000
+* So, if the cursor is on line 1, column 7 say, we will pick the        00660000
+*    Files.                                                             00670000
+*                                                                       00680000
+* Alternatively, if D is entered, we will pick Dir.                     00690000
+*                                                                       00700000
+* Finally, if a light pen is used, we'll try and get the right item     00710000
+* (LATER!!!).                                                           00720000
+*                                                                       00730000
+*                                                                       00740000
+*                                                                       00750000
+*                                                                       00760000
+       COPY JOLCOM                                                      00770000
+*      COPY CPY/JOLCOMD.CPY                                             00780000
+*       void         Menu_Bar(char *MText)                              00790000
+ZZZZ    DSECT                                                           00800000
+UJP27BAR JOLSAVE  CSECT=UJP27BAR                                        00810000
+P27MBAR  TITLE 'UJP27BAR  FIX MENU BAR'                          J51    00820000
+*                                                                       00830000
+*       {                                                               00840000
+*       int          i;                                                 00850000
+*       int          j,k;                                               00860000
+*       int          Len_Text                                           00870000
+*                                                                       00880000
+*       static  char   *blue_ascii="\033›34;30m";  /* Black on Blue */  00890000
+*       static  char   *red_bold  ="\033›31;1m";   /* Bold Red */       00900000
+*       static  char   *red_low   ="\033›31;2m";   /* Red Ordinary */   00910000
+*       char           *blank_posn;                                     00920000
+*       char           *field_posn;                                     00930000
+*       char           *alt_posn;                                       00940000
+*       char           *test_bracket;                                   00950000
+*       static char     temp_char›2®;                                   00960000
+*       static char     temp_char2›2®;                                  00970000
+*       char          *Text;                                            00980000
+*       int            alt_column;                                      00990000
+*                                                                       01000000
+*                                                                       01010000
+        L       R10,P27GBL                                              01020000
+        USING   PANELWRK,R10                                            01030000
+         B       P27GO                                                  01040000
+         TOMASM ' .data'                                                01050000
+P27MENE  DS    0H                                                       01060000
+*        DC    C' '                                                     01070000
+*        DC    X'1DE8'           BOLD, PROTECTED                  J50   01080002
+*        DC    C'{'                                               J50   01090005
+*        DC    X'1DC8'           BOLD, UN-PROTECTED               J50   01100004
+         DC    C' '              SPACE FOR USER TO ENTER          J50   01110000
+*        DC    C' '              SPACE FOR USER TO ENTER          J50   01111005
+*        DC    X'1D60'           BOLD, PROTECTED                  J50   01120004
+*        DC    C'}'                                               J50   01130005
+*        DC    C'  '                                              J50   01140002
+*        DC    X'1D60'           NORMAL                           J50   01150004
+P27MENEL EQU   *-P27MENE         -4 FOR 4 SF'S IN FIELDS                01160000
+*ENATTRS EQU   8                 8 attribute bytes                      01170000
+LENATTRS EQU   0                 8 attribute bytes                      01180000
+         TOMASM ' .code'                                                01190000
+P27GO    DS     0H                                                      01200000
+*       WTO     'UJP27TXT Called'                                       01210000
+*                                                                       01220000
+* Initialise the required items.                                        01230000
+*                                                                       01240000
+         CLI     OUTTXT,C''''                                           01250000
+         BNE     NOQU                                                   01260000
+         DROPQUSR #OUTTXT                                               01270000
+NOQU     DS      0H                                                     01280000
+         MVC     #HOTKEYS,ZERO                                          01290000
+         MVC     HOTKEYS,BLANKS                                         01300000
+         MVC     ITEMCNTL,ZERO                                          01310000
+         XC      HOTPOSNS(60),HOTPOSNS     Clear Table            J52   01320000
+*                                                                       01330000
+*             display_str(blue_ascii);                                  01340000
+*                                                                       01350000
+*       push    word ptr DGROUP:d@w+224                                 01360000
+*       call    far ptr _display_str                                    01370000
+*       pop     cx                                                      01380000
+*                                                                       01390000
+*             strcpy(Menu_Bar_Text,MText);                              01400000
+*                                                                       01410000
+********************************************************************    01420000
+* This is from POPUP                                                    01430000
+*                                                                       01440000
+*        MVI   P27HI,0           TURN OFF HIGHLIGHTS              J50   01450000
+*        MVI   P27COLOR,4        SET DEFAULT COLOUR               J50   01460000
+*       MVC     TXTROWNO,=H'1'                                          01470000
+*       MVC     TXTCOLNO,LHSMARG                                        01480000
+*       MVC     REPROWNO,=H'0'                                          01490000
+*       MVC     REPCOLNO,=H'0'                                          01500000
+*       MVC     RPLYLEN,=H'0'                                           01510000
+*       MVI     LITERAL,C'_'                                            01520000
+*       LH      R1,MAXWIDTH                                             01530000
+*       EX      R1,P29TOPR                                              01540000
+*P29TOPR MVC     LITERAL+1(*-*),LITERAL                                 01550000
+*       STH     R1,TXTLEN                                               01560000
+*        LH    R1,TXTLEN                                                01570000
+*       MVC    LITERAL(P27SELEL),P27SELE Select › ® or Arrow Keys Msg   01580000
+*NO replyAH    R1,RLITLEN                                               01590000
+*       MVC     TXTCOLR,P27COLOR                                        01600000
+*        AR    R5,R1          BUMP UP TO POINT TO NEW SPOT IN TABLE     01610000
+*        LA    R5,LFIXED(R5)  POINT OVER FIXED AREA IN PARM LIST        01620000
+*       XC    DITEM(LFIXED),DITEM  Clear next item row and col numbers  01630000
+********************************************************************    01640000
+*        MVC     MENTXT(5),=CL5' › ® '                                  01650000
+         MVC      MENTXT(P27MENEL),P27MENE  '< >' with attributes       01660000
+         MVC     #MENTXT,=AL2(P27MENEL)                                 01670000
+         MVC     MENTXT+P27MENEL(L'MENTXT-P27MENEL),OUTTXT              01680000
+*        MVC     #MENTXT,=H'1'   cvc mono screen                  J52   01690000
+*        MVC     MENTXT+1(L'MENTXT-P27MENEL),OUTTXT               J52   01700000
+         LH      R1,#MENTXT                                             01710000
+         AH      R1,#OUTTXT                                             01720000
+         STH     R1,#MENTXT                                             01730000
+*                                                                       01740000
+*             Text=Menu_Bar_Text;                                       01750000
+*                                                                       01760000
+         LA      R1,MENTXT             Get address of start of string.  01770000
+         LR      R15,R1                Copy to R15                      01780000
+         AH      R15,#MENTXT           Sets a stop address for us.      01790000
+         MVC     0(2,R15),=C'  '       Put some blanks at the end       01800000
+         LA      R1,P27MENEL(R1)       Point past › ®                   01810000
+         LA      R14,1                 Increment by 1                   01820000
+*                                                                       01830000
+FINDNBLK CLI     0(R1),C' '            Prepare to skip blanks.          01840000
+         BNE     GOTWRD1               Got a non blank                  01850000
+         BXLE    R1,R14,FINDNBLK                                        01860000
+         CLC     ITEMCNTL,ZERO                                          01870000
+         BNE     PASS2                                                  01880000
+         JOLERR  301,'Invalid Menu Bar'                                 01890000
+         JOLRETN RC=16                                                  01900000
+*                                                                       01910000
+*                                                                       01920000
+GOTWRD1  DS      0H                                                     01930000
+*                                                                       01940000
+* Store the offset, and calculate the length of the item.               01950000
+*                                                                       01960000
+         LR      R8,R1                 Calc offset                      01970000
+         LA      R7,MENTXT                                              01980000
+         SR      R8,R7                 R8 is the offset                 01990000
+         LH      R9,ITEMCNTL                                            02000000
+         SLL     R9,1                  *2                               02010000
+*        SH      R8,=AL2(LENATTRS)     Real Screen Position             02020000
+         STH     R8,ITEMPOSN(R9)       Store the offset                 02030000
+*                                                                       02040000
+* Now find the length                                                   02050000
+*                                                                       02060000
+FINDLEN1 CLI     0(R1),C' '                                             02070000
+         BE      ENDITEM1              Got a blank, so fix length       02080000
+         BXLE    R1,R14,FINDLEN1                                        02090000
+*                                                                       02100000
+* This is an internal error, must be blanks! We put blanks at end       02110000
+*                                                                       02120000
+         JOLERR  502,'Internal Error in MenuBar'                        02130000
+         JOLRETN RC=16                                                  02140000
+*                                                                       02150000
+ENDITEM1 DS      0H                                                     02160000
+         LR      R8,R1                 Calc Length of item              02170000
+         LA      R7,MENTXT                                              02180000
+         SR      R8,R7                 R8 is the offset of end          02190000
+         SH      R8,ITEMPOSN(R9)       Minus start offset               02200000
+         STH     R8,ITEMLEN(R9)        = length of string               02210000
+         LH      R9,ITEMCNTL           Increment items now              02220000
+         LA      R9,1(R9)                                               02230000
+         STH     R9,ITEMCNTL           Stored                           02240000
+         BXLE    R1,R14,FINDNBLK       BXLE back to outer loop.         02250000
+*                                                                       02260000
+* Now work out the hot keys.                                            02270000
+*                                                                       02280000
+* We need to see if we have a CAPITAL letter or a {}                    02290000
+*                                                                       02300000
+PASS2    DS      0H                                                     02310000
+*                                                                       02320000
+         LA      R1,0                  Start at top of table            02330000
+         LA      R14,2                 Table entries of 2 bytes long    02340000
+         LH      R15,ITEMCNTL                                           02350000
+         AH      R15,ITEMCNTL          R15 has itemcnt *2               02360000
+         SR      R15,R14               So we don't go to far            02370000
+NEXTHOT  LH      R5,ITEMPOSN(R1)       Get offset to current item       02380000
+         LA      R5,MENTXT(R5)         Point to start of item           02390000
+         LR      R8,R5                 Save it                          02400000
+         LR      R7,R5                 Prepare for BXLE                 02410000
+         AH      R7,ITEMLEN(R1)        Set stop address                 02420000
+         LA      R6,1                  Increment                        02430000
+FINDHOT  CLI     0(R5),C'{'            Got a {                          02440000
+         BE      GOTBRAC                                                02450000
+         CLI     0(R5),C'A'            Test for Upper Case              02460000
+         BL      LOW1                  Lower                            02470000
+         CLI     0(R5),C'Z'                                             02480000
+         BH      LOW1                  Lower case                       02490000
+         B       GOTUPP1               Got an upper                     02500000
+LOW1     BXLE    R5,R6,FINDHOT                                          02510000
+*                                                                       02520000
+* Here, the item is all lower case.                                     02530000
+* Pick the first character as the hot key.                              02540000
+         LR      R5,R8                 Point to 1st Character           02550000
+MAKEUPP   OC      0(1,R5),BLANKS        Convert to upper case           02560000
+*AKEUPP  MEMUPR  0(R5),1               Convert to upper case            02570000
+GOTUPP1  DS      0H                    Jump here when we have UPPER     02580000
+         B       STORHOT               Store the hot key                02590000
+*                                                                       02600000
+GOTBRAC  DS      0H                                                     02610000
+*                                                                       02620000
+* Here, we have a {                                                     02630000
+         LA      R1,1(R5)              Point to next character          02640000
+         B       MAKEUPP                                                02650000
+*                                                                       02660000
+STORHOT  DS      0H                    Store Hot Key                    02670000
+*                                                                       02680000
+         LR      R8,R5                 Save position of Hot Key         02690000
+         IC      R5,0(R5)              Load the Character               02700000
+         STC     R5,THISHOT            Save, look for Duplicates        02710000
+         LA      R5,MENTXT                                              02720000
+         SR      R8,R5                 Position of Hot Key              02730000
+*cvc     LH      R5,ITEMCNTL                                            02740000
+*        AR      R5,R5                 Double it.                       02750000
+         STH     R8,HOTPOSNS(R1)       Store it in table for later      02760000
+         LA      R5,HOTKEYS            Point to HOTKEY String.          02770000
+         LR      R7,R5                 Prepare for end address          02780000
+         AH      R7,#HOTKEYS           Point to end of string           02790000
+         LA      R6,1                  Increment count                  02800000
+FINDDUP  CLC     THISHOT,0(R5)         Look for DUPS                    02810000
+         BE      GOTDUP                Got a Duplicate                  02820000
+         BXLE    R5,R6,FINDDUP                                          02830000
+* no dups here                                                          02840000
+         LH      R6,#HOTKEYS           Get length of string             02850000
+         LA      R7,HOTKEYS(R6)        Point to end of it               02860000
+         MVC     0(1,R7),THISHOT       Store the character              02870000
+         LA      R6,1(R6)                                               02880000
+         STH     R6,#HOTKEYS           Increment the number of hotkeys  02890000
+         BXLE    R1,R14,NEXTHOT        Around we go.                    02900000
+         LA      R0,#HOTKEYS                                            02910000
+         LA      R1,ITEMCNTL                                            02920000
+*        HALT                                                           02930000
+*                                                                       02940000
+* Now add some colors for color 3270's                                  02950000
+*                                                                       02960000
+         LH      R1,#MENTXT            Copy to #WORK                    02970000
+         LA      R1,1(R1)              +1 for length byte               02980000
+         MEMCPY  #WORK,#MENTXT,R1      Done.                            02990000
+         CLI   VIDSFE,0                Can we use extensions?     J51   03000000
+         BE    CANTHILT                Can't hi light them.       J51   03010000
+         LA      R15,WORK                                               03020000
+         LH      R1,#WORK              Get length of #WORK              03030000
+         LA      R15,WORK(R1)          Point to end of WORK             03040000
+         LA      R1,3(R1)              Add three for SFE                03050000
+         STH     R1,#WORK              Reset length                     03060000
+*        MVI     0(R15),X'0E'          Fujitsi SFE (Zappable)           03070000
+*        CLI   VIDSFE,0                Can we use extensions?     J51   03080000
+*        BE    CANTHILT                Can't hi light them.       J51   03090000
+         MVC   0(1,R15),VIDSA          Fujitsu OR IBM Set Attribute     03100000
+         MVC     1(2,R15),=X'42F4'     RedMAGENTA                       03110000
+*                                                                       03120000
+* Now loop around and position the cursor and recopy out the            03130000
+*   Hot Keys. This is an easy way out for us.                           03140000
+*                                                                       03150000
+* Now, we have the SCREEN position of all the hot keys and words,       03160000
+* and so all we have to do is put out a Cursor Address, and the         03170000
+* hot keys (we have already set RED up).                                03180000
+*      DC      X'0F0142F1',C'COLOUR F1',X'0E42F7',C'NEW COLOUR F7'      03190000
+         LA      R7,0                  Start at top of table            03200000
+         LA      R8,0                  Hot Key Position                 03210000
+NEXTHOTX DS    0H                                                       03220000
+         LH      R5,HOTPOSNS(R7)       Get offset to current HOTKEY     03230000
+         CH      R5,=H'0'              Reached End?                     03240000
+         BE      RESETDEF              Yes, so done all the colours     03250000
+*        SH    R5,=H'3'                                           J51   03260000
+         LA    R5,5(R5)                Was 4                      J60   03270000
+         GOTORC  ONE,(R5),#WORK        Set Buffer Address               03280000
+         LA      R1,HOTKEYS(R8)        Point to HOTKEY                  03290000
+         IC      R5,0(R1)              Get it                           03300000
+         LH      R1,#WORK              Get current length of string     03310000
+         LA      R1,1(R1)              Add 1                            03320000
+         STH     R1,#WORK              Reset                            03330000
+*        LA      R1,WORK-1(R1)         Point to end of string           03340000
+         STC     R5,WORK-1(R1)         Store in end of string           03350000
+         LA      R7,2(R7)              Bump to next halfword (HOTPOSNS) 03360000
+         LA      R8,1(R8)              Bump to next byte     (HOTKEYS)  03370000
+         B       NEXTHOTX              Around the loop                  03380000
+*                                                                       03390000
+RESETDEF DS      0H                    Reset the colours back to normal 03400000
+         LH      R1,#WORK              Get current length of string     03410000
+         LA      R1,3(R1)              Add 3 for color reset            03420000
+         STH     R1,#WORK              Reset                            03430000
+         LA      R1,WORK-3(R1)         Point to end of string           03440000
+*        MVI     0(R1),X'0E'           Fujitsi SFE (Zappable)           03450000
+         MVC   0(1,R1),VIDSA           Fujitsu OR IBM Set Attribute     03460000
+         MVC     1(2,R1),=X'4200'      BACK TO DEFAULT Colour           03470000
+         JOLRETN RC=0                  All Done... HURRAY         J52   03480000
+CANTHILT DS    0H                                                 J51   03490000
+* Make bold for mono screens                                      J52   03500000
+         MVC   #WORK,=H'2'       Set initial length               J52   03510000
+         MVC   WORK(2),=X'1DE8'  Bold, Protected.                 J52   03520000
+         MVC   MENTXT(L'MENTXT),MENTXT+1   for 370 simulator|     J52   03530000
+         LH      R1,#MENTXT            Copy to #WORK              J52   03540000
+         SH    R1,=H'1'                                           J52   03550000
+         STH     R1,#MENTXT            Copy to #WORK              J52   03560000
+         CAT   WORK,MENTXT                                        J51   03570000
+         LA    R1,WORK                                            J51   03580000
+         AH    R1,#WORK                                           J51   03590000
+         MVC   0(2,R1),=X'1D60'  Normal                           J52   03600000
+         LH    R1,#WORK                                           J52   03610000
+         LA      R1,2(R1)              +2 for length byte         J52   03620000
+         STH   R1,#WORK                                           J52   03630000
+*        MEMCPY  #WORK,#MENTXT,R1      Done.                      J52   03640000
+         JOLRETN RC=0                  All Done... HURRAY               03650000
+*                                                                       03660000
+*Now, test for duplicates (Could we do it earlier? Maybe ...)           03670000
+*                                                                       03680000
+GOTDUP   DS      0H                                                     03690000
+         JOLERR  332,'Hot Key Duplicated:-',THISHOT                     03700000
+         JOLRETN RC=16                                                  03710000
+        LTORG                                                           03720000
+         DC   140S(*)                                                   03730000

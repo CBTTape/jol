@@ -1,0 +1,233 @@
+US39BA   TITLE ' BSAM PUT ROUTINE'                                      00000010
+US39BA   CSECT                                                          00000100
+*    THIS IS THE PUT ROUTINE FOR BSAM                                   00000200
+*                                                                       00000300
+           SPACE 2                                                      00000400
+* ON ENTRY TO THIS ROUTINE R1 POINTS TO THE DCB AND R0 TO THE DATA      00000500
+*    FURTHERMORE,THE #OPEN MACRO WILL HAVE CAUSED US39AA TO BE          00000600
+*          EXECUTED.                                                    00000700
+*          US39AA WILL HAVE OPENED THE FILE AND ALLOCATED BUFFERS       00000800
+*              AND SET ASIDE AN AREA WITH DECBS AND                     00000900
+*              A SAVE AREA                                              00001000
+*    THE STORE FORMAT IS A DESCRIBED WITH THE CNTRL DSECT               00001100
+*          AT THE END OF THIS LISTING.HOWEVER IT IS NOT CLEAR           00001200
+*          FROM THAT LIST THAT THERE IS A LIST OF DECB ADDRESSES        00001300
+*          WHICH ARE RECYCLED AS NECESSARY                              00001400
+           SPACE 2                                                      00001500
+*    THE DECB ADDRESS WORD HAS BYTE 0 AS AN INDICATOR                   00001600
+*          X'00' MEANS BUFFER READY TO USE                              00001700
+*          X'10' MEANS BUFFER IS BEING FILLED                           00001800
+*          X'F0' MEANS BUFFER IS FILLED                                 00001900
+*          X'FF' MEANS BUFFER IS FILLED AND WRITTEN                     00002000
+R0         EQU 0                                                        00002100
+R1         EQU 1                                                        00002200
+R2         EQU 2                                                        00002300
+R3         EQU 3                                                        00002400
+R4         EQU 4                                                        00002500
+R5         EQU 5                                                        00002600
+R6         EQU 6                                                        00002700
+R7         EQU 7                                                        00002800
+R8         EQU 8                                                        00002900
+R9         EQU 9                                                        00003000
+R10        EQU 10                                                       00003100
+R11        EQU 11                                                       00003200
+R12        EQU 12                                                       00003300
+R13        EQU 13                                                       00003400
+R14        EQU 14                                                       00003500
+R15        EQU 15                                                       00003600
+           EJECT                                                        00003700
+* LET'S GO                                                              00003800
+          SAVE (14,12),,*                                               00003900
+           LR  R11,R15                                                  00004000
+           USING US39BA,R11                                             00004100
+           USING IHADCB,R1                                              00004200
+           TM  DCBOFLGS,X'10'                                           00004300
+           BO  FILEOPEN                                                 00004400
+           LA  R15,4           ERROR,LATER WE MIGHT OPEN IT             00004500
+          LM 14,12,12(13)                                               00004600
+           BR  14                                                       00004700
+FILEOPEN   LR  R2,R0                                                    00004800
+           LR  R3,R1                                                    00004900
+           DROP R1                                                      00005000
+           USING IHADCB,R3                                              00005100
+           L   R4,88(3)        PICK ADDR OF AN USED AREA IN A QSAM      00005200
+*                              DCB INTO WHICH WE HAVE STORED            00005300
+*                              THE ADDRESS OF DSECT CNTRL               00005400
+           USING CNTRL,R4                                               00005500
+           LA  R1,SAVEAREA                                              00005600
+           ST  R13,4(R1)                                                00005700
+           ST  R1,8(R13)                                                00005800
+           LR  R13,R1                                                   00005900
+           SPACE 3                                                      00006000
+* SEE IF THE RECORD GIVEN US WILL FIT IN THE CURRENT BUFFER             00006100
+           TM  DCBRECFM,B'11000000'    RECFM'U' ?                       00006200
+           BO   U                                                       00006300
+           BZ   U                                                       00006400
+           TM  DCBRECFM,B'01000000'    RECFM'V' ?                       00006500
+           BO  V                                                        00006600
+* FIXED HERE                                                            00006700
+           CLC AMNTLEFT+2(2),=F'0'                                      00006800
+          BNE MOVEFXD                                                   00006900
+           BAL R12,GETBUF                                               00007000
+MOVEFXD    EQU *                                                        00007100
+           LH  R9,DCBLRECL                                              00007200
+MUV        BCTR R9,0                                                    00007300
+           L R1,POSNNOW                                                 00007400
+           EX  R9,MUVREC                                                00007500
+           LA  R9,1(,R9)                                                00007600
+           LCR R8,R9                                                    00007700
+          LR  R12,R9                                                    00007800
+          A   R9,POSNNOW                                                00007900
+          ST  R9,POSNNOW                                                00008000
+           A   R8,AMNTLEFT                                              00008100
+           ST  R8,AMNTLEFT                                              00008200
+           L   R6,CURRENT                                               00008300
+           USING DECBOVLY,R6                                            00008400
+          LR  R9,R12                                                    00008500
+           AH  R9,DECLNGTH     RESET DECB LENGTH                        00008600
+           STH R9,DECLNGTH                                              00008700
+           TM  DCBRECFM,B'01000000'  RECFM V (HERE IT MUST BE VB)       00008800
+           BZ  RETN0                                                    00008900
+           L   R12,DECAREA     GET ADDR OF START OF BUFFER              00009000
+          MVC 0(2,R12),DECLNGTH         SET BLKSIZE FOR VB              00009100
+           XC  2(2,R12),2(R12) CLEAR NEXT 2 BYTES                       00009200
+RETN0      SR  R15,R15                                                  00009300
+RETN       L   R13,SAVEAREA+4                                           00009400
+           RETURN (14,12),T,RC=(15)                                     00009500
+V          EQU *                                                        00009600
+           TM  DCBRECFM,B'00010000'    VB OR JUST V                     00009700
+           BZ  U               JUST V,TREAT AS U                        00009800
+GETLEN     CLC DCBLRECL,0(R2)  COMPARE LRECL TO FIRST 2 BYTES OF        00009900
+*                              RECORD                                   00010000
+           BNL VBOK                                                     00010100
+          WTO 'RECORD>LRECL',ROUTCDE=(2,11)                             00010200
+           L  R1,=XL4'80000010'                                         00010300
+           SVC 13                                                       00010400
+VBOK      LH    R9,0(,R2) GET RECORD LENGTH                             00010500
+          SPACE 2                                                       00010900
+           C   R9,AMNTLEFT                                              00011000
+           BL  MUV                                                      00011100
+           BAL R12,GETBUF                                               00011200
+           L   R12,POSNNOW                                              00011300
+          LA   R12,4(,R12)    +4 FOR BLOCK LENGHTH                      00011400
+           ST  R12,POSNNOW                                              00011500
+           L   R12,AMNTLEFT                                             00011600
+           SH  R12,=H'4'                                                00011700
+           ST  R12,AMNTLEFT                                             00011800
+          L   R6,CURRENT                                                00011900
+          USING DECBOVLY,R6                                             00012000
+          MVC DECLNGTH,=H'4'      SET BLKSIZE FOR VB FILES              00012100
+          B VBOK          PICK UP LENGHTH OF RECORD,GO TO MUV           00012200
+U          BAL R12,GETBUF                                               00012300
+           LH  R9,DCBLRECL                                              00012400
+           B  MUV                                                       00012500
+           EJECT                                                        00012600
+GETBUF   DS    0H                                                       00012700
+           MVC DCBPUT+1(3),REALRTN+1      OS REQUIRES THE ADDRESS       00012800
+*                                         OF THE ROUTINE IT PUT         00012900
+*                                         THERE AND NOT THIS ROUTINE'S  00013000
+*                                         ADDRESS (SUCH SADNESS)        00013100
+           CLI DCBBUFNO,X'01'  1 BUFFER ?                               00013200
+           BNE MULTIBUF                                                 00013300
+         CLI   DECBFLG,0       Q... BEEN HERE BEFORE?                   00013310
+         BE    RESET           A... NO: DO NOT WRITE                    00013320
+           L   R6,CURRENT                                               00013400
+*          WRITE (R6),SF,(R3),MF=E                                      00013500
+* NOW WRITE THE BLOCK  ******REPLACES 'WRITE' MACRO**************       00013600
+          LA  R1,0(R6)     DECB ADDR TO R1                              00013700
+           MVI 5(R1),X'20'     SET TYPE FIELD                           00013800
+           L  R15,REALRTN      WRITE ADDR MOVED IN #OPEN                00013900
+           BALR R14,R15                                                 00014000
+*          CHECK (R6)                                                   00014100
+*  CHECK *******REPLACES THE 'CHECK' MACRO ******                       00014200
+           LR  R1,R6                                                    00014300
+           L   R15,DCBCHECK                                             00014400
+           BALR R14,R15                                                 00014500
+          B RESET     SET POSNNOW ETC                                   00014600
+           SPACE 3                                                      00014700
+MULTIBUF   EQU *                                                        00014800
+* NOW CYCLE DECB ADDRESSES                                              00014900
+         CLI   DECBFLG,X'00'  HAS THIS BLOCK BEEN USED AT ALL YET       00015000
+          BE RESET   DONT BOTHER RECYCLYING                             00015100
+         MVI   DECBFLG,X'F0'   ELSE SIGNAL BLOCK FILLED BUT NOT OP      00015200
+           SR  R6,R6                                                    00015300
+           IC  R6,DCBBUFNO     GET BUFNO                                00015400
+          BCTR R6,0                                                     00015500
+           SLL R6,2            * BY 4                                   00015600
+           LR  R7,R6           SAVE FOR NOW                             00015700
+           L   R0,CURRENT(R6)  GET LAST DECB ADDRESS                    00015800
+MINUS4     SH  R6,=H'4'                                                 00015900
+          BM RECYLED                                                    00016000
+           L   R1,CURRENT(R6)                                           00016100
+           ST  R1,CURRENT+4(R6)                                         00016200
+           B   MINUS4                                                   00016300
+RECYLED    EQU *                                                        00016400
+           ST  R0,CURRENT                                               00016500
+* R7 IS THE INDEX REG TO LAST DECB ADDR                                 00016600
+*  WE HAVE TO CHECK TO SEE IF IT HAS BEEN WRITTEN YET                   00016700
+           LA  R1,CURRENT(R7)                                           00016800
+           CLI 0(R1),X'F0'     FILLED,BUT NOT YET WRITTEN ?             00016900
+           BNE CHECK           BUFFER NOT USED,OR IT HAS BEEN FILLED    00017000
+*                              AND WRITTEN                              00017100
+* HERE WE HAVE TO WRITE OUT ALL THE DECBS FROM POSN 2 TO END OF         00017200
+*    DECB CHAIN                                                         00017300
+           LA  R5,4            2ND DECB INDEX                           00017400
+WRITENXT   L   R9,CURRENT(R5)  GET ADDR DECB                            00017500
+*          WRITE (9),SF,(3),MF=E                                        00017600
+* NOW WRITE THE BLOCK  ******REPLACES 'WRITE' MACRO**************       00017700
+           LR  R1,R9           DECB ADDR TO R1                          00017800
+           MVI 5(R1),X'20'     SET TYPE FIELD                           00017900
+           L  R15,REALRTN      WRITE ADDR MOVED IN #OPEN                00018000
+           BALR R14,R15                                                 00018100
+          LA R9,CURRENT(R5)                                             00018200
+           MVI 0(R9),X'FF'     SIGNAL WRITTEN                           00018300
+           LA  R5,4(,R5)                                                00018400
+           CR  R5,R7                                                    00018500
+           BH  ALLGONE                                                  00018600
+           B   WRITENXT                                                 00018700
+ALLGONE  DS    0H                                                       00018800
+CHECK    DS    0H                                                       00018900
+* MUST CHECK THIS BLOCK BEFORE WE CAN USE IT                            00019000
+*    SEE FIRST IF IT HAS BEEN USED                                      00019100
+           CLI DECBFLG,X'00'                                            00019200
+           BE  RESET           HAS'NT GONE YET                          00019300
+           L   R6,CURRENT                                               00019400
+*          CHECK (R6)                                                   00019500
+*  CHECK *******REPLACES THE 'CHECK' MACRO ******                       00019600
+          LA  R1,0(R6)     DECB ADDR TO R1                              00019700
+           L   R15,DCBCHECK                                             00019800
+           BALR R14,R15                                                 00019900
+RESET    DS    0H                                                       00020000
+          L   R6,CURRENT                                                00020100
+           USING DECBOVLY,R6                                            00020200
+          XC POSNNOW,POSNNOW        CLEAR IT                            00020300
+          XC DECLNGTH,DECLNGTH       CLEAR AMOUNT TO BE WRITTEN         00020400
+          MVC POSNNOW+1(3),DECAREA+1                                    00020500
+          MVI POSNNOW,0    CLEAR HIGH ORDER BYTE                        00020600
+          MVC AMNTLEFT+2(2),DCBBLKSI                                    00020700
+           MVI DECBFLG,X'10'   SIGNAL BLOCK IN USE                      00020800
+           MVC DCBPUT+1(3),=AL3(US39BA)   POP OUR OWN ADDR IN PUT AREA  00020900
+          BR    R12                                                     00021000
+MUVREC     MVC 0(0,R1),0(R2)                                            00021100
+DECBOVLY   DSECT                                                        00021200
+DECBDECB   DS  1F              ECB                                      00021300
+DECTYPE    DS  CL2                                                      00021400
+           ORG DECTYPE                                                  00021500
+DECPTR     DS  CL2                                                      00021600
+           ORG                                                          00021700
+DECLNGTH   DS  1H              LENGTH OF DATA                           00021800
+DECDCBAD   DS  A                                                        00021900
+DECAREA    DS  A                                                        00022000
+DECIOBPT   DS  A                                                        00022100
+DECNEXT    DS  A                                                        00022200
+CNTRL      DSECT                                                        00022300
+LENGTH    DS 1F                                                         00022400
+POSNNOW    DS  1F              NEXT POSN IN BUFFER                      00022500
+AMNTLEFT   DS  1F              AMOUNT LEFT IN BUFFER                    00022600
+REALRTN    DS  1F              ADDR OF REAL'PUT' ROUTINE                00022700
+SAVEAREA   DS  18F                                                      00022800
+CURRENT   DS    0F                                                      00022900
+DECBFLG    DS  CL1             FLAGS FOR DECB                           00023000
+DECBADDR   DS  AL3             ADDR OF DECB                             00023100
+           DCBD DSORG=PS                                                00023200
+      END                                                               00023300

@@ -1,0 +1,1221 @@
+VALIDATE  TITLE 'VALIDATION ROUTINES'                                   00010000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974            00020000
+* COPYRIGHT 1975,1976                                                   00030000
+* COPYRIGHT 1980.                                                       00040000
+* JOL COPYRIGHT CCS/JOL PTY LTD, 1984.                                  00050000
+* JOL COPYRIGHT CCS/JOL PTY LTD, 1987.                                  00051000
+*                                                                       00060000
+* FIXES FOR 3.0                                                         00070000
+*                                                                       00080000
+*JOL30015:- SYSOUT CLASS NOT DEFAULTED FOR DUMP FILES                   00090000
+*JOL30036:- RETPD VALIDATED INCORRECTLY                                 00100000
+*JOL30059:- ABEND OC9 IF LRECL AND/OF BLKSIZE CODED AS 0.               00110000
+*JOL30151:- REMOVE VALIDATION FOR ACCT,PROG NAME ETC.                   00120000
+*JOL30075:- STOP ERRONIOUS MESSAGE FOR NOT-YET-OUTPUT DATASET.          00130000
+*                                                                       00140000
+* FIXES FOR 3.5                                                         00150000
+*                                                                       00160000
+*   FIX DEFAULT FOR EXISTING MOD DATA SET                               00170000
+*                                                                       00180000
+*   TIDY UP CODE (PLACE IN CORRECT COLUMNS!)                            00190000
+*                                                                       00200000
+*                                                                       00210000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00220000
+           SPACE 3                                                      00230000
+*                   J             000000            L                   00240000
+*                   J            0      0           L                   00250000
+*                   J           0        0          L                   00260000
+*                   J          0          0         L                   00270000
+*                   J         0            0        L                   00280000
+*                   J         0            0        L                   00290000
+*                   J         0            0        L                   00300000
+*                   J         0            0        L                   00310000
+*                   J         0            0        L                   00320000
+*                   J         0            0        L                   00330000
+*                   J         0            0        L                   00340000
+*        J          J         0            0        L                   00350000
+*         J        J           0          0         L                   00360000
+*          J      J             0        0          L                   00370000
+*           J    J               0      0           L                   00380000
+*            JJJJ                 000000            LLLLLLLLLLL         00390000
+           SPACE 3                                                      00400000
+           COPY  JOLCOM                                                 00410000
+*                                                                       00420000
+* THESE ARE THE VETTING MODULES OF JOL.                                 00430000
+           TITLE 'JOL VETS'                                             00440000
+* EACH CSECT USES R11 AS A BASE REGISTER.                               00450000
+*    R2  POINTS TO JOLCOM                                               00460000
+*    R3  POINTS TO THE AREA TO BE VETTED                                00470000
+           SPACE 3                                                      00480000
+*********************************************************************** 00490000
+*    NOTE THAT ALL NORMAL OS MACROS AND JOL MACROS MAY BE USED          00500000
+*          IT IS IMPORTANT THAT ONLY MF=(E,CALLAREA) TYPE OS            00510000
+*          MACROS BE CODED FOR RENTRABILITY                             00520000
+*********************************************************************** 00530000
+         USING JOLCOM,R2                                                00540000
+         PRINT DATA                                                     00550000
+         SPACE 3                                                        00560000
+         TITLE 'UJV01JOB: JOB DETAIL VET'                               00570000
+**********************************************************************  00580000
+*                                                                    *  00590000
+*              VET JOB DETAILS                                          00600000
+*                                                                    *  00610000
+**********************************************************************  00620000
+         JOLSAVE CSECT=UJV01JOB                                         00630000
+* AS ALL THE VETS USE JOLCOM,WE'LL USE IT NOW                           00640000
+         USING JOLCOM,R2                                                00650000
+         L     R3,AJOBDETS                                        75128 00660000
+         L     R15,AUVALID    GET THE ADDRESS OF USER VALIDATE RTN75128 00670000
+         L     R15,0(R15)     GET THE JOBVALIDATE CSECT ADDRESS   75128 00680000
+         $CALL (15),(JOLCOM,(3)) GIVE INSTALLATION EXIT CONTROL   75128 00690000
+         USING JOBDETS,R3                                               00700000
+         MVI   INEST,0             SET DEFAULT IND =0             75311 00710000
+* FIRST OF ALL,LET'S SEE IF A JOB CARD WAS PRESENTED TO US AT ALL       00720000
+         IFVALUE JOBNAME,V01JOBOK                                 75128 00730000
+         MVC   JOBNAME,=CL8'JOLJOB'                                     00740000
+V01NOJOB JOLERR 301,'NO JOBNAME:- NOW ''JOLJOB'''                       00750000
+         MVI INEST,1         TESTED LATER TO SEE IF DEFAULTS MADE 75311 00760000
+         B  V01JOBOK                                                    00770000
+V01RETN4 JOLRETN RC=4                                                   00780000
+V01JOBOK EQU *                                                          00790000
+* NOW LOOK FOR 'SILLY' ERRORS                                           00800000
+         L     R1,AJOLGEN                                               00810000
+         USING GENDETS,R1                                               00820000
+         IFNULL JOBCLASS,V01TROOM  NO CLASS, CHECK OUT 'ROOM'           00830000
+         CLI   SPOOL,C' '     IS HASP IN THE SYSTEM (OR ASP ETC?) 75128 00840000
+         DROP  R1                                                       00850000
+         BNE   V01TROOM                        YES,HASP CAN HAVE LOTS   00860000
+*                                              OF JOB CLASSES           00870000
+         CLI   JOBCLASS,C'A'                   A-O ?                    00880000
+         BL    V01CLSER                                                 00890000
+         CLI   JOBCLASS,C'O'                                            00900000
+         BH    V01CLSER                                                 00910000
+         B     V01TROOM                                                 00920000
+V01CLSER JOLERR 302,'JOB CLASS ''',JOBCLASS,''' IS INVALID'       76200 00930000
+V01TROOM EQU *                                                          00940000
+* NOW APPLY THE DEFAULTS GIVEN IN THE JOLGEN FOR THE SPECIFIC     74256 00950000
+*        INSTALLATION                                             74256 00960000
+         L     R5,AGENDETS                                        75128 00970000
+         USING GENDETS,R5                                         75128 00980000
+         IFVALUE JOBCLASS,V01LJOB                                       00990000
+         CLC   DEFCLASS,BLANKS                              FIX-X 76200 01000000
+         BE    V01LJOB                                      FIX-X 76200 01010000
+         MVC   JOBCLASS,DEFCLASS                                        01020000
+         MVI   INEST,1        TESTED LATER TO SEE IF DEFAULTS MADE75311 01030000
+V01LJOB  IFVALUE JOBPRTY,V01LPRTY                                       01040000
+         CLC   DEFPRTY,BLANKS                               FIX-X 76200 01050000
+         BE    V01LPRTY                                     FIX-X 76200 01060000
+         FIX   'NUMERIC'                                    FIX-X 76200 01070000
+         MVC   JOBPRTY(1),DEFPRTY                                 75128 01080000
+         MVI   INEST,1       TESTED LATER TO SEE IF DEFAULTS MADE 75311 01090000
+V01LPRTY  IFVALUE JOBELAP,V01LELAP                                      01100000
+         CLC   DEFETIME,BLANKS                              FIX-X 76200 01110000
+         BE    V01LELAP                                     FIX-X 76200 01120000
+         FIX   'NUMERIC'                                    FIX-X 76200 01130000
+         MVC   JOBELAP(L'DEFETIME),DEFETIME                             01140000
+         MVI   INEST,1       TESTED LATER TO SEE IF DEFAULTS MADE 75311 01150000
+         CLI   SPOOL,C'H'    HASP ????                            75311 01160000
+         BNE   V01LELAP      NO,LEAVE 3RD JOB ACCT FIELD          75311 01170000
+         IFVALUE JOBSUB3,V01LELAP                                 75311 01180000
+         MVC   JOBSUB3(L'JOBELAP),JOBELAP  SHIFT ELAPSED TIME TOO 75311 01190000
+V01LELAP IFVALUE JOBCPU,V01LCPU                                         01200000
+         CLC   DEFCTIME,BLANKS                              FIX-X 76200 01210000
+         BE    V01LCPU                                      FIX-X 76200 01220000
+         FIX   'NUMERIC'                                    FIX-X 76200 01230000
+         MVC   JOBCPU(L'DEFCTIME),DEFCTIME                              01240000
+         MVI   INEST,1       TESTED LATER TO SEE IF DEFAULTS MADE 75311 01250000
+V01LCPU  IFVALUE JOBREGN,V01LREGN                                 74256 01260000
+         B     V01LREGN       ************ SHELL MUST ZAP ********75128 01270000
+         MVC   JOBREGN(L'DEFPREGN),DEFPREGN  SHIFT DEFAULT        75128 01280000
+         MVI   INEST,1       TESTED LATER TO SEE IF DEFAULTS MADE 75311 01290000
+         MVI   JOBREGNQ,C'K'                                      74256 01300000
+V01LREGN IFVALUE JOBMSGL,V01LMSGL                                 74256 01310000
+         CLC   DEFMSG1,BLANKS                               FIX-X 76200 01320000
+         BE    V01LMSGL                                     FIX-X 76200 01330000
+         MVC   JOBMSGL(2),DEFMSG1                                 74256 01340000
+*        MVI   INEST,1       TESTED LATER TO SEE IF DEFAULTS MADE 75311 01350000
+V01LMSGL EQU   *                                                  74256 01360000
+         IFNULL JOBCPU,V01TDEF                                    76200 01370000
+         TNUM  JOBCPU                                                   01380000
+         LTR   R15,R15                                                  01390000
+         BNZ   V01ERR4                                                  01400000
+         CH    R1,=H'1440'                                              01410000
+         BNH   V01TDEF                                                  01420000
+V01ERR4  JOLERR 304,'JOB CPU TIME NOT NUMERIC OR > 1440'                01430000
+         CLEAR JOBCPU                                             76200 01440000
+V01TDEF  EQU   *                                                        01450000
+* WE MUST HAVE AT LEAST 40K TO RUN THE MONITOR.....O K ?          76200 01460000
+         IFNULL JOBREGN,V01DEFA  CHECK FOR NO JOB REGION          76200 01470000
+         TNUM   JOBREGN          CHECK JOB REGION FOR NUMERICS    76200 01480000
+         LTR   R15,R15                                            76200 01490000
+         BNZ   V01DEFA                                            76200 01500000
+         LTR   R1,R1                                              76200 01510000
+         BZ    V01DEFA                                            76200 01520000
+         CH    R1,=H'40'         IS JOB REGION < 40K ?            76200 01530000
+         BNL   V01DEFA           NO,  LEAVE IT AS IS              76200 01540000
+         MVC   JOBREGN(7),=CL7'40'   CHANGE TO 40K                76200 01550000
+         MVI     JOBREGNQ,C'K'                                    76200 01560000
+V01DEFA  EQU   *                                                        01570000
+         CLI   INEST,0         ANY DEFAULTS MADE ?                75311 01580000
+         BE    V01RETN0        NO,RETURN                          75311 01590000
+         JOLERR 003,'DEFAULTS MADE TO JOB DETAILS'          FIX-X 76200 01600000
+V01RETN0 EQU   *                                                  75311 01610000
+         JOLRETN                                                        01620000
+         DROP  R3,R5                                                    01630000
+         LTORG                                              FIX-X 76200 01640000
+         CNOP  0,8                                          FIX-X 76200 01650000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                   FIX-X 76200 01660000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                   FIX-X 76200 01670000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                   FIX-X 76200 01680000
+         TITLE 'UJV02PGM: VALIDATE PROGRAM DETAILS'                     01690000
+**********************************************************************  01700000
+*                                                                    *  01710000
+*              VALIDATE PROGRAMS                                        01720000
+*                                                                    *  01730000
+**********************************************************************  01740000
+         JOLSAVE CSECT=UJV02PGM                                         01750000
+         USING PGMDETS,R3                                               01760000
+         L     R15,AUVALID    GET LOADED USER VALIDATE RTN        75128 01770000
+         L     R15,4(R15)     GET PROGRAM VALIDATE RTN            75128 01780000
+         L     R14,AJOBDETS                                       75128 01790000
+         $CALL (15),(JOLCOM,(14),(3))                             75128 01800000
+         ST    R3,ATKN1       STORE ADDRESS IN WORK AREA          75128 01810000
+* CHECK PROGRAM NAME                                                    01820000
+         CLI   PGM,C'#'                                     FIX-X 76200 01830000
+         BE    V02PGMOK                                     FIX-X 76200 01840000
+         CLI   PGM,C'@'                                     FIX-X 76200 01850000
+         BE     V02PGMOK                                    FIX-X 76200 01860000
+         CLI   PGM,C'$'                                     FIX-X 76200 01870000
+         BE    V02PGMOK                                     FIX-X 76200 01880000
+         CLI   PGM,C'A'       IS FIRST LETTER ACCEPTABLE?               01890000
+         BL    V02ERR                                                   01900000
+         CLI   PGM,C'Z'                                                 01910000
+         BNH   V02PGMOK       BRANCH WHEN FIRST LETTER IS OK            01920000
+V02ERR EQU *                                                            01930000
+         JOLERR 401,'PROGRAM NAME ''',PGM,''' IS INVALID IN FIRST CHAR' 01940000
+V02PGMOK EQU *                                                          01950000
+         IFVALUE PGMSIZE,V02LSIZE                                 75128 01960000
+         L     R4,AJOLGEN                                         75128 01970000
+         USING GENDETS,R4                                         75128 01980000
+         CLC   DEFPREGN,BLANKS                              FIX-X 76200 01990000
+         BE    V02LSIZE                                     FIX-X 76200 02000000
+         MVC   PGMSIZE(L'DEFPREGN),DEFPREGN                       75128 02010000
+         MVI   PGMSIZEQ,C'K'                                      75128 02020000
+         JOLERR 002,'DEFAULTS MADE TO PROGRAM DEFINITION'         75311 02030000
+         DROP  R4                                                 75128 02040000
+V02LSIZE EQU   *                                                  75128 02050000
+         IFNULL PGMSIZE,V02TTIME                                  76200 02060000
+         TNUM  PGMSIZE                                            76200 02070000
+         CH    R1,=H'40'                                          76200 02080000
+         BNL   V02TTIME                                           76200 02090000
+         MVC   PGMSIZE(5),=CL5'40'                                76200 02100000
+         MVI   PGMSIZEQ,C'K'                                      76200 02110000
+V02TTIME EQU   *                                                  76200 02120000
+         IFNULL PGMTIME1,V02LTIME                                 76200 02130000
+         TNUM  PGMTIME1                                           76200 02140000
+         LTR   R15,R15                                            76200 02150000
+         BNZ   V02TERR                                            76200 02160000
+         CH    R1,=H'1440'                                        76200 02170000
+         BH    V02TERR                                            76200 02180000
+         B     V02LTIME                                           76200 02190000
+V02TERR  JOLERR 403,'PROGRAM CPU TIME NUMERIC OR > 1440'         76200  02200000
+         CLEAR PGMTIME1                                           76200 02210000
+V02LTIME EQU   *                                                  76200 02220000
+         JOLRETN                                                        02230000
+         CNOP  0,8                                          FIX-X 76200 02240000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                   FIX-X 76200 02250000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                   FIX-X 76200 02260000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                   FIX-X 76200 02270000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                   FIX-X 76200 02280000
+         TITLE 'UJV03DS: VET DATA SET DECLARE'                          02290000
+**********************************************************************  02300000
+*                                                                    *  02310000
+*              VALIDATE DATA SET DETAILS                                02320000
+*                                                                    *  02330000
+**********************************************************************  02340000
+         JOLSAVE CSECT=UJV03DS,BASE=(11,12)                             02350000
+         USING DDDSNDET,R3                                              02360000
+         L     R15,AUVALID    GET USER EXIT ADDRESS               75128 02370000
+         L     R15,8(R15)     ADDRESS DSID VALIDATE ROUTINE       75128 02380000
+         L     R1,AJOBDETS    ADDRESS JOBDETAILS                  75128 02390000
+         L     R14,ATKN1      ADDRESS LAST EXEL                   75128 02400000
+         CALL  (15),(JOLCOM,(1),(14),(3)),MF=(E,CALLAREA)         75128 02410000
+         L     R4,AJOLGEN     GET GENERATION DETAILS              75128 02420000
+         USING GENDETS,R4                                         75128 02430000
+         SPACE 3                                                        02440000
+         MVI   INEST,0         TESTED LATER TO SEE IF ANY DEFAULTS75311 02450000
+*                              HAVE BEEN MADE                     75311 02460000
+           SPACE 3                                                75311 02470000
+* THIS IS A RELATIVELY LARGE SET OF VALIDATION CODE.                    02480000
+* FIRST, CHECK TO SEE IF THIS DATA-SET IS A DUMP DATA SET.              02490000
+*    IF IT IS,CLEAR ANY DCB INFORMATION (THE DATA SET DECLARED AS       02500000
+*    PRINTER MAY BE USED FOR ANY PRINTER,AND THUS HAVE UNWANTED         02510000
+*    DCB INFORMATION IN IT).                                            02520000
+*********************************************************************** 02530000
+* CHECK FIRST IF WE ARE DEALING WITH A SHORT DD-CARD (SOME MAY          02540000
+*     BE AS SHORT AS DOWN TO'DDSPACE').                                 02550000
+*********************************************************************** 02560000
+         CLC DDOSVB,=AL2(DDCATLGS-DDOSVB+2)                             02570000
+         BNH V03TDSN         SHORT RECORD                               02580000
+         SPACE 2                                                        02590000
+         CLC DDDDNAME,=CL8'SYSUDUMP'                                    02600000
+         BE  V03DUMP                                                    02610000
+         CLC DDDDNAME,=CL8'SYSABEND'                                    02620000
+         BE  V03DUMP                                                    02630000
+         CLC DDDDNAME,=CL8'PL1DUMP'                                     02640000
+         BE  V03DUMP                                                    02650000
+         CLC DDDDNAME,=CL8'PLIDUMP'                                     02660000
+         BE  V03DUMP                                                    02670000
+         FIX   'REMOVE ABOVE CODE'                                      02680001
+*03DUMP  EQU *                                                          02690000
+         B   V03                                                        02700000
+V03DUMP  EQU *                                                          02710000
+         CLI   DDTYPE,DDSYSOUT         SYSOUT TYPE OF DUMP ?     C DASD 02720000
+         BNE   V03 ETN                 IF NOT...RETURN           C DASD 02730000
+         MVI   DDDCB,C' '                                               02740000
+         MVC   DDDCB+1(DDDSORG+L'DDDSORG-DDDCB-1),DDDCB CLEAR OUT DCB   02750000
+*        CLI   DDTYPE,DDSYSOUT SYSOUT TYPE OF DUMP?      JOC77263  DASD 02760000
+*        BNE   V03RETN        NOPE ->                    JOC77263  DASD 02770000
+         IFVALUE DDSYSCLS,V03RETN                        JOL30015 76200 02780000
+         MVI   DDSYSCLS,C'*' SET CLASS=* (VS1 FIXED LATER)        80290 02790000
+         B     V03RETN        BYPASS ANY DEFAULTS ETC             75003 02800000
+* NOW TO APPLY 'SILLY' VETS,IE TEST THINGS TO BE NUMERIC AND IN RANGE.  02810000
+           EJECT                                                        02830000
+V03      DS    0H                                                       02831001
+**********************************************************************  02840000
+*                                                                    *  02850000
+*              STRAIGHT NUMERIC AND RANGE CHECKS                        02860000
+*                                                                    *  02870000
+**********************************************************************  02880000
+         MVC   #STRING,=H'5'                                      75128 02890000
+         TNUMERIC  DDEXPDT,99999,'EXPIRY DATE'                    80290 02900000
+         B     V03TDSN        GO CHECK IF DSNAME VALID                  02910000
+V03INITV JOLERR 301,'THE ',#OP,' FIELD IS NOT NUMERIC OR > ',#STRING,  *02920000
+               ':-NULLIFIED',STMT=DDSTMT                          75311 02930000
+         BR    R10            BACK TO CALLER                            02940000
+         EJECT                                                          02950000
+**********************************************************************  02960000
+*                                                                    *  02970000
+*              DSNAME CHECKING                                          02980000
+**********************************************************************  02990000
+* NOW TEST DSNAME TO BE OK                                              03000000
+V03TDSN  EQU   *                                                        03010000
+         CLI   DDTYPE,DDPUNCH SYSOUT ? OR LESS?                   75128 03020000
+         BH    V03TDSNT       NOPE                                75128 03030000
+         IFVALUE DDSYSCLS,V03TRECF SYSOUT A OR SOMETHING ? YES->  75128 03040000
+         MVI   DDSYSCLS,C'*'  SET CLASS *  (VS1 FIXED LATER)      80290 03050000
+         B     V03TRECF                                           75128 03060000
+V03TDSNT CLI   DDDSNAME,C'*'  DUMMY ?                             75128 03070000
+         BE    V03TRECF       YES ->                              75128 03080000
+         CLI   DDTYPE,DDREALDS                                          03090000
+         BL    V03TRECF                                                 03100000
+         CLI   DDDSNAME,C'&&' TEMPORARY DSN ?                           03110000
+         BE    V03TRECF                                                 03120000
+         CLI   DDDSNAME,C'''' SPECIAL DSNAME ?                    74214 03130000
+         BE    V03TRECF       YES SO DONT CHECK IT                74214 03140000
+         CLI   DDDSNAME,C'%'  NO DSNAME CODED ?                   75128 03150000
+         BE    V03TRECF       YES, IGNORE CHECKING                75128 03160000
+         LA    R1,DDDSNAME-1        START ADDRESS OF LOOP               03170000
+         LA    R15,L'DDDSNAME(R1)   END ADDRESS                         03180000
+         LA    R14,1              INCREMENT                             03190000
+V03TID   AR    R1,R14                                                   03200000
+         CLI   0(R1),C'@'    CHECK NATIONAL CHARACTERS            DASD  03210000
+         BE    V03SGEN                                            DASD  03220000
+         CLI   0(R1),C'#'                                         DASD  03230000
+         BE    V03SGEN                                            DASD  03240000
+         CLI   0(R1),C'$'                                         DASD  03250000
+         BE    V03SGEN                                            DASD  03260000
+         CLI   0(R1),C'A'     TEST FIRST CHAR IDENT                     03270000
+         BL    V03DSNER         ERROR                                   03280000
+         CLI   0(R1),C'Z'     > 'Z'                                     03290000
+         BH    V03DSNER         ERROR                                   03300000
+V03SGEN  EQU   *                                                 75049  03310000
+         LR    R5,R1           SAVE R1 SO WE CAN CHECK                  03320000
+*                              THE LENGTH OF<IDENT>                     03330000
+V03LUP1  BXH   R1,R14,V03DSNED    END ?                                 03340000
+         CLI   0(R1),C'.'      SEPERATOR ?                              03350000
+         BE    V03EIDNT           YES,CHECK LENGTH                      03360000
+         CLI   0(R1),C' '    BLANK ? END LOOP ?                         03370000
+         BE    V03EIDNT       YEP,CHECK LENGTH                          03380000
+         CLI   0(R1),C'('    START GDG ?                          75128 03390000
+         BE    V03EIDNT       YES                                 75128 03400000
+         B     V03LUP1                                                  03410000
+V03DSNED EQU   *                                                        03420000
+V03EIDNT EQU   *                                                        03430000
+         LR    R6,R1                                                    03440000
+         SR    R6,R5         TESTING IDENTIFIER TO BE <8 CHARS.         03450000
+         BM    V03TCHAR      TEST END DSN VET ?                         03460000
+         BE    V03TCHAR      TEST END DSN VET ?                         03470000
+         CH    R6,=H'8'      ID > 8 CHARACTERS ?                        03480000
+         BH    V03DSNER        YES,ERROR                                03490000
+V03TCHAR CLI   0(R1),C'('    GDG                                  75128 03500000
+         BE    V03TRECF      YES                                  75128 03510000
+         CLI   0(R1),C' '    END DSNAME ?                         75128 03520000
+         BNE   V03TID                                                   03530000
+         B     V03TRECF      CHECK RECFM NOW.                           03540000
+V03DSNER JOLERR 402,'DSNAME ''',DDDSNAME,''' IS INVALID',STMT=DDSTMT    03550000
+           EJECT                                                        03560000
+**********************************************************************  03570000
+*                                                                    *  03580000
+*              TEST RECORD FORMAT                                       03590000
+*                                                                    *  03600000
+**********************************************************************  03610000
+V03TRECF   EQU *                                                        03620000
+* NOW WE SHALL TEST THE RECORD FORMAT TO SEE IF ALL IS WELL IN THAT     03630000
+*    FIELD.                                                             03640000
+* AGAIN CHECK FOR SHORT RECORD                                          03650000
+         CLC   DDOSVB,=AL2(DDCATLGS-DDOSVB+2)                           03660000
+         BNH   V03NODCB        SHORT RECORD                             03670000
+         IFNULL DDRECFM,V03TOPTC  IF NO RECFM DONT CHECK IT       74214 03680000
+         LA    R1,DDRECFM                      LOAD START ADDRESS       03690000
+         LA    R15,DDRECFM+L'DDRECFM-1         AND STOP                 03700000
+         LA    R14,1                           AND INCREMENT            03710000
+V03LUP4  LA    R5,=C' ABDFGMRSTUV%   ' LOAD START ADDRESS OF      75311 03720000
+*                                              LITERAL STRING           03730000
+         LA    R7,12(R5)                                                03740000
+         LR    R6,R14                          INCREMENT                03750000
+V03LUP3  CLC   0(1,R1),0(R5)                                            03760000
+         BE    V03ELUP4                                                 03770000
+         BXLE  R5,R6,V03LUP3                                            03780000
+         USING ONECHAR,R5                                         74256 03790000
+         LR    R5,R1                                              74256 03800000
+         JOLERR 303,'RECORD FORMAT CHARACTER ''',ONECHAR,''' IN FORMAT *03810000
+               ''',DDRECFM,''' SET TO BLANK AS IT WAS INVALID',STMT=DDS*03820000
+               TMT                                                      03830000
+         LA    R14,1          RE-LOAD R14                         75128 03840000
+         CLEAR ONECHAR                                            74303 03850000
+         LR    R1,R5                                              74303 03860000
+         B     *+8                                                      03870000
+V03ELUP4 BXLE R1,R14,V03LUP4                                            03880000
+* OK,CHARACTERS IN THERE ARE VALID,BUT ARE ANY OF THEM DUPLICATED ?     03890000
+         XC    #OP,#OP         SET 'ERROR STRING ' LENGTH=0       74214 03900000
+         LA    R1,DDRECFM                                               03910000
+         LA    R15,DDRECFM+L'DDRECFM-1                                  03920000
+         CLI   0(R15),C' '       SET                              74256 03930000
+         BNE   *+8               * R15                            74256 03940000
+         BCT   R15,*-8           ** AT END STRING                 74256 03950000
+         SPACE 1                                                  74256 03960000
+* R14 STILL HAS ONE AS INCREMENT,SO DOES R6                             03970000
+V03LUP6  LA    R5,1(R1)        SET R5 WITH R1 + 1                       03980000
+         LR    R7,R15          SAME STOP ADDRESS                        03990000
+V03LUP5  CLC   0(1,R1),0(R5)                                            04000000
+         BE    V03RECDU        RECFM HAS A DUPLICATE                    04010000
+V03ELUP5 BXLE  R5,R6,V03LUP5                                            04020000
+         BXLE  R1,R14,V03LUP6                                           04030000
+         B     V03TRECE             TEST IF AN ERROR FOUND        74214 04040000
+V03RECDU LH    R8,#OP          LOAD LENGTH OF 'ERROR STRING'      74214 04050000
+         LA    R8,1(R8)        ADD 1                              74214 04060000
+         STH   R8,#OP            RESET LENGTH                     74214 04070000
+         LA    R8,OP-1(R8)     POINT NEXT AVAILABLE CHAR IN IT    74214 04080000
+         MVC   0(1,R8),0(R1)     SHIFT DUPLICATE CHAR IN          74214 04090000
+         MVI   0(R1),C' '                                               04100000
+         SPACE 3                                                        04110000
+         B     V03ELUP5                                                 04120000
+V03TRECE CLC   #OP,=H'0'       WERE ANY ERRORS DETECTED ?         74214 04130000
+         BE    V03TOPTC        NO SO NO ERROR MESSAGE             74214 04140000
+         JOLERR 204,'DUPLICATE CHARACTERS ''',#OP,                75311*04150000
+               ''' IGNORED IN RECORD FORMAT'                      75311 04160000
+         EJECT                                                          04170000
+**********************************************************************  04180000
+*                                                                    *  04190000
+*              TEST OPTCD                                               04200000
+*                                                                    *  04210000
+**********************************************************************  04220000
+V03TOPTC EQU *                                                          04230000
+* TEST OPTCD FOR VALIDITY.                                              04240000
+         IFNULL DDOPTCD,V03NOPTC IF NO OPTCD , DONT TEST IT.      75128 04250000
+         LA    R1,DDOPTCD                                               04260000
+         LA    R15,DDOPTCD+L'DDOPTCD-1                                  04270000
+V03LUP8  LA    R5,=C' ABCEFHIJLMOQRTUWYZ  '                       87080 04280000
+         LA    R14,1                                                    04290000
+         LR    R6,R14                                                   04300000
+         LA    R7,18(R5)                                                04310000
+V03LUP7  CLC   0(1,R1),0(R5)                                            04320000
+         BE    V03ELUP8                                                 04330000
+         BXLE  R5,R6,V03LUP7                                            04340000
+         LR    R5,R1                                              74256 04350000
+         JOLERR 305,'OPTCD FORMAT CHARACTER ''',ONECHAR,               *04360000
+               ''' IN OPTION ''',DDOPTCD,''' SET TO BLANK AS IT WAS INV*04370000
+               ALID',STMT=DDSTMT                                        04380000
+         LA    R14,1   RE-LOAD R14                                75128 04390000
+         MVI   0(R5),C' '                                         75128 04400000
+         DROP  R5                                                 74256 04410000
+V03ELUP8 BXLE  R1,R14,V03LUP8                                           04420000
+* CHARACTERS IN OPTCD ARE VALID,BUT CHECK FOR DUPLICATES.               04430000
+         XC    #OP,#OP         SET ERROR STRING LENGTH=0          74214 04440000
+         LA    R1,DDOPTCD                                               04450000
+         LA    R15,DDOPTCD+L'DDOPTCD-1                                  04460000
+         CLI   0(R15),C' '   SET R15                              75128 04470000
+         BNE   *+8          * AT END                              75128 04480000
+         BCT   R15,*-8      ** OF STRING                          75128 04490000
+V03LUP10 LA    R5,1(R1)                                                 04500000
+         LR    R7,R15                                                   04510000
+V03LUP9  CLC   0(1,R1),0(R5)                                            04520000
+         BE    V03OPTCD        DUPLICATE                                04530000
+V03ELUP9 BXLE  R5,R6,V03LUP9                                            04540000
+         BXLE  R1,R14,V03LUP10                                          04550000
+         B     V03TOPCE        TEST IF ERROR IN OPTCD FOUND       74214 04560000
+V03OPTCD LH    R8,#OP          LENGTH OF ERROR STRING             74214 04570000
+         LA    R8,1(R8)        +1                                 74214 04580000
+         STH   R8,#OP          RESET LENGTH                       74214 04590000
+         LA    R8,OP-1(R8)     POINT NEXT AVAILABLE HOLE          74214 04600000
+         MVC   0(1,R8),0(R1)   SHIFT DUPLICATE CHARACTER IN       74214 04610000
+         MVI   0(R1),C' '                                               04620000
+         B     V03ELUP9                                                 04630000
+V03TOPCE CLC   #OP,=H'0'       WERE ANY ERRORS FOUND ?            74214 04640000
+         BE    V03NOPTC        NO,SO NO ERROR MESSAGE             75128 04650000
+         JOLERR 206,'DUPLICATE CHARACTERS ''',#OP,                     *04660000
+               ''' IN OPTCD ','IGNORED',STMT=DDSTMT                     04670000
+         TITLE  'PERFORM CHECKS TEMP DSN WITH RETPD'                    04680000
+V03NOPTC EQU   *                                                        04690000
+         CLI   DDTYPE,DDSYSIN  SYSIN?                                   04700000
+         BE    V03IGNR9         YES, IGNORE THIS                        04710000
+         CLI   DDTYPE,DDPUNCH  SPECIAL SYSOUT?                          04720000
+         BH    V03DS9     NO MUST BE SOME SORT OF REAL DS HERE          04730000
+         SPACE 1                                                        04740000
+* HERE IS IS A SYSOUT DATA SET                                          04750000
+         IFNULL DDRETPD,DDEXPDT,V03SYS08                                04760000
+         CLEAR  DDRETPD,DDEXPDT                                         04770000
+         JOLERR 110,'PRINTER/PUNCH',                              75311*04780000
+               ' HAD EXPIRATION DATE:-NULLIFIED',STMT=DDSTMT      75311 04790000
+V03SYS08 EQU    *                                                       04800000
+         B     V03TBLKS                                                 04810000
+V03DS9   EQU    *                                                       04820000
+         CLI    DDDSNAME,C'&&' TEMP DSN?                                04830000
+         BNE    V03DS10    REAL DATA SET                                04840000
+         IFNULL DDRETPD,DDEXPDT,V03TBLKS                                04850000
+         CLEAR    DDRETPD,DDEXPDT                                       04860000
+         JOLERR 111,'TEMPORARY DATA SET',                         75311*04870000
+               ' HAD EXPIRATION DATE:-NULLIFIED',STMT=DDSTMT      75311 04880000
+         B    V03TBLKS                                                  04890000
+V03DS10  EQU    *                                                       04900000
+*REAL DATA SET HERE..... CHECK WHAT??????????                           04910000
+         TM     DDSPECT2,X'01'   VSAM???                                04920000
+         BZ     V03NVSAM                                                04930000
+         IFNULL DDSIZE,DDSIZE2,DDAVREC,DDPRIM,DDSEC,V03VSAM0            04940000
+         JOLERR 318,'SPACE IGNORED FOR VSAM DATA SET',STMT=DDSTMT 311   04950000
+         CLEAR DDSIZE,DDSIZE2,DDAVREC,DDPRIM,DDSEC                      04960000
+V03VSAM0 EQU    *                                                       04970000
+V03NVSAM EQU  *                                                         04980000
+V03IGNR9 EQU  *                                                         04990000
+**********************************************************************  05000000
+*                                                                    *  05010000
+*              TEST BLOCKSIZES ETC                                      05020000
+*                                                                    *  05030000
+**********************************************************************  05040000
+V03TBLKS EQU  *                                                         05050000
+* NOW WE ARE TO TEST THAT THE BLOCKSIZES ETC ARE MULTIPLES,(OR IF V     05060000
+*    LARGER THAN) THE LRECLS.                                           05070000
+* HOWEVER IF NO BLOCKSIZE IS SPECIFIED,THERE IS NO CHECK UNTIL          05080000
+*    WE SHIFT IN THE DEFAULT BLOCKSIZES AND LRECLS.                     05090000
+           SPACE                                                        05100000
+* FURTHERMORE,INPUT DATA SETS ARE A LITTLE DIFFERENT AGAIN BECAUSE      05110000
+*    THE BLOCKSIZE CAN COME FROM OTHER SOURCES.                         05120000
+* OBVIOUSLY AN OUTPUT DATA SET CAN ALSO FOOL US IF THE DCB IS FULLY     05130000
+*    OR PARTIALLY CODED IN THE PROGRAM,BUT IF IT IS CODED IN THE        05140000
+*    PROGRAM,IT WILL OVER-RIDE WHATEVER I PUT IN THE JCL ANYWAY.        05150000
+           SPACE 3                                                      05160000
+* AND SO THE PROCESS IS ROUGHLY THIS:-                                  05170000
+*    IF INPUT,CHECK THAT IF THE LRECL & BLKSIZE ARE CODED THAT THEY     05180000
+*    ARE VALID                                                          05190000
+*    IF OUTPUT CHECK THAT THE LRECL & BLKSIZE ARE CODED.                05200000
+*    IF NOT,SUPPLY DEFAULTS AND PROCESS THEM.                           05210000
+           TM DDDISP1,B'11000000' READ OR SHR                           05220000
+           BZ V03READ                                                   05230000
+* HERE IT IS AN OUTPUT DATA SET (BUT NOT PL1DUMP,SYSABEND ETC)          05240000
+           CLI DDRECFM,C'%'    DID USER SPECIFY 'NODCB' ?         74214 05250000
+           BE V03NODCB         NODCB,SO NO DEFAULTS FOR OP DS     74214 05260000
+           TM  DDSPECT2,X'20'  'NODEFAULT' OPTION USED ?          75311 05270000
+           BO  V03NODCB        YES, DON'T GIVE A DEFAULT          75311 05280000
+           IFVALUE DDRECFM,V03GOTRE                                     05290000
+* NOW TEST IF NODEFAULT                                           75311 05300000
+           TM  DDSPECT2,X'20'  NODEFAULT?                         75311 05310000
+           BO  V03DCBOK        CAN'T DO ANYTHING THEN (CAN'T CHECK75311 05320000
+*                              BLOCKSIZES ETC EITHER, SO AWAY)    75311 05330000
+         CLI  DDTYPE,DDPUNCH   IS IT A SYSOUT FILE?               75128 05340000
+           BH  V03NSYSO        NOT SYSOUT FILE                    74256 05350000
+           IFVALUE DDRECFM,V03LSREC  LEAVE SYSOUT RECFM           74256 05360000
+         CLC   DEFSRECF,BLANKS                              FIX-X 76200 05370000
+         BE    V03LSREC                                     FIX-X 76200 05380000
+         MVI   INEST,1                                      FIX-X 76200 05390000
+           MVC DDRECFM(3),DEFSRECF  SHIFT IN DEFAULT SYSOUT RECFM 74256 05400000
+V03LSREC   EQU *                                                  74256 05410000
+           IFVALUE DDBLKSZE,V03SYSB1                              74214 05420000
+           MVC DDBLKSZE,DEFSBLK                                   74256 05430000
+V03SYSB1   IFVALUE DDLRECL,V03SYSOK                               74214 05440000
+         CLC   DEFSLREC,ZERO                                FIX-X 80290 05450000
+         BE    V03SYSOK                                     FIX-X 76200 05460000
+         MVI   INEST,1                                      FIX-X 76200 05470000
+           MVC DDLRECL,DEFSLREC                                   80290 05480000
+V03SYSOK   B   V03GOTRE                                           75311 05490000
+V03NSYSO   IFVALUE DDRECFM,V03GOTRE                               74256 05500000
+         CLC   DEFRECF,BLANKS                               FIX-X 76200 05510000
+         BE    V03GOTRE                                     FIX-X 76200 05520000
+         MVI   INEST,1                                      FIX-X 76200 05530000
+           MVC DDRECFM(3),DEFRECF                                 74256 05540000
+V03GOTRE   EQU *                                                        05550000
+* HERE AN OUTPUT DATA SET WITH A RECORD FORMAT.                         05560000
+           CLC DDRECFM(2),=C'FB'               FB ?                     05570000
+           BE  V03FB                                                    05580000
+           CLI DDRECFM,C'F'                    F ?                      05590000
+           BE  V03F                                                     05600000
+           CLC  =C'VB',DDRECFM    VB?                             74214 05610000
+           BE  V03VB                                                    05620000
+           CLI DDRECFM,C'V'                    V ?                      05630000
+           BE  V03V                                                     05640000
+* SHOULD BE RECFM'U' HERE AND WE WON'T TOUCH IT                         05650000
+           B   V03BLKOK                                                 05660000
+           EJECT                                                        05670000
+**********************************************************************  05680000
+*                                                                    *  05690000
+*              FB FORMAT OUTPUT                                         05700000
+*                                                                    *  05710000
+**********************************************************************  05720000
+V03FB      IFNULL DDBLKSZE,DDLRECL,V03FBBAD    CHANGE TO VB WITH        05730000
+*                                              DEFAULTS                 05740000
+           IFNULL DDBLKSZE,V03FBNBK            FB NO BLKSIZE            05750000
+           IFNULL DDLRECL,V03FBNRC             FB NO LRECL              05760000
+* HERE BOTH FIELDS CONTAIN A VALUE,SO LETS SEE IF THEY ARE              05770000
+*          MULTIPLES                                                    05780000
+V03FBCHK   EQU *               THIS BIT OF CODE IS ALSO EXECUTED        05790000
+*                              FOR AN INPUT DATA SET THAT SPECIFIES     05800000
+*                              FB AND LRECL & BLOCKSIZES.               05810000
+           LH  R14,DDLRECL                                        80290 05820000
+           LH  R6,DDBLKSZE                                              05830000
+           SRDA R6,32                                                   05840000
+         LTR   R14,R14                                   JOL30059 76200 05850000
+         BZ    V03BLKOK                                  JOL30059 76200 05860000
+           DR  R6,R14          DIVIDE BLKSIZE BY LRECL                  05870000
+           LTR R6,R6           REMAINDER=0 ?                            05880000
+           BZ  V03BLKOK                                                 05890000
+* THE BLKSIZE IS NOT A MULTIPLE OF THE LRECLS                           05900000
+           MR  R6,R14          MULT REC-SIZE BY QUOTIENT                05910000
+           STH R7,DDBLKSZE     SAVE NEW BLKSIZE                         05920000
+         JOLERR 207,'BLOCK-SIZE ALTERED TO ',DDBLKSZE,STMT=DDSTMT       05930000
+           B   V03BLKOK                        BLOCK-SIZE OK NOW        05940000
+           SPACE 2                                                      05950000
+V03FBBAD   TM  DDSPECT2,X'20'  NO DEFAULT ?                       75311 05960000
+           BO  V03DCBOK        NO DEFAULTS, RETN                  75311 05970000
+           BAL R10,V03FIXBK    GET BLKSIZE FROM DEFAULT           75311 05980000
+*                                              WHICH DEPENDS ON THE     05990000
+*                                              TYPE OF UNIT             06000000
+         IFNULL DDBLKSZE,V03TEND       IF NO DEF...GIVE UP       A DASD 06010000
+         JOLERR 308,'RECORD FORMAT NOW VB,AND BLOCK-SIZE ',DDBLKSZE,STM*06020000
+               T=DDSTMT                                                 06030000
+*                                              WITH A NEW BLOCK-SIZE    06040000
+V03MAKVB   MVC DDRECFM(2),=C'VB'               SHIFT IN VB              06050000
+           B   V03VB                           GO TO VB VET             06060000
+           SPACE 2                                                      06070000
+V03FBNBK   EQU *               FB BUT NO BLKSIZE                        06080000
+           TM  DDSPECT2,X'20'  NO DEFAULT ?                       75311 06090000
+           BO  V03DCBOK        CHECK UNIT ETC                     75311 06100000
+         BAL R10,V03FIXBK    GET BLKSIZE FROM DEFAULT                   06110000
+           B   V03FBCHK                                                 06120000
+V03FBNRC   EQU *               FB WITH A BLKSIZE BUT NO LRECL           06130000
+           TM  DDSPECT2,X'20'  NO DEFAULTS?                       75311 06140000
+           BO  V03DCBOK        CHECK UNIT ETC                     75311 06150000
+* NOW THIS IS A DIFFICULT SITUATION AND IN FACT CAN NOT ARISE           06160000
+*    NORMALLY UNLESS SOME BUNNY USES AN ASSIGNMENT STATEMENT            06170000
+*    OR DOES SOMETHING PECULIAR IN AN EXIT ROUTINE                      06180000
+           SPACE                                                        06190000
+* UNTIL SOME FEEDBACK OCCURS WITH JOL USERS,I'M GOING TO CONVERT        06200000
+*    IT TO VB.                                                          06210000
+         JOLERR 309,'RECORD FORMAT NOW VB',STMT=DDSTMT                  06220000
+           LH  R15,DDBLKSZE                                       80290 06230000
+           LA  R15,4(R1)                                          75128 06240000
+           STH R15,DDBLKSZE                                       80290 06250000
+           B   V03MAKVB                                                 06260000
+           SPACE 3                                                      06270000
+* END FB ******                                                         06280000
+           SPACE 3                                                      06290000
+           EJECT                                                        06300000
+**********************************************************************  06310000
+*                                                                    *  06320000
+*              F  FORMAT OUTPUT                                         06330000
+*                                                                    *  06340000
+**********************************************************************  06350000
+V03F       EQU *                                                        06360000
+* FIXED.                                                                06370000
+           IFNULL DDBLKSZE,DDLRECL,V03FBAD     CHANGE TO VB             06380000
+           IFNULL DDBLKSZE,V03FNBK             F,NO BLKSIZE             06390000
+           IFNULL DDLRECL,V03FNRC              F,NO LRECL               06400000
+* HERE BOTH LRECL AND BLKSIZE SPECIFIED. ARE THEY EQUAL ?               06410000
+           CLC DDBLKSZE,DDLRECL                                         06420000
+           BE  V03BLKOK                        LRECL=BLKSIZE SO ALL'S   06430000
+*                                              WELL.                    06440000
+* NOW THE BLKSIZE IS NOT EQUAL TO THE LRECL,SO MAKE IT FB AND           06450000
+*    BRANCH TO THE FB VALIDATOR.                                        06460000
+V03MAKFB   MVC WORK(L'DDRECFM),DDRECFM                                  06470000
+           MVC DDRECFM(2),=C'FB'                                        06480000
+           MVC DDRECFM+2(L'DDRECFM-2),WORK+1                      75311 06490000
+           B   V03FB                                                    06500000
+           SPACE 2                                                      06510000
+V03FNBK    EQU *                                                        06520000
+* HERE IT IS F,BUT NO BLKSIZE WAS SPECIFIED BUT LRECL WAS.              06530000
+* CHANGE TO FB,THEN BRANCH TO FB VALIDATION ROUTINE                     06540000
+           TM  DDSPECT2,X'20'  NO DEFAULTS ?                      75311 06550000
+           BO  V03DCBOK        CHECK UNIT ETC                     75311 06560000
+         CLC   DEFBLK,ZERO             IF NO DEFAULT.......       80290 06570000
+         BE    V03TEND                 .............GIVE UP      A DASD 06580000
+           B   V03MAKFB                                                 06590000
+           SPACE 2                                                      06600000
+V03FNRC    EQU *                                                        06610000
+* F,BLKSZE SPECIFIED BUT NO LRECL                                       06620000
+           TM  DDSPECT2,X'20'  NO DEFAULTS ?                      75311 06630000
+           BO  V03DCBOK        CHECK UNIT ETC                     75311 06640000
+           B   V03MAKVB        MAKE VB                                  06650000
+           SPACE 2                                                      06660000
+V03FBAD    EQU *               NO LRECL OR BLKSIZE SPECIFIED            06670000
+           TM  DDSPECT2,X'20'  NO DEFAULTS ?                      75311 06680000
+           BO  V03DCBOK        CHECK UNIT ETC                     75311 06690000
+         CLC   DEFBLK,ZERO             IF NO DEFAULT.......       80290 06700000
+         BE    V03TEND                 .............GIVE UP      A DASD 06710000
+           B   V03MAKVB                                                 06720000
+           SPACE 3                                                      06730000
+           EJECT                                                        06740000
+**********************************************************************  06750000
+*                                                                    *  06760000
+*              VB FORMAT OUTPUT                                         06770000
+*                                                                    *  06780000
+**********************************************************************  06790000
+* VARIABLE BLOCKED CHECKING.                                            06800000
+V03VB      EQU *                                                        06810000
+           IFNULL DDBLKSZE,DDLRECL,V03VBBAD                             06820000
+           IFNULL DDBLKSZE,V03VBNBK            VB,NO BLOCKSIZE.         06830000
+           IFNULL DDLRECL,V03VBNRC             VB,NO LRECL.             06840000
+           SPACE 3                                                      06850000
+* HERE VB,LRECL AND BLKSIZE SPECIFIED.                                  06860000
+           CLI DDRECFM+2,C'S'                  SPANNED VB ?             06870000
+           BE  V03BLKOK                        YES,DON'T CHECK AT ALL   06880000
+*                                              BECAUSE IT HAS BEEN AT   06890000
+*                                              CHECKED TO BE NUMERIC    06900000
+* ANYWAY,IT IS VB AND THE LRECL AND BLKSIZE HAVE BEEN GIVEN             06910000
+V03VBCHK   LH  R6,DDLRECL     LOAD THE LRECL                      80290 06920000
+           LH  R1,DDBLKSZE    LOAD THE BLKSIZE                    80290 06930000
+           LA  R6,4(R6)       ADD FOUR TO LRECL                         06940000
+           CR  R6,R1          COMPARE BLOCKSIZE AND LRECL         75128 06950000
+           BNH V03BLKOK       OK,BLKSIZE IS AT LEAST 4> LRECL           06960000
+* NOW THE BLKSIZE IS NOT 4> LRECL                                       06970000
+*    I AM GOING TO SET THE BLKSIZE TO BE 4>THAN THE LRECL.              06980000
+*    WHEN WE BRANCH TO V03BLKOK,THE BLOCKSIZE WILL BE CHECKED           06990000
+*    AGAINST THE DEVICE TYPE AND IF NECESSARY,TRACK OVERFLOW            07000000
+*    AND/OR SPANNED RECORD PROCESSING WILL BE USED.                     07010000
+           STH R6,DDBLKSZE                                        80290 07020000
+           B   V03BLKOK                                                 07030000
+           SPACE 2                                                      07040000
+V03VBBAD   EQU *               NO LRECL / BLKSIZE HAVE BEEN GIVEN.      07050000
+           FIX 'THERE WAS A COMPLAINT FROM SPL IN EUROPE THAT'          07060000
+           FIX 'THIS WAS NOT CORRECT. I THINK ITS OK TO SET THE'        07070000
+           FIX 'LRECL TO 4 LESS THAN THE DEFAULT BLOCKSIZE FOR VB'      07080000
+           TM  DDSPECT2,X'20'  NO DEFAULTS ?                      75311 07090000
+           BO  V03DCBOK        CHECK UNIT ETC                     75311 07100000
+           BAL R10,V03FIXBK    GET DEFAULT BLOCKSIZE                    07110000
+         IFNULL DDBLKSZE,V03TEND       IF NO DEF...GIVE UP       A DASD 07120000
+V03VBFRC   LH  R1,DDBLKSZE                                        80290 07130000
+           SH  R1,=H'4'                                           75128 07140000
+           STH R1,DDLRECL                                         80290 07150000
+           MVI INEST,1         TURN ON DEFAULT INDICATOR          75311 07160000
+           B   V03BLKOK                                                 07170000
+V03VBNBK   EQU *               VB,LRECL BUT NO BLKSIZE                  07180000
+           BAL R10,V03FIXBK    GET DEFAULT BLOCKSIZES                   07190000
+           TM  DDSPECT2,X'20'  NO DEFAULTS ?                      75311 07200000
+           BO  V03DCBOK        CHECK UNIT ETC                     75311 07210000
+           B   V03VBCHK                                                 07220000
+           SPACE 2                                                      07230000
+V03VBNRC   EQU *               VB,BLKSIZE BUT NO LRECL                  07240000
+           TM  DDSPECT2,X'20'  NO DEFAULTS ?                      75311 07250000
+           BO  V03DCBOK        CHECK UNIT ETC                     75311 07260000
+           B   V03VBFRC        F(IX) RCRD                               07270000
+           SPACE 2                                                      07280000
+           EJECT                                                        07290000
+**********************************************************************  07300000
+*                                                                    *  07310000
+*              V  FORMAT OUTPUT                                         07320000
+*                                                                    *  07330000
+**********************************************************************  07340000
+V03V       EQU *                                                        07350000
+           IFNULL DDBLKSZE,DDLRECL,V03VNOWT                             07360000
+           IFNULL DDBLKSZE,V03VNBLK                                     07370000
+           IFNULL DDLRECL,V03VNREC        GO TO ALL OK                  07380000
+* BOTH LRECL AND BLKSIZE ARE PRESENT                                    07390000
+           LH   R6,DDLRECL   LOAD THE LRECL                       80290 07400000
+           LA   R6,4(R6)     AND ADD 4 TO IT                      80290 07410000
+           LH   R1,DDBLKSZE  LOAD THE BLKSIZE                     80290 07420000
+           CR  R6,R1          COMPATIBLE ?                        75128 07430000
+           BNH V03VOK           YES                               74217 07440000
+           CLI DDRECFM+1,C'S'  VS ?                               75311 07450000
+           BE  V03VOK          YES,ALL IS WELL                    75311 07460000
+V03FERR EQU *                                                           07470000
+         JOLERR 412,'INPUT DATA SET HAS CONFLICTING DCB PARAMETERS:-', *07480000
+               'RECFM=',DDRECFM,'BLOCKSIZE=',DDBLKSZE,                 *07490000
+               'RECORD SIZE=',DDLRECL,STMT=DDSTMT                       07500000
+           B   V03TEND                                                  07510000
+V03VNOWT   EQU *                                                        07520000
+           TM  DDSPECT2,X'20'  NO DEFAULTS ?                      75311 07530000
+           BO  V03DCBOK        GO CHECK UNITS ETC                 75311 07540000
+           BAL R10,V03FIXBK   GET DEFAULT BLKSIZE                       07550000
+           B   V03VOK                                                   07560000
+V03VNBLK   EQU *                                                        07570000
+           LH  R1,DDLRECL     LOAD THE LRECL                      80290 07580000
+           LA  R1,4(R1)     ADD FOUR                              75128 07590000
+           STH R1,DDBLKSZE                                        80290 07600000
+           MVI INEST,1         TURN ON DEFAULT MADE INDICATOR     75311 07610000
+           B   V03VOK                                                   07620000
+V03FIXBK   EQU *                                                        07630000
+* THIS SUBROUTINE PUTS IN A DEFAULT BLKSIZE                             07640000
+         CLC   DEFBLK,ZERO                                  FIX-X 76200 07650000
+         BE    0(R10)                                       FIX-X 76200 07660000
+           MVI INEST,1         TURN ON DEFAULT MADE INDICATOR     75311 07670000
+           MVC DDBLKSZE,DEFBLK                                    74256 07680000
+           BR R10                     RETURN                            07690000
+V03READ    EQU *                                                        07700000
+* THE DD-CARD CONTAINS INFORMATION INDICATING THAT THE DATA-SET IS      07710000
+*    TO BE READ,IE NOT ALL THE DCB INFORMATION IS REQUIRED.             07720000
+* NOW BECAUSE NOT ALL THE INFORMATION NEED BE AVAILABLE THERE IS NOT    07730000
+*    A HUGE AMOUNT OF CHECKING THAT I CAN DO.                           07740000
+* STILL,LET'S SEE WHAT CAN BE DONE.                                     07750000
+           IFNULL DDRECFM,DDLRECL,DDBLKSZE,V03TEND                      07760000
+           CLC DDRECFM(2),=C'FB'               FB ?                     07770000
+           BNE V03TVBIN                                                 07780000
+           IFNULL DDLRECL,DDBLKSZE,V03TEND                              07790000
+* FB AND LRECL AND BLKSIZE SPECIFIED.                                   07800000
+           LH  R8,DDLRECL                                         80290 07810000
+           LH  R6,DDBLKSZE                                        80290 07820000
+           SRDA R6,32                                                   07830000
+           DR  R6,R8                                              74256 07840000
+           LTR R6,R6               AND TEST IF REMAINDER.               07850000
+           BZ  V03TEND         THERE WAS NO REMAINDER AND SO ALL IS     07860000
+*                              WELL                                     07870000
+         B   V03FERR                                                    07880000
+           SPACE 2                                                      07890000
+V03TVBIN   EQU *                                                        07900000
+           CLC DDRECFM(2),=C'VB'                                        07910000
+           BNE V03TEND                                                  07920000
+V03VOK     EQU *                                                        07930000
+V03VNREC   EQU *                                                        07940000
+V03TEND    EQU *                                                        07950000
+V03BLKOK   EQU *                                                        07960000
+V03DCBOK  EQU  *                                                  74214 07970000
+* THE RECFM,LRECL AND BLKSIZE HAVE BEEN PRETTY                          07980000
+*    WELL CHECKED,BUT WE HAD BETTER CHECK THAT THE BLOCKSIZES           07990000
+*    WILL FIT ON THE REQUIRED DEVICES.                                  08000000
+V03NODCB   EQU   *                                                      08010000
+**********************************************************************  08020000
+*                                                                    *  08030000
+*              THIS CODE PUTS IN DEFAULT UNIT & SPACE FOR OUTPUT     *  08040000
+*                                                                    *  08050000
+**********************************************************************  08060000
+*                                                                       08070000
+* IF THE USER DOES NOT SPECIFY A UNIT BUT SPECIFIES:-                   08080000
+*      1. DSORG PO OR IS                                                08090000
+*          2. SPACE                                                     08100000
+* THEN THE DEFAULT 'DISK' IS ASSUMMED                                   08110000
+* OTHERWISE TAPE                                                        08120000
+         TM    DDDISP1,B'11000000' OLD OR SHR?                    74214 08130000
+         BZ    V03RETN            GETS RID OF INPUT DATA SETS           08140000
+         TM    DDDISP1,B'10000000' MOD ?                          84100 08150000
+         BNO   V03NOTMD           ON IS MOD                       84100 08160000
+         CLI   DDCATLGS,0         DID WE SEARCH THE CATLG AND GET 0?    08170000
+         BE    V03RETN            YES, SO SKIP THIS SECTION       84100 08180000
+V03NOTMD CLI   DDTYPE,DDPUNCH     SYSOUT OR SIMILIAR?             75128 08190000
+         BNH   V03TSPC            GO AND TEST FOR SPACE DEFAULTS        08200000
+         IFVALUE DDUNIT,V03TSPC HAS IT A UNIT? YES,TEST SPACE     74256 08210000
+         CLI   DDVOLUME,C'*'      VOLREF ?                        74214 08220000
+         BE    V03TSPC            YES,BUT STILL TEST SPACE        74256 08230000
+         CLI   DDVOLUME,C'-'   VOLREF?                             DASD 08240000
+         BE    V03TSPC         YES,BUT STILL TEST SPACE            DASD 08250000
+           IFNULL DDPRIM,DDSEC,DDDIRECT,DDRKP,DDKEYLEN,DDOVERFL,  74214*08260000
+               DDDSORG,V03MKTAP   **  MAKE 'TAPE'  **             74214 08270000
+V03MKDSK   EQU *                                                        08280000
+         CLC   DEFDISK,BLANKS                                           08290000
+         BE    V03TSPC                                                  08300000
+         MVI INEST,1         TURN ON DEFAULT MADE INDICATOR     75311   08310000
+         MVC   DDUNIT,DEFDISK                                     74256 08320000
+         MVI   DDUNITYP,B'10000001'  TELL JOL THAT IT'S A 'DISK'        08330000
+V03TSPC    IFVALUE DDPRIM,DDSEC,DDDIRECT,V03RETN                  74214 08340000
+           TM  DDUNITYP,B'11000000'                               75128 08350000
+           BZ  V03RETN                TAPE, NO SPACE BY DEFAULT   75128 08360000
+* NOW LETS SEE IF THE USER SPECIFIED THE NEW WAY OF SAYING        75128 08370000
+*  HOW MUCH SPACE HE WANTED...............................        75128 08380000
+           IFNULL  DDSIZE,V03TSYSZ                                      08390000
+* NOW WE WILL CALCULATE THE SPACE REQUIREMENTS FOR THE USER.            08400000
+** A DEFAULT OR REAL BLOCKSIZE WOULD NOW BE IN THERE, BUT               08410000
+* THE GUY MAY HAVE SPECIFIED 'NODCB' OR SOMESUCH RUBBISH                08420000
+V03CALC   LH   R1,DDBLKSZE                                        80290 08430000
+          LTR  R5,R1        CONVERT AND SAVE IN R5                      08440000
+          BNZ  V03SGOTB      GOT THE BLOCKSIZE                          08450000
+          JOLERR 213,'CANNOT CALC SPACE-',' NO BLOCKSIZE',STMT=DDSTMT   08460000
+          CLEAR DDSIZE     SO NO LOOPS ........                   75128 08470000
+          B    V03TSYSZ       GO APPLY DEFAULT SPACE OLD FRUIT          08480000
+V03SGOTB  LH   R1,DDSIZE                                          80290 08490000
+          LTR  R6,R1                                                    08500000
+          BNZ  V03SGOTR                                                 08510000
+          JOLERR 214,'CANNOT CALC SPACE-',' NO NUMBER OF RECORDS',     *08520000
+               STMT=DDSTMT                                              08530000
+          B    V03TSYSZ                                                 08540000
+V03SGOTR  LH   R1,DDAVREC                                         80290 08550000
+          LTR  R7,R1                                                    08560000
+          BNZ  V03SGOTA                                                 08570000
+          LH   R1,DDLRECL                                         80290 08580000
+          LTR  R7,R1                                                    08590000
+          BNZ  V03SGOTL                                                 08600000
+          JOLERR 215,'CANNOT CALC SPACE-',' NO RECORD SIZE',STMT=DDSTMT 08610000
+          B    V03TSYSZ                                                 08620000
+V03SGOTL  CLI  DDRECFM,C'V'                                             08630000
+          BNE  V03SGOTA                                           75128 08640000
+          JOLERR 116,'VARIABLE RECORDS AND LRECL/2 IS USED TO CALC SPAC*08650000
+               E',STMT=DDSTMT                                           08660000
+          SRL  R7,1      DIVIDE BY 2                                    08670000
+V03SGOTA  EQU *                                                         08680000
+* NOW R5=BLKSIZE, R6=NORECS, R7=LRECL (OR EQUIVALENT)                   08690000
+          STM  R5,R7,CALLAREA    SAVE EVERYTHING                        08700000
+          MH   R6,CALLAREA+10    * BY LRECL=BYTES REQD                  08710000
+* CHECK IF USER WANTED THOUSANDS OF RECORDS                             08720000
+         CLI  DDSIZEQ,C'K'                                              08730000
+         BNE  *+8                                                       08740000
+          MH  R6,=H'1000'                                               08750000
+          LR   R1,R6                                                    08760000
+          SR   R0,R0                                                    08770000
+          D    R0,CALLAREA       NUMBER OF BLOCKS IN R1                 08780000
+          LTR  R0,R0             ANY REMAINDER?                         08790000
+          BZ   *+8                                                      08800000
+          LA  R1,1(R1)                                                  08810000
+          STH  R1,DDPRIM      SAVE                                80290 08820000
+* NOW CHECK THE SECONDARY QUANTITY                                      08830000
+          TNUM  DDSIZE2                                                 08840000
+          LTR   R6,R1                                                   08850000
+           BZ    V03SNSEC                                               08860000
+* NOW SUBTRACT THE PRIMARY NUMBER OF RECORDS                            08870000
+           S     R1,CALLAREA+4                                          08880000
+           BZ    V03SNSEC                                               08890000
+           BP    V03CALC2                                               08900000
+           JOLERR 217,'RECORD RANGE INVALID',STMT=DDSTMT                08910000
+           SR    R1,R1                                                  08920000
+           B     V03MAKE1                                               08930000
+V03CALC2   EQU  *                                                       08940000
+          BZ    V03SNSEC                                                08950000
+          MH    R1,CALLAREA+10                                          08960000
+          CLI   DDSIZEQ,C'K'                                            08970000
+          BNE  *+8                                                      08980000
+          MH    R1,=H'1000'                                             08990000
+          SR    R0,R0                                                   09000000
+          D     R0,CALLAREA                                             09010000
+          LTR   R0,R0                                                   09020000
+          BZ    *+8                                                     09030000
+          LA    R1,1(R1)                                                09040000
+          LTR   R1,R1                                                   09050000
+          BZ    *-8                                                     09060000
+          SR    R0,R0                                                   09070000
+          D     R0,=F'15'                                               09080000
+          LTR   R0,R0                                                   09090000
+          BZ    *+8                                                     09100000
+V03MAKE1  LA    R1,1(R1)                                                09110000
+          STH   R1,DDSEC                                          80290 09120000
+V03SNSEC MVI   DDCYLTRK,C'B'         SET BLOCKS ON                      09130000
+         B     V03RETN                                                  09140000
+V03TSYSZ CLI   DDTYPE,DDPUNCH      SYSOUT?                        75128 09150000
+         BNH   V03SYSPC                                           74256 09160000
+           TM  DDUNITYP,B'10000000' TAPE DEVICE ?                 75311 09170000
+           BZ  V03RETN         YES, NO SPACE ON TAPE THEN         75311 09180000
+            CLC  DEFPRIM,ZERO                                     80290 09190000
+            BNE  V03DEFSS                                               09200000
+            CLC  DEFSEC,ZERO                                      80290 09210000
+            BNE  V03DEFSS                                               09220000
+             B    V03RETN                                               09230000
+V03DEFSS    EQU  *                                                      09240000
+         MVC   DDPRIM,DEFPRIM                                     74256 09250000
+         MVC   DDSEC,DEFSEC                                       74256 09260000
+         MVC   DDCYLTRK,DEFALLUN                                  74256 09270000
+           MVI INEST,1         TURN ON DEFAULT MADE INDICATOR     75311 09280000
+           CLC  =C'PO',DDDSORG   IS IT PO?                              09290000
+             BE  V03DEFDI                                               09300000
+            CLI  DDTYPE,DDMEMSPC                                        09310000
+            BH  V03RETN                                                 09320000
+            IFNULL DDMBR,V03RETN                                        09330000
+V03DEFDI    EQU  *                                                      09340000
+           BNE  V03RETN                                                 09350000
+           MVC  DDDIRECT,=CL5'10' YES,GIVE SOME DIRECTORY SPACE         09360000
+           B    V03RETN                                                 09370000
+V03MKTAP   CLI DDDSNAME,C'&&'  IS IT A TEMPORARY DATA SET               09380000
+           BE V03MKDSK                                                  09390000
+           CLI DDDSNAME,C'*'   DUMMY DATA SET ?                   75311 09400000
+           BNE V03MVCTP        MOVE DEFAULT TAPE UNIT IN THEN     75311 09410000
+            CLC  DEFDISK,BLANKS                                         09420000
+            BE   V03RETN                                                09430000
+            MVI INEST,1                                                 09440000
+           MVC DDUNIT,=CL8'SYSDA'                                 75311 09450000
+           MVI DDUNITYP,B'10000001' DISK INDICATOR                75311 09460000
+           B   V03RETN                                            75311 09470000
+           SPACE 3                                                      09480000
+V03MVCTP   EQU *                                                  75311 09490000
+            CLC  DEFTAPE,BLANKS                                         09500000
+            BE   V03RETN                                                09510000
+            MVI  INEST,1                                                09520000
+         MVC   DDUNIT,DEFTAPE                                     74256 09530000
+         MVI   DDUNITYP,B'00000100'  TELL JOL THAT IT'S A 'TAPE'        09540000
+         B     V03RETN        ****NO DEFAULT SPACE FOR TAPES NOW  75128 09550000
+V03SYSPC IFVALUE DDSIZE,V03CALC  CALC FOR SYSOUTS TOO MATE..      75128 09560000
+         MVC   DDPRIM,DEFSPRIM      (L'DEFSPRIM)                  74256 09570000
+         MVC   DDSEC,DEFSSEC         (L'DEFSSEC)                  74256 09580000
+         MVC   DDCYLTRK,DEFSCT                                  !!82145 09590000
+V03RETN  EQU   *                                                  74256 09600000
+         CLI   DDTYPE,DDWORKDS                                          09610000
+         BL    V03GOTS                                                  09620000
+         TM    DDDISP1,B'11000000'                                      09630000
+         BZ    V03GOTS                                                  09640000
+         BO    V03GOTS       DISP=SHR AND LABEL^=IN                SOCO 09650000
+* HERE AN OUTPUT DATA SET OF SOME DESCRIPTION.                          09660000
+         CLI   DDRECFM,C'%'   NODCB CODED?                              09670000
+         BE    V03NRECD       YES                                       09680000
+         TM    DDSPECT2,X'20'   NODEFAULTS CODED??                      09690000
+         BO    V03NRECD       NODEFAULTS                                09700000
+         IFNULL DDRECFM,DDBLKSZE,DDLRECL,V03ERR22                 76200 09710000
+         B     V03NRECD                                                 09720000
+V03ERR22 JOLERR 122,'NO RECORD FORMAT,BLOCK-SIZE OR RECORD-SIZE FOR '''*09730000
+               ,DDDSID,'''',STMT=DDSTMT                                 09740000
+V03NRECD EQU   *                                                        09750000
+         CLC   =C'*DUMMY',DDDSNAME   DUMMY?                       76200 09760000
+         BE    V03GOTS               YES,LEAVE IT ALONE           76200 09770000
+* TEST IF VOLREF AND THEREFORE NO UNIT CODED.                           09780000
+         CLI   DDVOLUME,C'*'                                            09790000
+         BE    V03GOTU                                                  09800000
+         CLI   DDVOLUME,C'-'                                            09810000
+         BE    V03GOTU                                                  09820000
+         SPACE 1                                                        09830000
+        IFVALUE  DDUNIT,DDUNITYP,V03GOTU                                09840000
+          JOLERR  420,'NO UNIT SPECIFIED FOR ''',DDDSID,               *09850000
+               '''',STMT=DDSTMT                                         09860000
+V03GOTU EQU   *                                                         09870000
+         TM    DDUNITYP,B'10000000'  TAPE?                        76200 09880000
+         BNO   V03GOTS                                            76200 09890000
+         IFVALUE  DDPRIM,DDSEC,DDSIZE,V03GOTS                           09900000
+          JOLERR 421,'NO SPACE SPECIFIED FOR ''',DDDSID,               *09910000
+               '''',STMT=DDSTMT                                         09920000
+V03GOTS   EQU  *                                                        09930000
+           CLI INEST,0         WAS A DEFAULT MADE ANYWHERE ?      75311 09940000
+           BE  V03GOBAK        NO                                 75311 09950000
+           SPACE 1                                                75311 09960000
+           JOLERR 019,'DEFAULTS WERE MADE TO DSID ''',DDDSID,'''', 6200*09970000
+               STMT=DDSTMT                                        75311 09980000
+V03GOBAK   EQU *                                                  75311 09990000
+         JOLRETN RC=0                                             74256 10000000
+           LTORG                                                        10010000
+         CNOP  0,8                                          FIX-X 76200 10020000
+           DC S(*),S(*),S(*),S(*)                                       10030000
+           DC S(*),S(*),S(*),S(*)                                       10040000
+           DC S(*),S(*),S(*),S(*)                                       10050000
+           DC S(*),S(*),S(*),S(*)                                       10060000
+           DC S(*),S(*),S(*),S(*)                                       10070000
+           DC S(*),S(*),S(*),S(*)                                       10080000
+           DC S(*),S(*),S(*),S(*)                                       10090000
+           DC S(*),S(*),S(*),S(*)                                       10100000
+           DC S(*),S(*),S(*),S(*)                                       10110000
+           DC S(*),S(*),S(*),S(*)                                       10120000
+           DC S(*),S(*),S(*),S(*)                                       10130000
+           DC S(*),S(*),S(*),S(*)                                       10140000
+           DC S(*),S(*),S(*),S(*)                                       10150000
+           DC S(*),S(*),S(*),S(*)                                       10160000
+           DC S(*),S(*),S(*),S(*)                                       10170000
+           DC S(*),S(*),S(*),S(*)                                       10180000
+           DC S(*),S(*),S(*),S(*)                                       10190000
+           DC S(*),S(*),S(*),S(*)                                       10200000
+           DC S(*),S(*),S(*),S(*)                                       10210000
+           DC S(*),S(*),S(*),S(*)                                       10220000
+ONECH      DSECT                                                        10230000
+ONECHAR    DS  CL1                                                      10240000
+           LTORG                                                        10250000
+           TITLE 'VET DATA SET DISPOSITION INSTRUCTIONS'                10260000
+           SPACE 3                                                      10270000
+*    UJV05CAT  VETS THE CATALOG STATEMENT                               10280000
+*    UJV06UNC  VETS THE UNCATALOG STATEMENT                             10290000
+*    UJV07REE  VETS THE KEEP STATEMENT                                  10300000
+*    UJV08SCR  VETS THE SCRATCH STATEMENT                               10310000
+*    UJV09DEL  VETS THE DELETE STATEMENT                                10320000
+*                                                                       10330000
+* NOW BY THIS STAGE THE FOLLOWING ACTIONS WILL HAVE BEEN PERFORMED      10340000
+*    ON THE STACK CONTAINING THE JOB IN INTERNAL FORMAT.                10350000
+*          1.  ALL TEMPORARY DATA SETS WILL HAVE HAD TEMPORARY          10360000
+*              DATA SET NAMES CODED ON THEM.                            10370000
+*          2.  ALL THE PASSED DATA-SETS WILL HAVE HAD THE 2ND           10380000
+*              DISP FIELD SET TO 'P' EXECPT FOR THE LAST,WHICH          10390000
+*              IS MARKED 'L' TO INDICATE THAT IT WAS RECEIVED           10400000
+*              FROM SOMEWHERE ABOVE                                     10410000
+*          3.  ALL CATALOG SEARCHING WILL HAVE BEEN PERFORMED           10420000
+*              AND THE CATALOG BITS SET ON WHERE NECESSARY.             10430000
+*                                                                       10440000
+*                                                                       10450000
+*                                                                       10460000
+*                                                                       10470000
+*                                                                       10480000
+*                                                                       10490000
+           TITLE 'UJV05CAT: VET CATLG STMT'                             10500000
+           JOLSAVE CSECT=UJV05CAT                                       10510000
+          $CALL UJV07KEE       LET KEEP DO SOME VETS ON THE NAME        10520000
+           LTR R15,R15                                                  10530000
+           BZ  V05VET1                                                  10540000
+V05RETN4   JOLRETN RC=4                                                 10550000
+           SPACE 3                                                      10560000
+V05VET1    EQU *                                                        10570000
+* LETS SEE IF THIS DD-CARD HAS BEEN PASSED FROM ANOTHER STEP            10580000
+           CLI DDDISP+1,C' '                                            10590000
+         BNE   V05VETDS                                  JOL30075 76200 10600000
+         B     V05VETDS                                  JOL30075 76200 10610000
+         FIX 'PROPERLY LATER'                                           10620000
+* NOW HERE IT IS NOT PASSED FROM ANY OTHER STEP.                        10630000
+*    IF IT HAS A VOL/UNIT CODED,IT COULD QUITE LEGITIMATELY BE A        10640000
+*    CATALOG FOR AN OLD DATA-SET                                        10650000
+           IFNULL DDVOLUME,V05ERR1             NO VOL,ERROR             10660000
+           IFNULL DDUNIT,V05ERR1               NO UNIT,ERROR            10670000
+* ALL'S WELL HERE BECAUSE BOTH THE VOLUME AND                           10680000
+*    UNIT HAVE BEEN CODED.                                              10690000
+           B   V05VETDS        GO VET DSNAME NOW                        10700000
+V05ERR1  JOLERR 201,'DSID ''',DDDSID,''' DSNAME ''',DDDSNAME,          *10710000
+               ''' CANNOT BE KEPT OR CATALOGUED:-',                    *10720000
+               'NO UNIT AND/OR VOLUME SPECIFIED AND DATA-SET NOT CREATE*10730000
+               D EARLIER IN JOB'                                        10740000
+           MVI DDDD1,C'%'      DELETE THE INSTRUCTION                   10750000
+           JOLRETN RC=4                                                 10760000
+           SPACE 3                                                      10770000
+V05VETDS   EQU *                                                        10780000
+*******************                                                     10790000
+* VET DSNAME HERE *                                                     10800000
+*******************                                                     10810000
+           JOLRETN                                                      10820000
+           DC S(*),S(*),S(*),S(*)                                       10830000
+           DC S(*),S(*),S(*),S(*)                                       10840000
+           DC S(*),S(*),S(*),S(*)                                       10850000
+           DC S(*),S(*),S(*),S(*)                                       10860000
+           DC S(*),S(*),S(*),S(*)                                       10870000
+           DC S(*),S(*),S(*),S(*)                                       10880000
+           DC S(*),S(*),S(*),S(*)                                       10890000
+           DC S(*),S(*),S(*),S(*)                                       10900000
+           DC S(*),S(*),S(*),S(*)                                       10910000
+           DC S(*),S(*),S(*),S(*)                                       10920000
+           TITLE 'UJV06UNC: VET UNCATLG STMT'                           10930000
+           JOLSAVE CSECT=UJV06UNC                                       10940000
+*********************************************                           10950000
+* PERFORM ANY VETS, IF ERROR GO TO V06RETN4 *                           10960000
+*********************************************                           10970000
+           JOLRETN                                                      10980000
+V06RETN4   MVI DDDD1,C'%'      DELETE THE STATEMENT                     10990000
+           JOLRETN RC=4                                                 11000000
+           TITLE 'UJV07KEE: VET KEEP STMT'                              11010000
+           JOLSAVE CSECT=UJV07KEE                                       11020000
+* VET THE KEEP STATEMENT                                                11030000
+           CLI DDDSNAME,C'&&'  TEMPORARY                                11040000
+           BNE V07NOTTM                                                 11050000
+* TEMPORARY NAME CANNOT BE KEPT/CATLGD                                  11060000
+         JOLERR 201,'DSID ''',DDDSID,''' IS A TEMPORARY DATA SET AND CA*11070000
+               NNOT BE KEPT OR CATALOGUED'                              11080000
+V07DEL     MVI DDDD1,C'%'      TELL LATER PHASES TO IGNORE THIS         11090000
+*                              INSTRUCTION.                             11100000
+           JOLRETN RC=4                                                 11110000
+V07NOTTM CLI DDTYPE,DDPUNCH                                       75128 11120000
+           BH  V07TDUMY       CHECK IF DUMMY DS                   76200 11130000
+V07SYSIN JOLERR 202,'DSID ''',DDDSID,''' IS A PRINT/PUNCH/CARD/UNIT-REC*11140000
+               ORD FILE AND CANNOT BE KEPT OR CATALOGUED'               11150000
+           B   V07DEL          DELETE THIS STATEMENT                    11160000
+V07TDUMY CLC =C'*DUMMY',DDDSNAME                                  76200 11170000
+         BNE   V07TKEEP                                           76200 11180000
+         JOLERR 104,'DSID ''',DDDSID,''' DECLARED AT ',DDSTMT,    76200*11190000
+               ' IS A DUMMY DSID AND CANNOT BE KEPT OR CATALOGUED'      11200000
+         B     V07DEL                                             76200 11210000
+V07TKEEP   EQU  *                                                       11220000
+* OK,HERE THERE IS A REAL DSNAME                                        11230000
+*************************                                               11240000
+* DO YOU WANT TO VET IT *                                               11250000
+*************************                                               11260000
+           SPACE 3                                                      11270000
+* NOW IF THIS IS NOT A KEEP,WE CAN GO HOME (BACK TO THE CATALOG         11280000
+*                              VETTER).                                 11290000
+         CLI   DDDDNAME+1,C'K' KEEP                         FIX-X 76200 11300000
+           BE  V07KEEP                                                  11310000
+V07RETN0   JOLRETN                                                      11320000
+V07KEEP    EQU *                                                        11330000
+* SEE IF THIS HAS BEEN PASSED FROM ANY-WHERE                            11340000
+           CLI DDDISP+1,C' '   =' '                                     11350000
+           BNE V07RETN0        NO,RETURN GRACE-FULLY                    11360000
+         JOLERR 203,'DSID ''',DDDSID,''' DSNAME ''',DDDSNAME,          *11370000
+               ''' HAS NOT YET BEEN OUTPUT AND CANNOT BE KEPT'          11380000
+           B   V07DEL          DELETE RECORD                            11390000
+         CNOP  0,8                                          FIX-X 76200 11400000
+           DC S(*),S(*),S(*),S(*)                                       11410000
+           DC S(*),S(*),S(*),S(*)                                       11420000
+           DC S(*),S(*),S(*),S(*)                                       11430000
+           DC S(*),S(*),S(*),S(*)                                       11440000
+           DC S(*),S(*),S(*),S(*)                                       11450000
+           DC S(*),S(*),S(*),S(*)                                       11460000
+           DC S(*),S(*),S(*),S(*)                                       11470000
+           DC S(*),S(*),S(*),S(*)                                       11480000
+           DC S(*),S(*),S(*),S(*)                                       11490000
+           DC S(*),S(*),S(*),S(*)                                       11500000
+           DC S(*),S(*),S(*),S(*)                                       11510000
+           DC S(*),S(*),S(*),S(*)                                       11520000
+           DC S(*),S(*),S(*),S(*)                                       11530000
+           DC S(*),S(*),S(*),S(*)                                       11540000
+           DC S(*),S(*),S(*),S(*)                                       11550000
+           LTORG                                                        11560000
+           TITLE 'UJV08SCR: VET SCRATCH STMT'                           11570000
+           JOLSAVE CSECT=UJV08SCR                                       11580000
+         CLI   DDDD1,C'%'     INSTRUCTION ALREADY DELETEDJOL30072 76200 11590000
+         BE    V08RETN4                                  JOL30072 76200 11600000
+***************************************************************         11610000
+* CHECK FOR A GDGALL AND IF SO DON'T CHECK UNIT AND ECT....   *         11620000
+* IF DELETING A GDG FAMILY BEFORE ANY  THING ELSE IS DONE     *         11630000
+* IN THE JOB,   NO  ACTION WILL BE PERFORMED ON THIS GUY YET  *         11640000
+* AND JOL WILL KILL THIS REQUEST DO TO NO UNIT ECT....        *         11650000
+***************************************************************         11660000
+          CLI   DDCATLGS,104   WELL GUY ARE YOU ?                       11670000
+          BE    V08RETN0       YES AND I'M PROUD OF IT                  11680000
+           B   V08VETDS                                           75128 11690000
+V08RETN4   MVI DDDD1,C'%'      DELETE INSTRUCTION                       11700000
+           JOLRETN RC=4                                                 11710000
+V08VETDS   EQU *                                                        11720000
+         CLC   =C'*DUMMY',DDDSNAME                                76200 11730000
+         BNE   V08RETN0                                           76200 11740000
+         JOLERR 102,'DSID ''',DDDSID,''' DECLARED AT ',DDSTMT,    76200*11750000
+               ' IS A DUMMY DSID AND CANNOT BE SCRATCHED OR DELETED'    11760000
+         B     V08RETN4                                           76200 11770000
+*******************************                                         11780000
+* VET DSNAME FOR SCRATCH HERE *                                         11790000
+*******************************                                         11800000
+V08RETN0 EQU   *                                                        11810000
+           JOLRETN                                                      11820000
+         CNOP  0,8                                                      11830000
+           DC S(*),S(*),S(*),S(*)                                       11840000
+           DC S(*),S(*),S(*),S(*)                                       11850000
+           DC S(*),S(*),S(*),S(*)                                       11860000
+           DC S(*),S(*),S(*),S(*)                                       11870000
+           DC S(*),S(*),S(*),S(*)                                       11880000
+           DC S(*),S(*),S(*),S(*)                                       11890000
+           DC S(*),S(*),S(*),S(*)                                       11900000
+           DC S(*),S(*),S(*),S(*)                                       11910000
+           DC S(*),S(*),S(*),S(*)                                       11920000
+           DC S(*),S(*),S(*),S(*)                                       11930000
+           TITLE 'UJV09DEL: VET DELETE STMT'                            11940000
+           JOLSAVE CSECT=UJV09DEL                                       11950000
+          $CALL UJV08SCR       VET THE SCRATCH PART OF INSTRUCTION      11960000
+          $CALL UJV06UNC       VET THE UNCATALOG PART OF THE INSTRUCTI- 11970000
+*                              ON                                       11980000
+           JOLRETN                                                      11990000
+           LTORG                                                        12000000
+         CNOP  0,8                                          FIX-X 76200 12010000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                   FIX-X 76200 12020000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                   FIX-X 76200 12030000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                   FIX-X 76200 12040000
+           DC S(*),S(*),S(*),S(*)                                       12050000
+           DC S(*),S(*),S(*),S(*)                                       12060000
+           DC S(*),S(*),S(*),S(*)                                       12070000
+           DC S(*),S(*),S(*),S(*)                                       12080000
+           DC S(*),S(*),S(*),S(*)                                       12090000
+           DC S(*),S(*),S(*),S(*)                                       12100000
+           DC S(*),S(*),S(*),S(*)                                       12110000
+           DC S(*),S(*),S(*),S(*)                                       12120000
+           DC S(*),S(*),S(*),S(*)                                       12130000
+           DC S(*),S(*),S(*),S(*)                                       12140000
+VALIDATE   CSECT                                                        12150000
+DDDSNDET   DSECT                                                        12160000
+           ORG DDDISP                                                   12170000
+DDDISP1    DS  CL1                                                      12180000
+           ORG                                                          12190000
+           END                                                          12200000

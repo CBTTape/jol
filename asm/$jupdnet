@@ -1,0 +1,146 @@
+           GENSAVE CSECT=$JUPDNET                                       00000100
+* JOL COPYRIGHT CCS-JOL P/L 1987.                                       00001000
+* UPDATE NETWORK STATUS DETAILS
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00002000
+           SPACE 3                                                      00003000
+*                   J             000000            L                   00004000
+*                   J            0      0           L                   00005000
+*                   J           0        0          L                   00006000
+*                   J          0          0         L                   00007000
+*                   J         0            0        L                   00008000
+*                   J         0            0        L                   00009000
+*                   J         0            0        L                   00010000
+*                   J         0            0        L                   00011000
+*                   J         0            0        L                   00012000
+*                   J         0            0        L                   00013000
+*                   J         0            0        L                   00014000
+*        J          J         0            0        L                   00015000
+*         J        J           0          0         L                   00016000
+*          J      J             0        0          L                   00017000
+*           J    J               0      0           L                   00018000
+*            JJJJ                 000000            LLLLLLLLLLL         00019000
+         SPACE 3                                                        00020000
+           LR  R8,R1           SAVE INPUT PARM ADDRESS            75311 00000200
+           L   R9,0(R8)        LOOK AT PARM                       75311 00000700
+           CLC =H'0',0(R9)     IS THERE ONE?                      80290 00000710
+           BE   RETN           NO                                 80290 00000720
+           CLC =C'JOL',2(R9)   GOT 'JOL' ON PARM?                 75311 00000800
+           BNE  RETN                                              75311 00000900
+RETN      DS    0H                                                75311 00001100
+           GENRETN                                                      00001200
+           DC   S(*,*,*,*,*,*,*,*,*,*,*,*)                              00001300
+           DC   S(*,*,*,*,*,*,*,*,*,*,*,*)                              00001400
+           DC   S(*,*,*,*,*,*,*,*,*,*,*,*)                              00001500
+           DC   S(*,*,*,*,*,*,*,*,*,*,*,*)                              00001600
+           END                                                          00001700
+* THIS CSECT UPDATES THE JOLNET.STATUS DATA SET.                        00021000
+*
+* PARAMETERS ARE:-
+* 1. NETWORK-NAME
+* 2. JOB-NAME
+* 3. 'ENDED' 'SUBMITTED' OR 'DELETE'.  IF DELETE, MEMBERS ARE DELETED.
+           OPEN (STATUS,UPDATE)                                         00050000
+           TM  STATUS+48,X'10'                                          00051000
+           BO  STATOPN                                                  00052000
+           WTO    'JOL NETWORK STATUS UPDATE PROGRAM FAILED'            00054000
+           GENRETN RC=4000                                              00058000
+           TITLE 'TEST FIRST CARD TO BE VALID'                          00059000
+STATOPN    EQU *                                                        00060000
+* NOW CHECK THE PARAMETERS WE ARE SUPPLIED WITH.                        00061000
+ISPO       EQU *                                                        00093000
+           MVC DEFBLKSI,DCBBLKSI                                        00094000
+           MVC DEFLRECL,DCBLRECL                                        00095000
+NEWMEM     EQU *                                                        00096000
+           SR R6,R6                       NO RECORDS OUTPUT             00097000
+           MVC STOWMEM,M3MEM   MOVE IN MEMBER NAME FOR STOW             00098000
+REALSTOW DS    0H                                                       00222000
+           STOW SYSUT2,STOWBLK,A                                        00223000
+           LTR R15,R15                                                  00224000
+           BZ  STOWOK                                                   00225000
+           STH R15,DEFLRECL                                             00226000
+           #PRINT 'UJE9908 ERROR OCCURRED IN STOW,RETURNED ',DEFLRECL   00227000
+           WTO    'UJE9908 ERROR OCCURRED IN STOW'                      00228000
+           B   BADRETN                                                  00229000
+STOWOK     EQU  *                                                       00230000
+            TM SYSIN+48,X'10'    SYSIN OPEN OR CLOSED ?                 00232000
+           BO NEWMEM                                                    00233000
+           L   R1,SYSUT2+88                                             00234000
+           L  R0,0(R1)                                                  00235000
+           FREEMAIN R,LV=(0),A=(1)                                      00236000
+           FREEPOOL SYSUT2                                              00237000
+           CLOSE (SYSUT2)                                               00238000
+           L R2,=V(SYSPRINT)                                            00239000
+           CLOSE ((2))                                                  00240000
+           FREEPOOL (2)                                                 00241000
+           GENRETN                                                      00242000
+EOFSYSIN    CLOSE (SYSIN)                                               00243000
+           FREEPOOL SYSIN                                               00244000
+           B STOW                                                       00245000
+&C         SETC  (&X8)'AD'.(1-&X8)'OUTPUT'                              00245100
+SYS2PARM OPEN  (SYSUT2,&C),MF=L     OPEN THE FILE                       00247000
+           EXTRN US39BA                                                 00249000
+           SPACE 3                                                      00250000
+           LTORG                                                        00251000
+           SPACE 3                                                      00252000
+STOWBLK  DS    0D                                                       00253000
+STOWMEM  DS    CL8                                                      00254000
+TTR      DS    XL3                                                      00255000
+C        DC    X'00'                                                    00256000
+M3MEM      DS  CL8             CONTAINS THE MEMBER NAME                 00276000
+M4JOL      DS  CL4             CONTAINS '##$$'                          00277000
+           ORG                                                          00288000
+SYSIN      DCB DDNAME=SYSIN,DSORG=PS,EODAD=EOFSYSIN,MACRF=GM,DEVD=DA    00289000
+SYSUT2     DCB DDNAME=SYSUT2,DSORG=PS,MACRF=PM,BUFL=2000                00290000
+           DCB DDNAME=SYSUT2,DSORG=PO,MACRF=W,BUFL=2000                 00290100
+           ORG                                                          00290200
+           ORG SYSUT2                                                   00290010
+           PRINT NOGEN                                                  00291000
+           DCBD DSORG=PS                                                00292000
+           EXTRN UJEINIT                                                00292100
+           PRINT   GEN                                                  00291000
+UJE22UPD TITLE  'PROGRAM TO UPDATE INSTRUCTION MEMBER OF JOL PARM DS'   00000100
+         COPY  JOLGLOBL                                                 00000200
+&TYPE    SETC  'XXXXX'                                                  00000300
+         COPY  DDDSNDET                                                 00000400
+         EJECT                                                          00000500
+         GENSAVE CSECT=UJE22UPD,BASE=R12                                00000600
+         L     R10,0(,R1)     ADDRESS PARAMETER INFO                    00000700
+         USING PARMS,R10                                                00000800
+         SPACE                                                          00000900
+*        OPEN   (JOLPP,OUTPUT)                                          00001000
+         OPEN   (INSTR,UPDAT)                                           00001100
+         LTR   R15,R15                                                  00001200
+         BZ    E22OPND            BR IF FILE OPENED                     00001300
+         ABEND 11,DUMP                                                  00001400
+         SPACE                                                          00001500
+E22OPND  DS    0H                                                       00001600
+         GET   INSTR                                                    00001700
+         LR    R11,R1                                                   00001800
+         USING DDDSNDET,R11                                             00001900
+         CLI   DDDD1,C'D'                                               00002000
+         BNE   E22OPND                                                  00002100
+         USING DDDSNDET,R11                                             00002500
+         CLC   PARMDSN,DDDSNAME                                         00003400
+         BE    E22VOLS           GO AND COPY VOLUME INFO                00003500
+         CLI   DDVOLUME,C'*'     VOLREF?                                00003600
+         BNE   E22OPND           NO, GO AND READ THE NEXT               00003700
+         CLC   PARMDSN,DDVOLUME+1 THIS DATASET?                         00003800
+         BNE   E22OPND           NO, GO AND READ THE NEXT               00003900
+E22VOLS  DS    0H                                                       00004000
+         MVC   DDVOLUME,PARMVOLS COPY VOLUME INFO                       00004100
+         PUTX  INSTR             WRITE THE UPDATED DATA                 00005000
+         B     E22OPND           GO AND GET THE NEXT ONE                00005400
+         SPACE                                                          00005500
+E22EOF   DS    0H                                                       00005600
+         CLOSE INSTR                                                    00005700
+*        CLOSE JOLPP                                                    00005800
+         GENRETN RC=0                                                   00005900
+         EJECT                                                          00006000
+INSTR    DCB   DDNAME=JOLINSTA,DSORG=PS,MACRF=(GL),EODAD=E22EOF ,     . 00006100
+*              RECFM=U                                                  00006200
+JOLPP    DCB   DDNAME=JOLPP,DSORG=PS,MACRF=(PM),RECFM=VB,LRECL=240,   ++00006300
+               BLKSIZE=800                                              00006400
+PARMS    DSECT                                                          00007500
+PARMDSN  DS    CL26                                                     00007600
+PARMVOLS DS    CL256                                                    00007700
+         END                                                            00007800

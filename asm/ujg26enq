@@ -1,0 +1,35 @@
+****** NEW SEPT 14TH,1975                                               00001000
+* THIS CSECT CALLS US26ENQ TO ENQUE ON AN INTERNAL READER.              00002000
+* THERE IS A NEW VERSION OF US26ENQ BUT IT HAS TWO                      00003000
+* PROBLEMS AS FAR AS JOL IS CONCERNED                                   00004000
+*   1. THE FILE MUST BE CLOSED BEFORE THE ENQ IS PERFORMED.             00005000
+*      JOL KEEPS THE JCL FILE OPEN ALL THE TIME,                        00006000
+*      AND PRESUMABLY THE BUFFER NUMBER IS 1, AND THE FILE              00007000
+*      NOT BLOCKED, SO THAT SHOULD BE ALRIGHT, BUT SHELL WILL           00008000
+*      HAVE TO CHECK THAT.                                              00009000
+*   2. I HAVEN'T GOT A CLUE WHAT TO DO UNDER TSO WHEN I GET             00010000
+*      A RETURN CODE FROM THE ENQUE THAT SAYS THE INTERNAL              00011000
+*      READER IS ENQUED FRO A TSO JOL.                                  00012000
+*****                                                                   00013000
+* SO, THIS LITTLE ROUTINE CAN BE ALTERED LATTER WITHOUT ALTERING        00014000
+* THE MAIN JOL COMPILER.                                                00015000
+           PRINT OFF  (JOLCOM COPY - U DON'T WANT THE PRINT)..          00016000
+           COPY JOLCOM                                                  00017000
+           PRINT ON,DATA                                                00018000
+           JOLSAVE CSECT=UJG26ENQ                                       00019000
+         JOLRETN  RC=0    ********** SHELL MUST ZAP *****               00020000
+           LA R1,JCLDDNAM                                         76200 00021000
+           LINK EP=US26ENQ                                              00022000
+          LTR R15,R15                                             76200 00023000
+          BNZ G26ERR1                                             76200 00024000
+           JOLRETN                                                      00025000
+G26ERR1   JOLERR  401,'ENQ FOR READER FAILED'                     76200 00026000
+         JOLRETN RC=16                                            76200 00027000
+           EJECT                                                        00028000
+           JOLSAVE CSECT=UJG26DEQ                                       00029000
+         JOLRETN  RC=0    ********** SHELL MUST ZAP *****               00030000
+           LA  R1,JCLDDNAM                                        76200 00031000
+           LINK EP=US26DEQ                                              00032000
+           JOLRETN                                                      00033000
+           LTORG                                                        00034000
+           END                                                          00035000

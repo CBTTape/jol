@@ -1,0 +1,112 @@
+//CLARKET  JOB ,'CLARKE',CLASS=A,MSGCLASS=X,NOTIFY=CLARKE               00040011
+//*
+//S1      EXEC  ASMFCL
+//ASM.SYSIN  DD *
+*
+************************************************************
+*                                                          *
+*        TPUT FULL SCREEN TEST (SOME EXAMPLES)             *
+*                                                          *
+************************************************************
+*
+TPUT     CSECT
+*
+R0     EQU   0     REGISTER EQUATES
+R1     EQU   1
+R2     EQU   2
+R3     EQU   3
+R4     EQU   4
+R5     EQU   5
+R6     EQU   6
+R7     EQU   7
+R8     EQU   8
+R9     EQU   9
+R10    EQU   10
+R11    EQU   11
+R12    EQU   12
+R13    EQU   13
+R14    EQU   14
+R15    EQU   15
+*
+* SET UP WORK AREA WITH REG SAVE AT START
+*
+       USING TPUT,R12
+       USING WORKAREA,R13
+       SAVE (14,12),,*      STORE REGS.
+       LR   R12,R15         BASE COVERAGE
+       LR   R2,R1           SAVE PARAMETER REG
+       GETMAIN R,LV=WORKSIZE  SAVE AREA AT START
+       ST   R13,4(R1)       LINKAGE TO SAVE AREAS
+       ST   R1,8(R13)
+       LR   R13,R1
+*
+       STFSMODE ON,INITIAL=NO,NOEDIT=YES
+       TCLEARQ
+       TPUT MSG0,LMSG0,FULLSCR
+       TGET GUFF,L'GUFF
+       TPUT MSGA,LMSGA,NOEDIT
+       TGET GUFF,L'GUFF
+       TPUT MSG1,LMSG1,NOEDIT
+*
+       TGET  GUFF,L'GUFF
+       TPUT MSGE,LMSGE,NOEDIT
+       STFSMODE OFF        FULL SCREEN MODE
+*--------------+
+RETURN EQU  *  +
+*--------------+
+       LR   R1,R13            WORKAREA
+       L    R13,4(R1)         CALLERS SAVE AREA
+       FREEMAIN R,LV=WORKSIZE,A=(1)
+       RETURN (14,12),RC=0    RESTORE REGS. RETURN
+       EJECT
+*
+MSG0   DC      X'27F5431140C91DC1',C' A MESSAGE FULLSCR'
+LMSG0  EQU     *-MSG0
+MSGA   DC      X'F14311C1D91DC1',C' A MESSAGE NOEDIT'
+LMSGA  EQU     *-MSGA
+MSGE   EQU     *
+       DC      X'F543'  WRITE NOREASE RESET MDT'S, UNLOCK
+LMSGE  EQU     *-MSGE
+MSG1   EQU     *
+       DC      X'F143'  WRITE NOREASE RESET MDT'S, UNLOCK
+*      DC      X'F30008090002414243'   <==== DO NOT USE !!!!!
+       DC      X'11C2E9'
+       DC      X'0F0151D0',C'COLOUR F1',X'0E42F7',C'NEW COLOUR F7'
+       DC      X'0E4200'      BACK TO DEFAULT AFTER SA ORDER
+       DC      X'11C2E9'      cvc back to first row set
+       DC      X'0E42F5',C'xxxx' cvc
+       DC      X'0E4200'  cvc BACK TO DEFAULT AFTER SA ORDER
+       DC      X'11C2E9'      cvc back to first row set
+       DC      X'0E42F1',C'y' cvc
+       DC      X'0E4200'  cvc BACK TO DEFAULT AFTER SA ORDER
+       DC      X'11C3F9'
+* cvc  DC      X'0F0142F2',C'COLOUR F2'
+*2cvc  DC      X'0E4200',C'COLOUR F2' reset, color f2
+       DC      X'0F00',C'COLOUR F2' reset, color f2
+       DC      X'11C5C9'
+       DC      X'0F0142F7',C'COLOUR F3'
+       DC      X'0E41F2',X'0E41F4',C'F',X'0E4100',C'iles'
+       DC      X'0E42F3',C'COLOUR F3'
+       DC      X'0E4200'      BACK TO DEFAULT AFTER SA ORDER
+       DC      X'11C6D9'
+       DC      X'0F0142F4',C'COLOUR F4'
+       DC      X'11C7E9'
+       DC      X'0F0142F5',C'COLOUR F5'
+       DC      X'11C8F9'
+       DC      X'0F0142F6',C'COLOUR F6'
+       DC      X'114AC9'
+       DC      X'0F0142F7',C'COLOUR F7'
+       DC      X'0E4200'      BACK TO DEFAULT
+       DC      X'134040'
+LMSG1  EQU     *-MSG1
+MSG2   DC      X'F541F3000509000111C1500F0142F4F0F1F2F3F4F5F6F7F8F9'
+GUFF   DS      CL100
+*
+         LTORG
+*
+WORKAREA DSECT
+REGSAVE  DS  18F
+WORKSIZE EQU *-WORKAREA
+         END
+//LKED.SYSLMOD DD DSN=CLARKE.JOL40.LOAD(TCVCPUT),DISP=SHR
+//

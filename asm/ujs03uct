@@ -1,0 +1,352 @@
+UJS03UCT CSECT                                                          00010000
+*                                                                       00020000
+**********************************************************************  00030000
+*                                                                       00040000
+*   OSIV/X8 ROUTINE UNCATALOG A SPECIFIED DSN USING SVC 111             00050000
+*                                                                       00060000
+*         INPUT PARM POINTED TO BY R1 ON ENTRY                          00070000
+*                                                                       00080000
+*             ID                  DS  F                                 00090000
+*             DSN POINTER         DS  F                                 00100000
+*             UNKNOWN AREA        DS  F                                 00110000
+*             WORK AREA PTR       DS  F                                 00120000
+*             CVOL PTR            DS  F                                 00130000
+*                                                                       00140000
+*                                                                       00150000
+*         OUTPUT PARM POINTED TO BY R1 ON RETURN IS THE SAME AS         00160000
+* THE INPUT PARM                                                        00170000
+*           THE WORK AREA CONTAINING THE FOLLOWING : (DEPENDANT         00180000
+*           ON THE CONDITION CODE IN REG 15)                            00190000
+*                                                                       00200000
+*    REG15=0   UNCATALOG SUCCESSFULL                                    00210000
+*                                                                       00220000
+*                                                                       00230000
+*                                                                       00240000
+*    REG15 NE 0    THEN WORK AREA HAS THE FOLLOWING                     00250000
+*                                                                       00260000
+*        2 FULLWORDS OF BINARY 0                                        00270000
+*        126 CHARACTER MESSAGE                                          00280000
+*                                                                       00290000
+         SPACE 4                                                        00300002
+*                                                                       00310000
+*                                                                       00320000
+*    IF THE SVC 111 RETURNS WITH NON ZERO IN REG15 THEN THE FOLLOWING   00330000
+*      ARE THE POSSIBLE CODES                                           00340000
+*                                                                       00350000
+*         R15=4              MODE ERROR                                 00360000
+*         R15=8              PARAMETER ERROR                            00370000
+*         R15=12             ABEND - ERRET HAS BITS SET TO INDICATE     00380000
+*                                THE CAUSE                              00390000
+*                                                                       00400000
+*     ERRET BIT SETTINGS                                                00410000
+*    BIT     HEX  RC      REASON                                        00420000
+*     0     8000  18    PARAMETER ERROR OR INEFFECTIVE PROCESSING       00430000
+*     1     4000  18    CATALOG IS LOCKED                               00440000
+*     2     2000  18                                                    00450000
+*     3     1000  08    FILE NAME NOT IN CATALOG                        00460000
+*     4     0800  18                                                    00470000
+*     5     0400  0C    REFERRED TO GDG GROUP NAME                      00480000
+*     6     0200  18                                                    00490000
+*     7     0100  18                                                    00500000
+*     8     0080  18    HARDWARE ERROR                                  00510000
+*     9     0040  18                                                    00520000
+*    10     0020  14    ERROR IN DESCRIBING FILE NAME                   00530000
+*    11     0010  18                                                    00540000
+*    12     0008  18    PLSQA INSUFFICIENT                              00550000
+*    13     0004  18    REQUESTED FILE NAME BEING PROCESSED             00560000
+*    14     0002  18                                                    00570000
+*    15     0001  18                                                    00580000
+*                                                                       00590000
+**********************************************************************  00600000
+         EJECT                                                          00610000
+**********************************************************************  00620000
+*                                                                       00630000
+*   WRITTEN BY :                                                        00640000
+*                                                                       00650000
+*              ODTAA PTY LIMITED                                        00660000
+*                PO BOX 500,                                            00670000
+*                CANBERRA CITY                                          00680000
+*                ACT  2601                                              00690000
+*                AUSTRALIA                                              00700000
+*                                                                       00710000
+*   FOR :                                                               00720000
+*                                                                       00730000
+*         CLARKE COMPUTER SOFTWARE PTY LTD                              00740000
+*           105 COLLINS ST                                              00750000
+*            MELBOURNE                                                  00760000
+*            VICTORIA                                                   00770000
+*            AUSTRALIA                                                  00780000
+*                                                                       00790000
+*                                                                       00800000
+**********************************************************************  00810000
+*                                                                       00820000
+*    JOL COPYRIGHT CLARKE COMPUTER SOFTWARE                             00830000
+*                                                                       00840000
+*                                                                       00850000
+*                                                                       00860000
+*                                                                       00870000
+*                                                                       00880000
+*     VERSION 1 LEVEL 0    16-05-82                                     00890000
+*                                                                       00900000
+*                                                                       00910000
+**********************************************************************  00920000
+         EJECT                                                          00930000
+**********************************************************************  00940000
+*                                                                       00950000
+*                                                                       00960000
+*                                                                       00970000
+         SAVE  (14,12),,*    SAVE ALL                                   00980000
+         LR    R10,R15       SET UP BASE                                00990000
+         USING UJS03UCT,R10                                             01000000
+         LR    R2,R1         SAVE AREA ADDRESS                          01010000
+         GETMAIN R,LV=GETLEN                                            01020000
+         LR    R14,R1        SETUP CLEAR                                01030002
+         LA    R15,GETLEN                                               01040002
+         SLR   R3,R3                                                    01050002
+         MVCL  R14,R2        CLEAR THE AREA                             01060002
+         SPACE 2                                                        01070002
+         ST    R13,4(R1)     SET UP POINT BACK                          01080000
+         ST    R1,8(R13)                                                01090000
+         LR    R13,R1                                                   01100000
+         USING WORKA,R13     MAP WORKAREA                               01110000
+*                            SAVE VITAL INFO                            01120000
+*                              FOR EASY                                 01130000
+         ST    R2,INPARM         FINDING                                01140000
+         L     R11,4(R2)      LOAD ADDR OF DSN                          01150000
+         L     R9,12(R2)      LOAD ADDR OF PARMBACK                     01160000
+         USING PARMBACK,R9       MAP RETURN PARM AREA                   01170000
+         USING DSNLIST,R11       MAP DSN                                01180000
+*                                                                       01190000
+*                                                                       01200000
+*                                                                       01210000
+**********************************************************************  01220000
+         EJECT                                                          01230000
+**********************************************************************  01240000
+*                                                                       01250000
+*                                                                       01260000
+*                                                                       01270000
+SETUP    EQU   *                                                        01280000
+         MVC   PARALST1,PMODE1 MOVE IN X'4501'                          01290000
+         MVI   NODSN,X'01'    ONE DSN                                   01300000
+         MVC   CATPA,=C'CATP' MOVE 'CATP'                               01310000
+         LA    R3,CITEMP                                                01320000
+         ST    R3,CITEMPA     MOVE ADDR OF CITEMP                       01330000
+         MVC   STATUS,=X'2000' SIGNAL UNCATALOG                         01340000
+         LA    R3,FNT                                                   01350000
+         ST    R3,ADFNT       MOVE ADDR OF FNT                          01360000
+         MVC   DSNI,DSN       MOVE DSN                                  01370000
+*                                                                       01380000
+*                                                                       01390000
+*                                                                       01400000
+         LA    R1,PARM        POINT AT PARM                             01410000
+         SVC   111            ISSUE SVC                                 01420000
+*                                                                       01430000
+*                                                                       01440000
+*                                                                       01450000
+         LTR   R15,R15        TEST FOR CLEAN RETURN                     01460000
+         BZ    RETURN                                                   01470000
+PROBS    EQU   *                                                        01480002
+         S     R15,=F'8'     WHAT RETURN CODE?                          01490002
+         BZ    RC8           RC=8                                       01500002
+         BM    RC4           RC=4                                       01510002
+         LA    R1,ENDER      LOAD END OF ERROR ADDRESS                  01520002
+         LA    R2,ERRORS     LOAD START ADDR OF ERRORS                  01530002
+LOOPE    EQU   *                                                        01540002
+         CLC   ERRET,0(R2)   CHECK THIS ERROR CODE                      01550002
+         BE    FOUNDER                                                  01560002
+         LA    R2,LENER(R2)  UP POINTER                                 01570000
+         CR    R2,R1         ARE WE AT THE END                          01580002
+         BNH   LOOPE                                                    01590002
+FOUNDER  EQU   *                                                        01600002
+         MVC   RC+3,2(R2)      MOVE RETURN CODE                         01610002
+         MVC   PARMBACK(8),ZERO ZERO TO 1ST 2 FULLWORDS                 01620002
+         MVC   PARMBACK+7(128),3(R2) MOVE IN MESSAGE                    01630002
+         EJECT                                                          01640000
+*                                                                       01650000
+*                                                                       01660000
+*                                                                       01670000
+RETURN   EQU   *                                                        01680000
+         L     R15,RC         SET UP RETURN CODE                        01690000
+         LR    R1,R13                                                   01700000
+         L     R13,4(,R13)    ADDRESS OLD SAVE AREA                     01710000
+         ST    R15,16(,R13)   SAVE RETURN CODE                          01720002
+         FREEMAIN R,LV=GETLEN,A=(1)                                     01730000
+         LM    R14,R12,12(R13)   GO HOME                                01740000
+         BR    R14                                                      01750000
+*                                                                       01760000
+         EJECT                                                          01770000
+*                                                                       01780000
+*                                                                       01790000
+*                                                                       01800000
+*                                                                       01810000
+RC8      EQU   *                                                        01820000
+         MVC   RC+3,RC8ER       MOVE IN RC                              01830000
+         MVC   PARMBACK(8),ZERO ZERO TO 1ST 2 FULLWORDS                 01840000
+         MVC   PARMBACK+7(128),RC8ER+1 MOVE MESSAGE                     01850000
+         B     RETURN                                                   01860000
+*                                                                       01870000
+*                                                                       01880000
+*                                                                       01890000
+RC4      EQU   *                                                        01900000
+         MVC   RC+3,RC4ER       MOVE IN RC                              01910000
+         MVC   PARMBACK(8),ZERO ZERO TO 1ST 2 FULLWORDS                 01920000
+         MVC   PARMBACK+7(128),RC4ER+1 MOVE MESSAGE                     01930000
+         B     RETURN                                                   01940000
+*                                                                       01950000
+*                                                                       01960000
+         EJECT                                                          01970000
+*                                                                       01980000
+ERRORS   EQU   *                                                        01990000
+ER0      DC    X'8000',X'18'                                            02000003
+         DC    CL128'PARAMETER ERROR OR INEFFECTIVE PROCESSING'         02010003
+ER1      DC X'4000',X'18',CL128'CATALOG IS LOCKED             '         02020002
+ER2      DC X'2000',X'18',CL128'UNDEFINED PROBLEM         '             02030002
+ER3      DC X'1000',X'08',CL128'FILE NAME NOT IN CATALOG      '         02040002
+ER4      DC X'0800',X'18',CL128'UNDEFINED ERROR           '             02050002
+ER5      DC X'0400',X'0C',CL128'REFERRED TO GDG GROUP NAME    '         02060002
+ER6      DC X'0200',X'18',CL128'UNDEFINED ERROR           '             02070002
+ER7      DC X'0100',X'18',CL128'UNDEFINED ERROR           '             02080002
+ER8      DC X'0080',X'18',CL128'HARDWARE ERROR                '         02090002
+ER9      DC X'0040',X'18',CL128'UNDEFINED ERROR           '             02100002
+ER10     DC X'0020',X'14',CL128'ERROR IN DESCRIBING FILE NAME '         02110002
+ER11     DC X'0010',X'18',CL128'UNDEFINED ERROR           '             02120002
+ER12     DC X'0008',X'18',CL128'PLSQA INSUFFICIENT            '         02130002
+ER13     DC X'0004',X'18',CL128'REQUESTED FILE NAME BEING PROCESSED'    02140002
+ER14     DC X'0002',X'18',CL128'UNDEFINED ERROR           '             02150002
+ER15     DC X'0001',X'18',CL128'UNDEFINED ERROR           '             02160002
+LENER    EQU   *-ER15                                                   02170000
+ENDER DC X'0000',X'18',CL128'UNDEFINED ERROR           '                02180000
+RC8ER DC X'18',CL128'PARAMETER ERROR           '                        02190000
+RC4ER DC X'18',CL128'MODE ERROR           '                             02200000
+*                                                                       02210000
+         EJECT                                                          02220000
+*                                                                       02230000
+ZERO     DC    2F'0'                                                    02240000
+ONE      DC    F'1'                                                     02250000
+PMODE1   DC    X'4501'                                                  02260000
+REQVOL   DC    X'8000'                                                  02270000
+         LTORG                                                          02280000
+         DC    C'UNCATALOG ROUTINE USING SVC 111 '                      02290000
+         DC    C'&SYSDATE &SYSTIME'                                     02300000
+*                                                                       02310000
+         EJECT                                                          02320000
+*                                                                       02330000
+**********************************************************************  02340000
+*                                                                       02350000
+*                                                                       02360000
+*        EQUATES HERE                                                   02370000
+*                                                                       02380000
+*                                                                       02390000
+*********************************************************************** 02400000
+*                                                                       02410000
+*        REGS                                                           02420000
+R0       EQU   0                                                        02430000
+R1       EQU   1                                                        02440000
+R2       EQU   2                                                        02450000
+R3       EQU   3                                                        02460000
+R4       EQU   4                                                        02470000
+R5       EQU   5                                                        02480000
+R6       EQU   6                                                        02490000
+R7       EQU   7                                                        02500000
+R8       EQU   8                                                        02510000
+R9       EQU   9                                                        02520000
+R10      EQU   10                                                       02530000
+R11      EQU   11                                                       02540000
+R12      EQU   12                                                       02550000
+R13      EQU   13                                                       02560000
+R14      EQU   14                                                       02570000
+R15      EQU   15                                                       02580000
+**********************************************************************  02590000
+*                                                                       02600000
+*                                                                       02610000
+         EJECT                                                          02620000
+*                                                                       02630000
+**********************************************************************  02640000
+*                                                                       02650000
+*                                                                       02660000
+*        DSECTS  HERE                                                   02670000
+*                                                                       02680000
+*                                                                       02690000
+*********************************************************************** 02700000
+*                                                                       02710000
+*                                                                       02720000
+WORKA    DSECT                                                          02730000
+SAVEA    DS    18F                                                      02740000
+DSNL     DS    F                                                        02750000
+INPARM   DS    F                                                        02760000
+R14S     DS    F                                                        02770000
+RC       DC    F'0'                                                     02780000
+*                                                                       02790000
+*                                                                       02800000
+*                                                                       02810000
+PARALST  DS    0F                                                       02820000
+CATPA    DS    CL4            PASSWORD SO AS NOT TO NEED AUTH AND SUP   02830000
+PARM     DS    0C                                                       02840000
+PARALST1 DS    CL2            X'4501'                                   02850000
+NODSN    DS    CL1            NUMBER OF CITEMPS                         02860000
+         DS    CL10                                                     02870000
+PARAERRA DS    CL3                                                      02880000
+CITEMPA  DS    CL4            ADDRESS OF CITEMP                         02890000
+         DS    CL4                                                      02900000
+PARML    EQU   *-PARM                                                   02910000
+*                                                                       02920000
+*                                                                       02930000
+*                                                                       02940000
+CITEMP   DS    0C                                                       02950000
+STATUS   DS    CL2            X'8000'                                   02960000
+ERRET    DS    CL2            ERROR RETURN CODES                        02970000
+ADFNT    DS    CL4            ADDRESS OF THE FILE NAME TABLE            02980000
+         DS    CL4                                                      02990000
+CITEMPL  EQU   *-CITEMP                                                 03000000
+*                                                                       03010000
+*                                                                       03020000
+*                                                                       03030000
+FNT      DS    0C             FILE NAME TABLE                           03040000
+VETAD    DS    CL4            VET ADDRESS                               03050000
+DSNI     DS    CL26           DSN PADDED WITH X'40'                     03060000
+CATSENT  DS    CL1                                                      03070000
+CATCHNG  DS    CL1                                                      03080000
+CATDAY   DS    CL4            CATALOGED DATE                            03090000
+RETNDSN  DS    CL26           RETURNED DSN INCL G0000V00                03100000
+CATFLRNO DS    CL1                                                      03110000
+CATPSW   DS    CL1                                                      03120000
+CATSTAS  DS    CL1                                                      03130000
+CATFST   DS    CL1                                                      03140000
+CA       DS    CL1                                                      03150000
+CB       DS    CL1                                                      03160000
+ASTANAM  DS    CL1                                                      03170000
+NOWNAME  DS    CL1                                                      03180000
+FNTLEN   EQU   *-FNT                                                    03190000
+*                                                                       03200000
+         EJECT                                                          03210000
+*                                                                       03220000
+GETLEN   EQU   *-WORKA                                                  03230000
+*                                                                       03240000
+*                                                                       03250000
+*                                                                       03260000
+DSNLIST  DSECT                                                          03270000
+DSN      DS    CL44                                                     03280000
+*                                                                       03290000
+*                                                                       03300000
+*                                                                       03310000
+PARMBACK DSECT                                                          03320000
+NOVOLS   DS    CL2                                                      03330000
+DEVTYPE  DS    CL4                                                      03340000
+VOLSER   DS    CL6                                                      03350000
+LABEL    DS    CL2                                                      03360000
+DEVTYPEA DS    CL4                                                      03370000
+VOLSERA  DS    CL6                                                      03380000
+LABELA   DS    CL2                                                      03390000
+DEVTYPEB DS    CL4                                                      03400000
+VOLSERB  DS    CL6                                                      03410000
+LABELB   DS    CL2                                                      03420000
+DEVTYPEC DS    CL4                                                      03430000
+VOLSERC  DS    CL6                                                      03440000
+LABELC   DS    CL2                                                      03450000
+DEVTYPED DS    CL4                                                      03460000
+VOLSERD  DS    CL6                                                      03470000
+LABELD   DS    CL2                                                      03480000
+*                                                                       03490000
+         EJECT                                                          03500000
+*                                                                       03510000
+         END                                                            03520000

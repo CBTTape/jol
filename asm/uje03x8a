@@ -1,0 +1,786 @@
+UJE03X8A TITLE '         FACOM X8 DYNAMIC ALLOCATION'                   00001000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1982                           00002000
+*                                                                       00004000
+* FIXES:-                                                               00005000
+*                                                                       00006000
+*                                                                       00007000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00008000
+           SPACE 3                                                      00009000
+*                   J             000000            L                   00010000
+*                   J            0      0           L                   00011000
+*                   J           0        0          L                   00012000
+*                   J          0          0         L                   00013000
+*                   J         0            0        L                   00014000
+*                   J         0            0        L                   00015000
+*                   J         0            0        L                   00016000
+*                   J         0            0        L                   00017000
+*                   J         0            0        L                   00018000
+*                   J         0            0        L                   00019000
+*                   J         0            0        L                   00020000
+*        J          J         0            0        L                   00021000
+*         J        J           0          0         L                   00022000
+*          J      J             0        0          L                   00023000
+*           J    J               0      0           L                   00024000
+*            JJJJ                 000000            LLLLLLLLLLL         00025000
+         EJECT                                                          00026000
+         GBLC &TYPE                                                     00027000
+&TYPE    SETC 'WT'                                                      00028000
+         COPY   DDDSNDET                                                00029000
+         PRINT DATA                                               75128 00030000
+         TITLE 'UJE03X8A  -  JOL FACOM X8 DYNAMIC ALLOCATION MAINLINE'  00031000
+*                                                                       00032000
+*              REGISTER USAGE                                           00033000
+*                                                                       00034000
+*        R5       ..   WORKAREA                                         00035000
+*        R6       ..   PARAMETER LIST PASSED TO UJE03X8A                00036000
+*        R7       ..   TWO BYTE LEN FIELD OF CURRENT TEXT UNIT          00037000
+*        R8       ..   JOL DD CARD INTERNAL FORMAT (DDDSNDET)           00038000
+*        R9    PROGRAM ADDRESSABILITY                                   00039000
+*        R10   ADDR OF NEXT AVAILABLE BYTE IN TEXT UNIT -               00040000
+*                      NOTE - NO CHECKING IS DONE TO DETERMINE IF       00041000
+*                      R10 EVER POINTS PAST END OF D00TU FIELD.         00042000
+*                      THIS SHOULD NOT OCCUR AS D00TU SHOULD            00043000
+*                      BE LARGE ENOUGH FOR WORST CASE.                  00044000
+*        R11   USED AS LINK REG FOR PACKTU ROUTINE                      00045000
+*                                                                       00046000
+*                                                                       00047000
+         GENSAVE CSECT=UJE03X8A,BASE=(R9,R12)                           00048000
+         USING DARB,R5                                                  00049000
+         USING DDDSNDET,R8                                              00050000
+         USING PARMLIST,R6                                              00051000
+         L     R6,4(R1)            SAVE ADDR OF PARM LIST               00052000
+         L     R8,0(R1)                                                 00053000
+         LA    R5,WORK             ESTABLISH DARB ADDR                  00054000
+         CLI   DDDD1,C'D'          IS IT A DD CARD                      00055000
+         BE    XD001               YES. OK TO CONTINUE                  00056000
+         WTO   'INVALID DD RECORD PASSED TO UJE03XA',ROUTCDE=(11)       00057000
+         DC    H'0' ************** FORCE ABEND *******************      00058000
+XD001    EQU   *                   INIT DYNAMIC ALLOC REQ BLK           00059000
+         XC    DARB(80),DARB       CLEAR THE WHOLE BLOCK                00059100
+         MVI   DARID,C'G'          BLOCK IDENT                          00060000
+         MVI   DARLEN,X'50'        SET REQUEST BLK LENGTH               00061000
+         OI    DAR1ST,DAR1MNT      OF COURSE WE WANT IT TO MOUNT        00061100
+         LA    R7,D00TU            INIT R7 TO FIRST LENGTH PREFIX       00062000
+         LA    R10,2(R7)           R10 HAS ADDR OF TEXT UNIT            00063000
+*                                                                       00063010
+********************************************************************    00063020
+*                                                                       00063030
+*        D U M M Y  -  PUT IN SPACE AND UNIT=DA SO ALLOCATION WORKS     00063040
+*                                                                       00063050
+********************************************************************    00063060
+*        CLC   =C'NULLFILE ',DDDSNAME  Q... DUMMY DATASET?              00063100
+*        BE    E03DUM1                 A.... YES                        00063200
+*        CLC   =C'*DUMMY ',DDDSNAME                                     00063300
+*        BNE   XDFCB                   A.... NO, GOTO FCB CHECK         00063400
+*03DUM1  MVC   DDUNIT,=CL8'DA'         SHIFT IN DA AS A UNIT            00063500
+*        MVC   DDPRIM,=F'1'            SHIFT IN 1 TRACK                 00063510
+*        MVI   DDCYLTRK,C'T'           SHIFT IN 1 TRACK                 00063520
+*                                                                       00064000
+********************************************************************    00065000
+*                                                                       00066000
+*        F C B    -    GENERATE FCB PARAMETERS                          00067000
+*                                                                       00068000
+********************************************************************    00069000
+XDFCB    CLC   DDOSVB,=AL2(DDCATLGS-DDOSVB+2)  ANY DCB PRESENT          00070000
+         BNH   XDNOFCB                                                  00071000
+         CLI   DDRECFM,C'%'                                             00072000
+         BE    XDNOFCB                                                  00073000
+         IFVALUE  DDRECFM,DDBLKSZE,DDLRECL,     IS AN FCB REQUIRED     C00074000
+               DDBUFNO,DDOPTCD,DDRKP,DDKEYLEN,                         C00075000
+               DDDSORG,DDCODE,DDFUNC,                                  C00076000
+               XDFCBA                            YES. GENERATE FCB      00077000
+         TM    DDSPECTP,B'11000000'   EROPT REQUIRED                    00078000
+         BNZ   XDFCBA                 YES. GENERATE FCB                 00079000
+         B     XDNOFCB                NO FCB REQUIRED                   00080000
+XDFCBA   ST    R7,DARFCB              SET FCB ADDR IN DAR               00081000
+         CONCAT '('                                                     00082000
+         IFNULL DDRECFM,XDNORECF      RECFM                             00083000
+         CONCAT 'RECFM=',DDRECFM,','                                    00084000
+XDNORECF IFNULL DDBLKSZE,XDNOBLK       BLKSIZE                          00085000
+         CONCAT 'BLKSIZE=',DDBLKSZE,','                                 00086000
+XDNOBLK  IFNULL DDLRECL,XDNOLREC      LRECL                             00087000
+         CONCAT 'LRECL=',DDLRECL,','                                    00088000
+XDNOLREC IFNULL DDBUFNO,XDNOBUF       BUFNO                             00089000
+         CONCAT 'BUFNO=',DDBUFNO,','                                    00090000
+XDNOBUF  IFNULL DDOPTCD,XDNOOPT       OPTCD                             00091000
+         CONCAT 'OPTCD=,'                                               00092000
+*               SPECIAL CODE TO CONVERT MVS OPTCDS TO X8                00093000
+XDNOOPT  IFNULL DDKEYLEN,XDNOKEY      KEYLEN                            00094000
+         CONCAT 'KEYLEN=',DDKEYLEN,','                                  00095000
+XDNOKEY  IFNULL DDDSORG,XDNOORG       DSORG                             00096000
+         CONCAT 'DSORG=',DDDSORG,','                                    00097000
+XDNOORG  IFNULL DDRKP,XDNORKP         RKP                               00098000
+         CONCAT 'RKP=',DDRKP,','                                        00099000
+XDNORKP  IFNULL DDCODE,XDNOCODE       CODE                              00100000
+         CONCAT 'CODE=',DDCODE,','                                      00101000
+XDNOCODE IFNULL DDFUNC,XDNOFUNC       FUNC                              00102000
+         CONCAT 'FUNC=',DDFUNC,','                                      00103000
+XDNOFUNC TM     DDSPECTP,X'C0'        EROPT                             00104000
+         BZ     XDNOERPT                                                00105000
+         TM     DDSPECTP,X'80'        EROPT=SKIP ?                      00106000
+         BZ     XDEROPTA              NO                                00107000
+         CONCAT 'EROPT=SKP,'                                            00108000
+         B      XDEROPTB                                                00109000
+XDEROPTA CONCAT 'EROPT=ACC,'          EROPT=ACC                         00110000
+XDEROPTB EQU    *                                                       00111000
+XDNOERPT EQU    *                                                       00112000
+*                                                                       00113000
+*        END OF FCB PROCESSING                                          00114000
+*                                                                       00115000
+         BCTR   R10,0                 REPLACE LAST COMMA WITH           00116000
+         CONCAT ')'                   CLOSE BRACKETS                    00117000
+         BAL    R11,PACKTU            COMPRESS TU AND SETUP FOR NEXT    00118000
+XDNOFCB  EQU    *                                                       00119000
+*                                                                       00120000
+*********************************************************************   00121000
+*                                                                       00122000
+*         P A S S W O R D   -   GENERATE PASSWORD PARAMETERS            00123000
+*                                                                       00124000
+*********************************************************************   00125000
+*                                                                       00126000
+XDPASS   IFNULL DDPASSW,XDNOPASS                                        00127000
+         ST     R7,DARPSW      SET ADDR IN DAR REQ BLK                  00128000
+         CONCAT '(',DDPASSW                                             00129000
+         S      R10,=F'4'      X8 PASSWORDS ARE ONLY 4 LONG             00130000
+         CLC    DDOSVB,=AL2(DDCATLGS-DDOSVB+2) IS IT POSSIBLE TO        00131000
+         BNH    XDPASSA        HAVE PASSWORD OPTIONS                    00132000
+         TM     DDSPECTP,X'10' READ ONLY SPECIFIED                      00133000
+         BZ     XDPASSA        NO. BYPASS                               00134000
+         CONCAT ',WRITE'                                                00135000
+XDPASSA  CONCAT ')'            COMPLETE THE BRACKETS                    00136000
+         BAL    R11,PACKTU     COMPRESS TU AND SETUP FOR NEXT           00137000
+XDNOPASS EQU    *                                                       00138000
+*                                                                       00139000
+**********************************************************************  00140000
+*                                                                       00141000
+*        M E M B E R    -    GENERATE MEMBER NAME PARAMETER             00142000
+*                                                                       00143000
+**********************************************************************  00144000
+*                                                                       00145000
+*DMEMB   TM     DDTYPE,DDMEMSPC     MEMBER NAME SPECIFIED               00146000
+*        BNO    XDNOMEM             NO. BYPASS                          00147000
+XDMEMB   CLI    DDMBR,C' '          MEMBER NAME SPECIFIED               00147100
+         BE     XDNOMEM             NO. BYPASS                          00147200
+         CLI    DDMBR,C'('          PART OF A GENERATION NAME?          00147300
+         BE     XDNOMEM             YES, BYPASS                         00147400
+         ST     R7,DARMEMB          SET MEMBER NAME ADDR IN DAR         00148000
+         CONCAT '(',DDMBR,',R)'     ALWAYS SPECIFY REPLACE OPTION       00149000
+         BAL    R11,PACKTU          COMPRESS AND SETUP FOR NEXT TU      00150000
+XDNOMEM  EQU    *                                                       00151000
+*                                                                       00152000
+********************************************************************    00153000
+*                                                                       00154000
+*        S Y S O U T    -   GENERATE SYSOUT CLASS PARAMETER             00155000
+*                                                                       00156000
+*        NOTE - NO SUPPORT FOR REPEAT SUBPARM AS NOT SUPPORTED IN MVS   00157000
+********************************************************************    00158000
+*                                                                       00159000
+XDSYST   CLI    DDTYPE,DDSYSOUT    SYSOUT DATASET ?                     00160000
+         BNE    XDNOSYST                                                00161000
+         MVC    DDVOLUME,=CL48'WORK' VOLKUME SERIAL FOR SYSOUT          00161100
+         ST     R7,DARSOUT         SET SYSOUT ADDR IN DAR REQUEST       00162000
+         CONCAT '(',DDSYSCLS       SET OUTPUT CLASS                     00163000
+         IFNULL DDCOPIES,XDSYSTA   COPIES REQUESTED                     00164000
+         CONCAT ',P=',DDCOPIES                                          00165000
+XDSYSTA  IFNULL DDSYSPGM,XDSYSTB   SPECIAL PROGRAM REQUESTED            00166000
+         CONCAT ',PGM=',DDSYSPGM                                        00167000
+XDSYSTB  CONCAT ')'                CLOSE OFF BRACKET                    00168000
+         BAL    R11,PACKTU                                              00169000
+XDNOSYST EQU    *                                                       00170000
+*                                                                       00171000
+********************************************************************    00172000
+*                                                                       00173000
+*        S Y S O U T  ,  F C B ,  U C S ,  F O R M                      00174000
+*                                                                       00175000
+********************************************************************    00176000
+*                                                                       00177000
+XDFORM   CLI    DDTYPE,DDSYSOUT    SYSOUT DD CARD                       00178000
+         BNE    XDNOFORM                                                00179000
+         IFNULL DDSYSFRM,DDFCB,DDUCS,XDNOFORM   ANYTHING SPECIFIED ?    00180000
+         ST     R7,DARFORM         SET FORM ADDR IN DAR REQUEST         00181000
+         CONCAT '('                OPEN BRACKETS                        00182000
+         IFNULL DDSYSFRM,XDFORMA   FORM SPECIFIED ?                     00183000
+         CONCAT 'CODE=',DDSYSFRM,','                                    00184000
+XDFORMA  IFNULL DDFCB,XDFORMB      FCB SPECIFIED ?                      00185000
+         CONCAT 'LPCT=',DDFCB,','                                       00186000
+XDFORMB  IFNULL DDUCS,XDFORMC      UCS IMAGE SPECIFIED ?                00187000
+         CONCAT 'UCS=',DDUCS,','                                        00188000
+XDFORMC  BCTR   R10,0              CONVERT LAST COMMA TO CLOSE )        00189000
+         CONCAT ')'                                                     00190000
+         BAL    R11,PACKTU         COMPRESS AND SETUP FOR NEXT TU       00191000
+XDNOFORM EQU    *                                                       00192000
+*                                                                       00193000
+**********************************************************************  00194000
+*                                                                       00195000
+*        S Y S O U T   -   LIMIT PROCESSING                             00196000
+*                                                                       00197000
+*        NOTE X8 LIMIT IS PAGES NOT LINES AS IN  MVS                    00198000
+**********************************************************************  00199000
+*                                                                       00200000
+XDLIMT   CLI    DDTYPE,DDSYSOUT       SYSOUT CARD  ?                    00201000
+         BNE    XDNOLIMT              NO. BYPASS                        00202000
+         IFNULL DDOUTLIM,XDNOLIMT     SYSOUT LIMIT SPECIFIED ?          00203000
+         ST     R7,DARCUT             SET LIMIT ADDR IN DAR REQUEST     00204000
+         CONCAT DDOUTLIM                                                00205000
+         BAL    R11,PACKTU            COMPRESS AND SETUP FOR NEXT       00206000
+XDNOLIMT EQU    *                                                       00207000
+*                                                                       00208000
+********************************************************************    00209000
+*                                                                       00210000
+*        R E T E N T I O N   -   PERIOD PROCESSING                      00211000
+*                                                                       00212000
+********************************************************************    00213000
+*                                                                       00214000
+XDRETN   CLC    DDOSVB,=AL2(DDCATLGS-DDOSVB+2) POSSIBLE TO HAVE RETN ?  00215000
+         BNH    XDNORETN                                                00216000
+         IFNULL DDRETPD,DDEXPDT,XDNORETN  ANY RETENTION PERIOD ?        00217000
+         ST     R7,DARRET              SET ADDR OF RETENTION DATA       00218000
+         CLI    DDRETPD,C'R'           RETAIN FOR XXXX DAYS ?           00219000
+         BNE    XDRETNA                                                 00220000
+*               RETENTION PERIOD SPECIFIED                              00221000
+         CONCAT DDEXPDT                                                 00222000
+         B      XDRETNB                                                 00223000
+*               EXPIRY DATE - CONVERT TO RETENTION DATE                 00224000
+XDRETNA  TIME   DEC,DATE=YD           REQUEST DATE IN YYDDD FORMAT      00225000
+         ST     R1,FWORD              SAVE IN FORM 00YYDDDF             00226000
+         MVI    YSYS+3,X'0C'          SET SIGN                          00227000
+         MVO    YSYS,FWORD(2)         PICKUP SYS YEAR NUMBER            00228000
+         ZAP    DSYS,FWORD+2(2)       PICKUP SYS DAY NUMBER             00229000
+         PACK   YEXP,DDEXPDT(2)       PICKUP EXP YEAR                   00230000
+         PACK   DEXP,DDEXPDT+2(3)     PICKUP EXP DAY                    00231000
+         CP     YSYS,YEXP             SYSTEM DATE MUST BE = OR >        00232000
+         BH     XDRETNC               SET ZERO RET PERIOD               00233000
+         BL     XDRETND               NO NEED TO CHECK DAYS             00234000
+         CP     DEXP,DSYS             CHECK DAYS                        00235000
+         BL     XDRETNC               SET ZERO RETN PERIOD              00236000
+XDRETND  SP     YEXP,YSYS             CALC YEAR DIFFENCE                00237000
+         MP     YEXP,=PL2'365'        CONVERT TO DAYS                   00238000
+         SP     DEXP,DSYS             CALC DAYS                         00239000
+         AP     YEXP,DEXP             ADD ON DAYS                       00240000
+         B      XDRETNE               RETN PERIOD CALCULATED            00241000
+XDRETNC  ZAP    YEXP,=PL1'0'          SET ZERO RETN PERIOD              00242000
+XDRETNE  ZAP    DBL,YEXP              GET INTO 8 BYTE FIELD             00243000
+         CVB    R1,DBL                                                  00244000
+         ST     R1,FWORD                                                00245000
+         CONCAT FWORD                                                   00246000
+XDRETNB  BAL    R11,PACKTU            COMPRESS AND SETUP FOR NEXT       00247000
+XDNORETN EQU    *                                                       00248000
+*                                                                       00249000
+*********************************************************************** 00250000
+*                                                                       00251000
+*        S P A C E     GENERATE SPACE PARAMETER                         00252000
+*                                                                       00253000
+*********************************************************************** 00254000
+*                                                                       00255000
+XDSPAC   DS    0H                                                       00256000
+         TM    DDDISP,X'C0'            Q... OLD DATASET?                00256010
+         BZ    XDNOSPAC                YES, IGNORE SPACE                00256020
+         CLC    DDOSVB,=AL2(DDCATLGS-DDOSVB+2)     SHORT RECORD         00256100
+         BNH    XDNOSPAC                                                00257000
+         IFNULL DDPRIM,DDSEC,XDNOSPAC  SPACE REQUESTED ?                00258000
+         CLI    DDCYLTRK,C'B'          BLK ALLOCATION REQUESTED ?       00259000
+         BNE    XDSPACA                                                 00260000
+         IFNULL DDBLKSZE,XDNOSPAC      IF BLK ALLOC THEN NEED BLKSZE    00261000
+XDSPACA  ST     R7,DARSPAC             SET SPACE ADDR IN DAR            00262000
+         TM     DDSPECT2,X'80'         CONTIG REQUESTED ?               00263000
+         BNO    XDSPACB                NO. BYPASS                       00264000
+         CONCAT '(S'                   REQUEST CONTIG SPACE             00265000
+         B      XDSPACC                                                 00266000
+XDSPACB  CONCAT '('                    NON CONTIG REQUEST               00267000
+XDSPACC  CLC    =C'IS',DDDSORG         IS IT AN ISAM ALOC               00268000
+         BNE    XDSPACD                                                 00269000
+*               ISAM ALLOCATION                                         00270000
+         CLI    DDCYLTRK,C'A'          ABSTRK ALLOC ?                   00271000
+         BE     XDSPACD                YES. DO NOT DO ADDITIONS         00272000
+         LH     R1,DDPRIM                                               00273000
+         AH     R1,DDSEC               ADD UP ALL THE SPACE REQUESTED   00274000
+         AH     R1,DDDIRECT            FOR INITIAL ALLOC REQUEST        00275000
+         ST     R1,FWORD               SAVE IN WORK AREA                00276000
+         CONCAT FWORD,','                                               00277000
+         B      XDSPACH                                                 00278000
+XDSPACD  CLI    DDCYLTRK,C'B'          BLK ALLOC                        00279000
+         BE     XDSPACE                YES . BRANCH                     00280000
+         CONCAT DDPRIM,',',DDSEC,','                                    00281000
+         B      XDSPACG                                                 00282000
+XDSPACE  EQU    *                                                       00283000
+         CONCAT DDBLKSZE,'*',DDPRIM,',',DDSEC,','                       00284000
+XDSPACG  TM     DDSPECT2,2              NORLSE CODED ?                  00285000
+         BO     XDSPACH                 DO NOT GENERATE RLSE            00286000
+         CLC    =C'IS',DDDSORG          ISAM ALLOC                      00287000
+         BE     XDSPACH                 DO NOT GENERATE RLSE            00288000
+         CLI    DDCYLTRK,C'A'           ABSTRK ALLOCATION ?             00289000
+         BE     XDSPACH                 DO NOT GENERATE RLSE            00290000
+         IFVALUE DDDIRECT,XDSPACH       DSORG = PO ALLOC ?              00291000
+         CONCAT 'RLSE,'                 REQUEST RELEASE UNUSED SPACE    00292000
+XDSPACH  TM     DDSPECTP,1              ROUND REQUESTED ?               00293000
+         BNO    XDSPACI                 NO. DO NOT GENERATE             00294000
+         CONCAT 'ROUND,'                REQUEST ROUND TO CYL            00295000
+XDSPACI  BCTR   R10,0                   CONVERT LAST COMMA TO )         00296000
+         CONCAT ')'                                                     00297000
+XDSPACJ  CLI    DDCYLTRK,C'C'           DETERMINE ALLOC UNITS           00298000
+         BNE    XDSPACK                 NOT CYLS                        00299000
+         OI     DAR2ST,DAR2FCYL         REQUEST FULL CYL ALLOC          00300000
+XDSPACK  CLI    DDCYLTRK,C'T'           IS IT TRACK ALLOC               00301000
+         BNE    XDSPACL                 NOT TRACKS                      00302000
+         OI     DAR2ST,DAR2TRK          REQUEST TRACK ALLOC             00303000
+XDSPACL  CLI    DDCYLTRK,C' '           IS IT TRACK ALLOC               00304000
+         BNE    XDSPACM                                                 00305000
+         OI     DAR2ST,DAR2TRK          REQUEST TRACK ALLOC             00306000
+XDSPACM  CLI    DDCYLTRK,C'B'           IS IT BLK ALLOC                 00307000
+         BNE    XDSPACN                 NOT BLKS                        00308000
+         OI     DAR2ST,DAR2BLK          REQUEST BLK ALLOC               00309000
+XDSPACN  CLI    DDCYLTRK,C'A'           IS IT ABSTRK ALLOC              00310000
+         BNE    XDSPACQ                 NOT ABSTRK                      00311000
+         OI     DAR2ST,DAR2ABS          REQUEST ABSTRK ALLOC            00312000
+XDSPACQ  BAL    R11,PACKTU              COMPRESS TU AND SETUP           00313000
+XDNOSPAC EQU    *                                                       00314000
+*                                                                       00315000
+**********************************************************************  00316000
+*                                                                       00317000
+*        D I R E C T R Y   B L K                                        00318000
+*                                                                       00319000
+*        NOTE X8 DIRECTRY SPACE IS REQUESTED IN TRACKS NOT RECORDS      00320000
+**********************************************************************  00321000
+*                                                                       00322000
+XDDIR    CLC    DDOSVB,=AL2(DDCATLGS-DDOSVB+2) POOSIBLE TO HAVE DIRS ?  00323000
+         BNH    XDNODIR                                                 00324000
+         IFNULL DDDIRECT,XDNODIR       DIRECTRY SPACE REQUESTED ?       00325000
+         CLC    =C'IS',DDDSORG         MAKE SURE NOT AN ISAM DS         00326000
+         BE     XDNODIR                                                 00327000
+         ST     R7,DARDRTY             STORE ADDR IN DAR REQUEST        00328000
+         CONCAT DDDIRECT                                                00329000
+         BAL    R11,PACKTU             COMPRESS AND SETUP FOR NEXT      00330000
+XDNODIR  EQU    *                                                       00331000
+*                                                                       00332000
+********************************************************************    00333000
+*                                                                       00334000
+*        I S A M    -    S P E C I F I C A T I O N                      00335000
+*                                                                       00336000
+********************************************************************    00337000
+*                                                                       00338000
+XDISAM   CLC    DDOSVB,=AL2(DDCATLGS-DDOSVB+2) POSSIBLE TO HAVE ISAM ?  00339000
+         BNH    XDNOISAM                                                00340000
+         CLC    =C'IS',DDDSORG          ISAM FILE ?                     00341000
+         BNE    XDNOISAM                DO NOT GENERATE ISF ENTRY       00342000
+         IFNULL DDPRIM,DDOVERFL,XDNOISAM                                00343000
+         ST     R7,DARISF               SET ISF ADDR IN DAR FIELD       00344000
+         CONCAT '('                                                     00345000
+         IFNULL DDPRIM,XDISAMA          NULL PRIME SPEC                 00346000
+         CLI    DDCYLTRK,C'C'           CYL ALLOC REQUESTED             00347000
+         BNE    XDISAMA                 NO. CANNOT DETERMINE PRIM       00348000
+         CONCAT 'PRIM=',DDPRIM,','                                      00349000
+XDISAMA  IFNULL DDOVERFL,XDISAMB        CYLOFL SPECIFIED                00350000
+         CONCAT 'COVF=',DDOVERFL,','                                    00351000
+XDISAMB  BCTR   R10,0                                                   00352000
+         CONCAT ')'                     CONVERT LAST COMMA TO )         00353000
+         BAL    R11,PACKTU                                              00354000
+XDNOISAM EQU    *                                                       00355000
+*                                                                       00356000
+********************************************************************    00357000
+*                                                                       00358000
+*        V O L U M E   S P E C I F I C A T I O N                        00359000
+*                                                                       00360000
+********************************************************************    00361000
+*                                                                       00362000
+XDVOL    TM     DDUSE,B'01000000'       NEW DATASET                     00363000
+         BO     XDVOLA                  YES. REQUIRE A VOLUME           00364000
+         CLC    DDOSVB,=AL2(DDCATLGS-DDOSVB+2) POSSIBLE TO HAVE VOLSEQ  00365000
+         BNH    XDVOLG                                                  00366000
+         IFVALUE DDVOLSEQ,XDVOLA                                        00367000
+XDVOLG   IFVALUE DDVOLUME,XDVOLA                                        00368000
+         B      XDNOVOL                                                 00369000
+XDVOLA   ST     R7,DARVOL               STORE VOLA ADDR IN DAR REQUEST  00370000
+         CONCAT '('                                                     00371000
+         IFVALUE DDVOLUME,XDVOLB                                        00372000
+         TM     DDUSE,B'01000000'       NEW DATASET                     00373000
+         BNO    XDVOLC                  NO. BRANCH                      00374000
+*               NEW DATASET - GENERATE A VOLUME                         00375000
+         TM     DDUNITYP,X'80'          IS IT ON A TAPE DRIVE           00376000
+         BO     XDVOLD                  NO.                             00377000
+         CLI    DDLABTYP,0                                              00377100
+         BE     XDVOLA1                                                 00377200
+         IFVALUE DDLABTYP,XDVOLC                                        00378000
+XDVOLA1  DS    0H                                                       00379000
+         CONCAT 'SLMT,'                 STANDARD LABEL MAG TAPE         00380000
+         B      XDVOLC                                                  00381000
+XDVOLD   CONCAT 'WORK,'                 IF NOT TAPE MUST BE DASD        00382000
+         B     XDVOLC                                                   00383000
+XDVOLB   DS    0H                  WE GOTTA PUT COMMAS BETWEEN VOLSERS  00383300
+*        CONCAT '('                                                     00383310
+         LA    R1,DDVOLUME                                              00383400
+         LA    R14,6                                                    00383500
+         LA    R15,DDVOLUME+L'DDVOLUME                                  00383600
+         SR    R15,R14                                                  00383700
+XDVOLBA  DS    0H                                                       00383800
+         MVC   0(6,R10),0(R1)                                           00383900
+         MVI   6(R10),C','                                              00383910
+         LA    R10,7(,R10)                                              00384000
+         CLI   6(R1),C' '                                               00384100
+         BE    XDVOLBB                                                  00384200
+         BXLE  R1,R14,XDVOLBA                                           00384400
+XDVOLBB  DS    0H                                                       00384600
+         LR    R14,R10             POINT TO LAST COMMA                  00384700
+         BCTR  R14,0                                                    00384701
+         MVI   0(R14),C')'         AND CHANGE TO CLOSE PARENTHESIS      00384710
+XDVOLC   CLC   DDOSVB,=AL2(DDCATLGS-DDOSVB+2) POSS TO HAVE VOLSEQ ?     00385000
+         BNH   XDVOLF                                                   00386000
+         IFNULL DDVOLSEQ,XDVOLF         VOL SEQ PROVIDED ?              00387000
+         CONCAT 'VSEQ=',DDVOLSEQ,','                                    00388000
+XDVOLF   BCTR   R10,0                                                   00389000
+         CONCAT ')'                                                     00390000
+         BAL    R11,PACKTU                                              00391000
+         L    R15,DARVOL                                                00391010
+         CLI   2(R15),C')'                                              00391020
+         BNE   XDNOVOL                                                  00391030
+         XC    0(32,R15),0(R15)                                         00391300
+         XC    DARVOL,DARVOL                                            00391400
+XDNOVOL  EQU    *                                                       00392000
+*                                                                       00393000
+*********************************************************************   00394000
+*                                                                       00395000
+*        F I L E   N A M E    P R O C E S S I N G                       00396000
+*                                                                       00397000
+*********************************************************************   00398000
+*                                                                       00399000
+XDFIL    DS    0H                                                       00399100
+    FIX 'JCS IS NOT SURE THAT THE FOLLOWING TWO LINES ARE QUITE RIGHT'  00399110
+         CLI   DDTYPE,20 PICK A NUMBER, ANY NUMBER...                   00399200
+         BL    XDNOFIL           FORGET FILE NAME FOR THESE             00399300
+         IFNULL DDDSNAME,DDLABEL,DDDISP,DDLABTYP,XDNOFIL                00400000
+         CLC   =C'NULLFILE ',DDDSNAME  Q... DUMMY DATASET?              00400100
+         BE    XDNOFIL                 A.... YES                        00400200
+         CLC   =C'*DUMMY ',DDDSNAME                                     00400300
+         BE    XDNOFIL                 A.... YES                        00400400
+         ST     R7,DARFILE                                              00401000
+         CONCAT '('                                                     00402000
+*        CLI    DDTYPE,DDTEMPPS       TEMP PS DATASET ?                 00403000
+*        BE     XDFILA                                                  00404000
+*        CLI    DDTYPE,DDTEMPPO       TEMP PO DATASET ?                 00405000
+*        BE    XDFILA                                                   00406000
+*        B     XDFILB                NOT A TEMP DATASET                 00407000
+*DFILA   CONCAT '/,'                  SET TEMP DSNAME                   00408000
+*        B     XDFILC                                                   00409000
+*DFILB   DS    0H                                                       00410000
+         MVC   0(L'DDDSNAME,R10),DDDSNAME                               00410100
+         LA    R10,L'DDDSNAME(,R10)   STEP PAST DSNAME                  00410120
+XDFILBA  DS    0H                                                       00410121
+         BCTR  R10,0     POINT TO THE LAST CHARACTER OF DSNAME          00410130
+         CLI   0(R10),C' '            Q... WAS A TRAILING BLANK?        00410140
+         BE    XDFILBA                A... YES                          00410150
+         MVI   1(R10),C','           COMMA AT END OF DSNAME             00410170
+         LA    R10,2(,R10)           STEP PAST COMMA                    00410200
+         CLI   DDTYPE,DDGDGABS       ABSOLUTE GDG SPEC ?                00411000
+         BNE   XDFILD                                                   00412000
+         BCTR  R10,0                 OVERWRITE TRAILING COMMA           00413000
+         CONCAT '(',DDMBR,'),'        APPEND ABSOLUTE GDG NUMBER        00414000
+         B     XDFILC                                                   00415000
+XDFILD   CLI   DDTYPE,DDGDGREL       RELATIVE GDG ?                     00416000
+         BNE    XDFILC                                                  00417000
+         IFNULL DDMBR,XDFILC        ANY GDG NUMBER THERE ? NO->XDFILC   00417100
+         BCTR   R10,0                 OVERWRITE TRAILING COMMA          00418000
+         MVC    0(10,R10),=C'.G0000V00,'   REL SKELETON                 00419000
+         MVC    2(4,R10),DDMBR+2      ACTUAL RELATIVE NUMBER            00420000
+         LA     R10,10(R10)           INCREMENT POINTER                 00421000
+XDFILC   DS    0H                                                       00421210
+         TM     DDUSE,B'10000000'     MOD DATASET ?                     00422000
+         BNO   XDFILF                NO .                               00423000
+         CONCAT 'AD'                 REQUEST MOD PROCESSING             00424000
+         B    XDFILF9                                                   00424100
+XDFILF   DS    0H                                                       00425000
+         TM    DDUSE,B'01000000'     NEW DATASET ?                      00426100
+         BZ    XDFILF2               NO .                               00426200
+         TM    DDUNITYP,B'10000000'  TAPE DATASET?                      00426210
+         BO    XDFILF9              NO  .                               00426220
+         CONCAT 'FA'                 REQUEST MOD PROCESSING             00426300
+XDFILF2  DS   0H                                                        00426400
+XDFILF9  DS   0H                                                        00426410
+         CONCAT ','                 COMMA AFTER "AD"                    00426500
+         IFNULL DDLABTYP,XDFILG       WHAT SORT OF USER LABEL           00426600
+         SR    R1,R1                 CLEAR R1                           00426700
+         IC    R1,DDLABTYP           PICK UP LABEL TYPE                 00427000
+         SLL   R1,2                  MULT BY 4 TO INDEX INTO TABLE      00428000
+         LA    R1,XDLBTBL(R1)        R1 -> LABEL TYPE                   00429000
+         MVC   0(L'XDLTBL,R10),0(R1) MOVE INTO FILE SPEC                00430000
+         LA    R10,L'XDLTBL(R10)     INCREMENT POINTER                  00431000
+XDFILG   DS    0H                                                       00431100
+         CONCAT ',,'                  COMMA AFTER LABEL TYPE, AND FOR   00432000
+*                                      PARAMETER NOT USED               00432100
+*        IFNULL DDLABEL,XDFILH        ANY FILE SEQUENCE NUMBER          00433000
+*        CONCAT DDLABEL,','                                             00434000
+XDFILH   DS    0H                                                       00435000
+         BCTR   R10,0                                                   00435100
+         CLI   0(R10),C','              REMOVE TRAILING COMMAS          00435200
+         BE    *-6                                                      00435300
+         LA    R10,1(,R10)                                              00435400
+         CONCAT ')'                                                     00436000
+         BAL   R11,PACKTU                                               00437000
+         L     R14,DARFILE                                              00437100
+         OC    2(256,R14),=CL256' '   CONVERT TO UPPERCASE, ETC         00437200
+XDNOFIL  EQU    *                                                       00438000
+*                                                                       00439000
+*                                                                       00440000
+******************************************************************      00441000
+*                                                                       00442000
+*        D I S P O S I T I O N                                          00443000
+*                                                                       00444000
+******************************************************************      00445000
+*                                                                       00446000
+XDDISP   CLC    DDDISP,=X'004040'                                       00447200
+         BE     XDNODISP                                                00447300
+         CLI   DDTYPE,DDREALDS      FORGET DISP                         00447400
+         BL    XDNODISP            IF NOT A PERMANENT DATASET           00447500
+         ST     R7,DARDISP                                              00448000
+         CONCAT '('                                                     00449000
+         TM     DDDISP,B'01000000'        DISP OF NEW                   00450000
+         BO     XDDISPA                                                 00451000
+         TM     DDDISP,B'10000000'        DISP OF MOD                   00452000
+         BO     XDDISPA                                                 00453000
+         TM     DDDISP,B'00010000'        DISP OF OLD                   00454000
+         BO     XDDISPA                                                 00455000
+         B      XDDISPB                                                 00456000
+XDDISPA  TM     DDUNITYP,X'80'            TAPE DRIVE ?                  00457000
+         BNO    XDDISPB                   LOCK NOT ALLOWED FOR TAPE     00458000
+         CLI    DDTYPE,DDTEMPPS           TEMP SEQL DSET                00459000
+         BE     XDDISPB                   YES . DO NOT LOCK             00460000
+         CLI    DDTYPE,DDTEMPPO           TEMP PO DSET                  00461000
+         BE     XDDISPB                   YES . DO NOT LOCK             00462000
+         CONCAT 'LOCK,'                   SET DISP=OLD                  00463000
+XDDISPB  CLI    DDDISP+1,C'D'              DELETE SPECIFIED             00464000
+         BE     XDDISPB1                   NO                           00465000
+         TM     DDUSE,B'01000000'         NEW SPECIFIED                 00465100
+         BNO    XDDISPC                    NO                           00465200
+XDDISPB1 DS    0H                                                       00465300
+         TM     DDUNITYP,X'80'            TAPE ?                        00466000
+         BNO    XDDISPC                   NOT ALLOWED FOR TAPE          00467000
+         CONCAT 'DLT,'                    SET DELETE OPTION             00468000
+XDDISPC  CLI    DDDISP+1,C'C'             CATALOG ?                     00469000
+         BNE    XDDISPD                   NO.                           00470000
+         CONCAT 'CAT,'                    SET CATALOG OPTION            00471000
+XDDISPD  CLI    DDDISP+1,C'U'             UNCATALOG REQUESTED ?         00472000
+         BNE    XDDISPE                                                 00473000
+         CONCAT 'UNCAT,'                                                00474000
+XDDISPE  CLI    DDDISP+2,C'K'             KEEP IF ABEND                 00475000
+         BNE    XDDISPF                                                 00476000
+         CONCAT 'KEEP,'                   SET KEEP OPTION               00477000
+XDDISPF  IFVALUE DDVOLUME,XDDISPG         ANY VOLUME SPECIFIED          00478000
+         TM     DDUSE,B'01000000'         NEW DATASET ?                 00479000
+         BO     XDDISPG                   CANNOT USE USE CATALOG        00480000
+         TM     DDUNITYP,X'80'            IS IT A TAPE DRIVE            00481000
+         BO     XDDISPH                                                 00482000
+         CLI    DDLABTYP,X'00'            STANDARD LABEL                00483000
+         BNE    XDDISPG                   NO CANNOT USE CATALOG         00484000
+XDDISPH  EQU    *                                                       00485000
+         CONCAT 'REF,'                                                  00486000
+XDDISPG  EQU    *                                                       00487000
+         BCTR   R10,0                                                   00488000
+         CLI    0(R10),C'('       ONLY STARTING OPEN BRACKET ?          00488010
+         BNE    XDDISPK                                                 00488020
+         XC     DARDISP,DARDISP   NO DISP TO BE PROVIDED                00488030
+         LA     R10,2(R7)         RE-INIT R10                           00488040
+         B      XDNODISP                                                00488140
+XDDISPK  CONCAT ')'                                                     00489000
+         BAL    R11,PACKTU                                              00490000
+XDNODISP EQU    *                                                       00491000
+*                                                                       00492000
+*******************************************************************     00493000
+*                                                                       00494000
+*        A C C E S S   N A M E   P R O C E S S I N G                    00495000
+*                                                                       00496000
+*******************************************************************     00497000
+*                                                                       00498000
+XDACC    ST     R7,DARACCN            MUST ALWAYS BE PRESENT            00499000
+         IFNULL DDDDNAME,XDACCA       IS IT CONCATENTATION              00500000
+         CONCAT DDDDNAME              NORMAL DD NAME                    00501000
+         MVC    SAVEDD,DDDDNAME       SAVE DDNAME FOR THE NEXT TIME     00501100
+         B      XDACCB                                                  00502000
+XDACCA   CONCAT SAVEDD                REQUEST CONCAT                    00503000
+         OI     DAR1ST,DAR1CEND       PLACE ON END OF CONCAT LIST       00504000
+XDACCB   BAL    R11,PACKTU                                              00505000
+XDNOACC  EQU    *                                                       00506000
+*                                                                       00507000
+********************************************************************    00508000
+*                                                                       00509000
+*        D E V I C E    P R O C E S S I N G                             00510000
+*                                                                       00511000
+********************************************************************    00512000
+*                                                                       00513000
+XDDEV    ST     R7,DARDEV             MUST ALWAYS BE PRESENT            00514000
+         CONCAT '('                                                     00515000
+         CLC    =C'*DUMMY ',DDDSNAME    DUMMY REQUESTED                 00516000
+         BE     XDDEVA                                                  00517000
+         CLC    =C'NULLFILE ',DDDSNAME  NULLFILE REQUESTED              00518000
+         BE     XDDEVA                                                  00519000
+         TM     DDUSE,1                UNIT = AFFINITY REQUESTED        00520000
+         BNO    XDDEVCVC               BRANCH NOT REQUESTED             00521000
+         CONCAT 'SAME,'                SAME AS PREVIOUS UNIT            00522000
+         B      XDDEVC                                                  00523000
+XDDEVCVC IFNULL DDUNIT,XDDEVB          UNIT PROVIDED ?                  00524000
+         CONCAT DDUNIT,','             USE PROVIDED UNIT                00525000
+         B      XDDEVC                                                  00526000
+XDDEVA   CONCAT 'DUMMY,'               DUMMY OR NULLFILE                00527000
+         B      XDDEVC                                                  00528000
+XDDEVB   CONCAT 'DA,'                  DEFAULT UNIT OF DA               00529000
+XDDEVC   IFNULL DDUNITNO,XDDEVD        NUMBER OF UNITS PROVIDED         00530000
+         CLI    DDUNITNO,C'P'          PARALLEL PROCESSING NOT SUPP     00531000
+         BE     XDDEVD                                                  00532000
+         CONCAT DDUNITNO,','                                            00533000
+XDDEVD   BCTR   R10,0                                                   00534000
+         CONCAT ')'                                                     00535000
+         BAL    R11,PACKTU                                              00536000
+XDNODEV  EQU    *                                                       00537000
+*                                                                       00538000
+*******************************************************************     00539000
+*                                                                       00540000
+*        I S S U E    G E T F L   R E Q U E S T                         00541000
+*                                                                       00542000
+*******************************************************************     00543000
+*                                                                       00544000
+XDGETF   EQU     *                                                      00545000
+         LA      R1,DAR                                                 00545100
+         ST      R1,CALLAREA      SAVE ADDR OF DAR FOR CALLING PROG     00545200
+         ST      R7,CALLAREA+4    SAVE END OF DAR ADDR                  00545300
+         GETFL   MF=(E,DAR)        ISSUE REQUEST                        00546000
+*        ST      R15,FWORD         SAVE RETURN CODE                     00547000
+         LTR     R15,R15           REQUEST SUCESSFUL/                   00548000
+         BZ      XDGETFX           YES. GOTO RETURN ROUTINE             00549000
+*        WTO   'ALLOCATION FAILED WITH RETURN CODE ',ROUTCDE=(11)       00550000
+*        L     R15,FWORD                                                00550100
+*        DC    H'0'  ****************** FORCE ABEND *****************   00551000
+         GENRETN  RC=(15)                                               00552000
+XDGETFX  GENRETN  RC=0                                                  00553000
+*                                                                       00554000
+*                                                                       00555000
+*                                                                       00556000
+*                                                                       00557000
+********************************************************************    00558000
+*                                                                       00559000
+*        P A C K T U   -    PACK TEXT UNIT AND UPDATE PTRS              00560000
+*                                                                       00561000
+*              ROUTINE IS BAL ED TO USING R11 AS RETURN ADDR            00562000
+*              R7 - ADDR OF TWO BYTE LENGTH FIELD FOR TEXT UNIT         00563000
+*              R10 - ADDR OF NEXT AVAILABLE BYTE IN TEXT UNIT           00564000
+*                                                                       00565000
+********************************************************************    00566000
+PACKTU   EQU   *                                                        00567000
+         SR    R10,R7              DETERMINE MAX LENGTH OF TEXT UNIT    00568000
+         BCTR  R10,0               MINUS LENGTH FIELD                   00569000
+         BCTR  R10,0                                                    00570000
+         STH   R10,0(R7)           SET INITIAL LENGTH COUNT FOR         00571000
+*                                  CALL TO UJCPACK                      00572000
+         ST    R7,FWORD                                                 00573000
+         CALL  UJCPACK,MF=(E,FWORD) PACK TEXT UNIT                      00574000
+*                                  SET UP FOR NEXT TEXT UNIT            00575000
+         AH    R7,0(R7)            ADD LENGTH OF PREVIOUS TEXT UNIT     00576000
+         LA    R1,2(R7)            POINT TO NEXT FREE BYTES             00576100
+         XC    0(255,R1),(R1)      ZERO STORAGE                         00576200
+         LA    R7,5(R7)            ALLOW FOR LENGTH FIELD PLUS          00577000
+*                                  FORCE WORD ALIGNMENT                 00578000
+         N     R7,=X'FFFFFFFC'                                          00579000
+         LA    R10,2(R7)           SETUP R10 FOR NEXT CONCAT            00581000
+         BR    R11                 RETURN TO MAINLINE                   00582000
+*                                                                       00583000
+*********************************************************************   00584000
+*                                                                       00585000
+*        MAGNETIC TAPE LABEL TYPES                                      00586000
+*                                                                       00587000
+*********************************************************************   00588000
+*                                                                       00589000
+XDLBTBL  DS    0C                                                       00590000
+XDLTBL   DC    CL4'SL'            0                                     00591000
+         DC    CL4'NL'            1                                     00592000
+         DC    CL4'NL'            2                                     00593000
+         DC    CL4'NSL'           3                                     00594000
+         DC    CL4'NSL'           4                                     00595000
+         DC    CL4'NSL'           5                                     00596000
+         DC    CL4'NSL'           6                                     00597000
+         DC    CL4'NSL'           7                                     00598000
+         DC    CL4'NUL'           8                                     00599000
+         DC    CL4'NUL'           9                                     00600000
+*                                                                       00601000
+BLANKS   DC    CL80' '            USED TO CHECK FOR BLANK AREAS         00602000
+ZERO     DC    F'0'                                                     00603000
+ONE      DC    F'1'                                                     00604000
+*                                                                       00605000
+*                                                                       00606000
+*                                                                       00607000
+         DC    80S(*)                                                   00608000
+         LTORG                                                          00615000
+         DS    0D                                                       00615100
+*                                                                       00616000
+*                                                                       00617000
+*        DYNAMIC ALLOCATION REQUEST BLOCK                               00618000
+*                                                                       00619000
+*                                                                       00620000
+DARB     DSECT                                                          00621000
+*                                                                       00622000
+DAR      DS    0F                                                       00623000
+DARID    DC    CL1'G'              BLOCK IDENT                          00624000
+DARLEN   DC    XL1'50'             LENGTH OF REQUEST BLOCK              00625000
+DAR1ST   DS    XL1                 FIRST STATUS BYTE                    00626000
+DAR1MNT  EQU   128                 MNT = YES                            00627000
+DAR1RSV  EQU   64                  RSV = YES                            00628000
+DAR1DIAG EQU   32                  DIAG = YES                           00629000
+DAR1DATA EQU   16                  DATA = CVT                           00630000
+DAR1RESA EQU   8                   RESERVED                             00631000
+DAR1DAIR EQU   4                   DAIR CALL                            00632000
+DAR1CEND EQU   2                   CF = END                             00633000
+DAR1CTOP EQU   1                   CF = TOP                             00634000
+DAR2ST   DS    XL1                 SECOND STATUS BYTE                   00635000
+DAR2TRK  EQU   128                 ALLOCATE BY TRACK                    00636000
+DAR2CYL  EQU   64                  ALLOCATE BY CYL (TRACK GROUP)        00637000
+DAR2FCYL EQU   32                  ALLOCATE BY FULL CYLINDER            00638000
+DAR2BLK  EQU   16                  ALLOCATE BY BLK                      00639000
+DAR2ABS  EQU   8                   ALLOCATE BY ABSTRK                   00640000
+DAR2RESA EQU   4                   RESERVED                             00641000
+DAR2RESB EQU   2                   RESERVED                             00642000
+DAR2RESC EQU   1                   RESERVED                             00643000
+DARACCN  DS    A                   ACCESS NAME ADDRESS                  00644000
+DARDEV   DS    A                   DEVICE INFORM ADDR                   00645000
+DARMEMB  DS    A                   MEMBER NAME ADDR                     00646000
+DARPSW   DS    A                   PASSWORD ADDR                        00647000
+DARRET   DS    A                   RETENTION PERIOD ADDR                00648000
+DARCUT   DS    A                   SYSOUT OUTPUT LIMIT ADDR             00649000
+DARRESA  DC    A(0)                RESERVED                             00650000
+DARFILE  DS    A                   FILE ADDR                            00651000
+DARVOL   DS    A                   VOL ADDR                             00652000
+DARDISP  DS    A                   DISP ADDR                            00653000
+DARSPAC  DS    A                   SPACE ADDR                           00654000
+DARSOUT  DS    A                   SYSOUT ADDR                          00655000
+DARDRTY  DS    A                   DIRECTRY ADDR                        00656000
+DARFORM  DS    A                   SYSOUT FORM ADDR                     00657000
+DARFCB   DS    A                   DATA ATTRIBUTES ADDR                 00658000
+DARISF   DS    A                   ISAM SPECS ADDR                      00659000
+DARRESB  DC    A(0)                RESERVED                             00660000
+DARRESC  DC    A(0)                RESERVED                             00661000
+DARRESD  DC    A(0)                RESERVED                             00662000
+DAREND   EQU   *                                                        00663000
+*                                                                       00664000
+*                                                                       00665000
+*                                                                       00666000
+         DS    0F                  FORCE ALIGNMENT                      00667000
+D00TU    DS    CL400               WORK AREA TO ASSEMBLE THE            00668000
+*                                  SEPERATE TEXT UNITS GENERATED        00669000
+*                                  FROM THE JOL DD RECORD               00670000
+FWORD    DS    F                                                        00671000
+YEXP     DS    PL4                 WORK AREAS                           00672000
+YSYS     DS    PL4                                                      00673000
+DEXP     DS    PL2                                                      00674000
+DSYS     DS    PL2                                                      00675000
+*                                                                       00676000
+*                                                                       00677000
+*                                                                       00678000
+*                                                                       00679000
+DARBL    EQU   *-DARB                                                   00680000
+*                                                                       00681000
+*              P A R A M E T E R    L I S T                             00682000
+*                                                                       00683000
+*                                                                       00684000
+PARMLIST DSECT                                                          00685000
+CALLAREA DS    10F                                                      00686000
+DBL      DS    D                                                        00687000
+STMT     DS    CL4,0D                                                   00688000
+SAVEDD   DS    CL8,4C                                                   00688100
+         DS    H                                                        00689000
+#WORK    DS    H                                                        00690000
+WORK     DS    CL2044                                                   00691000
+         END                                                            00692000

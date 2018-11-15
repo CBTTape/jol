@@ -1,0 +1,78 @@
+         MACRO                                                          00010000
+&L       CPUCHK &OP,                                                   .00020018
+               &ERRET=,          ERROR RETURN                          .00030018
+               &NRETURN=,        NORMAL RETURN                    J50  .00040018
+               &CKSERR=,         CHECKSUM ERROR RETURN            J50  .00050018
+               &NOTABLE=,        NO-TABLE ERROR RETURN            J50  .00051021
+               &EXPIRED=,        LICENSE EXPIRED                  J50  .00052025
+               &NOPCCA=,         CAN'T FIND PCCA                  J50  .00053043
+               &SDATE=,          ADDRESS OF TODAY'S DATE IN BINARY     .00060033
+               &DEMO=,           IT SEEMS TO BE A DEMO INSTALLATION    .00060138
+               &FLAG=,           THE FLAG TO SET TO SAY WE'VE CHECKED  .00060239
+               &PCCA=X'220'      ADDRESS OF PCCA                  J50   00061033
+         LCLC  &LP,&LP20,&STID,&NSTID                             J50   00070018
+         LCLC  &LP90,&C                                           J50   00080047
+         LCLA  &A                                                 J50   00090018
+         LCLB  &TSO                                               J50   00091046
+&TSO     SETB  ('&SYSECT'(1,3) EQ 'UJT')                          J50   00092046
+&A       SETA  &SYSNDX                                            J50   00100018
+&LP      SETC  'KCP'.'&A'.'A'                                     J50   00110018
+&LP20    SETC  'KCP'.'&A'.'B'                                     J50   00120018
+&C       SETC  'KCP'.'&A'.'C'                                     J50   00131047
+&STID    SETC  (1-&TSO)'&C'.(&TSO)'&NOPCCA'                       J50   00140047
+&NSTID   SETC  'KCP'.'&A'.'D'                                     J50   00141047
+&LP90    SETC  'KCP'.'&A'.'E'                                     J50   00150011
+&L       STM   R2,R12,28(R13)                                     J50   00160006
+         L     R15,&PCCA                                          J50   00170002
+         AIF   (T'&FLAG EQ 'U').NF                                J50   00171041
+         AIF   (T'&FLAG EQ 'O').NF                                J50   00171142
+         XI    &FLAG,X'80'                                        J50   00172040
+.NF      ANOP                                                     J50   00173040
+         CLC   =C'PCCA',0(R15)                                    J50   00180001
+         BNE   &STID                                              J50   00190028
+         PACK  DBL,6(10,R15)                                      J50   00201019
+         B     &NSTID                                             J50   00210007
+         AIF   (&TSO).TSO                                         J50   00211046
+&STID    DS    0H                                                 J50   00220007
+         STIDP DBL                                                J50   00230043
+         MVO   CALLAREA,DBL+1(5)                                  J50   00240046
+         OI    CALLAREA+3,15                                      J50   00250046
+         ZAP   DBL,CALLAREA                                       J50   00260046
+.TSO     ANOP                                                     J50   00270046
+&NSTID   DS    0H                                                 J50   00280046
+         CVB   R0,DBL                                             J50   00282046
+         LCR   R0,R0                                              J50   00290001
+         ICM   R1,15,=V(UJEAUTAB)                                 J50   00300021
+         BZ    &NOTABLE                                           J50   00310021
+         LM    R14,R15,4(R1)                                      J50   00320001
+         L     R1,0(,R1)                                          J50   00330021
+         SLR   R7,R7                                              J50   00350001
+&LP      CL    R0,0(,R1)                                          J50   00360021
+         BNE   &LP20                                              J50   00370012
+         SLR   R0,R0                                              J50   00380012
+         ST    R1,24(,R13)                                        J50   00390032
+&LP20    DS    0H                                                 J50   00400018
+         SLR   R6,R6                                              J50   00410018
+         SLDL  R6,7              MOVE HIGH BIT OF 7 INTO LOW BIT OF 6   00420035
+         OR    R7,R6             MASK LOW BIT OF 6 INTO REGISTER7       00430018
+         X     R7,0(,R1)                                          J50   00440018
+         SLR   R6,R6                                              J50   00450018
+         SLDL  R6,7              MOVE HIGH BIT OF 7 INTO LOW BIT OF 6   00460035
+         OR    R7,R6             MASK LOW BIT OF 6 INTO REGISTER 7      00470018
+         X     R7,4(,R1)                                          J50   00480018
+         BXLE  R1,R14,&LP                                         J50   00490018
+         AIF   (T'CKSUM1 EQ 'U').NC                               J50   00500022
+         ST    R7,CKSUM1                                          J50   00510022
+.NC      ANOP                                                     J50   00520018
+         LR    R15,R7                                             J50   00530018
+         LM    R2,R12,28(R13)                                     J50   00540018
+         LTR   R0,R0                                              J50   00550018
+         BNZ   &ERRET                                             J50   00560021
+         X     R15,0(,R1)        CHECK CHECKSUM                   J50   00570018
+         L     R1,24(,R13)       RELOAD MATCHIND CPU ENTRY ADDRESS J50  00571032
+         BNZ   &CKSERR           EXIT IF TABLE IS CORRUPTED       J50   00600032
+         L     R0,&SDATE         LOAD START DATE                  J50   00610032
+         A     R0,4(,R1)         SUBTRACT LICENSE EXPIRY DATE     J50   00611032
+         BP    &EXPIRED          IF RESULT EXCEEDS 0, IT'S EXPIREDJ50   00612037
+         B     &NRETURN                                           J50   00620032
+         MEND                                                     J50   00630032

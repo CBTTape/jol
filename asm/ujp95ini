@@ -1,0 +1,763 @@
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974,1975       00010000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00020000
+           SPACE 3                                                      00030000
+*                   J             000000            L                   00040000
+*                   J            0      0           L                   00050000
+*                   J           0        0          L                   00060000
+*                   J          0          0         L                   00070000
+*                   J         0            0        L                   00080000
+*                   J         0            0        L                   00090000
+*                   J         0            0        L                   00100000
+*                   J         0            0        L                   00110000
+*                   J         0            0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*        J          J         0            0        L                   00150000
+*         J        J           0          0         L                   00160000
+*          J      J             0        0          L                   00170000
+*           J    J               0      0           L                   00180000
+*            JJJJ                 000000            LLLLLLLLLLL         00190000
+           SPACE 3                                                      00200000
+           COPY JOLCOM                                                  00210000
+           JOLSAVE CSECT=UJP95INI                                       00220000
+            PRINT DATA                                                  00230000
+* THIS MODULE RECEIVES CONTROL AT THE START OF A NEW JOB                00240000
+*    FIRST CALL,IT DECODES THE COMPILER PARM FIELD                      00250000
+*    IF AN *JOL CARD IS PRESENT,IT DECODES THE OPTIONS ON IT            00260000
+* ANOTHER MODULE THEN (IF REQD) PRINTS OUT THE OPTIONS IN SHORT         00270000
+*    OR LONG FORM.                                                      00280000
+           SPACE 3                                                      00290000
+* THE ALLOWABLE OPTIONS ARE LISTED IN THE TABLE 'OPTIONS'               00300000
+           SPACE 3                                                      00310000
+*********************************************************************** 00320000
+*                                                                       00330000
+* THE FOLLOWING NEW OPTIONS WILL BE SUPPORTED BY JOL, VERSION 3.0       00340000
+*  DATE NOV 28,1975.                                                    00350000
+* 1.                                                                    00360000
+*    FLAG0     PRINT ALL ERRORS, WARNINGS, ETC.                         00370000
+*              THIS IS THE DEFAULT                                      00380000
+*                                                                       00390000
+*    FLAG1     PRINT ONLY WARNINGS AND ABOVE SEVERITY                   00400000
+*                                                                       00410000
+*    FLAG2     PRINT ONLY ERRORS AND ABOVE SEVERITY                     00420000
+*                                                                       00430000
+*    FLAG3     PRINT ONLY SEVERE ERRORS AND ABOVE SEVERITY              00440000
+*                                                                       00450000
+*    FLAG4     PRINT ONLY TERMINAL ERRORS AND ABOVE SEVERITY            00460000
+*                                                                       00470000
+*    FLAG5     PRINT ONLY COMPILER ERRORS (NO ABOVE ...)                00480000
+*                                                                       00490000
+* THESE OPTIONS ARE TO SATISFY STANDARDS STND2703, AND SHELLS JOL26002. 00500000
+           SPACE 2                                                      00510000
+* 2.                                                                    00520000
+*    NPRINT OR NP TO STOP JOL PRINTING ANY JOL STATEMENTS AT            00530000
+*              COMPILE TIME.                                            00540000
+*                                                                       00550000
+*              ANY ERROR MESSAGE (OR ABOVE SEVERITY) WILL BE PRINTED,   00560000
+*              AND THE MESSAGE WILL ALSO BE PLACED ON THE OPERATORS     00570000
+*              CONSOLE (ROUTECDE=(2,11),DESC=6)                         00580000
+*                                                                       00590000
+* THIS OPTION SATISFIES SHELLS JOL26016.                                00600000
+           SPACE 2                                                      00610000
+* 3.                                                                    00620000
+*    FLAGM=COL WILL PRINT AN ASTERISK PRECEEDING THE COLUMN             00630000
+*              INDICATED.                                               00640000
+*              IT MAY THEN BE DETERMINED EASILY IF A CHARACTER          00650000
+*              HAS BEEN INVALIDLY CODED OUTSIDE THE SOURCE              00660000
+*              MARGIN LIMITS.                                           00670000
+*                                                                       00680000
+* THIS OPTION SATIFIES SHELLS JOL26022                                  00690000
+           SPACE 2                                                      00700000
+* 4.                                                                    00710000
+*    NPC       WILL STOP JOL PRODUCING COMMENTS IN THE GENERATED JCL    00720000
+*              (WITH THE EXCEPTION OF PARM INFORMATION).                00730000
+*              THIS WILL STOP THE JOBQ BEING FILLED FOR BIG JOBS.       00740000
+* THIS SATISFIES SHELLS JOL26006.                                       00750000
+           SPACE 2                                                      00760000
+* 5.                                                                    00770000
+*    DUMPCARD='JCLSTRING' WILL ALTER THE JOLGEN SYSUDUMP DD CARD        00780000
+**** NOTE THIS OPTION MAY NOT BE NECESSARY, BECAUSE I BELIEVE THE       00790000
+*    LAST SYSUDUMP | SYSABEND DDNAME IN THE TIOT IS USED INSTEAD        00800000
+*    OF THE FIRST.                                                      00810000
+           SPACE 1                                                      00820000
+*                                                                       00830000
+*********************************************************************** 00840000
+*                                                                       00850000
+* IN ADDITION, THE FOLLOWING CHANGES WILL BE MADE                       00860000
+*                                                                       00870000
+* 1. JOL26025.                                                          00880000
+*    NODEFAULT OR NODEF KEYWORD IS ADDED TO THE DATA-SET DECLARE        00890000
+*          TO STOP DEFAULTS BEING ADDED TO THE DECLARATION.             00900000
+           SPACE 2                                                      00910000
+* 2. JOL26                                                              00920000
+*    INFORMATIONAL MESSAGES WILL BE GIVEN WHEN DEFAULTS ARE MADE        00930000
+*    TO ANY DECLARATION. THESE MAY BE SUPPRESSED BY THE FLAG1 OPTION.   00940000
+           SPACE 2                                                      00950000
+* 3. STND2731                                                           00960000
+*    A WARNING MESSAGE WILL BE MADE WHEN TWO DSIDS HAVING THE SAME      00970000
+*    DSNAME BUT DIFFERENT DCB INFORMATION. IF THE VOLUME OR UNIT        00980000
+*    INFORMATION DIFFERS, THE DSIDS WILL BE CONSIDERED TO BE            00990000
+*    FOR DIFFERENT DATA SETS, AND NO MESSAGE WILL BE PRODUCED.          01000000
+           SPACE 2                                                      01010000
+* 4. TO ALLOW FOR SIMPLE RESETTING OF GENERATION NUMBERS, IF A          01020000
+*    '+' SIGN IS FOLLOWED BY A '-' SIGN, THE NEGATIVE SIGN WILL         01030000
+*    HAVE PRECEDENCE.                                                   01040000
+*    CONSIDER THE FOLLOWING JOL CODE:-                                  01050000
+*          %GEN=0;                                                      01060000
+*          IF %RESTART=2 THEN %GEN=%GEN-2; /* =-2 NOW */                01070000
+*          DCL X DS DSN GDG(+%GEN);                                     01080000
+*      /* AFTER REPLACEMENT, THE DSN WILL BE 'GDG(+-2)', WHICH          01090000
+*          WILL RESULT IN 'GDG(-2)'. */                                 01100000
+* JOL2 021                                                              01110000
+           SPACE 2                                                      01120000
+* 5. JOL26.                                                             01130000
+*    WHEN A + GDG DATA SET IS FOUND WITHOUT A VOLUME OR UNIT SPECIFIED, 01140000
+*    JOL WILL SEARCH THE SYSTEM CATALOG FOR THE (0) GENERATION, AND     01150000
+*    COPY THE UNIT TYPE AND VOLUME (EXCEPT FOR TAPE DATA SETS,IN WHICH  01160000
+*    CASE A SCRATCH VOLUME WILL BE USED).                               01170000
+           SPACE 2                                                      01180000
+* 6. STND2735.                                                          01190000
+*    WHEN A 'MOD' DATA SET (OR USES) IS FOUND, JOL WILL SEARCH THE      01200000
+*    CATALOG IN AN ATTEMPT TO COPY THE VOLUME AND UNIT.                 01210000
+*    IF THE DATA SET IS NOT FOUND, NORMAL JOL DEFAULTS WILL APPLY.      01220000
+           SPACE 2                                                      01230000
+* 7. JOL26026.                                                          01240000
+*    AN ATTEMP TO WRITE A (0) OR (-NN) GDG WILL GIVE AN ERROR MESSAGE.  01250000
+           SPACE 2                                                      01260000
+* 8. STND2705.                                                          01270000
+*    WHEN A MACRO INCLUDES TEXT, THE INCLUDED TEXT WILL NOT BE          01280000
+*    PRINTED UNLESS THE 'PM' OPTION IS TURNED ON.                       01290000
+           SPACE 2                                                      01300000
+* 9. STND2707.                                                          01310000
+*    WHEN DEFAULT UNITS ARE APPLIED TO A DUMMY DATA SET, THE DEFAULT    01320000
+*    WILL BE 'SYSDA'.                                                   01330000
+           SPACE 2                                                      01340000
+*10. (NO NUMBER) -STANDARD AND SHELL SUGGESTION                         01350000
+*    DEFAULT SPACE WILL NOT BE MADE TO TAPE DATA-SETS.                  01360000
+           SPACE 2                                                      01370000
+*11. STND2728,STND2728.                                                 01380000
+*    THE COMPILER WILL PRODUCE DLM CARDS OF X'00FF' FOR THE INIT        01390000
+*    STEP                                                               01400000
+           SPACE 2                                                      01410000
+*12. STND2741.                                                          01420000
+*    THE NUMBER OF SYMBOLICS WILL BE 200.                               01430000
+           SPACE 2                                                      01440000
+*13. STND2750.                                                          01450000
+*    ADDITION AND SUBTRACTION MAY BE PERFORMED ON %LIST AND %CARD       01460000
+*    SUBSCRIPTS.                                                        01470000
+*          %LIST(%X-%Y) WILL BE ACCEPTABLE.                             01480000
+           SPACE 2                                                      01490000
+*14. (NO NUMBER)                                                        01500000
+*    TO ASSIST IN WRITING INVOKED ROUTINES, JOL WILL USE DDNAMES        01510000
+*    OTHER THAN SYSPRINT,SYSUT1 ETC IF THE FOLLOWING DDNAMES ARE        01520000
+*    PROVIDED INSTEAD.                                                  01530000
+*          $$JPRINT (SYSPRINT)                                          01540000
+*          $$JWORK1 (SYSUT1)                                            01550000
+*          $$JWORK2 (SYSUT2)                                            01560000
+*          $$JLOAD  (JOLLOAD)                                           01570000
+*          $$JINCL  (PROCLIB)                                           01580000
+*          $$JMACRO (MACROLIB)                                          01590000
+*          $$JIN    (SYSIN)                                             01600000
+*    IF THE $$ DDNAMES ARE NOT PRESENT, JOL WILL ATTEMPT TO USE THE     01610000
+*    STANDARD DDNAMES.                                                  01620000
+           SPACE 2                                                      01630000
+*15. STANDARD TELEX NOV 26,75                                           01640000
+*    MESSAGE UJV00-01 WILL BE ALTERED TO INDICATE HOW MUCH EXTRA        01650000
+*    STORAGE IS REQUIRED TO CONTAIN THE JOB.                            01660000
+*** NOTE, THIS IS A TEMPORARY PROBLEM AS CODE IS 75% WRITTEN TO USE     01670000
+*    A DIFFERENT METHOD OF RESOLVING DATA SET USAGE.                    01680000
+           SPACE 1                                                      01690000
+*16. (NO NUMBER) - STANDARD,SHELL,NATUAL MUTUAL                         01700000
+*    REAL STEPNAMES WILL PRODUCED ON 'EXEC' CARDS.                      01710000
+*    IF MULTIPLE (DUPLICATE) STEP NAMES ARE FOUND, $$NNNN NAMES         01720000
+*    WILL BE USED AS USUAL.                                             01730000
+*    %SYSLABEL MAY BE USED TO TRANSFER THE LABEL ON MACRO INVOCATIONS   01740000
+*    TO THE RUN STATEMENT OF PROGRAMS WITHIN MACROS                     01750000
+           SPACE 3                                                      01760000
+           SPACE                                                        01770000
+         MVC   ICOMMAND,=CL8'MACRO' SO ASSIGNMENT ROUTINE         75128 01780000
+*                             AND DECLARE ROUTINES WON'T DO SO    75128 01790000
+*                             MUCH MESSING ROUND STORING VALUES   75128 01800000
+         SPACE 2                                                        01810000
+           USING JOLCOM,R2                                              01820000
+           USING TKNX,R3                                                01830000
+         L     R4,AJOLGEN                                         75128 01840000
+         USING GENDETS,R4                                        75128  01850000
+P95LEAV  EQU   *                                                  75128 01860000
+          $CALL UJSPLIT        SPLIT INTO TOKENS                  74303 01870000
+           GETTKN 1            SEE IF '* JOL' AND SKIP IF SO            01880000
+           CLI TKN,C'*'                                                 01890000
+           BNE P95GOTST                                                 01900000
+P95SKIPF EQU   *                                                  75128 01910000
+           GETTKN 3            SKIP 'JOL'                               01920000
+           CLI TKN,C'('                                                 01930000
+           BNE P95GOTST                                                 01940000
+P95SKIP1   EQU *                                                        01950000
+           GETTKN (1)                                                   01960000
+P95GOTST   EQU *                                                        01970000
+           STH R1,TKNCURR                                               01980000
+           CLI TKN,C' '        REACHED END ?                            01990000
+           BE  P95RETN0                                                 02000000
+           CLI TKN,C')'        END OF OPTION ?                    75311 02010000
+           BE  P95SKIP1                                           75311 02020000
+           CLI TKN,C','        SKIP ','S                                02030000
+           BE  P95SKIP1                                                 02040000
+           SPACE                                                        02050000
+           CLI TKN,C'/'        IS IT THE START OF SYMBOLIC PARAMETER    02060000
+*                              PROCESSING ?                             02070000
+           BE P95SYM                                                    02080000
+           LM  R5,R7,OPTIONS   LOAD THE BXLE CONSTANTS                  02090000
+P95TOPT    CLC TKN(8),0(R5)    TEST IF REQD OPTION                      02100000
+           BE  P95GOTOP        YES,GO LOAD ADDRESS AND DEAL WITH IT     02110000
+           BXLE R5,R6,P95TOPT  NO,CONTINUE LOOKING FOR KEYWORD          02120000
+* ERROR                                                                 02130000
+         JOLERR 101,'UNKNOWN COMPILER OPTION ''',#TKN,''' IGNORED' 5128 02140000
+P95SKIP2   LH  R1,TKNCURR      LOAD TKN POINTER                         02150000
+           B   P95SKIP1        BRANCH AND SKIP TO NEXT ONE              02160000
+           SPACE 3                                                      02170000
+P95GOTOP   EQU *                                                        02180000
+         MVC   DBL+2(2),8(R5) SHIFT S(ADDRESS) TO DBL             75128 02190000
+         MVC   DBL(2),P95LAR15 SHIFT FIRST PART OF 'LA R15'       75128 02200000
+         EX    R0,DBL         15=ADDRESS NOW                      75128 02210000
+           BR  R15             AND BRANCH TO IT                         02220000
+           SPACE                                                        02230000
+SM         GETTKN (R1)         GET NEXT TOKEN                     75311 02240000
+           CLI TKN,C'='        '='                                75311 02250000
+           BE  SM              YES,SKIP IT                        75311 02260000
+           CLI TKN,C'('        '('                                75311 02270000
+           BE  SM              YES,SKIP IT                        75311 02280000
+* HERE WE HAVE THE THING AFTER THE SM=( KEYWORDS                  75311 02290000
+           STH R1,TKNCURR      SAVE TKN POINTER                   75311 02300000
+           TNUM #TKN           CONVERT TO NUMERIC                 75311 02310000
+           LTR R15,R15         DID IT ?                           75311 02320000
+           BNZ SMERR           NO -> GIVE ERROR MESSAGE           75311 02330000
+           STH R1,SM1          YES, STORE SM1 FIELD               75311 02340000
+           LH  R1,TKNCURR      RE-LOAD TOKEN POINTER.             75311 02350000
+P95SM2     GETTKN (R1)         GET NEXT TOKEN                     75311 02360000
+           CLI TKN,C','        ','                                75311 02370000
+           BE  P95SM2          YES, SKIP IT                       75311 02380000
+           STH R1,TKNCURR      NO, SAVE CURRENT TOKEN NUMBER.     75311 02390000
+           TNUM #TKN           YES, CONVERT TO NUMBERIC           75311 02400000
+           LTR R15,R15         DID IT CONVERT ?                   75311 02410000
+           BNZ SMERR           NO, GIVE ERROR                     75311 02420000
+           STH R1,SM2          YES, STORE SM2 FIELD               75311 02430000
+           LH  R1,TKNCURR      GET NEXT                           75311 02440000
+P95SM3     GETTKN (R1)         AND                                75311 02450000
+           CLI TKN,C','            SO                             75311 02460000
+           BE  P95SM3                 ON                          75311 02470000
+           STH R1,TKNCURR                                         75311 02480000
+          TNUM #TKN                                               75311 02490000
+           LTR R15,R15                                            75311 02500000
+           BNZ SMERR                                              75311 02510000
+           STH R1,SM3                                             75311 02520000
+* NOW CHECK FOR ')'                                               75311 02530000
+           GETTKN TKNCURR                                         75311 02540000
+           CLI TKN,C')'                                           75311 02550000
+           BNE *+8                                                75311 02560000
+           STH R1,TKNCURR                                         75311 02570000
+* HERE WE HAVE REACHED THE END OF THE SM FIELDS.                  75311 02580000
+* WE HAD BETTER PERFORM A VALIDITY CHECK OR TWO.                  75311 02590000
+           CLC SM1,SM2                                            75311 02600000
+           BL  P95SM1OK                                           75311 02610000
+           JOLERR 206,'SM2 NOT GREATER SM1',                      75311*02620000
+               ':- DEFAULT SOURCE MARGINS USED'                   75311 02630000
+           B   P95SMDEF                                           75311 02640000
+* NOW CHECK THAT SM3 IS NOT IN THE MIDDLE OF THE RANGE.           75311 02650000
+P95SM1OK   CLC SM3,ZERO        =0 ?                               75311 02660000
+           BE  P95SM3OK        OK THEN                            75311 02670000
+           CLC SM2,SM3                                            75311 02680000
+           BL  P95SM3OK                                           75311 02690000
+           JOLERR 207,'SM(3) IS WITHIN SM(1)-SM(2) RANGE',        75311*02700000
+               ':-DEFAULT SOURCE MARGINS USED'                    75311 02710000
+           B   P95SMDEF                                           75311 02720000
+P95SM3OK   B   P95SKIP2        NEXT ITEM ...                      75311 02730000
+P95SMDEF   MVC  SM1,=H'1'                                               02740000
+           MVC  SM2,=H'72'                                              02750000
+           MVC  SM3,=H'73'                                              02760000
+           MVC  FLAGCOL,ZERO                                            02770000
+           B  P95SKIP2       BACK TO OTHER OPTIONS                      02780000
+          SPACE 3                                                       02790000
+           SPACE 3                                                75311 02800000
+SMERR      JOLERR 310,'SM OPTION ERROR AT ''',#TKN,''''           75311*02810000
+               ':-DEFAULT SOURCE MARGINS USED'                    75311 02820000
+           B   P95SMDEF                                           75311 02830000
+FLAG       GETTKN (R1)         GET NEXT AFTER FLAG OPTION.        75311 02840000
+           CLI TKN,C'='        =?                                 75311 02850000
+           BE  FLAG            DON'T WANT IT                      75311 02860000
+           CLI TKN,C'('        '('                                75311 02870000
+           BE  FLAG            DON'T WANT IT EITHER               75311 02880000
+           STH R1,TKNCURR      SAVE R1                            75311 02890000
+           TNUM #TKN           CONVERT TO NUMERIC                 75311 02900000
+           LTR R15,R15         DID IT CONVERT ?                   75311 02910000
+           BNZ FLAGERR         NO -> ERROR                        75311 02920000
+           STH R1,FLAGCOL                                               02930000
+           LTR R1,R1           ANY FLAGCOL?                             02940000
+           BZ  P95SKIPL        ->NO...SKIP LEFT                         02950000
+           CH    R1,SM2                                                 02960000
+           BNL   P95SKIPL                                               02970000
+           JOLERR 111,'FLAG COLUMN IS WITHIN SOURCE MARGINS RANGE'      02980000
+           B   P95SKIPL        SKIPLEFT                                 02990000
+FLAGERR    JOLERR 208,'FLAG OPTION ',#TKN,' NOT NUMERIC'                03000000
+P95SKIPL   GETTKN TKNCURR                                               03010000
+           CLI TKN,C')'                                                 03020000
+           BNE *+8                                                      03030000
+           STH R1,TKNCURR                                               03040000
+           B   P95SKIP2                                                 03050000
+* FIX UP PRINT OPTIONS                                                  03060000
+LC        EQU *                                                         03070000
+           GETTKN (R1)          SEE WHATS AFTER THE KEYWORD             03080000
+           CLI TKN,C'='                                                 03090000
+           BNE USELC                                                    03100000
+           GETTKN (R1)          GET THE SYMBOL AFTER THE = SIGN         03110000
+USELC      STH R1,TKNCURR       SAVE R1                                 03120000
+           TNUM #TKN                                                    03130000
+           LTR R15,R15     DID NUMBER CONVERT ?                         03140000
+         BNZ   LCERR                                              75128 03150000
+         STH   R1,MAXLINE                                         75128 03160000
+SKIPLC     LH R1,TKNCURR        RESET R1                                03170000
+           B  P95SKIP2                                                  03180000
+LCERR    JOLERR 104,'LINECOUNT OPTION NOT NUMERIC :- ',#TKN       75128 03190000
+      B  P95SKIP2                                                 75128 03200000
+          SPACE 1                                                 74256 03210000
+SVC       GETTKN (R1)          GET SYMBOL AFTER 'SVC'             74256 03220000
+          CLI TKN,C'='                                            74256 03230000
+          BNE USESVC                                              74256 03240000
+          GETTKN (R1)          SKIP '='                           74256 03250000
+USESVC    STH  R1,TKNCURR                                         74256 03260000
+          TNUM #TKN            CONVERT SVC NUMBER TO NUMERIC      74256 03270000
+          LTR  R15,R15         DID IT ?                           74256 03280000
+         BNZ   SVCERR                                             75128 03290000
+         STC   R1,SUPRVSR+1                                       75128 03300000
+SKIPSVC   LH   R1,TKNCURR                                         74256 03310000
+          B    P95SKIP2                                           74256 03320000
+SVCERR   JOLERR 305,'SVC NUMBER OPTION ''',#TKN,''' NOT NUMERIC'  75128 03330000
+           MVI SUPRVSR+1,0     CLEAR SVC NUMBER                         03340000
+          B    SKIPSVC                                            74256 03350000
+          SPACE                                                         03360000
+          SPACE 1                                                 J52   03361001
+TRACE     GETTKN (R1)          GET SYMBOL AFTER 'TRACE'           J52   03362001
+          STH  R1,TKNCURR                                         J52   03366001
+          CLC  =C'ON ',TKN     TRACE ON?                          J52   03367001
+          BNE  TRCOFF          TRY OFF THEN.                      J52   03368001
+          MVI  TRACEIND,X'01'    IND ON                           J52   03368101
+          B    P95SKIP2                                           J52   03368201
+TRCOFF    CLC  =C'OFF ',TKN     TRACE OFF ?                       J52   03368302
+          BNE  TRCERR          GIVE ERROR                         J52   03368401
+          MVI  TRACEIND,X'00'    IND OFF                          J52   03368501
+          B    P95SKIP2                                           J52   03368601
+TRCERR   JOLERR 315,'TRACE SHOULD BE ''ON'' OR ''OFF'''           J52   03369402
+          B    P95SKIP2                                           J52   03369501
+          SPACE                                                         03369701
+           B  SKIPLC                                                    03370000
+DUMPOPT    GETTKN (R1)         GET SYMBOL AFTER DUMPCARD          75311 03380000
+           CLI TKN,C'='        DUMPCARD =                         75311 03390000
+           BNE DUMPNEQU        NO                                 75311 03400000
+           GETTKN (R1)         SKIP =                             75311 03410000
+DUMPNEQU   CLI TKN,C'('        '('                                75311 03420000
+           BNE DUMPNBRA        NO                                 75311 03430000
+           GETTKN (R1)         YES, SKIP IT                       75311 03440000
+DUMPNBRA   STH R1,TKNCURR                                         75311 03450000
+           BAL R14,DROPQUOT    DROP QUOTES FROM '//SYSABEND' ETC  75311 03460000
+           CLC =H'81',#TKN      > 80 CHARS ?                            03470000
+           BH  USEDUMP         NOPE                                     03480000
+           JOLERR 309,'DUMPCARD OPTION > 80 CHARS:- IGNORED'            03490000
+           B   P95SKIP2        IGNORE IT                                03500000
+USEDUMP    MVC DUMPCARD(82),#TKN MVC NEW DUMPCARD IN              75311 03510000
+           B   P95SKIP2                                           75311 03520000
+         SPACE 2                                                        03530000
+CARDIN01 EQU   *                                              NEW 76200 03540000
+CARDIN02 EQU   *                                              NEW 76200 03550000
+CARDIN03 EQU   *                                              NEW 76200 03560000
+         MVC   DBL,TKN        SAVE CARD1,2 OR 3               NEW 76200 03570000
+         GETTKN (R1)          GET NEXT TOKEN                  NEW 76200 03580000
+         CLI   TKN,C'='       '='                             NEW 76200 03590000
+         BNE   CARDNEQU       NOT EQUAL, SO STORE TOKEN       NEW 76200 03600000
+         GETTKN (R1)          SKIP '='                        NEW 76200 03610000
+CARDNEQU CLI   TKN,C'('                                       NEW 76200 03620000
+         BNE   CARDNBRA       NO BRACKETS EITHER              NEW 76200 03630000
+         GETTKN (R1)          SKIP BRACKET                    NEW 76200 03640000
+CARDNBRA STH   R1,TKNCURR     SAVE CURRENT POINTER            NEW 76200 03650000
+         BAL   R14,DROPQUOT   DROP QUOTES                     NEW 76200 03660000
+         CLC   =H'81',#TKN    IS LENGTH TOO LONG ?            NEW 76200 03670000
+         BH    STORECD        NOPE, SO STORE CARD.            NEW 76200 03680000
+         JOLERR 312,'''',DBL,'''CANNOT BE STORED:-TOO LONG'   NEW 76200 03690000
+         B     P95SKIP2       IGNORE IT                       NEW 76200 03700000
+         SPACE 1                                              NEW 76200 03710000
+STORECD  CLI   DBL+4,C'1'     CARD1 ?                         NEW 76200 03720000
+         BNE   P95CD2         NOPE                            NEW 76200 03730000
+         MVC   LGENCRD1(82),#TKN STORE CARD1                  NEW 76200 03740000
+         B     P95SKIP2                                       NEW 76200 03750000
+P95CD2   CLI   DBL+4,C'2'     CARD2 ?                         NEW 76200 03760000
+         BNE   P95CD3              ETC                        NEW 76200 03770000
+         MVC   LGENCRD2(82),#TKN   ETC                        NEW 76200 03780000
+         B     P95SKIP2            ETC                        NEW 76200 03790000
+P95CD3   MVC   LGENCRD3(82),#TKN   ETC                        NEW 76200 03800000
+         B     P95SKIP3            ETC                        NEW 76200 03810000
+         SPACE 3                                              NEW 76200 03820000
+LET        OI THISSYS,X'08'     SET LET OPTION UP                 75311 03830000
+           B  P95SKIP2                                                  03840000
+NPC      OI    PARMPRNT,X'04' PUT COMMENTS IN JCL                 75128 03850000
+         B     P95SKIP2                                           75128 03860000
+PC       NI    PARMPRNT,X'FF'-X'04'  DO   PUT COMMENTS IN JCL     75128 03870000
+         B     P95SKIP2                                           75128 03880000
+PI         OI  PARMPRNT,X'80'   PRINT INCLUDES                          03890000
+           B   P95SKIP2                                                 03900000
+PM         OI PARMPRNT,X'40'   PRINT MACROS AS THEY ARE WORKING         03910000
+           B   P95SKIP2                                                 03920000
+PE         OI PARMPRNT,X'20'   PRINT MACROS EXPANSIONS IN SECOND        03930000
+*                              LISTING                                  03940000
+           B   P95SKIP2                                                 03950000
+PJ         OI PARMPRNT,X'10'   PRINT GENERATED JCL                      03960000
+           B   P95SKIP2                                                 03970000
+PO         OI PARMPRNT,X'01'   PRINT OPTIONS SWITCHED ON                03980000
+           B   P95SKIP2                                                 03990000
+NPI        NI PARMPRNT,X'FF'-X'80' DON'T PRINT INCLUDES                 04000000
+           B   P95SKIP2                                                 04010000
+NPM        NI PARMPRNT,X'FF'-X'40' DON'T PRINT MACROS                   04020000
+           B   P95SKIP2                                                 04030000
+NPE        NI PARMPRNT,X'FF'-X'20' DON'T PRINT EXPANSIONS               04040000
+           B   P95SKIP2                                                 04050000
+NPJ        NI PARMPRNT,X'FF'-X'10' DON'T PRINT JCL                      04060000
+           B   P95SKIP2                                                 04070000
+NPO        NI PARMPRNT,X'FF'-X'01' DON'T PRINT OPTIONS                  04080000
+           B   P95SKIP2                                                 04090000
+         SPACE 2                                              NEW 76200 04100000
+MODE     GETTKN (R1)          GET NEXT TOKEN                  NEW 76200 04110000
+         CLI   TKN,C'='       '='                             NEW 76200 04120000
+         BNE   MODEBRAC                                       NEW 76200 04130000
+         GETTKN (R1)                                          NEW 76200 04140000
+MODEBRAC CLI   TKN,C'('                                       NEW 76200 04150000
+         BNE   MODE1                                          NEW 76200 04160000
+         GETTKN (R1)                                          NEW 76200 04170000
+MODE1    STH   R1,TKNCURR                                     NEW 76200 04180000
+         CLI   TKN,C','       NO MODE 1 ?                     NEW 76200 04190000
+         BE    NMODE1                                         NEW 76200 04200000
+         SPACE 1                                              NEW 76200 04210000
+         LM    R5,R7,MODE1OPT                                 NEW 76200 04220000
+         CLC   TKN(8),0(R5)                                   NEW 76200 04230000
+         BE    MODE1P                                         NEW 76200 04240000
+         BXLE  R5,R6,*-10                                     NEW 76200 04250000
+         JOLERR 313,'MODE(1) OPTION:-''',#TKN,''' UNKNOWN'    NEW 76200 04260000
+         B     P95EMD1                                        NEW 76200 04270000
+         SPACE 2                                              NEW 76200 04280000
+MODE1P   MVC   DBL+2(2),8(R5) SHIFT S CON                     NEW 76200 04290000
+         MVC   DBL(2),P95LAR15                                NEW 76200 04300000
+         EX    R0,DBL                                         NEW 76200 04310000
+         BR    R15                                            NEW 76200 04320000
+         SPACE 1                                              NEW 76200 04330000
+NMODE1   GETTKN (1)           SKIP ','                        NEW 76200 04340000
+         STH   R1,TKNCURR                                     NEW 76200 04350000
+         SPACE 1                                              NEW 76200 04360000
+P95EMD1  GETTKN TKNCURR       GET NEXT TOKEN                  NEW 76200 04370000
+         CLI   TKN,C','       ANY OUTPUT OPTION               NEW 76200 04380000
+         BNE   P95SKIP2       NOPE, OUT                       NEW 76200 04390000
+         GETTKN (R1)          GET OUTPUT MODE                 NEW 76200 04400000
+         STH   R1,TKNCURR                                     NEW 76200 04410000
+         LM    R5,R7,MODE2OPT                                 NEW 76200 04420000
+         CLC   TKN(8),0(R5)                                   NEW 76200 04430000
+         BE    MODE2P                                         NEW 76200 04440000
+         BXLE  R5,R6,*-10                                     NEW 76200 04450000
+         JOLERR 314,'MODE(2) OPTION:-''',#TKN,''' UNKNOWN'    NEW 76200 04460000
+         B     P95SKIP2                                       NEW 76200 04470000
+MODE2P   MVC   DBL+2(2),8(R5)                                 NEW 76200 04480000
+         MVC   DBL(2),P95LAR15                                NEW 76200 04490000
+         EX    R0,DBL                                         NEW 76200 04500000
+         BR    R15                                            NEW 76200 04510000
+MODE1OPT DC    A(*+12,10,MODE1E-10)                           NEW 76200 04520000
+         DC    CL8'TSOIN',S(TSOINOP)                          NEW 76200 04530000
+         DC    CL8'JOLIN',S(JOLINOP)                          NEW 76200 04540000
+MODE1E   EQU   *                                              NEW 76200 04550000
+         SPACE 2                                              NEW 76200 04560000
+MODE2OPT DC    A(*+12,10,MODE2E-10)                           NEW 76200 04570000
+         DC    CL8'IMMEDIATE',S(M2IMMED)                      NEW 76200 04580000
+         DC    CL8'DYNAMIC  ',S(M2DYNAM)                      NEW 76200 04590000
+         DC    CL8'IMM      ',S(M2IMMED)                      NEW 76200 04600000
+         DC    CL8'DYN      ',S(M2DYNAM)                      NEW 76200 04610000
+         DC    CL8'ONESTEP  ',S(M2ONEST)                      NEW 76200 04620000
+         DC    CL8'MONITOR  ',S(M2MON)                        NEW 76200 04630000
+         DC    CL8'MON      ',S(M2MON)                        NEW 76200 04640000
+         DC    CL8'REALJCL  ',S(M2REAL)                       NEW 76200 04650000
+         DC    CL8'REAL     ',S(M2REAL)                       NEW 76200 04660000
+         DC    CL8'PROC     ',S(M2PROC)                       NEW 76200 04670000
+MODE2E   EQU   *                                              NEW 76200 04680000
+TSOINOP  OI    MODEIN,TSOINOPT                                NEW 76200 04690000
+         B     P95EMD1                                        NEW 76200 04700000
+JOLINOP  NI    MODEIN,X'FF'-TSOINOPT                          NEW 76200 04710000
+         B     P95EMD1                                        NEW 76200 04720000
+M2IMMED  OI    MODEOUT,IMMED                                  NEW 76200 04730000
+OFFREAL  NI    MODEOUT,255-(MONITOR+REALJCL)                  NEW 86100 04740005
+         B     P95SKIP2                                       NEW 76200 04750000
+M2DYNAM  OI    MODEOUT,DYNAM                                  NEW 76200 04760000
+         B     OFFREAL                                        NEW 86100 04770003
+M2ONEST  OI    MODEOUT,ONESTEP                                NEW 76200 04780000
+         B     OFFREAL                                        NEW 86100 04790003
+M2MON    OI    MODEOUT,MONITOR                                NEW 76200 04800000
+         B     OFFDYN                                         NEW 86100 04810003
+M2REAL   OI    MODEOUT,REALJCL                                NEW 76200 04820000
+OFFDYN   NI    MODEOUT,255-(DYNAM+IMMED+REALJCL)              NEW 86100 04830005
+         B     P95SKIP2                                       NEW 76200 04840000
+M2PROC   OI    MODEOUT,PROCJCL                                NEW 76200 04850000
+         B     P95SKIP2                                       NEW 76200 04860000
+PRODNTIO OI    THISSYS,PRODOPT                                NEW 76200 04870000
+         B     P95SKIP2                                       NEW 76200 04880000
+         SPACE 2                                                        04890000
+VS1      EQU   *                                                  75128 04900000
+VS2      EQU   *                                                  75128 04910000
+OS4      EQU   *                                                  80290 04920000
+VM       EQU   *                                                  75128 04930000
+MFT      EQU   *                                                  75128 04940000
+MVT      EQU   *                                                  75128 04950000
+DOS      EQU   *                                                  75128 04960001
+X8       EQU   *                                                  75128 04970001
+         MVC   DEFSYS,TKN                                         75128 04980000
+           B   M2DYNAM        SET UP DYNAMIC (NO JCL)                   04990003
+HASPOPT  MVI   SPOOL,C'H'                                         75128 05000000
+           B   P95SKIP2                                                 05010000
+NOHASP   MVI   SPOOL,C' '                                         75128 05020000
+           B   P95SKIP2                                           74256 05030000
+ASP      MVI   SPOOL,C'A'                                         75128 05040000
+           B   P95SKIP2                                                 05050000
+NOCAT      OI  PARMSRCH,1      TURN ON NOCAT INDICATOR            75311 05060000
+           B   P95SKIP2                                           74256 05070000
+CAT        NI  PARMSRCH,255-1  TURN ON   CAT INDICATOR            80290 05080000
+           B   P95SKIP2                                           80290 05090000
+FS       MVI   IFFULLSC,C'Y'   TURN ON FULLSCREEN INDICATOR       80290 05100000
+           B   P95SKIP2                                           80290 05110000
+NOFS     MVI   IFFULLSC,C' '   TURN OFF FULLSCREEN INDICATOR      80290 05120000
+           B   P95SKIP2                                           80290 05130000
+NOCATGDG OI    PARMSRCH,B'00000100' SET NOCATGDG OPTION                 05140000
+         B     P95SKIP2                                                 05150000
+NOSRDR      NI  THISSYS,X'FF'-X'02'             OFF S SRDR INDIC  75049 05160000
+            B   P95SKIP2                                                05170000
+SRDR        OI  THISSYS,X'02'      SET START RDR INDIC            75049 05180000
+            B   P95SKIP2                                          75049 05190000
+JOLOPT     B    P95SKIP2                                          75128 05200000
+TEST     OI    PARMPRNT,X'08' TURN ON TEST                        75128 05210000
+         B     P95SKIP2                                           75128 05220000
+NOTEST   NI    PARMPRNT,X'FF'-X'80' TURN OFF TEST                 75128 05230000
+         B     P95SKIP2                                           75128 05240000
+JES1     EQU   *                                                  75128 05250000
+JES2     EQU   *                                                  75128 05260000
+JES3     EQU   *                                                  75128 05270000
+         MVC   SPOOL,TKN+3    SHIFT IN LAST SO THIS ENDS UP AS    75128 05280000
+*                             '1' ETC                             75128 05290000
+         B     P95SKIP2                                           75128 05300000
+FLAG0      MVI PFLAG,0         TURN OFF ALL PRINT ERROR OPTIONS   75311 05310000
+           B   P95SKIP2        -> NEXT OPTION                     75311 05320000
+FLAG1      MVI PFLAG,B'00000001' 1                                75311 05330000
+           B   P95SKIP2                                           75311 05340000
+FLAG2      MVI PFLAG,B'00000010' 2                                75311 05350000
+           B   P95SKIP2                                           75311 05360000
+FLAG3      MVI PFLAG,B'00000011' 3                                75311 05370000
+           B   P95SKIP2                                           75311 05380000
+FLAG4      MVI PFLAG,B'00000100' 4                                75311 05390000
+           B   P95SKIP2                                           75311 05400000
+FLAG5      MVI PFLAG,B'00000101' 5                                75311 05410000
+           B   P95SKIP2                                           75311 05420000
+NFLAG0     EQU *                                                  75311 05430000
+NFLAG1     EQU *                                                  75311 05440000
+NFLAG2     EQU *                                                  75311 05450000
+NFLAG3     EQU *                                                  75311 05460000
+NFLAG4     EQU *                                                  75311 05470000
+NFLAG5     MVI PFLAG,0                                            75311 05480000
+           B   P95SKIP2                                           75311 05490000
+NPRINT     EQU *                                                  75311 05500000
+NP         EQU *                                                  75311 05510000
+           OI  PARMPRNT,B'00000010'                               75311 05520000
+           B   P95SKIP2                                           75311 05530000
+PRINTO     NI  PARMPRNT,X'FF'-B'00000010'  TURN ON PRINT                05540000
+           B   P95SKIP2                                                 05550000
+P95RETN0 $CALL UJP94INI     RESET %SYSTEM ETC AGAIN IF NECESSARY  87080 05560000
+         JOLRETN RC=0                                             75128 05561000
+         PRINT DATA                                               75128 05570000
+OPTIONS    DC  A(*+12)                                                  05580000
+           DC  A(10)                                                    05590000
+           DC  A(ENDOPT-10)                                             05600000
+         DC    CL8'DUMPCARD',S(DUMPOPT)                           75311 05610000
+         DC    CL8'CARD1      ',S(CARDIN01)                   NEW 76200 05620000
+         DC    CL8'CARD2      ',S(CARDIN02)                   NEW 76200 05630000
+         DC    CL8'CARD3      ',S(CARDIN03)                   NEW 76200 05640000
+         DC    CL8'JES1    ',S(JES1)                              75128 05650000
+         DC    CL8'JES2    ',S(JES2)                              75128 05660000
+         DC    CL8'JES3    ',S(JES3)                              75128 05670000
+         DC    CL8'LINECNT',S(LC)              ADJUST LINECNT           05680000
+         DC    CL8'JOLOPT ',S(JOLOPT)    DUMMY *******                  05690000
+         DC    CL8'LC',S(LC)                   ADJUST LINECNT           05700000
+         DC    CL8'LET',S(LET)                LET OPTION                05710000
+         DC    CL8'PI',S(PI)                   PRINT INCLUDES           05720000
+         DC    CL8'PINCL',S(PI)                PRINT INCLUDES           05730000
+         DC    CL8'PM',S(PM)                   PRINT MACRO STATEMENTS   05740000
+         DC    CL8'PMACRO',S(PM)               PRINT MACRO STATEMENTS   05750000
+         DC    CL8'PMAC',S(PM)                 PRINT MACRO STATEMENTS   05760000
+         DC    CL8'PE',S(PE)                   PRINT EXPANSIONS IN 2ND  05770000
+         DC    CL8'PEXPAND',S(PE)              PRINT EXPANSIONS IN 2ND  05780000
+         DC    CL8'PEXP',S(PE) E)              PRINT EXPANSIONS IN 2ND  05790000
+         DC    CL8'DOS',S(DOS)                                    84290 05800001
+         DC    CL8'TSO      ',S(M2IMMED)                      NEW 76200 05810002
+         DC    CL8'TSS      ',S(M2IMMED)                      NEW 86100 05820003
+         DC    CL8'AIF      ',S(M2IMMED)                      NEW 86100 05830003
+         DC    CL8'DYNAMIC  ',S(M2DYNAM)                      NEW 76200 05840002
+         DC    CL8'DYN      ',S(M2DYNAM)                      NEW 76200 05850002
+         DC    CL8'JCODE    ',S(M2DYNAM)                      NEW 86100 05860003
+         DC    CL8'MFT',S(MFT)                                          05870001
+         DC    CL8'MVT',S(MVT)                                          05880000
+         DC    CL8'VM',S(VM)                                      74256 05890000
+         DC    CL8'VS1',S(VS1)                                          05900000
+         DC    CL8'VS2',S(VS2)                                          05910000
+         DC    CL8'OS4',S(OS4)                                    80290 05920000
+         DC    CL8'X8',S(X8)                                      84290 05930001
+         DC    CL8'HASP',S(HASPOPT)                                     05940000
+         DC    CL8'ASP',S(ASP)                                          05950000
+         DC    CL8'NH',S(NOHASP)               NO HASP            74256 05960000
+         DC    CL8'NA',S(NOHASP)               NO ASP             74256 05970000
+         DC    CL8'NOHASP',S(NOHASP)           NO HASP            74256 05980000
+         DC    CL8'NOASP',S(NOHASP)            NO ASP             74256 05990000
+         DC    CL8'NOCAT',S(NOCAT)             NO CATALOGUE SRCH  74256 06000000
+         DC    CL8'CAT  ',S(CAT)                  CATALOGUE SRCH  80290 06010000
+         DC    CL8'FS   ',S(FS)     USE FULL SCREEN               80290 06020000
+         DC    CL8'NOFS ',S(NOFS)   CANCEL FULL SCREEN            80290 06030000
+         DC    CL8'NFS  ',S(NOFS)   CANCEL FULL SCREEN            80290 06040000
+         DC    CL8'NCAT       ',S(NOCAT)                      NEW 76200 06050000
+         DC    CL8'NOCATGDG',S(NOCATGDG) NO CATLG SEARCH (GDGS)   75311 06060000
+         DC    CL8'NCATGDG    ',S(NOCATGDG)                   NEW 76200 06070000
+         DC    CL8'PJ',S(PJ)                   PRINT JCL GENERATED      06080000
+         DC    CL8'PJCL',S(PJ)                 PRINT JCL GENERATED      06090000
+         DC    CL8'PO',S(PO)                   PRINT OPTIONS            06100000
+         DC    CL8'POPT',S(PO)                 PRINT OPTIONS            06110000
+         DC    CL8'POPTION',S(PO)              PRINT OPTIONS            06120000
+         DC    CL8'NPI',S(NPI)                 DON'T PRINT INCLUDES     06130000
+         DC    CL8'NOPI       ',S(NPI)                        NEW 76200 06140000
+         DC    CL8'NPINCL',S(NPI)              DON'T PRINT INCLUDES     06150000
+         DC    CL8'NOPINCL    ',S(NPI)                        NEW 76200 06160000
+         DC    CL8'NPM',S(NPM)                   DON'T PRINT MACROS     06170000
+         DC    CL8'NOPM       ',S(NPM)                        NEW 76200 06180000
+         DC    CL8'NPMACRO    ',S(NPM)             DON'T PRINT MACROS   06190000
+         DC    CL8'NOPMACRO   ',S(NPM)                        NEW 76200 06200000
+         DC    CL8'NPE        ',S(NPE)          DON'T PRINT EXPANSIONS  06210000
+         DC    CL8'NOPE       ',S(NPE)                        NEW 76200 06220000
+         DC    CL8'NPEXP      ',S(NPE)          DON'T PRINT EXPANSIONS  06230000
+         DC    CL8'NOPEXP     ',S(NPE)                        NEW 76200 06240000
+         DC    CL8'NPEXPAND   ',S(NPE)          DON'T PRINT EXPANSIONS  06250000
+         DC    CL8'NOPEXPAND  ',S(NPE)                        NEW 76200 06260000
+         DC    CL8'NPJ',S(NPJ)                 DON'T PRINT JCL          06270000
+         DC    CL8'NOPJ       ',S(NPJ)                        NEW 76200 06280000
+         DC    CL8'NPJCL',S(NPJ)               DON'T PRINT JCL          06290000
+         DC    CL8'NOPJCL     ',S(NPJ)                        NEW 76200 06300000
+         DC    CL8'NPO',S(NPO)                 DON'T PRINT OPTIONS      06310000
+         DC    CL8'NOPO       ',S(NPO)                        NEW 76200 06320000
+         DC    CL8'NPOPT',S(NPO)               DON'T PRINT OPTIONS      06330000
+         DC    CL8'NOPOPT     ',S(NPO)                        NEW 76200 06340000
+         DC    CL8'NOSRDR',S(NOSRDR)           DON'T START A READER     06350000
+         DC    CL8'NSRDR      ',S(NOSRDR)                     NEW 76200 06360000
+         DC    CL8'PROD       ',S(PRODNTIO)                   NEW 76200 06370000
+         DC    CL8'SRDR',S(SRDR)               DO START A READER        06380000
+         DC    CL8'SVC',S(SVC)                 SUPRVSR SVC NO     74256 06390000
+         DC    CL8'NOTEST  ',S(NOTEST)                            75128 06400000
+         DC    CL8'SM      ',S(SM)                                75311 06410000
+         DC    CL8'FLAG0   ',S(FLAG0)                             75311 06420000
+         DC    CL8'NOFLAG0 ',S(NFLAG0)                        NEW 76200 06430000
+         DC    CL8'FLAG1   ',S(FLAG1)                             75311 06440000
+         DC    CL8'NOFLAG1 ',S(NFLAG1)                        NEW 76200 06450000
+         DC    CL8'FLAG2   ',S(FLAG2)                             75311 06460000
+         DC    CL8'NOFLAG2 ',S(NFLAG2)                        NEW 76200 06470000
+         DC    CL8'FLAG3   ',S(FLAG3)                             75311 06480000
+         DC    CL8'NOFLAG3 ',S(NFLAG3)                        NEW 76200 06490000
+         DC    CL8'FLAG4   ',S(FLAG4)                             75311 06500000
+         DC    CL8'NOFLAG4 ',S(NFLAG4)                        NEW 76200 06510000
+         DC    CL8'FLAG5   ',S(FLAG5)                             75311 06520000
+         DC    CL8'NOFLAG5 ',S(NFLAG5)                        NEW 76200 06530000
+         DC    CL8'NFLAG0  ',S(NFLAG0)                            75311 06540000
+         DC    CL8'NFLAG1  ',S(NFLAG1)                            75311 06550000
+         DC    CL8'NFLAG2  ',S(NFLAG2)                            75311 06560000
+         DC    CL8'NFLAG3  ',S(NFLAG3)                            75311 06570000
+         DC    CL8'NFLAG4  ',S(NFLAG4)                            75311 06580000
+         DC    CL8'NFLAG5  ',S(NFLAG5)                            75311 06590000
+         DC    CL8'FLAGM   ',S(FLAG)                              75311 06600000
+         DC    CL8'NPRINT  ',S(NPRINT)                            75311 06610000
+         DC    CL8'NOPRINT ',S(NPRINT)                        NEW 76200 06620000
+         DC    CL8'PRINT   ',S(PRINTO)                                  06630000
+         DC    CL8'P       ',S(PRINTO)                                  06640000
+         DC    CL8'NP      ',S(NP)                                75311 06650000
+         DC    CL8'NOP     ',S(NPRINT)                        NEW 76200 06660000
+         DC    CL8'NCONSM  ',S(TEST)                          NEW 76200 06670000
+         DC    CL8'NOCONSM ',S(TEST)                          NEW 76200 06680000
+         DC    CL8'MODE    ',S(MODE)                             76200  06690000
+         DC    CL8'REALJCL ',S(M2REAL)                            76200 06700005
+         DC    CL8'RJCL    ',S(M2REAL)                            76200 06710005
+         DC    CL8'MONITOR ',S(M2MON)                             76200 06720005
+         DC    CL8'MON     ',S(M2MON)                             76200 06730005
+         DC    CL8'TEST    ',S(TEST)                              75128 06740000
+         DC    CL8'TRACE   ',S(TRACE)                             J52   06750001
+         DC    CL8'NPCOMM  ',S(NPC)                               75128 06800005
+         DC    CL8'NPC     ',S(NPC)                               75128 06810005
+         DC    CL8'PC      ',S(PC)                                75311 06820005
+ENDOPT     EQU  *                                                       06830000
+P95SYM     EQU *                                                        06840000
+           GETTKN (1)          GET SYMBOL AFTER '/'                     06850000
+           STH  R1,TKNCURR                                              06860000
+           CLI TKN,C' '        IS IT '',IE NO SYMBOLIC NAMES ?          06870000
+         BE    P95RETN0                                           75128 06880000
+P95SYM2    EQU *                                                        06890000
+           CLI TKN,C')'        IGNORE IT                                06900000
+           BE  P95SYM                                                   06910000
+           MVC ICOMMAND,=CL8'MACRO' DO THIS SO ASSIGNMENT ROUTINE       06920000
+*                              WON'T TRY TO DO ANYTHING FANCY WHEN      06930000
+*                              STORING THE VALUES OF THE SYMBOLICS      06940000
+           CLI TKNTYPE,2       <IDENTIFIER> ?                           06950000
+           BE  P95IDENT                                                 06960000
+           CLI TKN,C','                                                 06970000
+           BE  P95SKIP3                                                 06980000
+         JOLERR 302,'INVALID NAME ''',#TKN,''' IGNORED IN * JOL OR PARA*06990000
+               METER FIELD OF JOL COMPILER'                             07000000
+P95SKIP3   EQU  *                                                       07010000
+           LH  R1,TKNCURR                                               07020000
+           B   P95SYM                                                   07030000
+           SPACE                                                        07040000
+P95IDENT   EQU *                                                        07050000
+         MVC   SYMBOLIC,TKN   SHIFT IN SYMBOLIC NAME              75128 07060000
+           XC  #WORK,#WORK     NULLIFY ITEM TO BE STORED TEMPORARILY    07070000
+           GETTKN (R1)                                                  07080000
+           STH R1,TKNCURR                                               07090000
+           CLI TKN,C'='                                                 07100000
+           BE  P95GOTVL        GOT A VALUE MAYBE,GO AND GET NEXT,       07110000
+*                              IF IT IS A COMMA,IGNORE IT.              07120000
+           SPACE                                                        07130000
+* NOW THE VALUE HERE MUST BE A COMMA,OR IT IS AN ERROR.                 07140000
+           CLI TKN,C','                                                 07150000
+           BE  P95NOV1                                                  07160000
+         JOLERR 303,'INVALID VALUE ''',#TKN,                           *07170000
+               ''' IGNORED IN * JOL OR PARAMETER FIELD OF JOL COMPILER' 07180000
+           LH  R1,TKNCURR                                               07190000
+           B   P95SYM                                                   07200000
+P95GOTVL   EQU *                                                        07210000
+           GETTKN (1)          GET VALUE AFTER '='                      07220000
+           STH R1,TKNCURR                                               07230000
+           CLI TKN,C','                                                 07240000
+           BE  P95NOV1         NO VALUE,STORE NULL                      07250000
+           MVC #WORK(L'TKN+2),#TKN                                      07260000
+P95NOV1   $CALL UJP85ASN       STORE NAME IN TABLE                      07270000
+           B   P95SYM          GO GET NEXT                              07280000
+P95LAR15 LA    R15,0          **** FUNNY EXECUTE ***** SEE TABLE  75128 07290000
+          LTORG                                                         07300000
+          DC S(*,*,*,*)                                                 07310000
+          DC S(*,*,*,*)                                                 07320000
+          DC S(*,*,*,*)                                                 07330000
+          DC S(*,*,*,*)                                                 07340000
+       DC S(*,*,*,*)                                                    07350000
+       DC S(*,*,*,*)                                                    07360000
+       DC S(*,*,*,*)                                                    07370000
+       DC S(*,*,*,*)                                                    07380000
+       DC S(*,*,*,*)                                                    07390000
+       DC S(*,*,*,*)                                                    07400000
+       DC S(*,*,*,*)                                                    07410000
+       DC S(*,*,*,*)                                                    07420000
+       DC S(*,*,*,*)                                                    07430000
+       DC S(*,*,*,*)                                                    07440000
+       DC S(*,*,*,*)                                                    07450000
+       DC S(*,*,*,*)                                                    07460000
+       DC S(*,*,*,*)                                                    07470000
+       DC S(*,*,*,*)                                                    07480000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                               07490000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                               07500000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                               07510000
+           END                                                          07520000

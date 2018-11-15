@@ -1,0 +1,76 @@
+ GO : PROC OPTIONS(MAIN);                                               00000100
+ DCL INPUT FILE INPUT;                                                  00000200
+ DCL OUTPUT FILE OUTPUT;                                                00000300
+ DCL RECORD CHAR(256) VAR STATIC;                                       00000400
+ DCL NUMBER PICTURE '99999999' STATIC;                                  00000500
+ DCL INSERT CHAR(160) VAR STATIC;                                       00000600
+  DCL UPPERCASE CHAR(54) INIT (                                         00000700
+   'ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789.,_-+&$:><()''^#!;');          00000800
+  DCL LOWERCASE CHAR(54) INIT(                                          00000900
+   'abcdefghijklmnopqrstuvwxyz 0123456789.,_-+&$:><()''^#!;');          00001000
+ ON ENDFILE(INPUT) BEGIN;                                               00001100
+   GO TO ENDPROG;                                                       00001200
+ END;                                                                   00001300
+  READ FILE(INPUT) INTO(RECORD);                                        00001400
+  DCL BIT BIT(8) STATIC;                                                00001500
+  BIT=UNSPEC(SUBSTR(RECORD,1,1));                                       00001600
+  IF BIT='10001001'B  /* HEAD OF FORM, CTL360  */                       00001700
+  THEN  DO;                                                             00001800
+     CALL TCAPS(1);                                                     00001900
+     ONE:READ FILE (INPUT) INTO(RECORD);                                00002000
+     CALL TCAPS(1);                                                     00002100
+     GO TO ONE;                                                         00002200
+  END;                                                                  00002300
+  IF SUBSTR(RECORD,1,1)='0'  /* NO CNTL CHARACTER */                    00002400
+  THEN DO;                                                              00002500
+     CALL TCAPS(2);                                                     00002600
+  BEE:                                                                  00002700
+     READ FILE(INPUT) INTO(RECORD);                                     00002800
+     CALL TCAPS(2);                                                     00002900
+     GO TO BEE;                                                         00003000
+  END;                                                                  00003100
+  ELSE DO;  /* ASA */                                                   00003200
+     CALL TCAPS(3);                                                     00003300
+  CEE: READ FILE(INPUT) INTO(RECORD);                                   00003400
+     CALL TCAPS(3);                                                     00003500
+     GO TO CEE;                                                         00003600
+   END;                                                                 00003700
+  TCAPS:PROC(PARM);                                                     00003800
+   DCL PARM BIN FIXED;                                                  00003900
+  IF PARM=2 THEN RECORD=' '||RECORD; /*PUT BLANK CNTL IN*/              00004000
+  INSERT=' ';                                                           00004100
+  DO I=2 TO LENGTH(RECORD);                                             00004200
+     DCL CHAR CHAR(1) STATIC;                                           00004300
+   DCL CHAR2 CHAR(1)  STATIC;                                           00004400
+     CHAR=SUBSTR(RECORD,I,1);                                           00004500
+     DO J=1 TO LENGTH(LOWERCASE);                                       00004600
+        IF CHAR=SUBSTR(LOWERCASE,J,1)                                   00004700
+        THEN DO;                                                        00004800
+           CHAR=SUBSTR(UPPERCASE,J,1);                                  00004900
+           SUBSTR(RECORD,I,1)=CHAR;                                     00005000
+           INSERT=INSERT||' ';                                          00005100
+            GO TO ENDLOWER;                                             00005200
+        END;                                                            00005300
+      END;                                                              00005400
+      /* NO LOWER CASE FOUND */                                         00005500
+      INSERT=INSERT||'_';                                               00005600
+  ENDLOWER:                                                             00005700
+   END;                                                                 00005800
+   IF PARM=1   /* MACHINE CODE CNTL CHAR */                             00005900
+   THEN DO;                                                             00006000
+       CHAR=SUBSTR(RECORD,1,1);   /* SAVE CNTL CHAR  */                 00006100
+     UNSPEC(CHAR2)='00000001'B;                                         00006200
+     SUBSTR(RECORD,1,1)=CHAR2;                                          00006300
+   END;                                                                 00006400
+   WRITE FILE(OUTPUT) FROM(RECORD);                                     00006500
+   IF INSERT=' ' THEN RETURN;                                           00006600
+   /* NOW TO OUTPUT UNDERLINE LINE */                                   00006700
+   IF PARM^=1 /* MACHINE CODE CONTROL CHARACTER */                      00006800
+    THEN                                                                00006900
+     CHAR='+'; /* NO SPACE,PRINT */                                     00007000
+      SUBSTR(INSERT,1,1)=CHAR;                                          00007100
+    WRITE FILE(OUTPUT) FROM(INSERT);                                    00007200
+    END  /* TCAPS */ ;                                                  00007300
+                                                                        00007400
+                                                                        00007500
+  ENDPROG: END;                                                         00007600

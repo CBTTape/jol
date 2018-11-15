@@ -1,0 +1,1029 @@
+UJG01JOB   TITLE '         GENERATE IBM JOB CONTROL LANGUAGE'           00010000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974      74303 00020000
+* COPYRIGHT CCS 1975,1976                                         76200 00030000
+* COPYRIGHT CCS 1980.                                                   00040000
+* COPYRIGHT CLEM CLARKE, 1982.                                          00050000
+* COPYRIGHT CLEM CLARKE, 1983.                                          00060000
+* COPYRIGHT CCS-JOL, 1986.                                              00061011
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00070000
+           SPACE 3                                                      00080000
+*                   J             000000            L                   00090000
+*                   J            0      0           L                   00100000
+*                   J           0        0          L                   00110000
+*                   J          0          0         L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0            0        L                   00160000
+*                   J         0            0        L                   00170000
+*                   J         0            0        L                   00180000
+*                   J         0            0        L                   00190000
+*        J          J         0            0        L                   00200000
+*         J        J           0          0         L                   00210000
+*          J      J             0        0          L                   00220000
+*           J    J               0      0           L                   00230000
+*            JJJJ                 000000            LLLLLLLLLLL         00240000
+         SPACE  3                                                       00250000
+* CODE CORRECTIONS 3.0 -> 3.4                                     76200 00260000
+*                                                                 76200 00270000
+*JOL30025: STOP GENERATION OF 0 | BLANK ITEMS, EG PRTY ETC        76200 00280000
+*JOL30052: ALLOW 'PROGRMER NAME' TO BE 22 BYTES.                  76200 00290000
+*USR30002: CHANGE DLM TO X'80FF'                                  76200 00300000
+*FIX-X   : GIVE THE SYSOUT FILE (JOL LOG) SYSOUT CLASS OF         76200 00310000
+*          MSGCLASS                                               76200 00320000
+*JOLX8     OSIV/X8 SUPPORT                                              00330000
+*FIX     : CORRECT APOST. BUG ON ACCT FIELD                DJD    83200 00340000
+*                                                                       00350000
+          EJECT                                                         00360000
+         LCLC  &DYNMN,&JOLMN                                      J40B  00361088
+         LCLC  &JOLIN                                             J40B  00361188
+         PRINT OFF                                                      00370016
+         COPY  JOLCOM                                                   00380015
+         PRINT DATA,ON                                            75128 00390000
+&DYNMN   SETC  'JOLDYN'.'&MODID'                                  J51   00391016
+&JOLMN   SETC  '$JOLMN'.'&MODID'                                  J51   00392016
+&JOLIN   SETC  '$JOLIN'.'&MODID'                                  J51   00393016
+         TITLE 'UJG01JOB: GENERATE AND OUTPUT OS JOB CARD'              00400000
+         JOLSAVE CSECT=UJG01JOB,BASE=(11,12)                            00410005
+* THIS ROUTINE CONSTRUCTS A JOB-CARD FROM THE DETAILS IN THE            00420000
+*    JOBDETS LOCN AND WRITES IT OUT                                     00430000
+*        $LINK UJG26ENQ        ENQUE ON THE INTERNAL READER       75128 00440005
+         USING JOLCOM,R2                                          75128 00450000
+         USING DDDSNDET,R8                                        75128 00460000
+         L     R3,AJOBDETS                                        75128 00470000
+         USING JOBDETS,R3                                         75128 00480000
+         L     R1,AGENDETS                                              00490000
+         USING GENDETS,R1                                               00500000
+         TM    PARMPRNT,X'10'  DO WE PRINT JCL?                         00510005
+         BZ    G01NPJCL                                                 00520005
+         DROP  R1                                                       00530005
+*        IFOS  =X8,G01NPJCL     IF OS IS X8, DO NOT PRINT JCL           00540005
+         MVC   LINECNT,=H'9999'    FORCE NEW HEAD OF FORM         75128 00550000
+         MVC   TITLE2(20),=CL20'GENERATED JCL'                    74303 00560000
+G01NPJCL DS    0H                                                       00570000
+         IFNULL JOBPREF,G0INPREF   CARD BEFORE JOBCARD ???        75128 00580000
+         MVC   #WORK,=H'80'   SET LENGTH TO 80                    75128 00590000
+         MVC   WORK(L'JOBPREF),JOBPREF                            75128 00600000
+         OPJCL #WORK                                              75128 00610000
+G0INPREF DS    0H                                                 75128 00620000
+         LA    R10,WORK+15                                              00630000
+         XC    #WORK(17),#WORK                                          00640000
+         IFOS  ^=X8,NX8010        OSIV/X8?                        82047 00650000
+         LA    R10,WORK                                           82047 00660000
+         CLI   JOBMSGCL,C' '                                            00670000
+         BNE   *+8                                                      00680000
+         MVI   JOBMSGCL,C'*'      DEFAULT MESSAGE CLASS                 00690043
+         CONCAT '......',JOBNAME,',LIST=(',JOBMSGCL               82047 00700000
+*        IFNULL JOBMSGL,G01X8NML   IF NO MSGCLEVEL                      00710000
+         MVC   0(3,R10),=C',JD'                                         00720000
+         CLC   JOBMSGL,=C'11'                                           00730000
+         BE    G01X8ML1                                                 00740000
+         MVC   0(3,R10),=C',JS'                                         00750000
+         CLC   =C'00',JOBMSGL                                           00760000
+         BE    G01X8NML                                                 00770000
+         FIX 'FIDDLE AROUND HERE IF RUBBISH APPEARS AFTER LIST=(A)'     00780000
+G01X8ML1 DS    0H                                                       00790000
+         LA    R10,3(,R10)                                              00800000
+G01X8NML DS    0H                                                       00810000
+         CONCAT ')'                                                     00820000
+         IFNULL JOBACCT,G01X8NAC                                        00830000
+         CLC   =CL9',,,,,,,,',JOBACCT                                   00831057
+         BE    G01X8NAC                                                 00832057
+         CLI   JOBACCT,C''''                                            00840000
+         BNE   G01X8ANQ                                                 00850000
+STOPX    CONCAT ',ACCT=',JOBACCT                                        00860079
+         B     G01X8ACQ                                                 00870000
+G01X8ANQ DS    0H                                                       00880000
+STOPY    DS    0H                                                88036  00881079
+*        CONCAT ',ACCT=(',JOBACCT,')'                                   00890075
+         CONCAT ',ACCT=',JOBACCT                                 88036  00891075
+         BCTR  R10,0                                             88036  00892075
+         CLI   0(R10),C' '                                       88036  00893081
+         BE    *-6             DROP TRAILING SPACES              88036  00894081
+         CLI   0(R10),C','                                       88036  00894181
+         BE    *-14            AND COMMAS                        88036  00894281
+         LA    R10,1(,R10)     POINT TO FIRST POSITION AFTER ACCT88036  00895075
+G01X8ACQ DS    0H                                                       00900000
+G01X8NAC DS    0H                                                       00910000
+         IFNULL JOBCPU,G01X8NTM                                         00920000
+         CLI JOBTIMEQ,C'S'                   SECONDS ?                  00930000
+         BE  G01X8ISS                       YEAH                        00940000
+*                                                                       00950000
+* NOW CONVERT MINUTES,SECONDS TO SECONDS                                00960000
+*                                                                       00970000
+        TNUM  JOBCPU         CONVERT TO NUMERIC                         00980000
+        MH    R1,=H'60'      CONVERT TO SECONDS                         00990000
+        CVD   R1,DBL         CONVERT SECONDS TO NUMERIC ZONED           01000000
+        UNPK  JOBCPU,DBL                                                01010000
+        OI    JOBCPU+L'JOBCPU-1,C'0'                                    01020000
+G01X8ISS DS    0H                                                       01030000
+         CONCAT ',TIME=',JOBCPU                                         01040000
+G01X8NTM DS    0H                                                       01050000
+         IFNULL JOBHOLD,G01X8NHL                                        01060000
+         CONCAT ',',JOBHOLD                                             01070000
+G01X8NHL DS    0H                                                       01080000
+         IFNULL JOBREGN,G01X8NRG                                        01090000
+         CONCAT ',RSIZE=',JOBREGN                                       01100000
+G01X8NRG DS    0H                                                       01110000
+         IFNULL JOBEXTRA,G01X8NXT                                       01120000
+* SO THERE IS 'JOBEXTRA' INFO. SEE IF USER CODE A ','                   01130000
+         CLI   JOBEXTRA,C','                                            01140000
+         BNE   *+8                                                      01150000
+         MVI   JOBEXTRA,C' '                                      75128 01160000
+         CONCAT ',',JOBEXTRA                                      75128 01170000
+G01X8NXT DS    0H                                                 75128 01180000
+         LA    R0,WORK            CALCULATE THE LENGTH                  01190000
+         SR    R10,R0                                                   01200000
+         STH   R10,#WORK          AND STORE IT                          01210000
+         $CALL UJCPACK,(#WORK)    COMPRESS THE JOB CARD                 01220000
+         MVC   WORK(6),=C'$ JOB '                                       01230000
+         B     X8010                                              82047 01240000
+NX8010   DS    0H                                                       01250000
+         IFTSO  NOJBCARD                                                01251011
+* NEW FOR REL 3.0                                                 75128 01260000
+*  IF THE USER CODES  ACCT='X4' THEN WE WILL OUTPUT EXACTLY       75128 01270000
+*  AS HE CODED.                                                   75128 01280000
+* NOTE :- IF SUBACCT1 IS CODED, ACCT WILL ALSO HAVE QUOTES, WE    76200 01290000
+*   CAN CHECK THIS EASILY;IF SUBACCT2 CONTAINS X'00', THEN WE     76200 01300000
+*   KNOW ACCT='DETAILS' WAS USED.                                 76200 01310000
+* HOWEVER, IF HE CODED OTHERWISE, WE MAY PUT BRACKETS AND         75128 01320000
+*  THINGS IN FOR HIM. SEE LATER                                   75128 01330000
+G01APOST CLI   JOBACCT,C''''  DID USER CODE APOST.                83228 01340000
+         BE    G01ASIS        YES... CODE AS IS                   83228 01350000
+G01SUBAX CLI   JOBACCT,C'('   DID USER CODE '('                   75128 01360000
+         BNE   G01SUBA1       NO... GO AND ADD '('                75128 01370000
+G01ASIS  CONCAT JOBACCT                                     FIX-X 76200 01380000
+G01TPROG IFNULL JOBPRGMR,G01TCPU                            FIX-X 76200 01390000
+         CONCAT ',',JOBPRGMQ,JOBPRGMR,JOBPRGMQ              FIX-X 76200 01400000
+         B     G01TCPU                                                  01410000
+G01SUBA1 CONCAT '(',JOBACCT,JOBSUB2,JOBSUB3,                    DASD   *01420000
+               JOBSUB4,JOBSUB5,JOBSUB6,JOBSUB7,                 DASD   *01430000
+               JOBSUB8                                             DASD 01440000
+* NOW REMOVE EXCESSIVE ','                                        75128 01450000
+         BCTR  R10,0          SUBTRACT 1 FROM R10 INITIALLY       75128 01460000
+G01RCOM  CLI   0(R10),C' '    BLANK                               75128 01470000
+         BNE   G01TCOM1       NOPE, TEST COMMA                    75128 01480000
+         BCT   R10,G01RCOM    TEST NEXT CHARACTER BACKWARDS             01490000
+G01TCOM1 CLI   0(R10),C','    ',' ?                               75128 01500000
+         BNE   G01ADDB1       NO, MUST BE ACCOUNT CODES           75128 01510000
+         BCT   R10,G01RCOM    YES, ',', DON'T WANT IT             75128 01520000
+G01ADDB1 LA    R10,1(R10)                                               01530000
+         CONCAT ')'           END SUBACCT                   FIX-X 76200 01540000
+         B     G01TPROG       TEST IF PGMR NAME TO BE GENERATED   84029 01550003
+G01TCPU  IFNULL JOBCPU,G01NTIME                                         01560000
+         CONCAT ',TIME=('                                               01570000
+         CLI JOBTIMEQ,C'S'                   SECONDS ?                  01580000
+         BNE G01NOTS                                                    01590000
+*                                                                 75128 01600000
+* NOW CONVERT SECONDS TO MIN,SECS IF SECS > 60                    75128 01610000
+*                                                                 75128 01620000
+         TNUM  JOBCPU         CONVERT TO NUMERIC                  75128 01630000
+         CH    R1,=F'60'      >60 (1 MINUTE?)                     75128 01640000
+         BNH   G01CONS        NOPE,JUST CONCATENATE AS IS         75128 01650000
+         SR    R0,R0                                              75128 01660000
+         D     R0,=F'60'      CONVERT TO MINS AND SECS            75128 01670000
+         CVD   R0,DBL         CONVERT SECONDS TO NUMERIC ZONED    75128 01680000
+         UNPK  JOBCPU,DBL                                         75128 01690000
+         OI    JOBCPU+L'JOBCPU-1,C'0'                             75128 01700000
+         MVC   JOBCPU(L'JOBCPU-2),BLANKS LEAVE TWO BYTES ONLY     75128 01710000
+*                                  NUMERIC                        75128 01720000
+* CONVERT AND CONCATENATE MINS                                    76200 01730000
+         CVD   R1,DBL         CONVERT MINS TO PACKED              76200 01740000
+         MVC   0(6,10),=X'402020202020'  MOVE IN THE EDIT WO76200       01750000
+         ED    0(6,10),DBL+5  DO IT                               80290 01760000
+         LA    10,6(10)       ADD NUMBER OF BYTES TO BE MOVE76200       01770000
+G01CONS  EQU   *                                                  75128 01780000
+           CONCAT ','                                                   01790000
+G01NOTS    EQU  *                                                       01800000
+           CONCAT JOBCPU,')'                                      74303 01810000
+G01NTIME   IFNULL JOBCLASS,G01NCLSS                               74191 01820000
+           CONCAT ',CLASS=',JOBCLASS                              74303 01830000
+G01NCLSS DS    0H                                                 74191 01840000
+*                                                                 75128 01850000
+* NOW CHECK IF JOBEXTRA WAS CODED                                 75128 01860000
+*                                                                 75128 01870000
+         IFNULL JOBEXTRA,G01NEXTR                                 75128 01880000
+* SO THERE IS 'JOBEXTRA' INFO. SEE IF USER CODE A ','             75128 01890000
+         CLI   JOBEXTRA,C','                                      75128 01900000
+         BNE   *+8                                                75128 01910000
+         MVI   JOBEXTRA,C' '                                      75128 01920000
+         CONCAT ',',JOBEXTRA                                      75128 01930000
+G01NEXTR EQU   *                                                  75128 01940000
+           IFNULL JOBHOLD,G01NHOLD                                      01950000
+           CONCAT ',TYPRUN=',JOBHOLD                                    01960000
+G01NHOLD   IFNULL JOBMSGCL,G01NOMSC                                     01970000
+           CONCAT ',MSGCLASS=',JOBMSGCL                           74303 01980000
+G01NOMSC   EQU *                                                        01990000
+           IFNULL JOBMSGL,G01NOLEV                                      02000000
+           CONCAT ',MSGLEVEL=(',JOBMSGL1,',',JOBMSGL2,')'         80290 02010000
+G01NOLEV   EQU *                                                        02020000
+           IFNULL JOBPRTY,G01NOPRT                                      02030000
+           CONCAT ',PRTY=',JOBPRTY                                74303 02040000
+G01NOPRT   EQU  *                                                       02050000
+           IFNULL JOBREGN,G01NOREG                                      02060000
+           CONCAT ',REGION=',JOBREGN,JOBREGNQ                     74303 02070000
+G01NOREG   EQU  *                                                       02080000
+         IFNULL JOBNOTFY,G01NONOT                                 75128 02090000
+         CONCAT ',NOTIFY=',JOBNOTFY                               75128 02100000
+G01NONOT EQU   *                                                  75128 02110000
+         L     R1,AGENDETS                                  FIX-X 76200 02120000
+         USING GENDETS,R1                                   FIX-X 76200 02130000
+         CLC   DEFSYS,=C'MVT' MVT | MFT ?      CHC          FIX-X 76200 02140000
+         BE    G01NMVS9       SKIP  VS ONLY CODE     C77275 FIX-X  DASD 02150000
+         CLC   DEFSYS,=C'MFT' MVT | MFT ?      CHC          FIX-X 76200 02160000
+         BE    G01NMVS9       SKIP  VS ONLY CODE CHC C77275 FIX-X  DASD 02170000
+         DROP  R1                                           FIX-X 76200 02180000
+         IFNULL  JOBCORE,G01NCORE                                       02190000
+         CONCAT ',ADDRSPC=',JOBCORE      VIRT | REAL              80290 02200000
+G01NCORE IFNULL  JOBPERFO,G01NPERF                                      02210000
+         CONCAT  ',PERFORM=',JOBPERFO                                   02220000
+G01NPERF DS    0H                                                       02230000
+* CODE TO NEXT ********* BY JOHN SUMMERFIELD AT ABS                     02240000
+         IFNULL    JOBUSER,G01NUSR                                      02250000
+         CONCAT    ',USER=',JOBUSER                                     02260000
+G01NUSR  DS    0H                                                       02270000
+         IFNULL    JOBGRP,G01NGRP                                       02280000
+         CONCAT    ',GROUP=',JOBGRP                                     02290000
+G01NGRP  DS    0H                                                       02300000
+* END  ********* BY JOHN SUMMERFIELD AT ABS                             02310000
+G01NMVS9 EQU   *                                                        02320000
+         CONCAT    ','  ALWAYS PUT IN FINAL , ON JOBCARD   CHC          02330000
+           MVC 0(6,R10),BLANKS                                    74303 02340000
+           LA  R9,WORK                                                  02350000
+           SR  R10,R9                                                   02360000
+           STH R10,#WORK                                                02370000
+          $CALL UJCPACK,(#WORK)                                         02380000
+           SPACE 2                                                      02390000
+* NOW HAVING REMOVED ALL THE BLANKS,WE HAVE TO PUT IN THE'//',          02400000
+*     JOBNAME AND THE 'JOB'   UNLESS WE HAVE ALREADY OUTPUT A BIT       02410000
+*    EARLIER BECAUSE OF ACCT 'XYZ' PROCESSING                           02420000
+          CLC   WORK(2),=C'//'                                          02430000
+          BNE   G01FIXJB         COMPRESS BLANKS, OUTPUT          75128 02440000
+* NOW WE WILL HAVE A HEX '00' CHARACTER IN COLUMN 3,SO BLANK IT         02450000
+         MVI   WORK+2,C' '                                        75128 02460000
+         B     G01OPJOB                                           75128 02470000
+G01FIXJB   MVC WORK(15),=CL15'//         JOB '                          02480000
+           MVC WORK+2(8),JOBNAME                                        02490000
+*8010      DS    0H                                               82047 02500051
+G01OPJOB   OPJCL #WORK         OUTPUT JOB CARD                    74303 02510000
+         LA    R10,WORK      POINT AT WORK AREA AGAIN                   02520000
+         IFDYNAM G01C4000      IF DYNAMIC, PUT COND=4000 OUT      87150 02520150
+         CLI   JOBCOND,C' '   DID USER CODE STOP WHEN?            76200 02530000
+         BE    G01DEFC        NO,USE DEFAULT THEN                 76200 02540000
+         CONCAT '// COND=(',JOBCOND,')' CONCAT COND CODE          76200 02550000
+         B     G01OPCND       NOW SEE IF PASSWORD REQD            76200 02560000
+G01DEFC  EQU   *                                                  76200 02570000
+           CONCAT '// COND=((2000,LE),(16,EQ))' IS REALLY HANDLED 74191 02580000
+*                                            ELSEWHERE,BUT I WILL PUT   02590000
+*                                            IT ON THE JOB CARD TO      02600000
+*                                            SAVE CONFUSION             02610000
+         B     G01OPCND                                           87150 02611048
+G01C4000 CONCAT '// COND=((4000,EQ))' TO STOP US IF ERROR.        87150 02612048
+G01OPCND EQU   *                                                        02620000
+G01TPW1  DS    0H                                                 87150 02621023
+         IFNULL    JOBPASS1,G01NPW1                                     02630000
+         CONCAT    ','                                                  02640000
+G01NPW1  DS    0H                                                       02650000
+         LA    R9,WORK                                                  02660000
+         SR    R10,R9           R10 NOW HAS LENGTH OF DATA TO BE PUT    02670000
+         STH   R10,#WORK        SAVE IT AS LENGTH OF WORK               02680000
+         $CALL UJCPACK,(#WORK)  REMOVE ANY BLANKS                       02690000
+         MVI   WORK+2,C' '      REMOVE X'00' AFTER //                   02700000
+X8010    DS      0H                                               82047 02701066
+         OPJCL #WORK            OUT PUT JCL CARD                        02710000
+G01CHKST EQU   *                                                  75128 02720000
+* CODE TO NEXT ********* BY JOHN SUMMERFIELD AT ABS                     02730000
+         IFNULL    JOBPASS1,G01NPW2                                     02740000
+         L     R1,AJCL             ADDRESS JCL DCB                      02750000
+         PUT   (1)                 GET SOME BUFFER SPACE                02760000
+         MVC   0(80,R1),BLANKS                                          02770000
+         MVC   0(2,R1),=C'//'                                           02780000
+         MVC   15(10,R1),=CL10'PASSWORD=('                              02790000
+         MVC   25(8,R1),JOBPASS1                                        02800000
+         LA    R1,24(,R1)          PASS THE KEYWORD                     02810000
+         LA    R1,1(,R1)           SKIP THE NON-BLANK                   02820000
+         CLI   0(R1),C' '                                               02830000
+         BNE   *-8                                                      02840000
+         CLI   JOBPASS2,C' '                                            02850000
+         BE    G01NPW1A                                                 02860000
+         MVI   0(R1),C','                                               02870000
+         MVC   0(8,R1),JOBPASS2                                         02880000
+         LA    R1,1(,R1)           SKIP THE NON-BLANK                   02890000
+         CLI   0(R1),C' '                                               02900000
+         BNE   *-8                                                      02910000
+G01NPW1A DS    0H                                                       02920000
+         MVI   0(R1),C')'                                               02930000
+G01NPW2  DS    0H                                                       02940000
+* END  ********* BY JOHN SUMMERFIELD AT ABS                             02950000
+           MVC  WORK(80),BLANKS              CHC                        02960000
+           LA   R10,WORK   SET UP FOR 'CONCAT' MACRO                    02970000
+           CONCAT '//* ''JOL'':-VERSION ',                        75128*02980000
+               VERSION,' ON ',DAY,' ',DAYNO,' ',MONTH,' ',YEAR,   75128*02990000
+               ' AT '                                             75128 03000000
+           IFOS  ^=X8,*+10                                        82047 03010000
+           MVC   WORK(3),=C'$* '    CHANGE TO X8 COMMENT          82047 03020000
+           MVC   0(2,R10),TIME                                          03030000
+           MVI   2(R10),C'.'                                            03040000
+           MVC   3(2,R10),TIME+2                                        03050000
+           LA    R10,5(R10)                                             03060000
+           CONCAT '        '  TO CLEAR LAST BIT OF CARD           75128 03070000
+           LA    R1,WORK                                                03080000
+           SR    R10,R1                                                 03090000
+           STH   R10,#WORK                                              03100000
+           OPJCL #WORK                                            74303 03110000
+X8020      DS    0H                                               82047 03120000
+NOJBCARD   DS    0H                                               86112 03121011
+           SPACE 2                                                      03130000
+* NOW WE MUST SET JOBMSGCL TO A IF ' ' SO WHEN WE OUTPUT    FIX-X 76200 03140000
+*  THE $$PRINT AND $$PRNT WE CAN GIVE THEM THE SAME SYSOUT  FIX-X 76200 03150000
+*  CLASS AS THE MSGCLASS.                                   FIX-X 7620  03160000
+         SPACE 1                                            FIX-X 76200 03170000
+         CLI   JOBMSGCL,C' '                                FIX-X 76200 03180000
+         BNE   *+8                                          FIX-X 76200 03190000
+         MVI   JOBMSGCL,C'*'                                FIX-X 76200 03200042
+         SPACE 2                                            FIX-X 76200 03210000
+         IFTSO G01FOPCN                                                 03211027
+         $CALL G01OPJLB        OUTPUT ORDIANRY JOB LIBS           87150 03212029
+G01FOPCN DS    0H                                                       03213027
+         L     R8,AVTBLE                                                03220000
+         ST    R8,CALLAREA                                        75128 03230000
+         LA    R1,CALLAREA                                        75128 03240000
+         $LINK UJA99SET                                           75128 03250000
+* NOW START AT THE TOP OF THE STACK AND FIND 'OPCNTL' CARDS             03260000
+G01NSETU   L   R8,AVTBLE                                                03270000
+G01TRECI   CLI DDDD1,C'I'      INSTRUCT?                                03280000
+           BNE G01STP2         IGNORE THIS NOW                          03290000
+           CLC =C'OPCNTLA',ICOMMAND-ILENGTH(R8)                         03300000
+           BE  G01OPCT                                                  03310000
+G01STP2    AH  R8,DDOSVB       STEP ON                                  03320000
+           CLC DDOSVB,=H'0'    END ?                                    03330000
+           BNE G01TRECI                                                 03340000
+         B   G01OP1ST                                                   03350000
+G01OPCT    EQU *                                                        03360000
+* FINAL CHECK BEFORE WE GO THAT IT IS NOT A DELETED INSTRUCTION         03370000
+*    (I.E ONE THAT WAS IN ERROR AND THEREFORE REMOVED).                 03380000
+           CLI DDDD1,C'%'      DELETED ?                                03390000
+           BE  G01STP2         YES,SO IGNORE IT.                        03400000
+* NOW FINALLY OUTPUT THE REQUIRED CARD                                  03410000
+         MVC   WORK(80),BLANKS                                    75128 03420000
+         MVC   DBL(2),ITEXT-ILENGTH(R8)                                 03430000
+         LH    R1,DBL      GET LENGTH                                   03440000
+         STH   R1,#WORK                                                 03450000
+         BCTR  R1,0       -1 FOR EXECUTE                                03460000
+         EX    R1,G01MVC98                                              03470000
+         OPJCL #WORK    OUTPUT 'OPCNTL' CARD                            03480000
+         MVI   DDDD1,C'%'   DELETE THE INSTRUCTION NOW                  03490000
+         B     G01STP2                                                  03500000
+G01MVC98 MVC   WORK(*-*),ITEXT+2-ILENGTH(R8)                            03510000
+G01OP1ST DS    0H                                                       03520074
+*        AT THIS POINT, IT HAPPENS THAT R8 CONTAINS WHAT MAY BE  88036  03521074
+*              DESCRIBED AS A HIGH WATER MARK.                   88036  03522074
+*        IT CONTAINS THE ADDRESS OF THE NEXT PLACE WE WOULD      88036 .03523074
+               PUT THE NEXT INSTRUCTION IF WE HAD ONE            88036  03524074
+         SL    R8,AVTBLE       THIS, THEN IS THE TABLE LENGTH    88036  03525074
+         CVD   R8,DBL                                            88036  03526074
+         OI    DBL+7,X'0F'                                       88036  03527077
+         UNPK  LASTINST,DBL    IT'S QUITE LIKELY NOBODY'S USING  88036 .03528074
+                                 LASTINST BY NOW                 88036  03529074
+         IFOS  ^=X8,NX8030                                        82047 03530000
+         SPACE 2                                                  82047 03540000
+* NOW CREATE JCL FOR THE FIRST JOB STEP OF THE JOL JOB FOR OSIV/X8      03550000
+         SPACE 1                                                        03560000
+         FIX   'MUST WORK OUT THE MAXIMUM REGION SIZE FOR HERE'         03570018
+         OPJCL  '$ EX &DYNMN.,OPT=DUMP'                                 03580088
+*        OPJCL  '$ EX $DYNX8MN,OPT=DUMP'                                03580286
+         FIX 'MUST ADD REGION TO THAT LATER, AND GET NAME FROM GENDETS' 03581066
+         LA    R10,WORK       ADDRESS WORK AREA                   82047 03582076
+         CONCAT '$ PARA INSTSIZE=',LASTINST                       88036 03590076
+         LA    R1,WORK                                            82047 03591076
+         SR    R10,R1                                             82047 03592076
+         STH   R10,#WORK                                          82047 03593076
+         OPJCL #WORK                                              82047 03594076
+*        OPJCL '$ FD PRGLIB=DA,FILE=CLARKE.DYN.LOAD'             88036  03600085
+         OPJCL '$ FD SYSUT1=DA,CYL=(1,1),VOL=WORK'                82047 03601072
+         LA    R10,WORK       ADDRESS WORK AREA                  88036  03610071
+         CONCAT '$ FD PRTFILE=DA,TRK=(3,019),SOUT=',JOBMSGCL,    88036 .03620070
+               ',VOL=WORK'                                       88036  03630069
+         LA    R1,WORK                                           88036  03630169
+         SR    R10,R1                                            88036  03630269
+         STH   R10,#WORK                                         88036  03630369
+         OPJCL #WORK                                             88036  03630469
+         LA    R10,WORK       ADDRESS WORK AREA                   82047 03630571
+         CONCAT '$ FD JOLPRINT=DA,TRK=(3,019),SOUT=',JOBMSGCL,    82047.03631068
+               ',VOL=WORK'                                        82047 03632068
+         LA    R1,WORK                                            82047 03640000
+         SR    R10,R1                                             82047 03650000
+         STH   R10,#WORK                                          82047 03660000
+         OPJCL #WORK                                              82047 03670000
+         L     R14,AERRCNTL                                             03680000
+         LH    R15,INSTBLKN-CATX(,R14)                                  03690000
+         MH    R15,INSTMAXB-CATX(,R14)                                  03700000
+         L     R14,TOTCRDS          SYSIN CARDS                         03710000
+         MH    R14,=H'80'                                               03720000
+         AR    R15,R14                                                  03730000
+         SR    R14,R14                                                  03740000
+         L     R1,AJOLGEN                                               03750000
+         USING GENDETS,R1                                               03760000
+         LH    R1,PARMSYSB   LOAD BLOCK SIZE                            03770000
+         DR    R14,R1        TOTAL BLOCKS                               03780000
+         LA    R14,1(,R14)                                              03790000
+         CVD   R14,DBL                                                  03800000
+         UNPK  ERRNUM2,DBL                                              03810000
+         OI    ERRNUM2+L'ERRNUM2-1,C'0'                                 03820000
+         LTR   R1,R1          SEE IF ZERO OR NOT                        03830000
+         BNZ   G01CVCIN       NO, SO LEAVE IT                           03840000
+         LA    R1,1           YES, SO SET IT TO ONE                     03850000
+G01CVCIN CVD   R1,DBL                                                   03860000
+         UNPK  ERRNUM1,DBL                                              03870000
+         OI    ERRNUM1+L'ERRNUM1-1,C'0'                                 03880000
+         MVC   ERRNUM3+1(L'ERRNUM3-1),ERRNUM2                           03890000
+         MVI   ERRNUM3,C'0'                                             03900000
+         CLC   ERRNUM3,=C'00000' SEE IF ZERO OR NOT                     03910000
+         BNZ   G01CVC1N         NO, SO LEAVE IT                         03920000
+         MVC   ERRNUM3,=C'00010' SET TO ONE                             03930000
+G01CVC1N EQU   *                                                        03940000
+* THIS CODE ADDED TO OVERCOME PROBLEM CAUSED IF ERRNUM*ERRNUM2IS LESS   03950000
+* THAN 1 TRACK AND DRTY IS 1 TRACK                                      03960000
+*  IF ERRNUM2 IS LESS THAN 50 THEN MAKE IT 50 TO ALLOC AT LEAST 2       03970000
+* TRACKS                                                                03980000
+         CLC   ERRNUM2,=C'00100' IS IT LESS THAN 100                    03990000
+         BNL   G01CV2IN          YES SO USE ORIG VALUE                  04000000
+         MVC   ERRNUM2,=C'00100' NO SO USE 100                          04010000
+G01CV2IN EQU   *                                                        04020000
+         FIX   'TEMP ADJUST OF BLOCKSIZE UNTIL E40 RE-WORKED'           04030018
+         MVC   ERRNUM1,=C'02560'                                        04040000
+         LA  R10,WORK                                                   04050000
+         CONCAT '$ FD JOLCATLG=DA,VOL=WORK,BLK=(',                     *04060065
+               ERRNUM1,'*',ERRNUM2,',',                                *04070000
+               ERRNUM3,'),DRTY=2,',                                    *04080000
+               'FCB=(BLKSIZE=',ERRNUM1,                                *04090000
+               ',BUFNO=1',                                             *04100000
+               ',LRECL=80,RECFM=FB,DSORG=PO)',                         .04110059
+               ',MEMBER=$$INST',                                       .04111066
+               ',FILE=JOLYDDDH.HMMSSTHH.JOBNAMEX'                 82047 04120056
+*        AGO   .NFNAME                                                  04121056
+         TIME  DEC                                                      04130000
+         STM   R0,R1,DBL                                                04140000
+         UNPK  CALLAREA(16),DBL                                         04150000
+         LR    R14,R10                                                  04160000
+         SH    R14,=H'26'          ADDRESS OF DSNAME                    04170060
+         MVC   3(04,R14),CALLAREA+12                                    04180000
+         MVC   7(01,R14),CALLAREA+1                                     04190000
+         MVC   10(7,R14),CALLAREA+2                                     04200000
+         L     R15,AJOBDETS                                             04210000
+         MVC   18(8,R14),JOBNAME-JOBDETS(R15)                           04220000
+         MVC   TEMPDSN,0(R14)  SAVE PORTION OF DSNAME                   04230000
+*                                              FOR TEMP DATASETS        04240000
+.NFNAME  ANOP  NO FILE NAME                                             04241056
+DONG     DS    0H                                                       04250000
+         LA    R1,WORK                                                  04260000
+         SR    R10,R1          GET LENGTH OF STRING                     04270000
+         STH   R10,#WORK       AND SAVE IT.                             04280000
+         OPJCL #WORK         OUTPUT THE JCL.                            04290000
+         CLEAR #WORK                                                    04300000
+         OPJCL '$ FD SYSIN=*'                                           04440000
+         B     X8030                                                    04450000
+         SPACE 2                                                  82047 04460000
+* NOW CREATE JCL FOR THE FIRST JOB STEP OF THE JOL JOB                  04470000
+         SPACE 1                                                        04480000
+NX8030   DS    0H                                                 82047 04490000
+         IFTSO NOSTRT                                             86112 04491011
+         IFDYNAM G01DYNP1                                         86112 04492091
+* CHECK IF 'DEFERCAT' | 'NOCAT' SPECIFIED, AND IF SO GIVE         75311 04500000
+*  OURSELVES 120K TO PLAY IN FOR CATALOG SEARCHING.               75311 04510000
+        TM     PARMSRCH,X'07'  TOLD NOT TO CATLG SEARCH IE THROUGH75311 04520005
+*                              THE PARM FIELD OR BY 'NOCAT' ON    75311 04530000
+*                              A DSID ?                           75311 04540000
+         BZ    G0120K          NO, 20K WILL DO                    75311 04550000
+*        OPJCL '//INIT    EXEC PGM=&JOLIN,REGION=060K,PARM=JOL'   86215 04560088
+         OPJCL '//INIT    EXEC PGM=&JOLIN,PARM=JOL'                J40B 04561088
+         B   G01OP$$                                              75311 04570000
+G01DYNP1 DS    0H                                                       04571074
+         LA    R10,WORK                                           82047 04571176
+         CONCAT '//JOL      EXEC PGM=&DYNMN.,',                        .04571288
+               'PARM=''JOL,INSTSIZE=',LASTINST,''',DYNAMNBR=1630'       04571376
+         LA    R1,WORK                                            82047 04571476
+         SR    R10,R1                                             82047 04571576
+         STH   R10,#WORK                                          82047 04571676
+         OPJCL #WORK                                              82047 04571776
+         B     G01OP$$                                            75311 04572086
+         FIX 'WHEN A PRINT IS REQUIRED'                                 04580000
+         OPJCL '//$$INITWK  DD UNIT=SYSDA,SPACE=(TRK,5)'          75311 04590045
+         LA    R10,WORK       ADDRESS WORK AREA                   76200 04600000
+         CONCAT '//JOLPRINT DD SYSOUT=',JOBMSGCL,',OUTLIM=0'            04610000
+         LA    R1,WORK                                                  04620000
+         SR    R10,R1                                                   04630000
+         STH   R10,#WORK                                                04640000
+         OPJCL #WORK                                                    04650000
+         SPACE 2                                                        04660000
+         B   G01OP$$                                              75311 04670000
+G0120K   EQU   *                                                  75311 04680000
+         OPJCL '//INIT     EXEC PGM=&JOLIN,REGION=20K'            86215 04681188
+G01OP$$  EQU   *                                                  75311 04700000
+         SPACE 2                                            FIX-X 76200 04710000
+         LA    R10,WORK       ADDRESS WORK AREA             FIX-X 76200 04720000
+*        CONCAT '//$$PRINT DD SYSOUT=',JOBMSGCL,            FIX-X 76200*04730097
+               ',SPACE=(TRK,(2,1))'                         FIX-X 76200 04740000
+*        LA    R1,WORK                                      FIX-X 76200 04750097
+*        SR    R10,R1                                       FIX-X 76200 04760097
+*        STH   R10,#WORK                                    FIX-X 76200 04770097
+*        OPJCL #WORK                                        FIX-X 76200 04780097
+         SPACE 2                                            FIX-X 76200 04781043
+         LA    R10,WORK       ADDRESS WORK AREA                         04782043
+         SPACE 2                                                        04790000
+         LA    R10,WORK       ADDRESS WORK AREA                   84027 04800002
+*        CONCAT '//PRTFILE DD SYSOUT=',JOBMSGCL,                  84027*04810097
+               ',SPACE=(TRK,(2,1))'                               84027 04820002
+         CONCAT '//JOLPRINT DD SYSOUT=',JOBMSGCL,                 J40B *04821098
+               ',OUTLIM=0     '                                   J40B  04822098
+         LA    R1,WORK                                            J40B  04830098
+         SR    R10,R1                                             J40B  04840098
+         STH   R10,#WORK                                          J40B  04850098
+         OPJCL #WORK                                              J40B  04860098
+         LA    R10,WORK       ADDRESS WORK AREA                   84027 04861098
+         CONCAT '//PRTFILE DD SYSOUT=',JOBMSGCL,                  84027*04862098
+               ',SPACE=(TRK,(2,1))'                               84027 04863098
+         LA    R1,WORK                                            84027 04866098
+         SR    R10,R1                                             84027 04867098
+         STH   R10,#WORK                                          84027 04868098
+         OPJCL #WORK                                              84027 04869098
+         SPACE 2                                                        04870002
+*        IFDYNAM G01DMP                                           87150 04870191
+         IFDYNAM G01OPTOT                                         J40B  04871191
+         SPACE 1                                                  75311 04880087
+* NEW FEATURE 3.0 (DEC 14, 1975)                                  75311 04890000
+** FOR HASP, CREATE A DATA SET THAT WILL CONTAIN THE MONITOR      75311 04900000
+*    OUTPUT, SO ALL OF THEM CAN BE PRINTED IF THE SYSTEM CRASHES  75311 04910000
+*    BECAUSE WITH HASP, YOU LOSE THE LOT ...                      75311 04920000
+*                                                                 75311 04930000
+           L   R1,AGENDETS                                        75311 04940000
+           USING GENDETS,R1                                       75311 04950000
+           CLI SPOOL,C'H'      HASP ?                             75311 04960000
+           BNE G01OPTOT        NO, FORGET DUMMY DSN               75311 04970000
+         OPJCL '//HASPFAIL DD DSN=&&HASPFAIL,UNIT=SYSDA,SPACE=(TRK,2),D.04980000
+               ISP=(,PASS)  '                                     75311 04990000
+G01OPTOT DS    0H                                                       05000091
+         L     R1,TOTCRDS      TOTAL CARDS TO GO OUT                    05010091
+         FIX   'CONVERT TO TRACKS'                                75128 05020018
+         L     R1,AJOLGEN                                         76030 05030091
+         USING GENDETS,R1                                         76030 05040091
+         LH    R1,PARMSYSB                                        80290 05050091
+         CVD   R1,DBL                                             80290 05060091
+         UNPK  ERRNUM1,DBL                                        80290 05070091
+         OI    ERRNUM1+L'ERRNUM1-1,C'0'                           80290 05080091
+         LA    R10,WORK                                           76030 05090089
+         CONCAT                                                        .05100000
+               '//SYSUT2 DD DSN=&&&&$$JOLIN,DISP=(,PASS),SPACE=(CYL,(',*05110000
+               '001',                                             80290*05120000
+               ',1,45),RLSE),DCB=(BLKSIZE=',ERRNUM1,              80290*05130016
+               ',LRECL=80,RECFM=FB,DSORG=PO),UNIT=SYSDA   '       80290 05140000
+         LA    R1,WORK                                            76030 05150089
+         SR    R10,R1          GET LENGTH OF STRING               76030 05160089
+         STH   R10,#WORK       AND SAVE IT.                       76030 05170089
+         OPJCL #WORK         OUTPUT THE JCL.                      74303 05180089
+         SPACE 1                                                  75311 05190089
+         LA  R10,WORK                                             J40B  05191089
+         CONCAT '//JOLCATLG DD VOL=REF=*.SYSUT2,DISP=OLD,',       J40B *05192095
+               'DCB=(BLKSIZE=',ERRNUM1,                           J40B *05195089
+               ',BUFNO=1',                                        J40B *05196089
+               ',LRECL=80,RECFM=FB,DSORG=PO),',                   J40B .05197094
+               CATDSN                                             J40B .05197194
+                                                                  J40B  05198190
+         LA    R1,WORK                                            J40B  05199089
+         SR    R10,R1          GET LENGTH OF STRING               J40B  05199189
+         STH   R10,#WORK       AND SAVE IT.                       J40B  05199289
+         OPJCL #WORK         OUTPUT THE JCL.                      J40B  05199389
+* CHECK (AGAIN) IF 'DEFERCAT' | 'NOCAT' SPECIFIED, AND IF SO PUT  82300 05200000
+*  OUT A DD CARD FOR THE CATALOG SEARCH ROUTINE TO USE            82300 05210000
+         AGO   .NO$$             I DON'T THINK WE WANT THIS       J40B  05211089
+         TM    PARMSRCH,X'07'  TOLD NOT TO CATLG SEARCH IE THROUGH82300 05220089
+*                              THE PARM FIELD OR BY 'NOCAT' ON    82300 05230000
+*                              A DSID ?                           82300 05240000
+         BZ    G01DMP          NO, 20K WILL DO                    82300 05250000
+        OPJCL '//$$CATLGS DD DSN=&&&&$$JOLIN($$INST),VOL=REF=*.SYSUT2,D+05260049
+               ISP=(OLD,PASS)'                                          05270000
+.NO$$    ANOP                                                     J40B  05271089
+* NOW OUTPUT THE DUMP CARD FROM THE 'JOLGEN'                      75311 05280000
+G01DMP   L     R1,AGENDETS     GET GEN DETS CSECT                 75311 05290089
+         USING GENDETS,R1    ADDRESS IT                           75311 05300089
+         LA    R1,DUMPCARD     GET ADDRESS OF THE DUMPCARD        75311 05310089
+         $CALL UJG90OP       OUTPUT IT                            75311 05320089
+         DROP R1             DROP R1 AGAIN                        75311 05330089
+         OPJCL #SYSDATA      '//SYSIN DD DATA,DLM=  ' (X'00FF') 75311   05340000
+X8030    DS    0H                                                 82047 05350000
+NOSTRT   DS    0H                                                 86112 05351011
+         L     R9,ADCBS                                                 05360000
+         USING DCBS,R9                                                  05370000
+         PUT   JCL                                                      05380089
+         MVC   0(80,R1),DATAHD1 SHIFT HEADING RECORD INTO BUFFER        05390089
+* NOW SPOOL OUT THE SYSIN AS FAST AS WE CAN GO                          05400000
+         MVC   DATA+33(3),=AL3(EOFDATA)                                 05410089
+         MVI   CALLAREA,X'80'  ****** STUPID CLOSE *****                05420005
+         CLOSE (DATA),MF=(E,CALLAREA)                             75128 05430000
+         MVI   CALLAREA,X'80'  **** STUPID OPEN ******                  05440005
+         OPEN  (DATA,(INPUT)),MF=(E,CALLAREA)                     75128 05450005
+G01SPOOL GET   DATA,WORK                                                05460005
+         PUT   JCL                                                      05470005
+         MVC   0(80,R1),WORK       SHIFT TO OP BUFFER       75049       05480005
+         B     G01SPOOL                                                 05490005
+EOFDATA  MVI   CALLAREA,X'80'  ***** STUPID CLOSE *******               05500005
+         CLOSE  (DATA),MF=(E,CALLAREA)                            75128 05510000
+         AGO   .NOMOUNT                                                 05520005
+           MVC DATAMEM,=CL8'UJEMNT'                                     05530000
+           MVC 0(80,R10),DATAMEM1                                       05540000
+* NOW WE MUST GO DOWN THE STACK LOOKING FOR VOLUMES AND OUTPUT          05550000
+*    THESE SO THAT THEY END UP IN MEMBER UJEMNT SO THE OPRATORS WILL    05560000
+*    BE INFORMED WHICH VOLUMES (APART FROM SCTCH) WILL BE REQD          05570000
+           L  R8,AVTBLE                                                 05580000
+           USING DDDSNDET,R8                                            05590000
+G01TDD   CLI DDDD1,C'D'      DD CARD ?                                  05600000
+           BNE G01NOTDD                                                 05610000
+           CLI DDVOLUME,C' '   VOL BLANK ?                              05620000
+           BE G01NOTDD         YES,DON'T BOTHER OUTPUTTING A CARD       05630000
+           TM DDUNITYP,B'01000000' PERMENENTLY MOUNTED VOLUME?    74191 05640000
+           BO G01NOTDD             OK,DONT BOTHER TELLING ANYONE  74191 05650000
+           CLI DDVOLUME,C'*'       VOLREF?                        74191 05660000
+           BE G01NOTDD             YES,AGAIN IGNORE               74191 05670000
+           PUT JCL                                                      05680000
+           MVI 0(R1),C' '                                               05690000
+           MVC 1(79,R1),0(R1)                                           05700000
+           MVC 0(L'DDVOLUME,R1),DDVOLUME                                05710000
+G01NOTDD   AH  R8,0(R8)        STEP TO NEXT RECORD                      05720000
+           CLC 0(2,R8),=H'0'   END OF LIST ?                            05730000
+           BNE G01TDD          TEST IF A DDCARD WITH VOL INFO TO GO OUT 05740000
+.NOMOUNT     ANOP                                                       05750000
+* WELL HERE IT LOOKS LIKE THE END OF THE JOL INITIATION STEP            05760000
+* NOW WE MUST HEAVE ALL THE CARDS FROM THE TABLE OUT TO THE JCL-FILE    05770000
+****** THIS IMPLEMENTATION ACTUALLY CONSTRUCTS JCL,SO NOT ALL           05780000
+*          THE INFORMATION NEEDS TO GO OUT,SPECIFICALLY,                05790000
+*          NOT THE ORDINARY 'DD' CARDS                                  05800000
+           USING JOLCOM,R2                                              05810000
+* CALL THE ROUTINE TO COPY THE JOL LISTING TO UJEINIT             84023 05820001
+           IFTSO NOSPL                                            86112 05821011
+           $CALL UJG01SPL                                         84023 05830001
+NOSPL      DS    0H                                               86112 05831011
+           SPACE 2                                                75311 05840001
+* SET UP THE MEMBER HEADING RECORD FOR'UJEINIT'                         05850000
+           MVC DATAMEM,=CL8'$$INST' MEMBER NAME                         05860000
+           MVC DATAMEM5,=CL5' 1000' BLKSIZE                             05870000
+           MVC DATAMEM6,=CL5'   80' RECORDSIZE (FIX CHALLENGE)    84100 05880006
+           SPACE 2                                                75311 05890000
+* NEW 3.0 *****                                                   75311 05900000
+* WE MUST CREATE AN 'OPTIONS' INSTRUCTION TO TELL THE SCHEDULER   75311 05910000
+*  WHICH SVC IT IS TO EXECUTE.                                    75311 05920000
+* OTHER OPTIONS COULD ALSO BE OUTPUT, BUT THIS WILL DO FOR NOW    75311 05930000
+         SPACE                                                          05940015
+         B     G0399          **************************                05950000
+         PUT   JCL             GET BUFFER SPACE                   75311 05960015
+         MVC   0(80,R1),BLANKS                                    75311 05970015
+         MVC   0(60,R1),DATAMEM1                                  75311 05980015
+         PUT   JCL             GET SPACE FOR OPTIONS INSTRUCTION  75311 05990015
+         MVC   ICOMMAND,=CL8'OPTIONS'                             75311 06000015
+         MVC   ITEXT(2),=H'2'                                     75311 06010005
+         L     R15,AJOLGEN                                        75311 06020005
+         USING GENDETS,R15                                        75311 06030005
+         MVC   ITEXT+2(1),SUPRVSR+1 SVC NUMBER                    86290 06040005
+         MVC   INST,=AL2(IBODY+4)                                 75311 06050005
+         DROP  R15                                                75311 06060005
+         MVC   0(IBODY+4,R1),INST   SHIFT TO BUFFER               75311 06070005
+         SPACE 3                                                  75311 06080005
+G0399    DS    0H                                                       06090005
+* IF USING DYNAMIC ALLOCATION (UNDER TSO),                        86290 06091020
+*    WE MUST OUTPUT THE STOPWHEN SO THE MONITOR CAN DEAL WITH IT. 86290 06092015
+         SPACE                                                          06094015
+         IFOS  =X8,G01STOPW    A GOOD IDEA FOR X8 TOO             J40B  06094105
+         IFTSO G01STOPW        AND TSO                            J40B  06094205
+         IFDYNAM G01STOPW                                         86290 06095023
+         B     G01OPINS        JCL SPECIFIED, OUTPUT INSTRUCTIONS 86290 06095120
+G01STOPW DS    0H                                                       06095220
+         CLI   JOBCOND,C' '   DID USER CODE STOP WHEN?            76200 06095320
+         BE    G01OPINS       NO,USE DEFAULT THEN                 76200 06095420
+         PUT   JCL             GET BUFFER SPACE                   86290 06096015
+         MVC   0(80,R1),BLANKS                                    86290 06097015
+         MVC   0(60,R1),DATAMEM1                                  86290 06098015
+         PUT   JCL             GET SPACE FOR STOPWHEN INSTRUCTION 86290 06099015
+         MVC   ICOMMAND,=CL8'STOPWHEN'                            86290 06099115
+         MVC   ITEXT(2),=H'80'                                    86290 06099215
+         MVC   ITEXT+2(L'JOBCOND),JOBCOND                         86290 06099515
+         MVC   INST,=AL2(IBODY+82)                                86290 06099615
+         MVC   0(80,R1),INST   SHIFT TO BUFFER                    86290 06099815
+         PUT   JCL             GET SPACE FOR STOPWHEN INSTRUCTION 86290 06099915
+         MVC   0(80,R1),INST+80 SHIFT TO BUFFER                   86290 06100015
+         SPACE 3                                                  86290 06100105
+G01OPINS DS    0H                                                       06100220
+*************************************************************      DASD 06100315
+* CLEAN OUT DEAD MACROS IN THE INSTRUCTION FILE             *      DASD 06110000
+* ABEND U001 $JOLSH31 TOO MANY STEPS                        *      DASD 06120000
+*************************************************************      DASD 06130000
+SCANJCL  EQU   *                                                   DASD 06140000
+         L     R8,AVTBLE               POINT TO BEGINNING OF TBLE  DASD 06150000
+         STM   R6,R7,CALLAREA+28       SAVE THE WORK REGS          DASD 06160000
+         LA    R7,CALLAREA             INITIALIZE THE              DASD 06170000
+         ST    R7,CALLAREA               STACK POINTER             DASD 06180000
+         LR    R6,R7                   AND SAVE FOR LATER TEST     DASD 06190000
+CONTSCAN CLI   DDDD1,C'D'              DD CARD ?                   DASD 06200000
+         BNE   NODD                    GO TO NODD IF NOT           DASD 06210000
+         IFOS  =X8,INCR                                                 06220000
+         CLI   DDDDNAME,C'%'           CATALOG MGMT INST ?         DASD 06230000
+         BE    ACTIVE                  GO TO ACTIVE IF SO          DASD 06240000
+         B     INCR                    ELSE JUST INCREMENT         DASD 06250000
+NODD     CLC   =C'OPCNTL',ICOMMAND-ILENGTH(R8) OPCNTL ?            DASD 06260000
+         BE    INCR                    INCREMENT IF SO             DASD 06270000
+         CLI   DDDD1,C'%'              DEAD INST ?                 DASD 06280000
+         BE    INCR                    INCREMENT IF SO             DASD 06290000
+         CLI   DDDD1,C'I'              I-TYPE INST ?               DASD 06300000
+         BNE   ACTIVE                  GO TO ACTIVE IF NOT         DASD 06310000
+         CLC   =C'MACRO  ',ICOMMAND-ILENGTH(R8) MACRO ?            DASD 06320000
+         BNE   CKEND                   CHECK FOR END IF NOT        DASD 06330000
+         L     R7,CALLAREA             PUSH THE                    DASD 06340000
+         LA    R7,4(R7)                  ADDRESS OF                DASD 06350000
+         ST    R8,0(R7)                  THE MACRO CARD            DASD 06360000
+         ST    R7,CALLAREA               ONTO THE STACK            DASD 06370000
+         B     INCR                    GO TO INCREMENT             DASD 06380000
+CKEND    CLC   =C'END   ',ICOMMAND-ILENGTH(R8) END ?               DASD 06390000
+         BNE   ACTIVE                  IF NOT IT MUST BE ACTIVE    DASD 06400000
+         L     R7,CALLAREA             ARE THERE ANY MACROS        DASD 06410000
+         CR    R6,R7                     ON THE STACK ?            DASD 06420000
+         BE    INCR                    IF NOT GO TO INCREMENT      DASD 06430000
+         MVI   DDDD1,C'%'              ELSE DELETE                 DASD 06440000
+         L     R7,0(R7)                  END CARD AND THE          DASD 06450000
+         MVI   DDDD1-DDDSNDET(R7),C'%'   STACKED MACRO CARD        DASD 06460000
+         L     R7,CALLAREA             THEN POP THE MACRO          DASD 06470000
+         S     R7,=F'4'                  CARD OFF OF               DASD 06480000
+         ST    R7,CALLAREA               THE STACK                 DASD 06490000
+         B     INCR                    GO TO INCREMENT             DASD 06500000
+ACTIVE   ST    R6,CALLAREA             RESET THE STACK, NOT DEAD   DASD 06510000
+INCR     AH    R8,DDOSVB               INCREMENT THE POINTER       DASD 06520000
+         CLC   DDOSVB,ZERO             END OF INST FILE ?          DASD 06530000
+         BNE   CONTSCAN                GO TO CONTSCAN IF NOT       DASD 06540000
+         LM    R6,R7,CALLAREA+28       ELSE RESTORE THE WORK REGS  DASD 06550000
+ENDSCAN  DS    0H                                                  DASD 06560000
+         $CALL UJG01LIB        OUTPUT THE JOB LIB IF REQ'D        87150 06561005
+*NOW START AT THE TOP OF THE STACK AND OUTPUT THE REQUIRED INFORMATION. 06570007
+          SPACE 3                                                       06571007
+* AS MENTIONED EARLIER, ONLY THE DD CARDS DONT GO OUT FOR JCL SYSTEMS.  06580007
+* FOR DYNAMIC ALLOCATION, ALL DDCARDS GO OUT IN INTERNAL FORMAT.        06581007
+* OPCNTL CARDS GO OUT WITH THE JCL.                                     06590007
+         L  R8,AVTBLE                                                   06600005
+G01TRECT CLI   DDDD1,C'D'    DDCARD?                                    06610005
+         BNE   G01TOPCN                                                 06620005
+*        IFOS  =X8,G01TREC1                                      88020  06622061
+         IFOS  =X8,G01OPINX                                      88036  06623063
+         IFDYNAM G01TOPCN   INTERNAL FORMAT DDCARDS TO GO OUT?          06630001
+G01TREC1 DS    0H                                                       06631052
+         CLI   DDDDNAME,C'%' INSTRUCTION LIKE CATLG?                    06640001
+         BE    G01OPINX                                                 06650001
+G01STP1  AH    R8,DDOSVB                                                06660001
+         CLC   DDOSVB,ZERO    LAST IN STACK?                            06670001
+         BNE   G01TRECT                                                 06680001
+         $CALL UJG01END        GENERATE END, + MONITOR CARDS      87150 06680101
+*                              IF NECESSARY FOR DYNAMIC VERSIONS  87150 06680223
+         JOLRETN               , RETURN NOW                       87150 06680323
+G01TOPCN CLC   =C'OPCNTL',ICOMMAND-ILENGTH(R8)                          06780001
+         BE    G01STP1                                                  06790001
+         CLC   =C'SUBSYS',ICOMMAND-ILENGTH(R8)                    87150 06791001
+         BNE   G01OPINX                                           87150 06792001
+         IFDYNAM G01NOGDG      GO AND OUTPUT SUBSYS PARAMETER     87150 06792101
+         B     G01STP1                                            87150 06793001
+* FINAL CHECK TO SEE IF IT WAS A DELETED INSTRUCTION                    06800000
+G01OPINX CLI   DDDD1,C'%'                                               06810005
+         BE    G01STP1                                                  06820000
+         IFOS  ^=X8,NX8040         FOLLOWING LITTLE BIT ONLY FOR X8     06830000
+         CLI   DDDSNAME,C'&&'      Q... &DSN?                           06840000
+         BNE   G01SWAP             A... NO                              06850073
+         LA    R15,DDDSNAME+1                                           06860000
+         CLI   0(R15),C'&&'        DOUBLE &?                            06870000
+         BNE   *+8                 NO                                   06880000
+         LA    R15,1(,R15)         STEP PAST 2ND &                      06890000
+         MVC   DDDSNAME+26-8(8),0(R15) COPY LAST LEVEL OF DSNAME        06900000
+         MVC   DDDSNAME(26-8),TEMPDSN                                   06910000
+         B     G01SWAP                                           88036  06911067
+NX8040   DS    0H                                                       06920000
+***************************************************************   87150 06930046
+**     IF RUNNING DYNAMICALLY, CHANGE UNIT NAME WITH SWAPUNIT     87150 06940046
+***************************************************************   87150 06960046
+         IFDYNAM G01SWAP                                                06960146
+         B     GDGCHK                                                   06960246
+G01SWAP  L     R1,AGENDETS                                        87150 06960346
+         USING GENDETS,R1                                         87150 06960446
+         L     R1,ASWAPUNI                                        87150 06960546
+         DROP  R1                                                 87150 06960646
+         LM    R14,R15,4(R1)                                      ETC   06960746
+         L     R1,0(R1)                                                 06960846
+         CLC   DDUNIT,0(R1)                                             06960946
+         BE    G03SWAP                                                  06961046
+         BXLE  R1,R14,*-10                                              06961146
+         B     G03NOSWP                                                 06961246
+G03SWAP  MVC   DDUNIT,8(R1)                                             06961346
+G03NOSWP EQU   *                                                        06961446
+***************************************************************    DASD 06961546
+**     CHECK THE DDMBR FIELD FOR A GDG ABSOLUTE                    DASD 06962046
+**     AND ADD TO THE DISPOSITION INSTRUCTION                      DASD 06963046
+***************************************************************    DASD 06964046
+GDGCHK    CLI    DDMBR,C'('       GDG ?                            DASD 06970046
+          BNE    G01NOGDG                                          DASD 06980000
+          CLI    DDMBR+1,C' '     ABSOLUTE                         DASD 06990000
+          BNE    G01NOGDG                                          DASD 07000000
+          LA     R1,DDDSNAME      POINT TO START OF DSNAME         DASD 07010000
+          LA     R15,L'DDDSNAME-1(R1)  GET THE LENGTH              DASD 07020000
+          LA     R14,1                 DOIT IT ONE AT A TIME       DASD 07030000
+FINDEND   CLI    0(R1),C' '         IS THIS THE END YET            DASD 07040000
+          BE     GOTEND                                            DASD 07050000
+          BXLE   R1,R14,FINDEND                                    DASD 07060000
+GOTEND    EQU    *                                                 DASD 07070000
+          MVC    0(9,R1),=C'.G0000V00'   INSERT GDG ID             DASD 07080000
+          MVC    2(4,R1),DDMBR+2         INSERT REAL ABS NUMBER    DASD 07090000
+          CLEAR  DDMBR   CLEAR FOR DYNAMIC ALLOCATION VERSION       CVC 07100000
+G01NOGDG  EQU    *                                                 DASD 07110000
+* NOW FINALLY OUTPUT THE REQUIRED CARD                                  07120000
+           PUT JCL                                                      07130000
+           MVC  0(80,R1),BLANKS                                         07140000
+           MVC  0(60,R1),DATAMEM1                                       07150000
+* NOW WE MAY HAVE TO SPLIT THE CARD UP                                  07160000
+           LA  R5,DDOSVB                                                07170000
+           LH  R6,0(R5)    GET LENGTH                                   07180000
+G01OPJCL   PUT  JCL                                                     07190000
+           MVC  0(80,R1),BLANKS                                         07200000
+           LR  R4,R1       SAVE BUFFER ADDRESS                          07210000
+*    R5  POINTS TO CURRENT RECARD PART                                  07220000
+*    R6  CONTAINS THE LENGTH                                            07230000
+         CH    R6,=H'79'                                                07240000
+         BH    G01MUV80                                                 07250000
+         LR    R1,R6                                                    07260000
+         BCTR  R1,0                                                     07270000
+         EX    R1,G01MVC99                                        75128 07280023
+         B     G012NDCD                                                 07290023
+G01MUV80 MVC   0(80,R4),0(R5)                                           07300023
+G012NDCD LA    R5,80(R5)                                                07310005
+         SH    R6,=H'80'                                                07320000
+         BP    G01OPJCL                                                 07330000
+* CHECK IF A PGM, AND IF SO OUT A JOBLIB IF RUNNING UNDER TSO     87150 07330123
+         CLI   DDDD1,C'E'      A PROGRAM JUST OUTPUT ?            87150 07331000
+         BNE   G01STP1         NO, SO BACK TO THE OUTPUT LOOP.    87150 07332000
+         CLC   JOBLIB#,ZERO    ANY JOBLIBS?                       87150 07333000
+         BE    G01STP1         NO, SO BACK TO THE OUTPUT LOOP.    87150 07334000
+         IFTSO OPTSOJOB       TSO, SO OUTPUT JOBLIB AFTER EXEC.   87150 07335000
+         IFDYNAM OPTSOJOB     TSO, SO OUTPUT JOBLIB AFTER EXEC.   J40B  07336000
+         IFOS  ^=X8,G01STP1                                      J40B   07337001
+*        B     G01STP1                                                  07340001
+OPTSOJOB DS    0H                                                       07341005
+*        $CALL UJG01LIB        OUTPUT THE JOB LIB                 87150 07342005
+         B     G01STP1                                                  07350000
+         SPACE 3                                                        07360000
+G01MVC99 MVC   0(*-*,R4),0(R5)                                          07370000
+         DS    0H                                                       07390000
+DATAHD1  DC    8X'FF'         THIS IS THE HEADER RECORD TO GO OUT       07400000
+DATAHD2  DC    3C'JOL'         ON THE SYSIN FILE TO UJEINIT             07410000
+DATAHD3  DC    8X'FF'                                                   07420000
+DATAHD4  DC    70X'00'                                                  07430000
+DATAHD5  DC    CL5' '                                                   07440000
+         SPACE                                                          07450000
+CATDSN   DC    C'DSN=&&&&$$JOLIN($$INST) '                        J40B  07451096
+#SYSDATA DC    AL2(SYSDATAE-*)                           USR30002 76200 07460000
+         DC    C'//SYSIN  DD DATA,DLM='''                         87150 07470000
+         DC    X'80FF'                                   USR30002 76200 07480000
+         DC    C''' DLM=HEX CONSTANTS X''80FF'''         USR30002 76200 07490000
+SYSDATAE DS    0H                                                 75311 07500001
+         SPACE 1                                                  75311 07510001
+#SYSEND  DC    Y(2)                                               75311 07520001
+         DC    X'80FF'                                   USR30002 76200 07530000
+         SPACE 3                                                  75311 07540001
+         DROP R9                                                        07550000
+         DC    60S(*)                                                   07560094
+         LTORG                                                          07980000
+         JOLSAVE CSECT=UJG01END,BASE=R6                                 07990023
+         IFOS  =X8,G01X8MON   IF ITS AN X8 SYSTEM, PUT OUT X8 JOB CARD. 07991001
+         IFDYNAM G01ISDYN    DYNAMIC ALLOCATION REQUESTED?              08000001
+         B     G01ECARD       NO, SO PRESS ON AS NORMAL                 08010001
+G01ISDYN DS    0H                                                       08020001
+* HERE, WE MUST CHECK IF ITS A TSO JOB, OR A BATCH DYNAMIC ALLOCATION   08040023
+* JOB.                                                                  08050023
+         L     R14,AGENDETS   GET PARAMETER FIELD ADDRESS               08060001
+         IFTSO G01ECARD      TSO JOB, NO JCL REQD                 86112 08070001
+* HERE, WE NEED A LITTLE JCL FOR THE JOL MONITOR                        08080023
+         OPJCL #SYSEND         X'00FF'                            75311 08090001
+*        OPJCL '//DYNJOB EXEC PGM=&DYNMN'                               08100088
+*        OPJCL '//$$INST DD DSN=&&&&$$JOLIN,DISP=(MOD,PASS) INSTRUCTION*08110045
+               S'                                                 86XXX 08120023
+         L     R4,AGENDETS                                        75128 08130023
+         USING GENDETS,R4                                         75128 08140023
+*        OPJCL '//$$PRNT   DD SYSOUT=*'                                 08150097
+         LA    R1,DUMPCARD                                        75128 08160023
+         $CALL UJG90OP                                            75128 08170023
+         OPJCL LGENCRD1       OP USER CARD IF CODED AT JOLGEN     75128 08180023
+         OPJCL LGENCRD2       OP USER CARD IF CODED AT JOLGEN     75128 08190023
+         OPJCL LGENCRD3       OP USER CARD IF CODED AT JOLGEN     75128 08200023
+         DROP  R4                                                       08210023
+         JOLRETN                                                        08220005
+G01X8MON OPJCL  '$/'                                                    08230005
+          JOLRETN                                                       08270023
+G01ECARD  DS   0H                                                       08280023
+         OPJCL #SYSEND         X'00FF'                            75311 08290074
+         JOLRETN                                                        08300074
+         LTORG                                                          08301074
+         DC    40S(*)                                                   08302074
+         LTORG                                                          08320023
+         JOLSAVE CSECT=UJG01LIB                                   87150 08330023
+         CLC   JOBLIB#,ZERO    Q... JOBLIB SPECIFIED?            J40B   08330111
+         BE    L01DONE         A... NO                           J40B   08330211
+         IFTSO L01GO          TSO, SO OUTPUT JOBLIB AFTER EXEC.   87150 08331005
+         IFDYNAM L01GO        TSO, SO OUTPUT JOBLIB AFTER EXEC.   J40B  08332005
+         IFOS  ^=X8,L01DONE                                      J40B   08333005
+* OK, NOW CREATE SOME JOB LIB  ENTRIES AND PUT THEM IN THE STREAM 87150 08340023
+* BY CREATING A DSNAME TYPE 'CARD'.                                     08370023
+L01GO    DS    0H                                                 J40B  08371005
+         CLEAR  TRANS                                                   08380023
+         LA    R8,TRANS                                                 08381023
+         USING DDDSNDET,R8                                              08382023
+         XC    DDOSVB(DDLEN-2),DDOSVB+2                                 08450037
+         LA    R0,DDLEN                                           86211 08460037
+         STH   R0,DDOSVB                                                08461037
+         CLEAR DDCANCEL,DDCYLTRK,DDRECFM,DDSIZEQ,DDLIMCT,DDOPTCD, 87150+08470004
+               DDVOLUME,DDUNIT,DDDENS,DDLABTYP,DDMBR,             87150+08471040
+               DDDSORG,DDRETPD,DDEXPDT,DDCODE,DDFUNC                    08480037
+         MVI   DDDD1,C'J'                                               08510008
+         MVC   DDSTMT,=C'JOBL'                                          08520023
+         MVI   DDTYPE,DDREALDS                                          08550023
+         MVI   DDUNITYP,X'80'  AND, OF COURSE, IT'S DISK         J40B   08551003
+         MVC   DDDSID(8),=C'$$JOBLIB'                                   08560023
+         MVI   DDUSE,X'08'     SHARE                                    08590036
+         MVC   DDUSE+1(2),=C'PP' AND PASS                               08591023
+         SR    R9,R9           START AT FIRST JOBLIB                    08591133
+G01LTSTN DS    0H              LOOP, AND OUTPUT JOB LIB STATEMENTS87150 08592033
+         MVC   DDDDNAME,=CL8'%J'                                        08593010
+         LR    R4,R9                                                    08595031
+         MH    R4,=H'46'                                                08596026
+         LA    R4,JOBLIB(R4)                                            08597023
+         MVC   DDDSNAME,2(R4)                                           08600027
+         LA    R5,DDOSVB                                                08610023
+         LH    R6,0(R5)    GET LENGTH                                   08620023
+         L     R1,AJCL             ADDRESS JCL DCB                      08620135
+         PUT   (1)                 GET SOME BUFFER SPACE                08620235
+         MVC   0(80,R1),BLANKS                                    86290 08620335
+         MVC   0(60,R1),DATAMEM1                                  86290 08620435
+G01OPLIB DS    0H                                                       08621024
+         L     R1,AJCL             ADDRESS JCL DCB                      08621634
+         PUT   (1)                 GET SOME BUFFER SPACE                08621734
+         MVC   0(80,R1),BLANKS                                          08622023
+         LR    R4,R1       SAVE BUFFER ADDRESS                          08623023
+*    R5  POINTS TO CURRENT RECARD PART                                  08624023
+*    R6  CONTAINS THE LENGTH                                            08624123
+         CH    R6,=H'79'                                                08624223
+         BH    GX1MUV80                                                 08624323
+         LR    R1,R6                                                    08624423
+         BCTR  R1,0                                                     08624523
+         EX    R1,GX1MVC99                                              08624623
+         B     GX12NDCD                                                 08624723
+GX1MUV80 MVC   0(80,R4),0(R5)                                           08624823
+GX12NDCD LA    R5,80(R5)                                                08624923
+         SH    R6,=H'80'                                                08625123
+         BP    G01OPLIB                                                 08625223
+         MVC   DDDDNAME,BLANKS TO FORCE CONCATENATION OF NEXT LIB       08625323
+         LA    R9,1(R9)        LOOP, AND OUTPUT JOB LIB STATEMENTS87150 08625433
+         CH    R9,JOBLIB#                                               08625533
+*        BE    RET                                                      08625607
+         BNE   G01LTSTN        TEST IF MORE JOBLIBS                     08625705
+* NOW POINT TO THE NEXT DD ENTRY                                        08626023
+L01DONE  DS    0H                                                 J40B  08636005
+*RET     DS    0H                                                       08640005
+         MVC   JOBLIB#,ZERO    STOP COMING HERE AGAIN             87150 08640105
+         JOLRETN                                                        08641041
+GX1MVC99 MVC   0(*-*,R4),0(R5)                                          08642000
+         LTORG                                                          08650094
+         DC    20S(*)                                                   08660094
+         JOLSAVE CSECT=G01OPJLB                                   87150 08800027
+* OK, COPY JOBLIB DD CARDS TO  THE OUTPUT STREAM                  87150 08810027
+         CLC   JOBLIB#,ZERO                                             08830028
+         BE    RET2                                               J40B  08840000
+         IFDYNAM RET2          , NO WORK TO DO                          08850000
+         IFOS  =X8,RET2        IF IT'S X8, LETS LEAVE             J40B  08851002
+G01JLIB2 LA    R10,WORK                                                 08860027
+         CONCAT '//JOBLIB   DD  DISP=SHR,DSN='                          08870027
+         MVC   0(44,R10),JOBLIB+2                                       08940027
+         AH    R10,JOBLIB                                               08950027
+         LA    R1,WORK                                                  08951027
+         SR    R10,R1                                                   08952027
+         STH   R10,#WORK                                                08953027
+         OPJCL #WORK                                              74303 08954027
+         SPACE  3                                                       08954127
+         SR    R9,R9                                                    08990027
+G01LJCLJ LA    R9,1(R9)        LOOP, AND OUTPUT JOB LIB STATEMENTS87150 09000027
+         CH    R9,JOBLIB#                                               09010027
+         BE    RET2                                                     09020030
+         LR    R4,R9                                                    09030030
+         MH    R4,=H'46'                                                09040027
+         LA    R4,JOBLIB(R4)                                            09050027
+         LA    R10,WORK                                                 09051027
+         CONCAT '//         DD  DISP=SHR,DSN='                          09052027
+         MVC   0(44,R10),2(R4)                                          09053027
+         AH    R10,0(R4)                                                09054027
+         LA    R1,WORK                                                  09055027
+         SR    R10,R1                                                   09056027
+         STH   R10,#WORK                                                09057027
+         OPJCL #WORK                                                    09058027
+         B     G01LJCLJ                                                 09060028
+* NOW POINT TO THE NEXT DD ENTRY                                        09290027
+RET2     JOLRETN                                                        09300000
+         LTORG                                                          09320000
+         DC    20S(*)                                                   09330000
+         END                                                            09460027

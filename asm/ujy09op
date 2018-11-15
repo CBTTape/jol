@@ -1,0 +1,71 @@
+        PRINT OFF                                                       00010000
+        COPY  JOLCOM                                                    00020000
+        PRINT ON,GEN,DATA                                               00030000
+* THIS ROUTINE OPENS A PRE-EXISTING DATA SET (PDS) AND                  00040001
+*    COPIES OUT ALL THE DATA PRESENTED ON THE COMMAND TO THAT           00050001
+*    MEMBER, CLOSES IT AND RETURNS.                                     00060001
+*                                                                       00070000
+* IT WILL NOT BE DOCUMENTED AS THEY WILL BE REPLACED LATER              00080001
+* BY MORE CONVENTIAL ROUTINES.*******                                   00090000
+          JOLSAVE CSECT=UJY09OP                                         00100001
+          L    R8,ADCBS                                                 00110001
+          USING DCBS,R8                                                 00120001
+           GETTKN 2                                                     00130001
+           BAL   R14,DROPQUOT                                           00140001
+           MVC  #WORK(50),#TKN   SAVE DSNAME                            00150001
+           GETTKN 3              GET MEMBER NAME                        00160001
+* DSNAME IS IN #WORK(50)                                                00170001
+* MEMBER NAME IS IN #TKN (IF PRESET)                                    00180001
+          DYNPARM DDNAME=SPARE2,DISP=(SHR),DSN=(44,#WORK),        ++++++00190001
+               MEMB=(10,#TKN)                                           00200001
+           LTR   R15,R15                                                00210001
+           BZ    Y09OK2                                                 00220001
+           JOLERR 202,'CANNOT ALLOCATE DSN ''',#WORK,''' MEMBER ',  ++++00230001
+               #TKN,''''                                                00240001
+Y09OK2    EQU  *                                                        00250001
+* DATA SET ALLOCATED, NOW OPEN IT                                       00260001
+           L     R9,ASPR2DCB                                            00270004
+           USING  IHADCB,R9                                             00280000
+           MVI   DCBRECFM,0                                             00290000
+           MVC   DCBLRECL,=H'0'                                         00300000
+           MVC   DCBBLKSI,=H'0'                                         00310000
+*         OPEN (SPRDCB2,(OUTPUT))                                       00320001
+          LA   R1,SPRDCB2                                               00330000
+          ST   R1,CALLAREA                                              00340000
+          MVI  CALLAREA,X'8F'                                           00350001
+          LA   R1,CALLAREA                                              00360000
+          SVC  19                                                       00370000
+          LTR  R15,R15                                                  00380000
+          BZ   R010                                                     00390000
+          JOLERR 101,'CANNOT OPEN OUTPUT FILES FOR SAVESYMS'            00400001
+          JOLRETN RC=4                                                  00410001
+R010      DS   0H                                                       00420000
+* THIS ROUTINE SIMPLY PUTS A CARD IMAGE TO THE DCB 'SPRDCB2'            00430000
+          LA    R7,4                                                    00440002
+LOOP      GETTKN  (R7)      GET NEXT TOKEN                              00450005
+          LR    R7,R1       RESET TO NEXT TOKEN                         00460001
+          CLI   TKN,C' '    IS IT BLANK?                                00470000
+          BE    Y09CLOS                                                 00480001
+          CLC   =H'80',#TKN                                             00490000
+          BH    Y09OK3                                                  00500005
+          JOLERR 103,'LENGTH OF TOKEN ''',#TKN,''' > 80 CHARS'          00510002
+Y09OK3    BAL   R14,DROPQUOT                                            00520005
+          PUT   (R9),TKN                                                00530001
+          B     LOOP                                                    00540005
+*         CLOSE (SPRDCB2,(REREAD))                                      00550001
+Y09CLOS   EQU  *                                                        00560006
+          L    R1,ASPR2DCB                                              00570006
+          ST   R1,CALLAREA                                              00580000
+         OI    CALLAREA,X'80'                                           00590008
+          LA   R1,CALLAREA                                              00600000
+          SVC  20                                                       00610000
+          FREEPOOL SPRDCB2                                              00620000
+          DYNPARM DDNAME=SPARE2,VRB=UN                                  00630007
+          DROP  R9                                                      00640000
+          DROP  R8                                                      00650000
+          JOLRETN                                                       00660000
+          LTORG                                                         00670000
+        PRINT OFF                                                       00680003
+          DCBD DSORG=PS,DEVD=DA                                         00690000
+        PRINT ON,GEN,DATA                                               00700003
+          END                                                           00710000

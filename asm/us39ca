@@ -1,0 +1,102 @@
+US39CA     START 0             OP ALL FILLED BLOCKS (#EMPTY)            00000100
+R0         EQU 0                                                        00000200
+R1         EQU 1                                                        00000300
+R2         EQU 2                                                        00000400
+R3         EQU 3                                                        00000500
+R4         EQU 4                                                        00000600
+R5         EQU 5                                                        00000700
+R6         EQU 6                                                        00000800
+R7         EQU 7                                                        00000900
+R8         EQU 8                                                        00001000
+R9         EQU 9                                                        00001100
+R10        EQU 10                                                       00001200
+R11        EQU 11                                                       00001300
+R12        EQU 12                                                       00001400
+R13        EQU 13                                                       00001500
+R14        EQU 14                                                       00001600
+R15        EQU 15                                                       00001700
+           USING *,R15                                                  00001800
+           SAVE (14,12),,*                                              00001900
+           LR R11,R15                                                   00002000
+           DROP R15                                                     00002100
+           USING US39CA,R11                                             00002200
+           LR  R2,R1           DCB ADDRESS                              00002300
+           USING IHADCB,R2                                              00002400
+           L   R3,88(R2)       GET OUR CONTROL AREA ADDRESS             00002500
+           USING CNTRL,R3                                               00002600
+           LA  R4,SAVEAREA                                              00002700
+           ST  R13,4(R4)                                                00002800
+           ST  R4,8(R13)                                                00002900
+           LR  R13,R4                                                   00003000
+           SPACE 3                                                      00003100
+           MVC DCBPUT+1(3),REALRTN+1                                    00003200
+* CHECK BLOCKS 2 ON HAVE BEEN USED AND WRITTEN.                         00003300
+*    IF NOT,WRITE THEM                                                  00003400
+           LA  R6,CURRENT+4                                             00003500
+SEEWRITE   CLI 0(R6),X'FF'     FILLED AND GONE ?                        00003600
+           BE  ALLGONE         END LOOP                                 00003700
+           CLI 0(R6),X'00'     NOT USED                                 00003800
+           BE  ALLGONE         END LOOP                                 00003900
+           L   R7,0(R6)        GET ADDR DECB                            00004000
+*          WRITE (7),SF,(R2),MF=E                                       00004100
+* NOW WRITE THE BLOCK  ******REPLACES 'WRITE' MACRO**************       00004200
+           LR  R1,R7           DECB ADDR TO R1                          00004300
+           MVI 5(R1),X'20'     SET TYPE FIELD                           00004400
+           L  R15,REALRTN      WRITE ADDR MOVED IN #OPEN                00004500
+           BALR R14,R15                                                 00004600
+           MVI 0(R6),X'FF'     SIGNAL THEM GONE                         00004700
+           LA  R6,4(,R6)       LOOK AT NEXT DECB                        00004800
+           B   SEEWRITE                                                 00004900
+ALLGONE    EQU *                                                        00005000
+* NOW WRITE THE'CURRENT' BLOCK                                          00005100
+           MVI CURRENT,X'00'   ******* 1ST BYTE MUST BE NZERO           00005200
+           L   R7,CURRENT                                               00005300
+*    THIS IS THE LAST BLOCK TO BE WRITTEN                               00005400
+*NOW BECAUSE BLOODY OS TAKES THE LENGTH OF THE BLOCK TO                 00005500
+* BE WRITTEN FROM THE DCBBKSIZE IF FORMAB IS 'FB'    WE MUST            00005600
+*ALTER THE BLKSIZE IN THE DCB                                           00005700
+          LH R5,DCBBLKSI                                                00005800
+          MVC DCBBLKSI(2),6(R7)           DECB BLKSIZE                  00005900
+*          WRITE (7),SF,(R2),MF=E                                       00006000
+* NOW WRITE THE BLOCK  ******REPLACES 'WRITE' MACRO**************       00006100
+           LR  R1,R7           DECB ADDR TO R1                          00006200
+           MVI 5(R1),X'20'     SET TYPE FIELD                           00006300
+           L  R15,REALRTN      WRITE ADDR MOVED IN #OPEN                00006400
+           BALR R14,R15                                                 00006500
+          STH R5,DCBBLKSI        RESET THE DCB BLOCKSIZE                00006600
+* NOW PROCEED TO CHECK THE BLOCKS JUST WRITTEN                          00006700
+           LA  R6,CURRENT+4                                             00006800
+SEECHECK   CLI 0(R6),X'FF'                                              00006900
+           BNE CHECK1          CHECK DECB(1)                            00007000
+           L   R7,0(R6)                                                 00007100
+*          CHECK (7)                                                    00007200
+*  CHECK *******REPLACES THE 'CHECK' MACRO ******                       00007300
+           LA  R1,0(R7)                                                 00007400
+           L   R15,DCBCHECK                                             00007500
+           BALR R14,R15                                                 00007600
+           MVI 0(R6),X'00'     SIGNAL READY TO FILL                     00007700
+           LA  R6,4(,R6)       LOOK AT NEXT                             00007800
+           B   SEECHECK                                                 00007900
+CHECK1     L  R7,CURRENT            CHECK DECB (1)                      00008000
+*          CHECK (7)                                                    00008100
+*  CHECK *******REPLACES THE 'CHECK' MACRO ******                       00008200
+           LA  R1,0(R7)                                                 00008300
+           L   R15,DCBCHECK                                             00008400
+           BALR R14,R15                                                 00008500
+           MVI 0(R6),X'00'     SIGNAL READY TO FILL                     00008600
+           XC AMNTLEFT,AMNTLEFT                                         00008700
+           MVC DCBPUT+1(3),=AL3(US39BA)                                 00008800
+           EXTRN US39BA                                                 00008900
+           L   R13,SAVEAREA+4                                           00009000
+           RETURN (14,12),T,RC=0                                        00009100
+CNTRL      DSECT                                                        00009200
+LENGTH  DS 1F                                                           00009300
+POSNNOW    DS  1F                                                       00009400
+AMNTLEFT   DS  1F                                                       00009500
+REALRTN    DS  1F              ADDR OF REAL PUT ROUTINE                 00009600
+SAVEAREA   DS  18F                                                      00009700
+CURRENT    EQU *                                                        00009800
+DECBFLG    DS  CL2             FLAGS FOR DECB                           00009900
+DECBADDR   DS  AL3             ADDR OF DECB                             00010000
+           DCBD DSORG=PS                                                00010100
+           END                                                          00010200

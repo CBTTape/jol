@@ -1,0 +1,44 @@
+//CLARKE2 JOB (R777),'LONS 8TH',MSGCLASS=X,NOTIFY=CLARKE                00010001
+//ASM EXEC PGM=ASMBLR,PARM='NODECK,OBJ,XREF(SHORT),LIST'                00020001
+//SYSLIB   DD  DSN=SYS1.MACLIB,DISP=SHR,DCB=BLKSIZE=19040               00030001
+//         DD  DSN=SYS1.FMODGEN,DISP=SHR                                00040002
+//         DD  DSN=CLARKE.JOL35.MACLIB,DISP=SHR                         00050001
+//SYSUT1   DD  DSN=&&SYSUT1,SPACE=(CYL,(2,2)),UNIT=SYSDA                00060001
+//SYSUT2   DD  DSN=&&SYSUT2,SPACE=(CYL,(2,2)),UNIT=SYSDA                00070001
+//SYSUT3   DD  DSN=&&SYSUT3,SPACE=(CYL,(2,2)),UNIT=SYSDA                00080001
+//SYSGO DD DSN=CLARKE.JOL.OBJ(TSCRCH),DISP=OLD                          00090000
+//SYSPRINT DD  SYSOUT=*                                                 00100001
+         TITLE 'TIOT SCAN SOUBROUTINE'                                  00110001
+* THIS SUBROUTINE SEARCHES THE TIOT FOR A SPECIFIED DDNAME              00120000
+*  WHOSE ADDRESS IS PASSED IN REGISTER 1                                00130000
+         GENSAVE CSECT=TEST                                             00140000
+         LA    R1,=CL8'SYSPRINT'                                        00150000
+         CALL  SRCHTIOT                                                 00160000
+         LTR   R15,R15                                                  00170000
+         BNZ   ERR1                                                     00180000
+         WTO    'SYSPRINT RETURNED 0'                                   00190000
+         B     NEXT                                                     00200000
+ERR1     WTO    'SYSPRINT RETURNED 4'                                   00210000
+NEXT     LA    R1,=CL8'XXXXXXXX'                                        00220000
+         EXTRN SRCHTIOT                                                 00230000
+         CALL  SRCHTIOT                                                 00240000
+         LTR   R15,R15                                                  00250000
+         BNZ   ERR2                                                     00260000
+         WTO    'XXXXXXXX RETURNED 0'                                   00270000
+         B     RET                                                      00280000
+ERR2     WTO    'XXXXXXXX RETURNED 4'                                   00290000
+         STH   R15,RETN                                                 00300000
+RET      GENRETN                                                        00310000
+RETN     DS    H                                                        00320000
+         LTORG                                                          00330000
+         END                                                            00340002
+//LKED    EXEC PGM=IEWL,PARM='RENT,TEST,REUS,XREF,LIST',REGION=512K     00350000
+//SYSLIB    DD DSN=CLARKE.JOL.OBJ,DISP=SHR                              00360000
+//SYSLMOD   DD DSN=CLARKE.JOL36.LOAD(TSCRCH),DISP=SHR                   00370000
+//SYSUT1    DD DSN=&&SYSUT1,UNIT=SYSDA,SPACE=(CYL,(2,2))                00380000
+//SYSPRINT  DD SYSOUT=*                                                 00390000
+//SYSLIN    DD *                                                        00400000
+  INCLUDE SYSLIB(TSCRCH)                                                00410000
+// EXEC PGM=TSCRCH                                                      00420000
+//STEPLIB   DD DSN=CLARKE.JOL36.LOAD,DISP=SHR                           00430000
+//SYSPRINT  DD SYSOUT=*                                                 00440000

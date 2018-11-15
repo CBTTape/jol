@@ -1,0 +1,152 @@
+   /* THIS PROGRAM TAKES THE CAI DATA FROM THE VB DATA SETS             00000100
+      AND CONVERTS IT TO A PRINT VBA FILE WITH BOXES TO MAKE            00000200
+      IT LOOK PRETTY.                                                   00000300
+   */                                                                   00000400
+                                                                        00000500
+                                                                        00000600
+   CAI2: PROC(TYPE) OPTIONS(MAIN);                                      00000700
+                                                                        00000800
+         DCL TYPE CHAR(100) VAR;  /* UPPER FOR UPPER CASE */            00000900
+         DCL (L,SAVEL) BIN FIXED STATIC;                                00001000
+         DCL SYSUT1 FILE RECORD INPUT;                                  00001100
+         DCL SYSUT2 FILE PRINT  OUTPUT;                                 00001200
+                                                                        00001300
+         DCL (IN,SAVE) CHAR(250) VAR STATIC ;                           00001400
+                                                                        00001500
+         DCL     TEXT  CHAR(80) INIT(' ');                              00001600
+         DCL     BITTEXT(80) BIT(8) DEF TEXT;                           00001700
+         DCL     B1 CHAR(1) INIT(' ');                                  00001800
+         DCL     BITBLANK BIT(8) DEF B1;                                00001900
+         DCL     B80   CHAR(80) INIT(' ');                              00002000
+         DCL     T80   CHAR(80) INIT(                                   00002100
+ '----------------------------------------------------------------------00002200
+ --------');                                                            00002300
+         DCL PAGENO BIN FIXED STATIC INIT(1);                           00002400
+                                                                        00002500
+         DCL H2 BIT(8) STATIC INIT('00000010'B);                        00002600
+         DCL HEX02 CHAR(1) BASED(PX);                                   00002700
+         DCL PX POINTER;                                                00002800
+         PX=ADDR(H2);                                                   00002900
+     PUT SKIP LIST('PROGRAM STARTING');                                 00003000
+                                                                        00003100
+         ON ENDFILE(SYSUT1) GOTO END;                                   00003200
+     PUT SKIP LIST('AFTER ON END');                                     00003300
+         OPEN FILE(SYSUT1);                                             00003400
+     PUT SKIP LIST('AFTER OPEN IN');                                    00003500
+         OPEN FILE(SYSUT2);                                             00003600
+     PUT SKIP LIST('AFTER OPEN OUT');                                   00003700
+                                                                        00003800
+         CALL PHEAD;     /* SET UP A PAGE */                            00003900
+                                                                        00004000
+ MAINLOOP:                                                              00004100
+         READ FILE(SYSUT1) INTO(IN);                                    00004200
+         SAVE=IN;                        /* SAVE THE LINE */            00004300
+                                                                        00004400
+         IF IN='.E'   | IN='.E'                                         00004500
+         THEN DO;                                                       00004600
+              CALL PEND;                                                00004700
+              CALL PHEAD;                                               00004800
+              GOTO MAINLOOP;                                            00004900
+         END;                                                           00005000
+                                                                        00005100
+                                                                        00005200
+ /* HERE WE HAVE SOME TEXT TO BE PRINTED */                             00005300
+                                                                        00005400
+        TEXT=IN;     /* COPY TO FIXED LENGTH AREA, PAD WITH BLANKS*/    00005500
+                                                                        00005600
+         IF TYPE='UPPER'                                                00005700
+         THEN                                                           00005800
+         DO I=1 TO 80;                                                  00005900
+            BITTEXT(I)=BITTEXT(I) | BITBLANK;                           00006000
+         END;                                                           00006100
+                                                                        00006200
+  /* NOW THE TEXT COULD HAVE SOME HEX 02 CHARACTERS IN IT.              00006300
+   THIS MEANS THAT THE TEXT BETWEEN THE 02 CHARACTERS MUST BE PRINTED   00006400
+   IN A HIGHLIGHTED MANNER.                                             00006500
+                                                                        00006600
+   THE FIRST THING IS TO SAVE THE LINE AS IS, THEN CONVERT ALL          00006700
+   HEX 02 CHARS TO BLANKS FOR PRINTING LINE 1.                          00006800
+                                                                        00006900
+   THEN WE WILL RE-PRINT THE LINE (WITHOUT MOVING THE PRINTER)          00007000
+   SO AS TO HIGH-LIGHT THE TEXT THAT NEEDS HIGH-LIGHTING                00007100
+  */                                                                    00007200
+                                                                        00007300
+ T02AGAIN:                                                              00007400
+                                                                        00007500
+        L=INDEX(TEXT,HEX02);                                            00007600
+        IF L^=0 THEN DO;                                                00007700
+                SUBSTR(TEXT,L,1)=' ';                                   00007800
+                GOTO T02AGAIN;                                          00007900
+        END;                                                            00008000
+                                                                        00008100
+         PUT FILE(SYSUT2) SKIP     EDIT(                                00008200
+               '               |     ',TEXT,'     |')(A);               00008300
+                                                                        00008400
+  /* NOW TEST IF WE HAVE TO PRINT THE SECOND LINE OR NOT */             00008500
+  /* ***** DON'T   +++ THEY ARE NOT THERE CVC */                        00008600
+        GOTO MAINLOOP;                                                  00008700
+        TEXT=IN;       /* COPY THE TEXT AGAIN */                        00008800
+        L=INDEX(TEXT,HEX02);                                            00008900
+        IF L=0 THEN GOTO MAINLOOP;                                      00009000
+                         /* NO HEX 02 CHARS, GET NEXT LINE */           00009100
+                                                                        00009200
+ /* NOW WE HAVE SOME TEXT TO BE HIGHLIGHTED */                          00009300
+                                                                        00009400
+                                                                        00009500
+ T022AGAIN:                                                             00009600
+                                                                        00009700
+        L=INDEX(TEXT,HEX02);   /* FIND THE FIRST 02 */                  00009800
+        IF L^=0 THEN DO;                                                00009900
+                SAVEL=L;                  /* KEEP THE POSITION */       00010000
+                SUBSTR(TEXT,L,1)=' ';     /* BLANK IT OUT FOR NOW */    00010100
+                L=INDEX(TEXT,HEX02);      /* FIND THE MATCHING END */   00010200
+                IF L=0 THEN L=80;         /* GET THE WHOLE LINE */      00010300
+                IF L^=0 THEN DO;                                        00010400
+                      IF L^=80 THEN                                     00010500
+                      SUBSTR(TEXT,L,1)=' '; /* BLANK IT OUT FOR NOW */  00010600
+                                                                        00010700
+          /*          SUBSTR(TEXT2,SAVEL,L-SAVEL)                       00010800
+                      =SUBSTR(TEXT,SAVEL,L-SAVEL);*/                    00010900
+                END;                                                    00011000
+                GOTO T022AGAIN;                                         00011100
+        END;                                                            00011200
+                                                                        00011300
+   /*   IF TEXT2=' ' THEN GOTO MAINLOOP;  /* MIGHT BE ALL BLANKS */     00011400
+                                                                        00011500
+        GOTO MAINLOOP;                                                  00011600
+   PHEAD:PROC;                                                          00011700
+         PUT FILE(SYSUT2) PAGE EDIT(                                    00011800
+                ' C A I  -  J O L   (VERSION 1.0)') (COL(40),A);        00011900
+         PUT FILE(SYSUT2) LINE(15) EDIT(                                00012000
+               '                ',T80,T80)(A,A(45),A(45));              00012100
+         PUT FILE(SYSUT2) SKIP     EDIT(                                00012200
+               '               *     ',B80 ,'     *')(A);               00012300
+         PUT FILE(SYSUT2) SKIP     EDIT(                                00012400
+               '               |     ',B80 ,'     |')(A);               00012500
+         PUT FILE(SYSUT2) SKIP     EDIT(                                00012600
+               '               |     ',B80 ,'     |')(A);               00012700
+         PUT FILE(SYSUT2) SKIP     EDIT(                                00012800
+               '               |     ',B80 ,'     |')(A);               00012900
+         PUT FILE(SYSUT2) SKIP     EDIT(                                00013000
+               '               |     ',B80 ,'     |')(A);               00013100
+   END;  /* HEADING PROCEDURE */                                        00013200
+   PEND :PROC;                                                          00013300
+         PUT FILE(SYSUT2) SKIP     EDIT(                                00013400
+               '               |     ',B80 ,'     |')(A);               00013500
+         PUT FILE(SYSUT2) SKIP     EDIT(                                00013600
+               '               |     ',B80 ,'     |')(A);               00013700
+         PUT FILE(SYSUT2) SKIP     EDIT(                                00013800
+               '               |     ',B80 ,'     |')(A);               00013900
+         PUT FILE(SYSUT2) SKIP     EDIT(                                00014000
+               '               |     ',B80 ,'     |')(A);               00014100
+         PUT FILE(SYSUT2) SKIP     EDIT(                                00014200
+               '               *     ',B80 ,'     *')(A);               00014300
+         PUT FILE(SYSUT2) SKIP     EDIT(                                00014400
+               '                ',T80,T80)(A,A(45),A(45));              00014500
+         PUT FILE(SYSUT2) LINE(60) EDIT(                                00014600
+                ' C A I  -  J O L     PAGE ',PAGENO) (COL(45),A,A);     00014700
+         PAGENO=PAGENO+1;                                               00014800
+    /*   IF PAGENO>10 THEN SIGNAL ENDFILE(SYSUT1);*/                    00014900
+   END;  /* HEADING PROCEDURE */                                        00015000
+ END: CALL PEND;                                                        00015100
+    END; /* OF PROGRAM */                                               00015200

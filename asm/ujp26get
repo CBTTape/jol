@@ -1,0 +1,466 @@
+          TITLE 'JOL GET FILE ROUTINE'                                  00001000
+           PRINT OFF                                                    00002000
+         COPY  JOLCOM                                                   00003000
+           PRINT ON,GEN                                                 00004000
+P26SAVE  DSECT                                                          00005000
+         DS    18F                                                      00006000
+LP26BUF  DS    A              L'BUFFER FOR FREEMAIN AT END OF FILE      00007000
+AP26BUF  DS    A              A(BUFFER) FOR FILE                        00008000
+P26BLKSI   DS  H               BLOCKSIZE                                00009000
+P26CURRA   DS  A               ADDRESS OF CURRENT RECORD                00010000
+P26SAVEL EQU   *-P26SAVE                                                00011000
+         PRINT NOGEN                                                    00012000
+         DCBD  DSORG=PS,DEVD=DA                                         00013000
+         PRINT GEN,DATA                                                 00014000
+         PRINT GEN                                                      00015000
+         JOLSAVE CSECT=UJP26GET,SIZE=P26SAVEL                           00016000
+          USING TKNX,R3                                                 00017000
+         USING JOLCOM,R2                                                00018000
+         USING P26SAVE,R13                                              00019000
+* THIS ROUTINE IS PART OF THE JOL COMPILER,AND IS THE 'GET' INSTRUCTION 00020000
+*                                                                       00021000
+***** NEW:- APRIL 12,1975                                               00022000
+* COPYRIGHT CLARKE COMPUTER SOFTWARE.                                   00023000
+*                                                                       00024000
+* THE FORMAT OF THE GET IS:-                                            00025000
+*                                                                       00026000
+*          GET  <FILE> <OPTIONS>                                        00027000
+*  WHERE <FILE> ::- FILENAME (DDNAME) WITH OPTIONAL MEMBER NAME,        00028000
+*          EG GET FILE1(MEMBER2)                                        00029000
+*                                                                       00030000
+*  WHERE <OPTIONS> MAY BE :DATA                                         00031000
+*                         :KEY(S) KEYLEN,KEYPOSN FOLLOWED BY A NAME     00032000
+*                                 LIST WHICH SPECIFY THE EXPECTED       00033000
+*                                 KEYS TO BE FOUND ON INPUT             00034000
+*  IF NO OPTIONS ARE SPECIFIED,CARD(1)-CARD(N) WILL BE USED             00035000
+*  THE INSTRUCTION IS TERMINATED ON END OF FILE                         00036000
+*                                                                       00037000
+*  AS USUAL IN JOL, R2->JOLCOM,R3->TKNX AND R11 IS OUR BASE REGISTER    00038000
+*  WHICH LEAVES ALL THE OTHER REGISTERS (APART FROM 13) TO PLAY WITH    00039000
+         SPACE 3                                                        00040000
+* THE FOLLOWING MUST BE DONE:-                                          00041000
+*  1. VALIDATE THE INSTRUCTION                                          00042000
+*  2. OPEN FILE                                                         00043000
+*  3. CLEAR(NULLIFY) ANY EXISTING NAMES                                 00044000
+*  4. PERFORM THE GET.                                                  00045000
+*                                                                       00046000
+* BSAM/BPAM WILL BE USED FOR THE I/O ROUTINE, AND ONLY 1 BUFFER         00047000
+*  FOR SIMPLICITY. THIS SHOULDN'T BE TOO INEFFICENT, AS WE ONLY         00048000
+*  EXPECT TO READ A MAXIMUM OF SAY 50 RECORDS (USUALLY 10,I THINK)      00049000
+*  IF AN EXTREMELY LARGE FILE IS USED,IT WILL FILL UP THE               00050000
+*  SYMBOLIC PARAMETER TABLE, AND WON'T BE MUCH GOOD TO ANYONE,ANYWAY.   00051000
+*                                                                       00052000
+*  SET UP A CONSTANT TO MAKE THE 'ASSIGNMENT' HANDLING ROUTINE          00053000
+*  THINK THIS IS THE MACRO PROCESSOR, AS IT DOESN'T DO NEARLY           00054000
+*  AS MUCH WORK WHEN IT KNOWS THAT IT IS PROCESSING SOMETHING           00055000
+*  FROM THERE, IE IT DOESN'T TRY AND DO ARITHMETIC ON THE               00056000
+*  ITEM ITS STORING.                                                    00057000
+         MVC ICOMMAND,=CL8'MACRO'                                       00058000
+         SPACE                                                          00059000
+         LA    R4,P26DCB                                                00060000
+         USING IHADCB,R4                                                00061000
+* NOW SET UP THE DDNAME                                                 00062000
+         GETTKN 2            GET 2ND TOKEN                              00063000
+         CLI   TKN,C' ' ANY DATA THERE?                                 00064000
+         BNE   P26GO1                                                   00065000
+         JOLERR   301,'GET HAS NO FILE NAME'                            00066000
+         JOLRETN              RC=16                                     00067000
+P26GO1   EQU   *                                                        00068000
+         CLI TKN,C''''       DSNAME TYPE SPECIFIED ?                    00069000
+         BNE P26MVCDD        NOPE                                       00070000
+           JOLERR 413,'GET ''DSNAME'' NOT SUPPORTED - MVS ONLY'         00071000
+         JOLRETN RC=16                                                  00072000
+P26MVCDD MVC DCBDDNAM,TKN    SET UP DDNAME NOW                          00073000
+         SPACE                                                          00074000
+* NOW WE WANT R5=TOKEN NUMBER OF THE OPTIONAL MEMBER NAME,OR 0,         00075000
+*  AND R6 TO POINT TO THE NEXT VALID TOKEN AFTER THE MEMBER NAME,       00076000
+*  EG,KEY |DATA ETC                                                     00077000
+         SR R5,R5            SET R5=0 INITIALLY                         00078000
+         LR R6,R1            SET R6=TOKEN AFTER FILE NAME(INITIALLY)    00079000
+         GETTKN (R1)         R1=3 AT THE MOMENT,COS WE LAST DID A       00080000
+*                            GETTKN 2, AND GETTKN ALWAYS RETURNS A      00081000
+*                            NUMBER (IN R1) 1 HIGHER THAN IT WAS        00082000
+*                            CALLED WITH                                00083000
+         CLI TKN,C'('        IS THERE A MEMBER NAME SPECIFIED ?         00084000
+         BNE P26R6OK         NOPE                                       00085000
+         LR  R5,R1           SET R5=TOKEN NUMBER OF MEMBER NAME         00086000
+         LA  R1,1(R1)        ADD 1 TO R1 TO SKIP MEMBER NAME            00087000
+         LR  R6,R1           IN CASE THERE IS NO ')'                    00088000
+         GETTKN (R1)                                                    00089000
+         CLI TKN,C')'        ')' ?                                      00090000
+         BNE P26R6OK         NO -> DON'T WORRY ABOUT IT THOUGH          00091000
+         LR  R6,R1           SET R6 TO -> AFTER ')'                     00092000
+         SPACE                                                          00093000
+P26R6OK  EQU *                                                          00094000
+         SPACE                                                          00095000
+* NOW R6 -> NEXT KEYWORD, AND R5=TKN NUMBER OF <MEMBER> | 0             00096000
+         SPACE                                                          00097000
+         GETTKN (R6)         GET THE NEXT KEYWORD THEN                  00098000
+         CLC =C'KEY ',TKN    KEY ?                                      00099000
+         BE  P26KEY                                                     00100000
+         CLC =C'KEYS ',TKN   KEYS ?                                     00101000
+         BE  P26KEY                                                     00102000
+         CLI TKN,C' '        ' ' (IE READ FILE-ALL)                     00103000
+         BE  P26ALL                                                     00104000
+         CLC =C'DATA ',TKN                                              00105000
+         BE  P26DATA                                                    00106000
+           CLC =C'LIST ',TKN   GET LIST ?                               00107000
+           BE  P26LIST                                                  00108000
+P26LIST   EQU  *   **************------------------                     00109000
+         JOLERR 408,'''',#TKN,''' IS NOT SUPPORTED'                     00110000
+         JOLRETN RC=16                                                  00111000
+         EJECT                                                          00112000
+P26KEY   EQU *                                                          00113000
+* NOW WE WANT TO SET R6=KEYLENGTH AND R7=KEYPOSN                        00114000
+         SR R6,R6            INITIALISE TO 0 (KEYLEN)                   00115000
+         SR R7,R7            INITIALISE TO 0 (KEYPOSN)                  00116000
+         SPACE                                                          00117000
+P26GTNXT GETTKN (R1)         GET TOKEN AFTER 'KEY' KEYWORD.      C DASD 00118000
+         CLI   TKN,C'='                IF GET KEY= THEN GO GET   A DASD 00119000
+         BE    P26GTNXT                   THE NEXT TOKEN         A DASD 00120000
+         LR R8,R1            SAVE NEXT POSN                             00121000
+         TNUM #TKN           TEST IT TO BE NUMERIC                      00122000
+           LTR R6,R1           LOAD R6 WITH KEYLENGTH                   00123000
+           BZ  *+6             =0 ?, DON'T SUBTRACT                     00124000
+           BCTR R6,0           -1 FOR EX MOVE                           00125000
+         LTR R15,R15         IS IT ?                                    00126000
+           BZ  P26KEYLO K      YES                                      00127000
+         JOLERR 402,'KEY LENGTH ''',#TKN,''' IS NOT NUMERIC' ERROR MSSG 00128000
+         JOLRETN RC=16                                                  00129000
+P26KEYLO GETTKN (R8)                                                    00130000
+         CLI TKN,C','        ',' AFTER LENGTH ?                         00131000
+         BNE P26NOPOS        NO.POSITION SPECIFIED,ASSUMME 1.           00132000
+         GETTKN (R1)         GET THE POSITION THEN                      00133000
+         LR    R8,R1         GET NEXT                                   00134000
+         TNUM #TKN           CONVERT TO NUMERIC                         00135000
+         LTR  R15,R15                                                   00136000
+           BNZ P26KPER         NOT NUMERIC ERROR                        00137000
+           LTR R7,R1           TEST NUMERIC THEN                        00138000
+         BNM  P26MINUS       -1 COS USER WILL SPECIFY POSN 1,WHICH IS 0 00139000
+         BZ   P26WARN        =0,OK,GIVE WARNING BUT...                  00140000
+P26KPER    EQU *                                                        00141000
+         JOLERR 403,'KEY POSITION ''',#TKN,''' IS NOT NUMERIC' ERROR    00142000
+         JOLRETN RC=16                                                  00143000
+P26MINUS   BCTR R7,0                                                    00144000
+         B    P26GOTPS                                                  00145000
+P26WARN  JOLERR 204,'KEY POSITION SPECIFIED WAS ZERO,ONE ASSUMED'       00146000
+P26GOTPS EQU *                                                          00147000
+P26NOPOS EQU *                                                          00148000
+*                                                                       00149000
+* R6,R7 ARE NOW SET CORRECTLY.                                          00150000
+* R8-> NEXT TOKEN NUMBER AFTER THE KEY LENGTH AND/OR POSITION.          00151000
+*                                                                       00152000
+* SIMILAR TO UJP25ED, WE MUST NULLIFY ALL THE NAMES IN THE LIST         00153000
+*  BEFORE WE GET GOING. THIS IS IN CASE THE NAMES HAVE ALREADY          00154000
+*  BEEN DECLARED AND HAVE VALUES IN THEM.                               00155000
+*                                                                       00156000
+         MVC #WORK,ZERO      ZERO LENGTH MEANS:-%A=''; IE NULLIFY       00157000
+         LR  R9,R8           KEEP A POINTER TO THE START OF THE         00158000
+*                            NAME LIST.                                 00159000
+P26LUP1  GETTKN (R8)         RET FIRST (OR NEXT) 'NAME'                 00160000
+         LR R8,R1            KEEP THE POINTER TO THE NEXT ITEM          00161000
+         CLI   TKNTYPE,0      NUMERIC?                                  00162000
+         BE    P26KEYN                                                  00163000
+         CLI TKNTYPE,2       <IDENTIFIER> ? (COULD BE A ' ' TOO)        00164000
+         BNE P26TCOMM        NO, TEST FOR A ',' ETC                     00165000
+         CLI TKN,C' '        END OF NAME LIST ?                         00166000
+         BE  P26END1         YES -> ON TO NEXT PROCESSING               00167000
+P26KEYN  EQU  *                                                         00168000
+         LA    R15,1(R6)      SET R15=R6+1                              00169000
+         CH  R15,#TKN         IS THIS NAME>KEYLENGTH SPECIFIED ?        00170000
+         BNL  P26LENOK        NO,SO ITS OK                              00171000
+         JOLERR 305,'KEY NAME OF ''',#TKN,''' IS LONGER THAN THE KEYLEN*00172000
+               GTH YOU SPECIFIED'                                       00173000
+         JOLRETN RC=16                                                  00174000
+P26LENOK MVC SYMBOLIC,TKN         SHIFT NAME TO SYMBOLIC                00175000
+        $CALL UJP85ASN      $CALL ASSIGN ROUTINE TO CLEAR NAME IF       00176000
+*                            ALREADY SET UP, OR DCL IT IF IT HASN'T     00177000
+*                            BEEN SET UP.                               00178000
+         B  P26LUP1          AND ROUND THE LOOP                         00179000
+         SPACE 3                                                        00180000
+P26TCOMM CLI TKN,C','        ',' ?                                      00181000
+         BE  P26LUP1         YEP, IGNORE IT                             00182000
+         CLI TKN,C'('                                                   00183000
+         BE  P26LUP1                                                    00184000
+         CLI TKN,C')'                                                   00185000
+         BE  P26LUP1                                                    00186000
+         JOLERR 406,'''',#TKN,''' IS INVALID IN A KEYNAME LIST'         00187000
+         JOLRETN RC=16                                                  00188000
+         SPACE 3                                                        00189000
+P26END1  LA  R7,WORK(R7)     SET R7=ACTUAL ADDRESS OF THE POSITION      00190000
+*                            IN THE RECORD THAT WE WILL BE LOOKING      00191000
+*                            AT FOR THE KEY (R7 USED TO CONTAIN THE     00192000
+*                            RELATIVE POSITION)                         00193000
+*   R6 CAN BE USED NOW TO EXECUTE A CLC INSTRUCTION                     00194000
+         SPACE                                                          00195000
+           SPACE 3                                                      00196000
+           LR R8,R9          RESET R8 TO START OF NAME STRING           00197000
+* NOW, WE ARE READY TO OPEN FILE AND GET CRACKING                       00198000
+         SPACE                                                          00199000
+         BAL R12,P26OPEN     OPEN FILE,IF IT CAN'T WILL PRINT ERROR     00200000
+*                            AND RETURN                                 00201000
+P26LUP2  BAL R12,P26GETRC    GET A RECORD (ALWAYS GOES TO #WORK)        00202000
+* NOW WE HAVE TO SCAN THE NAME LIST AND SEE IF THE KEY ON THE           00203000
+*  RECORD MATCHES ONE WE'VE GOT                                         00204000
+         LR  R1,R9           PICK UP THE FIRST TOKEN NUMBER OF          00205000
+*                            THE NAME LIST                              00206000
+P26LUP3  GETTKN (R1)         GET IT                                     00207000
+         CLI   TKNTYPE,0      <NUMBER>                                  00208000
+         BE    P26DOCOM       DO THE COMPARISON FOR A NUMBER            00209000
+         CLI TKNTYPE,2       IS IT AN <IDENTIFIER>                      00210000
+         BNE P26LUP3         NO, IGNORE IT (REMEMBER THE NAME LIST WAS  00211000
+*                            FULLY EDITED BEFORE, SO HERE WE CAN SIMPLY 00212000
+*                            IGNORE ANY ITEM WE DON'T WANT)             00213000
+         CLI TKN,C' '        END OF NAME LIST ?                         00214000
+         BNE P26DOCOM        NO,DO THE COMPARISON THEN.                 00215000
+* HERE WE DIDN'T FIND A MATCH FOR THE RECORD READ, OR IT IS DUPLICATED  00216000
+* (SEE NOTES ON DUPLICATION BELOW, AND THE 'FUNNY' PULLED TO DETECT     00217000
+*  THEM).                                                               00218000
+         CLC #WORK,=H'80'    IS RECORD LENGTH>80 ?                      00219000
+         BNH P26LEAV1        NO                                         00220000
+         MVC #WORK,=H'80'    YES,SET TO 80                              00221000
+P26LEAV1 EQU   *                                                        00222000
+         EX  R6,P26MVC2      SHIFT THE OFFENDING KEY TO TKN             00223000
+         LA  R1,1(R6)        AND SET                                    00224000
+         STH R1,#TKN         - UP ITS LENGTH                            00225000
+         JOLERR 107,'KEY ''',#TKN,''' FOUND IN RECORD ''',#WORK,''' WAS*00226000
+                NOT SPECIFIED IN YOUR KEY LIST,OR THE RECORD IS DUPLICA*00227000
+               TED'                                                     00228000
+         B  P26LUP2          GET NEXT RECORD,ETC                        00229000
+         SPACE 3                                                        00230000
+P26DOCOM EQU *                                                          00231000
+* #WORK CONTAIN THE RECORD, AND #TKN A KEY, LETS SEE IF THEY MATCH      00232000
+         EX R6,P26CLC1       MATCH ON KEYS ?                            00233000
+         BNE P26LUP3         NOPE, GET ANOTHER KEY THEN MATE...         00234000
+* WELL,ALL WE HAVE TO DO IS STORE THE RECORD, THEN DO A                 00235000
+*  'FUNNY' SO THAT WE WON'T GET THIS KEY AGAIN.                         00236000
+         LR  R8,R1            SAVE POINTER TO NEXT KEY IN NAME LIST     00237000
+* R8 USED 3  INSTRUCTIONS BELOW FOR THE 'FUNNY'.                        00238000
+         MVC SYMBOLIC,TKN         SET UP THE KEYNAME FOR THE ASSIGN RTN 00239000
+        $CALL UJP85ASN       UJP85ASN STORES THE RECORD UNDER THE       00240000
+*                            APPROPRIATE % NAME                         00241000
+         LR R1,R8            RESET R1 BECAUSE IT WOULD HAVE BEEN DESTR- 00242000
+*                            OYED IN 'UJP85ASN'                         00243000
+* NOW YOU WILL HAVE NOTICED EARLIER IN THE CODE LABELLED 'P26LUP3'      00244000
+*   THAT WE GET A TKN, AND CHECK TO SEE IF IT IS A TYPE 2, OR 0, IE     00245000
+*   AN <IDENTIFIER>,AND IF IT IS NOT, WE IGNORE IT, BECAUSE WE SAID     00246000
+*   THAT THE NAME LIST HAD ALREADY BEEN PRETTY WELL VALIDATED, AND      00247000
+*   SO WE CAN IGNORE  ANY ITEMS THAT WEREN'T <IDENTIFIERS>.             00248000
+* WELL, HAVING USED THIS KEY, NOW WE ARE GOING TO MAKE IT               00249000
+*   LOOK LIKE ITS NOT AN <IDENTIFIER> WITH A BIT OF A FIDDLE.           00250000
+*        SLL R8,2            *(R8) BY 4                                 00251000
+*        LA  R8,TKNDESC-8+1(R8) GET A(DESC BYTE) WHICH DESCRIBES 'TKN'  00252000
+******** UNFORTUNATELY, THE ABOVE 2 INSTRUCTIONS WILL GIVE AN           00253000
+******** ASSEMBLY ERROR:TKNDESC-8 IS NOT ADDRESSABLE                    00254000
+******** THEREFORE:-                                                    00255000
+         S   R8,ONE          -1                                         00256000
+         SLL R8,2            MULT BY 4                                  00257000
+         LA  R8,TKNDESC-4+1(R8)                                         00258000
+         MVI 0(R8),1         SHIFT X'1' INTO TKNTYPE INDICATOR          00259000
+         B   P26LUP2         GET NEXT RECORD                            00260000
+         SPACE 3                                                        00261000
+*********************************************************************** 00262000
+*                 END OF GET EDIT WITH KEY... HURRAY....                00263000
+         EJECT                                                          00264000
+P26ALL   EQU *                                                          00265000
+* THIS SECTION OF CODE WILL READ THE ENTIRE FILE INTO SYMBOLIC          00266000
+*  LOCATIONS CALLED CARD(1)-CARD(N)                                     00267000
+* IT IS MUCH EASIER THAN THE GET WITH KEYS.                             00268000
+         BAL R12,P26OPEN     OPEN FILE                                  00269000
+         ZAP P53NO,=P'0'     SET A WORK LOCATION TO P'0'                00270000
+         MVC SYMBOLIC(4),=CL4'CARD' SET NAME UP AS CARD                 00271000
+P26LUP4  BAL R12,P26GETRC    READ A RECORD TO #WORK                     00272000
+         AP  P53NO,=P'1'     ADD 1 TO COUNTER                           00273000
+         UNPK SYMBOLIC+4(4),P53NO UNPACK NO.                            00274000
+         OI  SYMBOLIC+7,C'0'      CONVERT TO PROPER EBCIDIC.            00275000
+        $CALL UJP85ASN       SHIFT TO SYMBOLIC TABLE.                   00276000
+         B   P26LUP4                                                    00277000
+******  END, GET FILE                                                   00278000
+P26DATA  EQU  *                                                         00279000
+         B   P26LIST   *******************                              00280000
+* YES, GET DATA CAN WAIT FOR ANOTHER DAY PEOPLES                        00281000
+           EJECT                                                        00282000
+P26OPEN  EQU *                                                          00283000
+* THIS SMALL ROUTINE IS BAL'D TO ON R12 AND OPENS THE INPUT FILE,       00284000
+*   WHOSE DCB IS A (R4).                                                00285000
+* R5 CAN BE ZERO, IN WHICH CASE WE AREN'T AFTER A MEMBER NAME,          00286000
+*   OR IT WILL CONTAIN A NUMBER SUCH THAT IF WE DO A GETTKN, THEN       00287000
+*   TKN WILL HAVE THE MEMBER NAME WE WANT.                              00288000
+*                                                                       00289000
+* BEFORE WE OPEN THE FILE, WE MUST CHECK IF WE                          00290000
+* HAVE A JES INPUT FILE, AND IF SO, WE MUST SET                         00291000
+* THE DSORG FIELD TO SEQUENTIAL, OTHERWISE WE                           00292000
+* WILL ABEND S013.                                                      00293000
+*                                                                       00294000
+* THE DEVTYPE MACRO WILL TELL US WHAT WE HAVE.                          00295000
+*                                                                       00296000
+         DEVTYPE DCBDDNAM,CALLAREA                                      00297000
+         LTR   R15,R15                                                  00298000
+         BNZ   P26NOFIL                                                 00299000
+         CLC =X'00000102',CALLAREA JES INPUT/OUTPUT DEVICE?             00300000
+         BNE   P26CKPS                                                  00301000
+         MVI   DCBMACR1,DCBMRRD SHUT OFF POINT LEAVE READ ON       DASD 00303000
+P26MAKPS MVI   DCBDSORG,DCBDSGPS   MAKE SEQUENTIAL                 DASD 00303010
+         B     P26OPN2                                             DASD 00303020
+P26CKPS  LTR   R5,R5       GOT A MEMBER NAME ?                     DASD 00303030
+         BZ    P26MAKPS    IF NOT, SET DCB TO PS                   DASD 00303040
+P26OPN2  EQU   *                                                        00304000
+         MVI   CALLAREA,X'80'   SET LIST END FOR OPEN             76200 00305000
+         OPEN  ((R4),INPUT),MF=(E,CALLAREA)                             00306000
+         TM    DCBOFLGS,DCBOFOPN   OPEN ?                               00307000
+         BO    P26FILOK                                                 00308000
+P26NOFIL JOLERR 411,'FILE SPECIFIED CANNOT BE OPENED'                   00309000
+         JOLRETN RC=16                                                  00310000
+P26FILOK LTR   R5,R5          WAS A MEMBER SPECIFIED ?                  00311000
+         BZ    P26NOME2       NO ->                                     00312000
+         GETTKN (R5)                                                    00313000
+         FIND  (R4),TKN,D                                               00314000
+         LTR   R15,R15                                                  00315000
+         BZ    P26MEMO2                                                 00316000
+         JOLERR 409,'MEMBER ''',#TKN,''' CANNOT BE FOUND'               00317000
+           B   P26CLOSF        CLOSE FILE, RETURN                       00318000
+         SPACE 3                                                        00319000
+P26NOME2 EQU   *                                                        00320000
+P26MEMO2 EQU   *                                                        00321000
+           SPACE 1                                                      00322000
+* CHECK IF FB AND LRECL>200, ERROR (DO SAME VB, BUT ONLY AS             00323000
+*                              RECORDS BEING READ, COS LRECL            00324000
+*                              FOR VB IS MAX ONE ONLY).                 00325000
+           TM  DCBRECFM,X'50'  VB ?                                     00326000
+           BO  P26VB03                                                  00327000
+           CLC DCBLRECL,=H'200'                                         00328000
+           BNH P26LROK1                                                 00329000
+           JOLERR 310,'RECORDS TOO LARGE, MAX IS 200'                   00330000
+           B   P26CLOSF        CLOSE FILE, RETURN                       00331000
+P26LROK1   EQU *                                                        00332000
+P26VB03    EQU *                                                        00333000
+         LH    R0,DCBBLKSI    GET SIZE OF BUFFER REQD                   00334000
+         ST    R0,LP26BUF     SAVE FOR FREEMAIN                         00335000
+         GETMAIN R,LV=(0)     GET THE BUFFER SPACE                      00336000
+         LR    R10,R1              BUFFER ADDRESS                       00337000
+*        MVC   A26CURRO,ZERO  CLEAR CURRENT OFFSET IN BLOCK             00338000
+         ST    R10,AP26BUF    SAVE POSITION OF BUFFER                   00339000
+         READ  CALLAREA,SF,(4),(10),MF=(E,CALLAREA)                     00340000
+         CHECK CALLAREA                                                 00341000
+         CLI   CALLAREA,X'7F'                                           00342000
+           BNE P26CHK41        CHECK EOF THEN (ON FIRST READ)           00343000
+           SPACE 1                                                      00344000
+* CALC LENGTH OF BLOCK JUST READ                                        00345000
+           L   R1,CALLAREA+16  ADDRESS OF IOB                           00346000
+           LH  R14,DCBBLKSI    GET NUMBER OF BYTES REQUESTED IN 'READ'  00347000
+           SH  R14,14(R1)      -RESIDUAL COUNT= BYTES REALLY READ       00348000
+           STH R14,P26BLKSI    SAVED                                    00349000
+* NOW STORE ADDRESS OF FIRST RECORD                                     00350000
+           ST  R10,P26CURRA    FINE FOR FB, BUT VB S/B +4               00351000
+           TM  DCBRECFM,X'80'  VB ?                                     00352000
+           BO  0(R12)          NOPE, BACK TO CALLER                     00353000
+           LA  R1,4(R10)       +4 FOR VB BLOCK OVERHEADS                00354000
+           ST  R1,P26CURRA     STORE                                    00355000
+           BR  R12             BACK TO CALLER                           00356000
+           SPACE 2                                                      00357000
+P26CHK41   EQU *                                                        00358000
+         CLI   CALLAREA,X'41'      EOF ON FIRST READ                    00359000
+         BNE   P26ERR11                                                 00360000
+         SPACE 1                                                        00361000
+P26FREEB JOLERR 012,'NO DATA IN FILE'                                   00362000
+P26EOF     EQU *                                                        00363000
+         LH    R0,DCBBLKSI                                              00364000
+         L     R1,AP26BUF                                               00365000
+         FREEMAIN R,LV=(0),A=(1)   FREE THE BUFFER                      00366000
+P26CLOSF   MVI  CALLAREA,X'80'  SET END                                 00367000
+           CLOSE ((R4)),MF=(E,CALLAREA)                                 00368000
+         JOLRETN RC=0              NULL DATA SET, JUST RETURN           00369000
+P26ERR11 JOLERR 414,'I/O ERROR -CHECK FAILED'                           00370000
+           B   P26EOF          FREE BUFFER,CLOSE FILE, RETURN           00371000
+         SPACE 3                                                        00372000
+P26GETRC EQU   *                                                        00373000
+* THIS ROUTINE IS BALD TO ON R12 TO GET THE NEXT RECORD FROM THE        00374000
+*  FILE                                                                 00375000
+           L   R1,P26CURRA     LOAD ADDRESS OF CURRENT RECORD IN BLOCK  00376000
+         TM    DCBRECFM,X'40' VB | FB                                   00377000
+         BO    P26VB02                                                  00378000
+* HERE FIXED FILE                                                       00379000
+           LR  R14,R10         LOAD R14=A(BLOCK,BUFFER)                 00380000
+           AH  R14,P26BLKSI    + CURRENT BLOCKSIZE                      00381000
+           CR  R1,R14          DO WE NEED A NEW BLOCK ?                 00382000
+           BNL P26NEWBL        YES, GO GET IT                           00383000
+           LH  R15,DCBLRECL    GET CURRENT LRECL                        00384000
+           STH R15,#WORK       SET #WORK WITH RECORD LENGTH             00385000
+           BCTR R15,0          -1 FOR EXECUTED MOVE                     00386000
+           EX  R15,P26FBMVC    SHIFT THE RECORD                         00387000
+           AH  R1,DCBLRECL     PREPARE TO RESET CURRENT RECORD PNTR     00388000
+           ST  R1,P26CURRA     RESET IT                                 00389000
+           BR  R12             RETURN TO CALLER                         00390000
+           SPACE 3                                                      00391000
+P26VB02    EQU *                                                        00392000
+* HERE A VB TYPE FILE (V ANYWAY)                                        00393000
+*    R1 -> CURRENT RECORD                                               00394000
+*    R10-> BUFFER                                                       00395000
+*    R4 -> DCB                                                          00396000
+           MVC #WORK,0(R1)     SHIFT RECORD LENGTH TO #WORK             00397000
+           MVC DCBLRECL,0(R1)                                           00398000
+           CLI #WORK,X'7F'     NEW BLOCK REQD INDICATOR                 00399000
+           BE  P26NEWBL        =,YES, GET NEW BLOCK THEN                00400000
+* NOW SHIFT THE RECORD, AND RESET 'P26CURRA'                            00401000
+           LH  R15,#WORK                                                00402000
+           SH  R15,=H'5'       -4 FOR VB OVERHEAD,-1 FOR EX MVC         00403000
+           EX  R15,P26VBMVC    SHIFT RECORD TO WORK                     00404000
+         LA    R15,1(R15)     ADD 1                                     00405000
+         STH   R15,#WORK                                                00406000
+* NOW RESET 'P26CURRA'                                                  00407000
+           LR  R15,R1          SAVE OLD CURRENT RECORD ADDRESS          00408000
+           AH  R1,DCBLRECL     + L'CURRENT RECORD=A(NEXT REC)           00409000
+           LR  R14,R10         A(BUFFER)                                00410000
+           AH  R14,0(R10)      R14=END ADDRESS OF BLOCK                 00411000
+*                              R1=ADDRESS OF NEXT RECORD                00412000
+           SPACE 1                                                      00413000
+           CR  R1,R14          WAS RECORD JUST MOVED LAST IN BLOCK ?    00414000
+           BL  P26VB04         NO                                       00415000
+* SET INDICATOR SO WE KNOW TO READ A NEW BLOCK NEXT TIME WE ARE         00416000
+*    CALLED                                                             00417000
+           MVI 0(R15),X'7F'                                             00418000
+           BR  R12             BACK TO CALLER                           00419000
+           SPACE 1                                                      00420000
+P26VB04    ST  R1,P26CURRA                                              00421000
+           BR  R12                                                      00422000
+P26NEWBL L     R10,AP26BUF                                              00423000
+         READ  CALLAREA,SF,(4),(10),MF=(E,CALLAREA)                     00424000
+         CHECK CALLAREA                                                 00425000
+         CLI   CALLAREA,X'7F' COMPLETE NORMALLY ?                       00426000
+           BE  P26NEWRS        RESET THINGS A BIT                       00427000
+* CHECK EOF THEN                                                        00428000
+           CLI CALLAREA,X'41'  EOF ?                                    00429000
+           BNE P26ERR11        ERROR                                    00430000
+           B   P26EOF          EOF                                      00431000
+           SPACE 3                                                      00432000
+P26NEWRS   L   R1,CALLAREA+16  IOB                                      00433000
+           LH  R14,DCBBLKSI    NUMBER OF BYTES REQUESTED IN READ        00434000
+           SH  R14,14(R1)      -RESIDUAL COUNT                          00435000
+           STH R14,P26BLKSI    =NO. BYTES REALLY READ                   00436000
+* SET P26CURRA NOW                                                      00437000
+           ST  R10,P26CURRA                                             00438000
+           TM  DCBRECFM,X'80'  VB OR FB                                 00439000
+           BO  P26GETRC        FB, GO GET RECORD NOW                    00440000
+           LA  R1,4(R10)       SET VB                                   00441000
+           ST  R1,P26CURRA                                              00442000
+           B   P26GETRC        GO GET RECORD                            00443000
+           PRINT NOGEN                                                  00444000
+P26DCB     DCB DDNAME=X,MACRF=R,DSORG=PO,EODAD=P26EOF              DASD 00445000
+           PRINT GEN                                                    00446000
+P26MVC2    MVC   TKN(*-*),0(R7)   SHIFT BAD KEY TO TKN                  00447000
+P26CLC1    CLC   TKN(*-*),0(R7)   COMPARE KEYS                          00448000
+P26FBMVC   MVC   WORK(*-*),0(R1)  GET FB RECORD                         00449000
+P26VBMVC   MVC   WORK(*-*),4(R1)  GET VB RECORD                         00450000
+         LTORG                                                          00451000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00452000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00453000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00454000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00455000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00456000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00457000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00458000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00459000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00460000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00461000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00462000
+           END                                                          00463000

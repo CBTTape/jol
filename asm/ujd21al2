@@ -1,0 +1,352 @@
+         TITLE 'UJE21ALL: HANDLE DATASET ALLOCATION'                    00010000
+         JOLSAVE CSECT=UJE21ALL                                         00020000
+*                                                                       00021000
+*  DYNAMIC ALLOCATION OF DATA SETS.                                     00022000
+*                                                                       00023000
+*  PROBLEMS:-                                                           00024000
+*   1. SYSOUT DATA SETS GET SPUN OFF.                                   00025000
+*      SOLUTION: ALLOCATE WITH SYSNNN NUMBER, THEN CONCATENATE          00026000
+*                REAL DDNAME. AT END, DO NOT FREE, BUT DECONCATENATE.   00027000
+*                                                                       00028000
+*   2. TAPE SCRATCH VOLUMES WRITING LABEL 1 THEN 2 IN SAME STEP.        00028100
+*      SVC99 CAN'T RETURN VOLUME NAME.                                  00028200
+*      SOLUTION: ALLOCATE WITH SYSNNN NUMBER, OPEN FOR OUTPUT,          00028300
+*                ALLOCATE REAL DDNAME, FREE SYSNNN, PRESS ON.           00028400
+*                                                                       00028500
+*                                                                       00029000
+         FIX   'IF DATASET IS TO BE RE-WRITTEN, CALL DELETE NEAR HERE'  00030000
+*            AND THEN ALLOCATE AS A NEW DATASET                         00040000
+         LA    R0,WORK                                                  00050000
+         LA    R1,L'WORK                                                00060000
+         SLR   R15,R15                                                  00070000
+         MVCL  R0,R14                                                   00080000
+         CLI   DDTYPE,DDSYSOUT       IS IT A SYSOUT FILE                00081000
+         BNE   E21NPRT               NO, BYPASS CLEARING DDNAME         00082000
+         MVC   SAVEDD,DDDDNAME       COPY THE DDNAME                    00083000
+         CLEAR DDNAME                WE WANT A 'SYSNNN' NUMBER          00084000
+E21NPRT  CLC   =CL8' ',DDDDNAME      Q... CONCATENATED FILE?            00090000
+         BE    E21NOTCT              A... NO                            00100000
+         MVC   SAVEDD,DDDDNAME       COPY THE DDNAME                    00110000
+E21NOTCT DS    0H                                                       00120000
+         CLC   =C'PRGLIB  ',DDDDNAME Q... PRGLIB?                       00130000
+         BE    E21MVDDN              A... YES                           00140000
+         CLC   =C'STEPLIB ',DDDDNAME Q... STEPLIB?                      00150000
+         BNE   E21X8A                A... NO                            00160000
+E21MVDDN MVC   STEPLBDD,DDDDNAME      MOVE IN THE DDNAME                00170000
+E21X8A   DS    0H                                                       00180000
+         CLI   DDTYPE,DDSYSIN      Q... SYSIN DATASET?                  00190000
+         BNE   E21NSSIN            A.. NO                               00200000
+         MVC   DDMBR,DDDSNAME+2    ESTABLISH MEMBER NAME                00210000
+         CLEAR DDDSNAME,DSN                                             00220000
+         MVC   DDDSNAME(L'DDDSNAME),SYSINDSN   COPY DSN                 00230000
+         MVC   #DSN(28),#SYSINDS                                        00240000
+         CLEAR DDVOLUME                                                 00250000
+         MVC   DDVOLUME(6),SYSINVOL                                     00260000
+         MVI   DDUSE,B'00001000'   DISP=(SHR,KEEP)                      00270000
+         MVI   DDTYPE,DDMEMSPC                                          00280000
+         MVI   DDUNITYP,X'80'         TELL ALLOC THAT IT IS A DISK.     00290000
+         B     E21X8A4                                                  00300000
+E21NSSIN DS    0H                                                       00310000
+         SPACE 2                                                        00320000
+*  BEFORE GOING ANY FURTHER, WHY NOT HAVE A LOOK AROUND TO SEE          00330000
+*   WHAT IS ALREADY AVAILABLE?                                          00340000
+* ****** UNLESS THIS IS A CONCATENATED FILE, IN WHICH CASE WE SHALL     00350000
+*        DO A PROPER ALLOCATION      CVC                                00360000
+         CLC   =CL8' ',DDDDNAME     CONCATENATED ?                      00370000
+         BE    E21NOFCT             YES, GO THROUGH NORMAL ALLOC        00380000
+         SPACE 2                                                        00390000
+         CALL  UJD03DS1,DDDSNDET                                        00400000
+         MVC   #DSN,=H'26'                                              00410000
+         MVC   #VOL,=H'12'                                              00420000
+         MVC   VOL(12),DDVOLUME                                         00430000
+         JOLERR 005,                                                   .00440000
+               'DSID ',DDDSID,                                         .00450000
+               ' DDNAME ',DDDDNAME,' DSN ',#DSN,                       .00460000
+               ' VOL ',#VOL,' ALLOC '                                   00470000
+         SPACE 3                                                        00480000
+         B     E21RETN                                                  00490000
+         SPACE 5                                                        00500000
+E21NOFCT DS    0H                                                       00510000
+E21X8A4  DS    0H                                                       00520000
+         SPACE 2                                                        00530000
+*  NOW CHECK FOR VOLREF                                                 00540000
+         SPACE                                                          00550000
+         CLI   DDVOLUME,C'*'         VOLREF USED?                       00560000
+         BNE   E21X8A5             NO                                   00570000
+         BAL   R14,E21VREF         GO AND FIX VOLREF                    00580000
+E21X8A5  DS    0H                                                       00590000
+         CALL  UJD03DS1,DDDSNDET                                        00601000
+*        CALL UJE03X8A,(DDOSVB,CALLARE2),VL,MF=(E,CALLAREA)             00610000
+         ST    R15,TASKRETN                                             00620000
+         LTR   R1,R15                                                   00630000
+         BZ    E21DDOK          ALLOCATED PROPERLY                      00640000
+         CH    R15,=H'172'      FAIL BECAUSE OF NO DEVICE AVAIL?        00650000
+         BNE   U21CVCAF         NO, GIVE FAILURE MESSAGE                00660000
+         XC    ALLOCECB,ALLOCECB                                        00670000
+   WTOR  'WHEN A TAPE DRIVE IS AVAILABLE, PLEASE REPLY GO',ALLOCREP,   *00680000
+               2,ALLOCECB                                               00690000
+         WAIT  ECB=ALLOCECB                                             00700000
+         B     E21X8A5          TRY AGAIN                               00710000
+U21CVCAF CVD   R15,DBL                                                  00720000
+         MVC   TASKSSI,=X'40202120'                                     00730000
+         ED    TASKSSI,DBL+6                                            00740000
+         JOLERR 406,'DSID ',DDDSID,', DDNAME ',                        .00750000
+               DDDDNAME,', DS ',#DSN,' FAILED WITH RETURN CODE',       .00760000
+               TASKSSI                                                  00770000
+         CLEAR DPDATA                                                   00780000
+         LA    R0,DPBLKL                                                00790000
+         SLL   R0,16                                                    00800000
+         ST    R0,DPBLOCK                                               00810000
+         LA    R0,DPLINEL                                               00820000
+         SLL   R0,16                                                    00830000
+         ST    R0,DPLINE                                                00840000
+         L     R2,CALLARE2     ADDRESS OF AREA TO DUMP                  00850000
+E21LP0   DS    0H                                                       00860000
+         ST    R2,CALLAREA                                              00870000
+         UNPK  DBL(9),CALLAREA(5)                                       00880000
+         TR    DBL,HEX                                                  00890000
+         MVC   DPADDR,DBL+2                                             00900000
+         MVC   DPCHARS,0(R2)   COPY DATA IN CHARACTERS                  00910000
+         TR    DPCHARS,TRTAB   REMOVE SOME HARD-TO-PRINT DATA           00920000
+         LA    R14,DPHEX       ADDRESS FOR HEX DATA                     00930000
+         LA    R1,2                                                     00940000
+E21LP1   DS    0H                                                       00950000
+         LA    R0,4            4 SEGMENTS                               00960000
+E21LP2   DS    0H                                                       00970000
+         UNPK  DBL(9),0(5,R2)  CONVERT SOME TO HEX                      00980000
+         TR    DBL,HEX                                                  00990000
+         MVC   0(8,R14),DBL    INTO THE PRINT LINE                      01000000
+         LA    R14,9(,R14)     NEXT FOR OUTPUT                          01010000
+         LA    R2,4(,R2)       NEXT FOR INPUT                           01020000
+         BCT   R0,E21LP2                                                01030000
+         LA    R14,1(,R14)    AN EXTRA SKIP IN PAGE CENTRE              01040000
+         BCT   R1,E21LP1                                                01050000
+         L     R1,=A(S23DECB)                                           01060000
+         WRITE (1),SF,,DPBLOCK,MF=E                                     01070000
+         L     R1,=A(S23DECB)                                           01080000
+         CHECK (1)                                                      01090000
+         C     R2,CALLARE2+4   Q... ANY MORE?                           01100000
+         BNH   E21LP0          A... YES                                 01110000
+         L     R1,TASKRETN                                              01120000
+         CALL  UJS45AER                                                 01130000
+         TM    E21FLAG,E21CONT                                          01140000
+         BO    E21RETN                                                  01150000
+         JOLERR 500,'RUN TERMINATED DUE TO ALLOCATION ERROR'            01160000
+         ABEND 2 ,,STEP                                                 01170000
+E21DDOK  DS    0H                                                       01180000
+         CLI   DDTYPE,DDSYSOUT    IS IT A SYSOUT FILE                   01190000
+         BE    E21SYSO            YES SO ADJUST MSG                     01200000
+         CLC   =CL6' ',DDVOLUME   IS THERE A VOLSER?                    01210000
+         BE    E21PIV             NO SO PUT IN VOLUME                   01220000
+E21DDOK2 MVC   VOL(12),DDVOLUME                                         01230000
+E21DDOK1 EQU   *                                                        01240000
+         MVC   #DSN,=H'28'                                              01250000
+         MVC   #VOL,=H'12'                                              01260000
+         JOLERR 003,                                                   .01270000
+               'DSID ',DDDSID,                                         .01280000
+               ' DDNAME ',DDDDNAME,' DSN ',#DSN,                       .01290000
+               ' VOL ',#VOL,' ALLOC '                                   01300000
+         B     E21RETN                                                  01310000
+E21PIV   EQU   *                                                        01320000
+* FIND VOLUME                                                           01330000
+         FIX SEARCH QDB ETC                                             01340000
+         B     E21OSQDB                                                 01350000
+         L     R4,ATCB           POINT AT TCB                           01360000
+         L     R4,TCBJSCB-TCB(,R4) POINT AT JSCB                        01370000
+         ICM   R4,7,JSCBFCTA-JSCB(R4) POINT AT FCT CHAIN                01380000
+         USING FCT,R4             MAP FCT                               01390000
+E21PIV1  EQU   *                                                        01400000
+         CLC   FCTFLN,DDDSNAME    IS IT THIS ONE?                       01410000
+         BE    E21PIV2            DO WHAT IS REQUIRED                   01420000
+         ICM   R4,7,FCTNFCTA      POINT AT NEXT FCT                     01430000
+         BNZ   E21PIV1            LOOK AT NEXT FCT                      01440000
+         B     E21DDOK2           IMPOSSIBLE TO GET HERE..BUT FOR       01450000
+*                                  SAFETY SAKE                          01460000
+E21PIV2  EQU   *                                                        01470000
+         L     R4,FCTVCT           POINT AT VCT                         01480000
+         MVC   VOL(6),8(R4)        PLUG IN VOL                          01490000
+         B     E21DDOK1            AND ISSUE MESSAGE                    01500000
+E21SYSO  EQU   *                                                        01510000
+* HERE WE MUST CONCATENATE THE REAL DDNAME TO THE SYSNNN DDNAME         01511000
+         MVC   #DSN,=H'1'                                               01520000
+         JOLERR 004,                                                   .01530000
+               'DSID ',DDDSID,                                         .01540000
+               ' DDNAME ',DDDDNAME,' SYSOUT=',#DSN,' ALLOC '            01550000
+E21RETN  DS    0H                                                       01560000
+         TM    DDUNITYP,X'80'                                           01570000
+         BZ    E21NPROP       DON'T PROPOGATE VOLUME AS IT MAY          01580000
+*                             BE A SCRATCH TAPE (IE NO VOLUME YET)      01590000
+         CALL  UJE30VOL       PROPOGATE VOLS DOWN JOL 'JOBQ'            01600000
+E21NPROP MVI   E21FLAG,0                                                01610000
+         L     R15,TASKRETN                                             01620000
+         B     RETRN                                                    01630000
+         SPACE 3                                                        01640000
+*  IT IS NECESSARY TO LOCATE THE FCT FOR THE DATASET WHOSE NAME IS      01650000
+*    IN DDVOLUME, TO FIND THE CURRENT VOLUMES AND COPY THE LIST TO      01660000
+*    THE ALLOCATION REQUEST FOR THIS DATASET                            01670000
+E21VREF  DS    0H                                                       01680000
+         LR    R10,R14              SAVE RETURN ADDRESS                 01690000
+         L     R4,ATCB              ADDRESS MY TCB                      01700000
+         L     R4,TCBJSCB-TCB(,R4)          MY JSCB                     01710000
+         ICM   R4,7,JSCBFCTA-JSCB(R4)         FIRST FCT                 01720000
+         BZ    E21VNFCT              EXIT IF NONE ?!! & SSSSSSSSS       01730000
+         SPACE                                                          01740000
+*   FOUND THE FCT CHAIN. NOW FIND THE DATASET ENTRY                     01750000
+         SPACE                                                          01760000
+         USING FCT,R4                                                   01770000
+E21VNXTF DS    0H                                                       01780000
+         CLC   FCTFLN,DDVOLUME+1   Q... IS THIS IT?                     01790000
+         BE    E21VFFCT            A... YES, GO AND GET THE VOLUME INFO 01800000
+         SPACE                                                          01810000
+         ICM   R4,7,FCTNFCTA         NEXT FCT                           01820000
+         BNZ   E21VNXTF              GO AND TEST THE NEXT ONE           01830000
+E21VNFCT DS    0H                    END OF CHAIN, AND NOT FOUND        01840000
+         JOLERR 507,'DSID ',DDDSID,',DS ',#DSN,                        .01850000
+               ' IS NOT ALLOCATED,',' VOLREF COULD NOT BE RESOLVED'     01860000
+E21VFFCT DS    0H                                                       01870000
+         SPACE 3                                                        01880000
+* NOW I HAVE FOUND THE FCT, COPY THE VOLUME SERIAL NUMBERS              01890000
+         SPACE 2                                                        01900000
+         CLEAR DDVOLUME                                                 01910000
+         SLR   R8,R8                                                    01920000
+         ICM   R8,1,FCTVOLNO        LOAD VOLUME COUNT                   01930000
+         BZ    E21VNFCT             EXIT IF THERE ARE NO VOLUMES        01940000
+         LA    R0,L'DDVOLUME/6      LOAD NUMBER OF VOLUMES ALLOWED      01950000
+         CR    R0,R8                CHECK THAT THE SERIAL NUMBERS FIT   01960000
+         BH    E21VOK               BE IF OK                            01970000
+         JOLERR 512,'DS ',DDDSID,',',#DSN,                             .01980000
+               ' IS NOT ALLOCATED,',' REFERS TO TOO MANY VOLUMES'       01990000
+E21VOK   DS    0H                                                       02000000
+         L     R6,FCTVCT                                                02010000
+         LA    R15,DDVOLUME         ADDRESS FOR VOLUMES                 02020000
+E21VNXTV DS    0H                                                       02030000
+         MVC   0(6,R15),8(R6)       COPY THE VOLUME SERIAL NUMBER       02040000
+         LA    R15,6(,R15)          ADDRESS FOR NEXT AREA               02050000
+         L     R6,4(,R6)            ADDRESS THE NEXT VCT                02060000
+         BCT   R8,E21VNXTV          CONTINUE UNTIL ALL AREA DONE        02070000
+         SPACE 2                                                        02080000
+*  WELL, THAT SHOULD BE ALL: NOW FREE THE ORIGINAL DATASET              02090000
+         SPACE                                                          02100000
+         MVC   SAVEDDET,DDDSNDET                                        02110000
+         MVC   DDDDNAME,FCTACSN                                         02120000
+         MVI   DDDISP+1,C'L'      LAST USE                              02130000
+         CALL  UJE14FRE           FREE THE FILE, ASSUME IT WORKED       02140000
+         MVC   DDDSNDET(DDLEN),SAVEDDET RESTORE THE ORIGINAL            02150000
+         UJE22UPD FCTFLN,DDVOLUME FIX FUTURE VOLUME REFERENCES          02160000
+         DROP  R4                                                       02170000
+         BR    R10                  RETURN                              02180000
+         SPACE 5                                                        02190000
+         DC    20S(*)   FOR PATCHES                                     02200000
+TRTAB    DC    256AL1(*-TRTAB) ALL THINGS TO ALL THINGS                 02210000
+         ORG   TRTAB                                                    02220000
+         DC    64X'40'         FIX THE FIRST ONES                       02230000
+         ORG   TRTAB+C'9'+1                                             02240000
+         DC    6C' '           AND THE LAST ONES                        02250000
+         ORG                                                            02260000
+ALLOCREP DC C'   ' FOR ALLOCATION REPLIES                               02270000
+ALLOCECB DC  F'0'  FOR ALLOCATION REPLIES                               02280000
+         TITLE 'CONCATENATE A FILE'                                     02450000
+* COPYRIGHT CCS-JOL P/L                   1986.                         02460000
+*                                                                       02470000
+         PRINT  ON                                                      02690000
+         PRINT  GEN                                                     02700000
+         PRINT DATA                                               75128 02710000
+         IEFZB4D2                                                       02720000
+         IEFZB4D0                                                       02730000
+S99LEN   EQU    S99RBEND-S99RB                                          02740000
+         TITLE 'DYNAMICALLY CONCATENATE A FILE'                         02750000
+E16LENS  EQU    *-E16SAVE                                               02940000
+         JOLSAVE CSECT=UJE16CON SIZE=E16LENS                            02950000
+*        USING E16SAVE,R13                                              02970000
+         LA    R9,S99PRMS                                               02980000
+         USING S99RB,R9                                                 02990000
+         XC    S99RB(S99LEN),S99RB  ZERO OUT ALL OF THE CONTROL BLOCK   03000000
+         MVI   S99RBLN,S99LEN     SET UP LENGTH                         03010000
+         MVI   S99VERB,S99VRBCC   CONCATENATE FUNCTION                  03020000
+         MVC   E16DDNM,SAVEDD                                           03030000
+         LA    R1,E16DDNMP                                              03340000
+         ST    R1,E16ATU1                                               03350000
+         MVI   E16ATU1,X'80'                                            03360000
+         LA    R1,E16ATU1                                               03370000
+         ST    R1,S99TXTPP                                              03380000
+         MVI   S99TXTPP,X'80'                                           03390000
+         SPACE 2                                                        03400000
+* THE PARAMETER LIST HAS BEEN SET-UP, APART FROM THE PARAMETERS         03410000
+*  TO SVC 99 PROPER.                                                    03420000
+* LEST DO THEM                                                          03430000
+         LA    R1,S99RB                                                 03440000
+         ST    R1,CALLAREA                                              03450000
+         MVI   CALLAREA,S99RBPND                                        03460000
+         SPACE 2                                                        03470000
+         LA    R1,CALLAREA                                              03540000
+         DYNALLOC                                                       03550000
+*                                                                       03560000
+*  CHECK TO SEE IF ERRORS OCCURED.                                      03570000
+*                                                                       03580000
+         ST    R15,CALLAREA+12          SAVE DYNALLOC RETURN CODE       03590000
+         LTR   R15,R15                                                  03600000
+         BNZ   D03ERR                RETURN CODE ZERO                   03610000
+         L     R0,S99ERROR           TEST ERR AND INFO CODE             03620000
+         LTR   R0,R0                 ERROR ?                            03630000
+         BZ    D0399OK                                                  03640000
+D03ERR   EQU   *                                                        03650000
+         B     NODYNDMP                                                 03660000
+         LA    R1,S99RB                 REQUEST BLOCK POINTER           03670000
+         LTR   R15,R15                                                  03680000
+         BZ    NODYNDMP                                                 03690000
+         L     R15,=V(DYNDUMP)          GET DUMP ROUTINE                03700000
+         WXTRN  DYNDUMP                                                 03710000
+         BALR  R14,R15                  GO TO IT                        03720000
+         SPACE  3                                                       03730000
+NODYNDMP DS    0H                                                       03740000
+         L     R1,CALLAREA+12          ADDR OF ERROR AND INFO CODES     03750000
+         LR    R15,R1                                                   03760000
+         O     R1,=XL4'40F0'        (CONVERT                            03770000
+         C     R15,=F'12'            CODES                              03780000
+         BNE   *+8                      TO                              03790000
+         LH    R1,=X'F1F2'                EBCDIC                        03800000
+         STH   R1,D03MSGH                   FOR                         03810000
+         UNPK  D03MSGI(9),S99ERROR            THE                       03820000
+         NC    D03MSGI(8),=8X'0F'                ERROR                  03830000
+         TR    D03MSGI(8),=C'0123456789ABCDEF'     MESSAGE)             03840000
+         LA    R1,D03MSG                                                03850000
+         SVC   35               WTO, ROUTCDE=11                         03860000
+         LINK  EP=IKJEFF18,PARAM=(S99RB,CALLAREA+12,TSOADR,    +++++++++03870000
+               TSOADR+4),MF=(E,CALLAREA+16)                             03880000
+         LA    R0,D03MSGL                                               03890000
+         LA    R1,D03MSG                                                03900000
+         SVC   93               TPUT MESSAGE                            03910000
+         JOLRETN                                                        03920000
+D03MSG   EQU   *                                                        03970000
+         DC    AL2(D03MSGL),X'8000'    LENGTH AND FLAGS                 03980000
+         DC    C' DYNALLOC RETURN CODE '                                03990000
+D03MSGH  DS    H                                                        04000000
+         DC    C', ERROR AND INFO CODE '                                04010000
+D03MSGI  DS    XL8                 SPACE FOR ERROR AND INFO CODES       04020000
+D03MSGL  EQU   *-D03MSG            LENGTH OF MESSAGE                    04030000
+         DC    XL4'20'             ROUTING CODE                         04040000
+TSOADR   DC    F'0'        DON'T KNOW ADDR OF IKJEFF02                  04050000
+         DC    X'80'      '80' WANT WTO, '00' WANT PUTLINE              04060000
+         DC    X'32'      '32' IF SVC99 USED, '01' IF DAIR USED         04070000
+         DC    C'JL'                                                    04080000
+D0399OK  L     R15,CALLAREA+12      RESTORE DYNALLOC RETURN CODE        04090000
+         JOLRETN                                                        04100000
+         DC H'0'    ABEND                                               04110000
+         SPACE 1                                                        04120000
+E16SAVE  DS     0F                                                      04121000
+E16DAL   DS     F                                                       04123000
+         DS     0D                                                      04124000
+S99PRMS  DS     0D                                                      04125000
+         ORG    *+S99LEN                                                04126000
+E16ATU1  DS     F                                                       04127000
+E16ATU2  DS     F                                                       04128000
+E16ATU3  DS     F                                                       04129000
+* ***** THE NEXT FIELDS MUST BE SET UP MANUALLY.                        04129100
+E16DDNMP DC     H'1'           KEY OF 1                                 04129200
+         DC     H'2'           COUNT OF 1                               04129300
+         DC     H'8'           LENGTH OF 8                              04129400
+E16DDNM  DC     CL8' '         DDNAME                                   04129500
+         DC     H'8'           LENGTH OF 8                              04129800
+E16DDN2  DC     CL8' '         DDNAME TWO                               04130000
+         DC  10S(*)                                                     04130100
+         LTORG                                                          04140000

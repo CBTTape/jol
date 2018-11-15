@@ -1,0 +1,124 @@
+         PUNCH ' PAGE TESTTEMP'                                  88036  00010000
+         LCLA  &A                                                88036  00020002
+TESTTEMP CSECT                                                   88036  00030000
+* WE ARE ABOUT TO FIND OUT ABOUT ALLOCATING TEMPORARY DATASETS   88036  00040000
+*     ON OSIV/X8                                                 88036  00050000
+         SPACE                                                   88036  00060000
+.L       AIF   (&A GT 15).E                                      88036  00070002
+R&A      EQU   &A                                                88036  00080002
+&A       SETA  1+&A                                              88036  00090002
+         AGO   .L                                                88036  00100002
+.E       ANOP                                                    88036  00110002
+         LR    R12,R15                                           88036  00120002
+         USING TESTTEMP,R12                                      88036  00130000
+NEXT     DS    0H                                                88036  00140008
+         XC    S99AREA,S99AREA CLEAR SVC 99 PARAMETERS                  00141014
+         TPUT  Q,L'Q,ASIS                                        88036  00150009
+         MVC   DSN,=CL44' '                                      88036  00160008
+         TGET  DSN,L'DSN                                         88036  00170008
+         OC    DSN,=CL44' '                                      88036  00180008
+         LA    R15,S99RB                                                00200002
+         ST    R15,S99PARMS                                             00210002
+         OI    S99PARMS,X'80'                                           00220002
+         MVC   S99RB(2),=X'1401'                                        00230002
+         LA    R15,S99TU                                                00240002
+         ST    R15,S99TULST                                             00250002
+FIXDSN   DS    0H                                                       00260008
+         MVC   TUDSN(4),=Y(2,1)  DSN=, THERE IS ONE OF THEM             00270008
+*        MVC   DSN,=C'&&TEMPDS '                                        00280011
+         LA    R1,DSN                                            88036  00290004
+         TRT   DSN,TRTAB                                         88036  00300004
+         S     R1,=A(DSN)                                        88036  00310005
+         STH   R1,TUDSN+4         THE LENGTH                     88036  00320002
+         LA    R0,TUDSN                                                 00330002
+         ST    R0,0(,R15)                                               00340002
+         LA    R15,4(,R15)                                       88036  00350002
+         SPACE 1                                                 88036  00360005
+*        MVC   TUVOL(6),=Y(X'0010',1,6)                          88036  00370000
+*        MVC   TUSER,VOL                                         88036  00380000
+*        LA    R0,TUVOL                                          88036  00390000
+*        ST    R0,0(,R15)                                        88036  00400000
+*        LA    R15,4(,R15)                                       88036  00410000
+         LA    R0,=Y(4,1,1,4*256) DISP=, THERE IS ONE, IT'S SHARE       00420003
+         ST    R0,0(,R15)                                               00430002
+         LA    R15,4(,R15)                                       88036  00440002
+         MVC   TURDDN(6),=Y(X'55',1,8) GIVE ME THE DDNAME               00450002
+         LA    R0,TURDDN                                                00460002
+         ST    R0,0(,R15)                                               00470002
+         LA    R15,4(,R15)                                       88036  00480000
+         MVC   TURDSN(6),=Y(X'56',1,44) GIVE ME THE DSNAME              00490000
+         LA    R0,TURDSN                                                00500000
+         ST    R0,0(,R15)                                               00510000
+         OI    0(R15),X'80'  END OF THE LIST                            00520002
+         LA    R1,S99PARMS                                              00530002
+SVC99    SVC   99                                                       00540003
+         CVD   R15,DOUBLE                                        88036  00550012
+         MVC   RC,=X'40202120'                                   88036  00560012
+         ED    RC,DOUBLE+6                                       88036  00570013
+         UNPK  HEXCONV,S99ERR(5)                                 88036  00580012
+         TR    HEXCONV,HEXTAB                                    88036  00590012
+         MVC   FLG1,HEXCONV                                      88036  00600012
+         MVC   FLG2,HEXCONV+4                                    88036  00610012
+         LA    R14,TURDSN                                        88036  00620001
+         MVC   WRK+DCBDDNAM-IHADCB(8),RETDDN                     88036  00630007
+         RDJFCB WRK                                              88036  00640006
+         MVC   AFILE,RETDDN                                      88036  00650010
+         MVC   ADSN,DSNAME                                       88036  00660010
+         MVC   RDSN,DSN                                          88036  00670010
+         TPUT  THEMSG,THEMSGL                                    88036  00680010
+         B     NEXT                                              88036  00690008
+         LTORG                                                   88036  00700007
+Q        DC    C'?'                                              88036  00710008
+THEMSG   DS    0C                                                88036  00720010
+RC       DC    CL4' ',C' '                                       88036  00730012
+FLG1     DC    CL4' ',C' '                                       88036  00740012
+FLG2     DC    CL4' ',C' '                                       88036  00750012
+AFILE    DC    CL8' ',C' '                                       88036  00760010
+ADSN     DC    CL26' ',C' '                                      88036  00770010
+RDSN     DC    CL26' ',C' '                                      88036  00780010
+THEMSGL  EQU   *-THEMSG                                          88036  00790010
+TRTAB    DC    64AL1(0),AL1(1),191AL1(0)                         88036  00800008
+         ORG   *-240                                             88036  00810012
+HEXTAB   DS    0XL256,240C                                       88036  00820012
+         DC    C'0123456789ABCDEF'                               88036  00830012
+WRK      DCB   DDNAME=$$JWORK2,                                  88036 .00840012
+               MACRF=R,DSORG=PS,                                 88036 .00850012
+               EXLST=WRKEX                                       88036  00860012
+WRKEX    DC    A(*+X'87000004')                                  88036  00870012
+DSNAME   DS    CL26                                              88036  00880012
+         ORG   DSNAME+X'76'                                      88036  00890012
+VOL      DS    CL6                                               88036  00900012
+         ORG   DSNAME+176                                        88036  00910012
+         DS    0D                                                88036  00920012
+HEXCONV  DS    XL9                                               88036  00930012
+DOUBLE   DS    D                                                 88036  00940012
+S99AREA  DS    0XL256                                                   00950012
+S99PARMS DS    F                                                        00960012
+S99RB    DS    0XL24                                                    00970012
+         DC    X'1401'                                                  00980012
+S99FLGS1 DS    XL2                                                      00990012
+S99ERR   DS    XL2                                                      01000012
+S99INF   DS    XL2                                                      01010012
+S99TULST DS    A                                                        01020012
+         DS    XL4             RESERVED                                 01030012
+S99FLGS2 DS    XL2                                                      01040012
+         DS    XL2             THE REST OF IT                           01050012
+S99TU    DS    A               DSN=                                     01060012
+         DS    A               DISP=SHR                                 01070012
+         DS    A               PASSWORD=                                01080012
+         DS    A               DDNAME=                                  01090012
+         DS    4A              IN CASE WE WANT THEM                     01100012
+TUDSN    DS    XL4             DSN=, ONE OF THEM                        01110012
+DSNLEN   DS    H                  LENGTH                                01120012
+DSN      DC    CL26' '                                           88036  01130012
+TUVOL    DC    Y(X'0010',1,6)                                    88036  01140012
+TUSER    DC    CL6' '                                            88036  01150012
+TURDDN   DS    XL4             YOU TELL ME THE DDN                      01160012
+         DS    H               LENGTH                                   01170012
+RETDDN   DS    CL8             THE DDNAME                               01180012
+TURDSN   DS    XL4             YOU TELL ME THE DSN                      01190012
+         DS    H               LENGTH                                   01200012
+RETDSN   DS    CL44            THE DDNAME                               01210012
+         DS    CL256                                             88036  01220012
+         DCBD                                                    88036  01230012
+         END   TESTTEMP                                          88036  01240012

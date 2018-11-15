@@ -1,0 +1,110 @@
+UJETYPE    START 0                                                      00000100
+* THIS PROGRAM ACCEPTS A PARM FIELD LIKE THIS :-                        00000200
+*   'WTO  MESSAGE'                                                      00000300
+*   'WTP  MESSAGE'                                                      00000400
+* OR 'DDNAME  MESSAGE'  AND WRITES THEM TO THE APPROPRIATE DEVICE       00000500
+           SPACE 3                                                      00000600
+           COPY CVCSAVE                                                 00000700
+           SPACE 3                                                      00000800
+           L   R3,0(R1)        GET PARM                                 00000900
+           USING INPARM,R3                                              00001000
+           LH  R4,PARMLEN                                               00001100
+           MVI IN,C' '         CLEAR IN                                 00001200
+           MVC IN+1(99),IN                                              00001300
+           BCTR R4,0                                                    00001400
+           EX  R4,MUV                                                   00001500
+           B   GOTPARM                                                  00001600
+MUV        MVC IN(0),INPARM+2                                           00001700
+GOTPARM    LA  R4,IN                                                    00001800
+LOOP1      CLI 0(R4),C' '                                               00001900
+           BE  GOTINSTR                                                 00002000
+           LA  R4,1(R4)                                                 00002100
+           B   LOOP1                                                    00002200
+GOTINSTR   EQU *                                                        00002300
+           LR  R5,R4                                                    00002400
+           S   R5,=A(IN)                                                00002500
+           SH  R5,=H'1'                                                 00002600
+           EX  R5,MUV2         MOVE INSTRUCTION TO INSTRUCT             00002700
+           B   MOVEREST                                                 00002800
+MUV2       MVC INSTRUCT(0),IN                                           00002900
+MOVEREST   EQU *                                                        00003000
+           MVI MESSAGE,C' '                                             00003100
+           MVC MESSAGE+1(99),MESSAGE                                    00003200
+           MVC MESSAGE,0(R4)                                            00003300
+           LA  R4,MESSAGE                                               00003400
+           LA  R5,MESSAGE+99                                            00003500
+LOOP3      CLI 0(R5),C' '                                               00003600
+           BE  ENDMESS                                                  00003700
+           CR  R4,R5                                                    00003800
+           BE  NOMESS                                                   00003900
+           SH  R5,=H'1'                                                 00004000
+           B   LOOP3                                                    00004100
+ENDMESS    SR  R5,R4                                                    00004200
+           LA  R5,4(R5)                                                 00004300
+           STH R5,MSSGLEN                                               00004400
+           CLC INSTRUCT,=C'WTO     '                                    00004500
+           BE  WTO                                                      00004600
+           CLC INSTRUCT,=C'WTP     '                                    00004700
+           BE  WTP                                                      00004800
+*    HERE INSTRUCT CONTAINS A DDNAME THAT THE MESSAGE MUST GO TO        00004900
+           LA  R2,OUTDD                                                 00005000
+           USING IHADCB,R2                                              00005100
+           MVC DCBDDNAM,INSTRUCT                                        00005200
+           OPEN (OUTDD,OUTPUT)                                          00005300
+           TM  OUTDD+48,X'10'                                           00005400
+           BO  FILEOPN                                                  00005500
+           L   R13,SAVE+4                                               00005600
+           RETURN (14,12),T,RC=3000                                     00005700
+FILEOPN    TM  DCBRECFM,B'01000000'            V ?                      00005800
+           BO  V                                                        00005900
+           PUT OUTDD,MESSAGE                                            00006000
+           B   CLOSE                                                    00006100
+V          PUT OUTDD,MSSGLEN                                            00006200
+CLOSE      CLOSE (OUTDD,DISP)                                           00006300
+           FREEPOOL OUTDD                                               00006400
+NOMESS         EQU *                                                    00006500
+RETN       L   R13,SAVE+4                                               00006600
+           RETURN (14,12),T,RC=0                                        00006700
+WTO        LA  R4,MSSGLEN                                               00006800
+           AH  R4,MSSGLEN      R4 POINTS TO NEXT LOCN AFTER MSSGE       00006900
+           MVC 0(2,R4),=H'0'                                            00007000
+           MVC MSSGFLAG,=H'0'                                           00007100
+           LA  R1,MSSGLEN                                               00007200
+           SVC 35                                                       00007300
+           B   RETN                                                     00007400
+WTP        LA  R4,MSSGLEN                                               00007500
+           AH  R4,MSSGLEN                                               00007600
+           MVC 0(2,R4),=H'0'   DESCRIPTOR CODES                         00007700
+           MVC 2(2,R4),=X'0020'  ROUTING CODES                          00007800
+           MVC MSSGFLAG,=X'8000' MCSFLAGS                               00007900
+           LA  R1,MSSGLEN                                               00008000
+           SVC 35                                                       00008100
+           B   RETN                                                     00008200
+MYDCB      EQU *                                                        00008300
+           USING IHADCB,R1                                              00008400
+           CLI DCBRECFM,0      NO RECFM ?                               00008500
+           BNE ISARECFM                                                 00008600
+           MVI DCBRECFM,X'44'  VA                                       00008700
+           CLC DCBBLKSI,=H'0'  ANY BLKSIZE ?                            00008800
+           TM  DCBRECFM,X'80'                                           00008900
+           BO  FIXED                                                    00009000
+           MVC DCBBLKSI,=H'130'                                         00009100
+           MVC DCBLRECL,=H'126'                                         00009200
+           BR  14                                                       00009300
+FIXED      MVC DCBBLKSI,=H'133'                                         00009400
+           MVC DCBLRECL,=H'133'                                         00009500
+           BR  14                                                       00009600
+IN         DS  CL110                                                    00009700
+INSTRUCT   DC CL8' '                                                    00009800
+MSSGLEN    DS  1H                                                       00009900
+MSSGFLAG   DS  1H                                                       00010000
+MESSAGE    DS  CL100                                                    00010100
+OUTDD      DCB DDNAME=SYSPRINT,DSORG=PS,EXLST=DCBEXIT,                 *00010200
+               MACRF=PM                                                 00010300
+DCBEXIT    DC  A(DCBEX1)                                                00010400
+DCBEX1     DC  X'85'                                                    00010500
+           DC  AL3(MYDCB)                                               00010600
+INPARM     DSECT                                                        00010700
+PARMLEN    DS  0H                                                       00010800
+           DCBD DSORG=PS                                                00010900
+           END                                                          00011000

@@ -1,0 +1,40 @@
+         TITLE '&TITLE SAMPLE USER EXIT FOR JOL PARAMETERS'             20120000
+&C       SETC  '&PRE'.'EXT1'                                            20130000
+&C       CSECT                                                          20140000
+         STM   R14,R12,12(R13)     SAVE REGISTERS                       20150000
+         XC    16(4,R13),16(R13)   INDICATE NO DATA (RC=0)              20160000
+         USING &PRE.EXT1,R15       DECLARE BASE REGISTER                20170000
+&C       SETC  (&MVS)'PSA'.(1-&MVS)'FLC'                         88036  20171000
+         USING &C,0                                              88036  20172000
+         L     R02,0(0,R01)        LOAD  REPLY ADDRESS                  20180000
+         MVI   2(R02),C' '                                              20190000
+         MVC   3(255,R02),2(R02)   SET THE AREA TO BLANKS               20200000
+*        L     R03,CVTPTR                                               20210000
+*        L     R03,0(0,R03)        TCB WORDS                            20220000
+         L     R03,PSATOLD         MY TCB ADDRESS                       20230000
+         USING TCB,R03                                                  20240000
+         L     R04,TCBJSCB          JSCB ADDRESS                        20250000
+         USING IEZJSCB,R04                                              20260000
+         ICM   R05,7,JSCACCTA                                    88036  20261000
+         BZ    EXT90           NO DATA THERE                     88036  20262000
+         SPACE 4                                                 88036  20262100
+*  THESE FOLLOWING INSTRUCTIONS ARE UNTESTED ON X8               88036  20263000
+         SPACE 4                                                 88036  20264000
+*        L     R05,JSCBJCT         JCT: LOAD JSCBSCT FOR SCT            20270000
+         ICM   R06,7,X'038'(R05)   ACT FOR THE JOB                      20280000
+         CLC   =H'0',X'02E'(R06)   ANY ACCOUNTING DATA?                 20290000
+         BE    EXT90               A... NO                              20300000
+         CLI   X'030'(R06),8       Q... FIRST FIELD 8 CHARS?            20310000
+         BNE   EXT90               A... NO                              20320000
+         MVC   2(22,R02),=C'SYSACCT=1111 ROOM=2222' SET UP BASIC DATA   20330000
+         MVC   10(4,R02),X'031'(R06) COPY ACCOUNTING FIELDS             20340000
+         MVC   20(4,R02),X'035'(R06)                                    20350000
+         LA    R00,22              SET LENGTH                           20360000
+         STH   R00,0(0,R02)                                             20370000
+         LA    R15,4               INDICATE DATA RETURNED               20380000
+         ST    R15,16(0,R13)                                            20390000
+         MVI   19(R13),4          RC=4: PROCEED WITH CALL, SYMS PASSED  20400000
+EXT90    LM    R14,R12,12(R13)     RESTORE REGISTERS                    20410000
+         BR    R14                 EXIT                                 20420000
+         SPACE 2                                                        20430000
+         LTORG                                                          20440000

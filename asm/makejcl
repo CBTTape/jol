@@ -1,0 +1,322 @@
+*                                                                       00000100
+* THE JCL PRODUCED WILL:-                                               00000200
+*  1. ATTEMPT TO DELETE ANY JOL DATA SETS                               00000300
+*  2. PRODUCE SEVERAL INSTREAM PROCEDURES                               00000400
+*  3. PRODUCE JCL TO COPY DOWN THE NEW DATA SETS                        00000500
+*  4. PERFORM ANY LINK EDITS THAT MAY BE REQUIRED                       00000600
+*  5. IF VS, PRINT DATA SETS THAT NEED ALTERATION FOR AUTHORISATION     00000700
+*  6. COPY SOME PROCEDURES TO A PROCEDURE LIBRARY.                      00000800
+*                                                                       00000900
+           MACRO                                                        00001000
+           JOLINST &JOBCARD='//TJOLINST JOB (FCO1ZXJV3,9,2),C.CLARKE,RE*00001100
+               GION=120K,CLASS=C',                                     *00001200
+               &SYSTEM=VS1,&WORKDEV=3330,&WORKVOL=,&TAPEDEV=2400-3,    *00001300
+               &ENDVOL=,&ENDDEV=3330,&BLKSIZE=,                        *00001400
+               &ENDLIB=SYS1.LINKLIB,&SCRATCH=YES,&PROCLIB=SYS1.PROCLIB,*00001500
+               &SPOOL=,&MACBLK=3440,                                   *00001600
+               &JOL=NO,&MEMBER=JOLGEN,&JOLTAPE=JOL3P1,&TAPEVER=,       *00001700
+               &JOLVER=JOL31,&JOLVER2=3.1,&JOLHERE=YES,&JOLVER3=31      00001800
+        GBLC &TAPEJOL                                                   00001900
+           LCLA &ERR           SET ON IF ERROR DETECTED                 00002000
+           LCLC &LINKNME,&ZAPNAME                                       00002100
+         LCLC  &AUTH,&JOLPROC,&LINKNAM                                  00002200
+         LCLC  &J1,&J2,&J3,&J4                                          00002300
+         AIF ('&TAPEVER' EQ '').NOTAPV                                  00002400
+&TAPEJOL  SETC '&TAPEVER'                                               00002500
+.NOTAPV   ANOP                                                          00002600
+.* PERFORM VALIDATION                                                   00002700
+           AIF ('&WORKVOL' NE '').WORKOK                                00002800
+           MNOTE 16,'NO WORK VOLUME SUPPLIED :- CODE ''WORKVOL=VOLUME''*00002900
+               '                                                        00003000
+&ERR       SETA 1                                                       00003100
+.WORKOK    ANOP                                                         00003200
+           AIF ('&ENDVOL' NE '').END1OK                                 00003300
+           MNOTE 16,'NO FINAL VOLUME SPECIFIED FOR JOL PERMANENT DATA S*00003400
+               ETS :- CODE ''ENDVOL=VOLUME'''                           00003500
+&ERR       SETA 1                                                       00003600
+.END1OK    ANOP                                                         00003700
+           AIF ('&BLKSIZE' NE '').LINK1OK                               00003800
+           MNOTE 'NO LINK BLKSIZE SPECIFIED, DEFAULT WILL BE THAT OF YO*00003900
+               UR ''SYS1.LINKLIB'''                                     00004000
+.LINK1OK   ANOP                                                         00004100
+&LINKNME   SETC 'HEWL'         SET FOR VS INITIALLY                     00004200
+&ZAPNAME   SETC 'HMASPZAP'     SET FOR VS INITIALLY                     00004300
+&AUTH      SETC '1'        SET FOR VS INITIALLY                         00004400
+&JOLPROC   SETC 'V1'                                                    00004500
+         AIF ('&SYSTEM' NE 'VS2').NNMVS                                 00004600
+&JOLPROC   SETC 'V2'                                                    00004700
+.NNMVS     ANOP                                                         00004800
+           AIF ('&SYSTEM' EQ 'VM' OR '&SYSTEM' EQ 'VS1' OR '&SYSTEM'   *00004900
+               EQ 'VS2').VSSYS                                          00005000
+&LINKNME  SETC 'IEWL'                                                   00005100
+&ZAPNAME   SETC 'IMASPZAP'                                              00005200
+&AUTH      SETC ''                                                      00005300
+&JOLPROC   SETC 'OS'                                                    00005400
+           AIF ('&SYSTEM' EQ 'MFT' OR '&SYSTEM' EQ 'MVT').SYSOK         00005500
+&ERR       SETA 1                                                       00005600
+           MNOTE 16,'SYSTEM INCORRECTLY SPECIFIED: &SYSTEM'             00005700
+.SYSOK     ANOP                                                         00005800
+.VSSYS     ANOP                                                         00005900
+           AIF (&ERR EQ 0).GO                                           00006000
+           MNOTE 16,'ERRORS DETECTED - NO INSTALLATION JCL PRODUCED'    00006100
+           MEXIT                                                        00006200
+.GO        ANOP                                                         00006300
+           MNOTE 'INSTALLATION JCL IS FOR A &SYSTEM TYPE OPERATING SYST*00006400
+               EM'                                                      00006500
+           MNOTE 'THE FINAL VOLUME FOR THE PERMANENT DATA SET IS &ENDVO*00006600
+               L; THIS IS A &ENDDEV DEVICE'                             00006700
+.* NOW PRODUCE THE JOBCARD, WITH A COND CODE                            00006800
+  PUNCH &JOBCARD                                                        00006900
+  PUNCH '//* JOL INSTALLATION JCL FOR VERSION &JOLVER2'                 00007000
+           SEP                                                          00007100
+        PUNCH  '//*    INSTALLATION PROCEDURES'                         00007200
+    SEP                                                                 00007300
+  PUNCH '//* INSTALLATION PROCEDURES'                                   00007400
+  PUNCH '//*'                                                           00007500
+  PUNCH '//JOLASM PROC '                                                00007600
+  PUNCH '//ASM    EXEC PGM=ASMBLR'                                      00007700
+  PUNCH '//SYSPRINT DD SYSOUT=A,DCB=BLKSIZE=1210'                       00007800
+  PUNCH '//SYSUT1   DD UNIT=SYSDA,SPACE=(CYL,(5,5))'                    00007900
+  PUNCH '//SYSUT2   DD UNIT=SYSDA,SPACE=(CYL,(5,5))'                    00008000
+  PUNCH '//SYSUT3   DD UNIT=SYSDA,SPACE=(CYL,(5,5))'                    00008100
+  PUNCH '//SYSLIB    DD DSN=SYS1.MACLIB,DISP=SHR'                       00008200
+  PUNCH '//SYSPUNCH  DD DSN=&&OBJ,DISP=(MOD,PASS),'                     00008300
+  PUNCH '// UNIT=SYSDA,SPACE=(CYL,(5,5)),'                              00008400
+  PUNCH '// DCB=BLKSIZE=800'                                            00008500
+  PUNCH '// PEND'                                                       00008600
+  PUNCH '//*'                                                           00008700
+  PUNCH '//****'                                                        00008800
+  PUNCH '//*'                                                           00008900
+  PUNCH '//JOLLKED PROC'                                                00009000
+  PUNCH '//LKED   EXEC PGM=&LINKNME'                                    00009100
+  PUNCH '//SYSPRINT   DD SYSOUT=A'                                      00009200
+  PUNCH '//SYSUT1     DD UNIT=SYSDA,SPACE=(CYL,(5,5))'                  00009300
+  PUNCH '//OLD        DD DSN=&JOLVER..LOADTEMP,DISP=SHR'                00009400
+  PUNCH '//SYSLIB     DD DSN=&JOLVER..LOADTEMP,DISP=SHR'                00009500
+  PUNCH '//SYSLIN     DD DSN=&&OBJ,DISP=(OLD,DELETE)'                   00009600
+  PUNCH '//           DD DDNAME=SYSIN'                                  00009700
+  PUNCH '// PEND'                                                       00009800
+           AIF ('&SCRATCH' NE 'YES').NOSCRA                             00009900
+    SEP                                                                 00010000
+        PUNCH '//*     SCRATCH OLD &JOLVER DATA SETS'                   00010100
+   SEP                                                                  00010200
+  PUNCH '//DELETE EXEC PGM=IEFBR14'                                     00010300
+  PUNCH '//D DD DISP=(MOD,DELETE),SPACE=(TRK,1),UNIT=SYSDA,'            00010400
+  PUNCH '//         DSN=&JOLVER..LOAD'                                  00010500
+  PUNCH '//D DD DISP=(MOD,DELETE),SPACE=(TRK,1),UNIT=SYSDA,'            00010600
+  PUNCH '//         DSN=&JOLVER..LOADTEMP'                              00010700
+  PUNCH '//D DD DISP=(MOD,DELETE),SPACE=(TRK,1),UNIT=SYSDA,'            00010800
+  PUNCH '//         DSN=&JOLVER..SOURCE'                                00010900
+  PUNCH '//D DD DISP=(MOD,DELETE),SPACE=(TRK,1),UNIT=SYSDA,'            00011000
+  PUNCH '//         DSN=&JOLVER..MACLIB'                                00011100
+  PUNCH '//D DD DISP=(MOD,DELETE),SPACE=(TRK,1),UNIT=SYSDA,'            00011200
+  PUNCH '//         DSN=&JOLVER..CMDLIB'                                00011300
+  PUNCH '//D DD DISP=(MOD,DELETE),SPACE=(TRK,1),UNIT=SYSDA,'            00011400
+  PUNCH '//         DSN=&JOLVER..INCLUDE'                               00011500
+  PUNCH '//D DD DISP=(MOD,DELETE),SPACE=(TRK,1),UNIT=SYSDA,'            00011600
+  PUNCH '//         DSN=&JOLVER..PROCLIB'                               00011700
+  PUNCH '//D DD DISP=(MOD,DELETE),SPACE=(TRK,1),UNIT=SYSDA,'            00011800
+  PUNCH '//         DSN=&JOLVER..LKED'                                  00011900
+.NOSCRA   ANOP                                                          00012000
+          SEP                                                           00012100
+        PUNCH '//*    MOVE DATA SETS TO DISK'                           00012200
+        SEP                                                             00012300
+  PUNCH '//MOVE EXEC PGM=IEHMOVE'                                       00012400
+  PUNCH '//SYSPRINT   DD SYSOUT=A'                                      00012500
+  PUNCH '//SYSUT1     DD VOL=REF=SYS1.LINKLIB,DISP=OLD'                 00012600
+  PUNCH '//TAPE       DD DISP=(OLD,PASS),'                              00012700
+  PUNCH '//           VOL=SER=&JOLTAPE,UNIT=&TAPEDEV'                   00012800
+  PUNCH '//DISK1      DD DISP=OLD,VOL=SER=&WORKVOL,UNIT=&WORKDEV'       00012900
+  PUNCH '//DISK2      DD DISP=OLD,VOL=SER=&ENDVOL,UNIT=&ENDDEV'         00013000
+  PUNCH '//SYSIN  DD  *'                                                00013100
+ MCOPY &JOLVER,&WORKDEV,&WORKVOL,&TAPEDEV,&JOLTAPE,2,LOAD,RENAME=TEMP   00013200
+ MCOPY &JOLVER,&ENDDEV,&ENDVOL,&TAPEDEV,&JOLTAPE,3,INCLUDE              00013300
+ MCOPY &JOLVER,&ENDDEV,&ENDVOL,&TAPEDEV,&JOLTAPE,4,CMDLIB               00013400
+ MCOPY &JOLVER,&WORKDEV,&WORKVOL,&TAPEDEV,&JOLTAPE,5,LKED               00013500
+ MCOPY &JOLVER,&WORKDEV,&WORKVOL,&TAPEDEV,&JOLTAPE,6,PROCLIB            00013600
+ MCOPY &JOLVER,&WORKDEV,&WORKVOL,&TAPEDEV,&JOLTAPE,7,MACLIB             00013700
+ MCOPY &JOLVER,&WORKDEV,&WORKVOL,&TAPEDEV,&JOLTAPE,8,SOURCE             00013800
+     SEP                                                                00013900
+   PUNCH '//*     CATALOG NEW DISK DATA SETS'                           00014000
+    SEP                                                                 00014100
+  PUNCH '//CATLG    EXEC PGM=IEFBR14'                                   00014200
+ PUNCH '//D DD DISP=(OLD,CATLG),VOL=REF=*.MOVE.DISK1,DSN=&JOLVER..LOADT*00014300
+               EMP'                                                     00014400
+ PUNCH '//D DD DISP=(OLD,CATLG),VOL=REF=*.MOVE.DISK1,DSN=&JOLVER..LKED' 00014500
+ PUNCH '//D DD DISP=(OLD,CATLG),VOL=REF=*.MOVE.DISK2,DSN=&JOLVER..INCLU*00014600
+               DE'                                                      00014700
+ PUNCH '//D DD DISP=(OLD,CATLG),VOL=REF=*.MOVE.DISK2,DSN=&JOLVER..CMDLI*00014800
+               B'                                                       00014900
+ PUNCH '//D DD DISP=(OLD,CATLG),VOL=REF=*.MOVE.DISK1,DSN=&JOLVER..MACLI*00015000
+               B'                                                       00015100
+ PUNCH '//D DD DISP=(OLD,CATLG),VOL=REF=*.MOVE.DISK1,DSN=&JOLVER..SOURC*00015200
+               E'                                                       00015300
+ PUNCH '//D DD DISP=(OLD,CATLG),VOL=REF=*.MOVE.DISK1,DSN=&JOLVER..PROCL*00015400
+               IB'                                                      00015500
+     SEP                                                                00015600
+   PUNCH '//*     ASSEMBLE INSTALLATION DETAILS'                        00015700
+     SEP                                                                00015800
+  PUNCH '//JOLGEN  EXEC JOLASM'                                         00015900
+  PUNCH '//SYSIN   DD   DSN=&JOLVER..SOURCE(JOLSYSG),DISP=SHR'          00016000
+  PUNCH '//        DD   DSN=&JOLVER..INSTAL(&MEMBER),DISP=SHR'          00016100
+  PUNCH '//LINK    EXEC JOLLKED,PARM=''OL,LIST,MAP'''                   00016200
+  PUNCH '//SYSLMOD DD   DSN=&JOLVER..LOADTEMP(UJGENDET),DISP=SHR'       00016300
+     SEP                                                                00016400
+   PUNCH   '//*     NOW COPY SELECTED MEMBERS TO ''&PROCLIB'''          00016500
+     SEP                                                                00016600
+  PUNCH '//COPY     EXEC PGM=IEBCOPY'                                   00016700
+  PUNCH '//SYSPRINT DD SYSOUT=A'                                        00016800
+  PUNCH '//IN       DD DSN=&JOLVER..PROCLIB,DISP=SHR'                   00016900
+  PUNCH '//OUT      DD DSN=&PROCLIB,DISP=SHR'                           00017000
+  PUNCH '//SYSUT3   DD UNIT=SYSDA,SPACE=(CYL,5)'                        00017100
+  PUNCH '//SYSUT4   DD UNIT=SYSDA,SPACE=(CYL,5)'                        00017200
+  PUNCH ' COPY INDD=IN,OUTDD=OUT'                                       00017300
+         AIF ('&SPOOL' EQ 'ASP').ASP                                    00017400
+         AIF ('&SPOOL' EQ 'HASP').HASP                                  00017500
+         AIF ('&SPOOL' EQ '').THERE                                     00017600
+.ASP     ANOP                                                           00017700
+&JOLPROC SETC 'AS'            ASP SET UP                                00017800
+         AGO .THERE                                                     00017900
+.HASP    ANOP                                                           00018000
+&JOLPROC SETC  'HS'                                                     00018100
+.THERE ANOP                                                             00018200
+.* IF JOL ALREADY HERE, WE DON'T WANT TO UPSET THE OLD MEMBERS          00018300
+     AIF ('&JOLHERE' EQ 'YES').ISHERE                                   00018400
+&J1  SETC  'JOL'                                                        00018500
+&J2  SETC  'JOLC'                                                       00018600
+&J3  SETC  'JOLCGO'                                                     00018700
+&J4  SETC  'JOLRDR'                                                     00018800
+     AGO   .COPCRDS                                                     00018900
+.ISHERE   ANOP                                                          00019000
+&J1  SETC  'NJOL'                                                       00019100
+&J2  SETC  'NJOLC'                                                      00019200
+&J3  SETC  'NJOLCGO'                                                    00019300
+&J4  SETC  'NJOLRDR'                                                    00019400
+.COPCRDS   ANOP                                                         00019500
+  PUNCH ' SELECT MEMBER=((&JOLPROC.JOL,&J1,R))'                         00019600
+  PUNCH ' SELECT MEMBER=((&JOLPROC.JOLC,&J2,R))'                        00019700
+  PUNCH ' SELECT MEMBER=((&JOLPROC.JOLCGO,&J3,R))'                      00019800
+     AIF ('&SYSTEM' EQ 'MVS' OR '&SYSTEM' EQ 'VS2').NORDR               00019900
+     AIF ('&SPOOL' EQ 'ASP' OR '&SPOOL' EQ 'HASP').NORDR                00020000
+  PUNCH ' SELECT MEMBER=((&JOLPROC.RDR,&J4,R))'                         00020100
+     SEP                                                                00020200
+  PUNCH '//*         NOW BUILD THE GDG FOR JOL&JOLVER3..OP'             00020300
+     SEP                                                                00020400
+  PUNCH '//BLDG EXEC PGM=IEHPROGM'                                      00020500
+  PUNCH '//SYSPRINT DD SYSOUT=A'                                        00020600
+  PUNCH '//RESCAT DD DISP=OLD,VOL=REF=SYS1.LINKLIB'                     00020700
+  PUNCH ' BLDG INDEX=JOL&JOLVER3..OP,ENTRIES=99,DELETE'                 00020800
+                                                                        00020900
+.NORDR     ANOP                                                         00021000
+     SEP                                                                00021100
+   PUNCH  '//*         NOW LINK TO &ENDLIB'                             00021200
+     SEP                                                                00021300
+  PUNCH '//LINK2  EXEC JOLLKED,PARM=''LIST,MAP,XREF,RENT'''             00021400
+  PUNCH '//SYSLIN   DD  *'                                              00021500
+  PUNCH ' INCLUDE SYSLIB($JOLMN&JOLVER3)'                               00021600
+     AUTH &AUTH      OUTPUT AUTH CARD IF NECESSARY                      00021700
+  PUNCH ' NAME $JOLMN&JOLVER3.(R)'                                      00021800
+  PUNCH ' INCLUDE SYSLIB($JOLIN&JOLVER3.)'                              00021900
+     AUTH &AUTH      OUTPUT AUTH CARD IF NECESSARY                      00022000
+  PUNCH ' NAME $JOLIN&JOLVER3.(R)'                                      00022100
+  PUNCH ' INCLUDE SYSLIB($JOLCP&JOLVER3.) JOL COMPILER'                 00022200
+     AUTH  &AUTH                                                        00022300
+  PUNCH ' NAME $JOLCP&JOLVER3.(R)'                                      00022400
+  PUNCH ' INCLUDE SYSLIB(UJE60CAT)'                                     00022500
+  PUNCH ' NAME UJE60CAT(R)'                                             00022600
+  PUNCH ' INCLUDE SYSLIB($JOLSH&JOLVER3.)'                              00022700
+  PUNCH ' NAME $JOLSH&JOLVER3.(R)'                                      00022800
+  PUNCH '//SYSLMOD  DD DSN=&ENDLIB,DISP=SHR'                            00022900
+     SEP                                                                00023000
+   PUNCH '//*         NOW RELINK &JOLVER..LOADTEMP TO FINAL VOLUME'     00023100
+     SEP                                                                00023200
+  PUNCH '//LINK4  EXEC JOLLKED,PARM=''LIST,MAP,RENT,LET'''              00023300
+  PUNCH '//SYSLIN DD DSN=&JOLVER..LKED(RELINK),DISP=SHR'                00023400
+  PUNCH '//SYSLMOD DD DSN=&JOLVER..LOAD,'                               00023500
+  PUNCH '// SPACE=(CYL,(1,1,20)),'                                      00023600
+  PUNCH '// DISP=(,CATLG),'                                             00023700
+  PUNCH '// VOL=SER=&ENDVOL,UNIT=&ENDDEV,'                              00023800
+           AIF ('&BLKSIZE' NE '').LINKBLK                               00023900
+  PUNCH '// DCB=(SYS1.LINKLIB)'                                         00024000
+           AGO .ENDL4                                                   00024100
+.LINKBLK   PUNCH '// DCB=(RECFM=U,BLKSIZE=&BLKSIZE)'                    00024200
+.ENDL4     ANOP                                                         00024300
+         SEP                                                            00024400
+       PUNCH '//*    ASSEMBLE USER EXIT AND VALIDATE ROUTINES'          00024500
+         SEP                                                            00024600
+  PUNCH '//ASMVAL EXEC JOLASM'                                          00024700
+         AIF ('MACBLK' GT '3440').MACBG1                                00024800
+  PUNCH '//SYSLIB DD DSN=&JOLVER..MACLIB,DISP=SHR'                      00024900
+  PUNCH '//       DD DSN=SYS1.MACLIB,DISP=SHR'                          00025000
+  AGO .GENIN1                                                           00025100
+.MACBG1 ANOP                                                            00025200
+  PUNCH '//SYSLIB DD'                                                   00025300
+  PUNCH '//       DD DSN=&JOLVER..MACLIB,DISP=SHR'                      00025400
+.GENIN1   ANOP                                                          00025500
+  PUNCH '//SYSIN  DD DSN=&JOLVER..SOURCE(UJUVALID),DISP=SHR'            00025600
+  PUNCH '//ASMEXIT EXEC JOLASM'                                         00025700
+         AIF ('MACBLK' GT '3440').MACBG2                                00025800
+  PUNCH '//SYSLIB DD DSN=&JOLVER..MACLIB,DISP=SHR'                      00025900
+  PUNCH '//       DD DSN=SYS1.MACLIB,DISP=SHR'                          00026000
+  AGO .GENIN2                                                           00026100
+.MACBG2 ANOP                                                            00026200
+  PUNCH '//SYSLIB DD '                                                  00026300
+  PUNCH '//       DD DSN=&JOLVER..MACLIB,DISP=SHR'                      00026400
+.GENIN2 ANOP                                                            00026500
+  PUNCH '//SYSIN  DD DSN=&JOLVER..SOURCE(UJUEXIT),DISP=SHR'             00026600
+         AIF ('&SYSTEM' EQ 'VS1' OR '&SYSTEM' EQ 'MVS'                 *00026700
+               OR '&SYSTEM' EQ 'VS2').AUTH2                             00026800
+         MEXIT                                                          00026900
+.AUTH2   ANOP                                                           00027000
+         AIF ('&SYSTEM' NE 'VS1').SHRTAUT                               00027100
+  PUNCH '//AUTHZAP  EXEC PGM=&ZAPNAME'                                  00027200
+  PUNCH '//SYSPRINT DD SYSOUT=A'                                        00027300
+  PUNCH '//SYSLIB   DD DSN=SYS1.LINKLIB,DISP=SHR'                       00027400
+  PUNCH '//SYSIN    DD *'                                               00027500
+  PUNCH ' DUMPT IEF161SD IEFSDPPT'                                      00027600
+  PUNCH ' DUMPT IEFSD161 IEFSDPPT'                                      00027700
+  PUNCH '/*'                                                            00027800
+.SHRTAUT  ANOP                                                          00027900
+  PUNCH '//PRINTAUT EXEC PGM=IEBGENER'                                  00028000
+  PUNCH '//SYSPRINT DD SYSOUT=A'                                        00028100
+  PUNCH '//SYSUT2   DD SYSOUT=A,DCB=(RECFM=FB,LRECL=80,'                00028200
+  PUNCH '//            BLKSIZE=800)'                                    00028300
+  PUNCH '//SYSIN    DD DUMMY'                                           00028400
+  PUNCH '//SYSUT1   DD DSN=SYS1.PARMLIB(IEAAPF00),DISP=SHR'             00028500
+           SEP                                                          00028600
+           MEND                                                         00028700
+           MACRO                                                        00028800
+           MCOPY &VER,&WKUN,&WKVOL,&TPUN,&TAPESER,&LABEL,&DSN,&RENAME=  00028900
+         GBLC &TAPEJOL                                                  00029000
+         AIF ('&TAPEJOL' NE '').TESTIN    ***TESTINSTALLATION ****      00029100
+           PUNCH ' COPY PDS=&VER..&DSN,TO=&WKUN=&WKVOL,                *00029200
+                           XXXXXXXXXX'                                  00029300
+         AIF ('&RENAME' NE '').REN                                      00029400
+           PUNCH '               FROM=&TPUN=(&TAPESER,&LABEL)'          00029500
+         MEXIT                                                          00029600
+.REN     ANOP                                                           00029700
+           PUNCH '               FROM=&TPUN=(&TAPESER,&LABEL),         *00029800
+                               XXXXXXXXXXXX'                            00029900
+           PUNCH '               RENAME=&VER..&DSN&RENAME'              00030000
+         MEXIT                                                          00030100
+.TESTIN     ANOP                                                        00030200
+           PUNCH ' COPY PDS=&VER..&DSN,TO=&WKUN=&WKVOL,                *00030300
+                           XXXXXXXXXX'                                  00030400
+           PUNCH '               FROM=&TPUN=(&TAPESER,&LABEL),         *00030500
+                               XXXXXXXXXXXX'                            00030600
+           PUNCH '               RENAME=&TAPEJOL..&DSN&RENAME'          00030700
+         MEND                                                           00030800
+         MACRO                                                          00030900
+         AUTH &A                                                        00031000
+         AIF ('&A' NE '1').NAUTH                                        00031100
+ PUNCH ' SETCODE AC(1) SET AUTH FOR MVS OR VS1'                         00031200
+.NAUTH ANOP                                                             00031300
+         MEND                                                           00031400
+           MACRO                                                        00031500
+           SEP                                                          00031600
+   PUNCH '//*'                                                          00031700
+   PUNCH '//*'                                                          00031800
+   PUNCH '//*'                                                          00031900
+           MEND                                                         00032000
+         COPY INSTAL                                                    00032100
+         END                                                            00032200

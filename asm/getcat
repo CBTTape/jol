@@ -1,0 +1,219 @@
+**********************************************************************  00000100
+*                                                                       00000200
+*         GETCAT  - PROGRAM TO GET DATASET NAMES FROM CATALOG           00000300
+*                                                                       00000400
+*                   GETCAT IS INVOKED BY JOL AND SETS %SYSDSNNO AND     00000500
+*                           %SYSDSN1 TO %SYSDSNN                        00000600
+*                                                                       00000700
+*                    WRITTEN P.FOLEY MARCH 87                           00000800
+*                                                                       00000900
+*                    ASSEMBLE USING SYS1.MACLIB,SYS3.JOL.V03L05.MACLIB  00001000
+*                                   AND C6S.MACLIB                      00001100
+*                                                                       00001200
+*                    LINK USING SYS3.JOL.LOAD                           00001300
+*                                                                       00001400
+**********************************************************************  00001500
+*                                                                       00001600
+         PRINT NOGEN                                                    00001700
+         COPY  JOLCOM                                                   00001800
+         PRINT   GEN                                                    00001900
+         EJECT                                                          00002000
+         JOLSAVE CSECT=UJX01GTC                  SAVE REGISTERS         00002100
+         ST    R2,SAVER2                                                00002200
+         ST    R13,SAVER13                                              00002300
+         MVC   ICOMMAND,=CL8'MACRO'                                     00002400
+         LTR   R1,R1                             TEST FOR PARAMETERS    00002500
+         BZ    NOLEVERR                                                 00002600
+         L     R4,0(R1)                                                 00002700
+         LTR   R4,R4                                                    00002800
+         BZ    NOLEVERR                                                 00002900
+         LH    R5,0(R4)                                                 00003000
+         LTR   R5,R5                                                    00003100
+         BZ    NOLEVERR                                                 00003200
+*                                                                       00003300
+         GETTKN 1                                                       00003400
+         CLC   TKN(8),=C'INVOKE  '                                      00003500
+         BNE   NINVOKE                                                  00003600
+         GETTKN (R1)                                                    00003700
+*                                                                       00003800
+NINVOKE  CLC   TKN(8),=C'GETCAT  '                                      00003900
+         BNE   START                                                    00004000
+         GETTKN (R1)                                                    00004100
+*                                                                       00004200
+START    LH    R6,#TKN                                                  00004300
+         LTR   R6,R6                                                    00004400
+         BZ    NOLEVERR                                                 00004500
+         BCTR  R6,0                                                     00004510
+         EX    R6,MVTKN                                                 00004600
+         MVC   #WORK(2),#TKN                                            00004610
+*                                                                       00004700
+LEVLOOP  GETTKN (R1)                                                    00004800
+         CLI   TKN,C' '                                                 00004900
+         BE    STORE                                                    00005000
+         CLI   TKN,C'.'                                                 00005100
+         BNE   LEVEROR                                                  00005200
+         BAL   R14,CONCAT                                               00005300
+         GETTKN (R1)                                                    00005400
+         CLI   TKN,C' '                                                 00005500
+         BE    LEVEROR                                                  00005600
+         CLI   TKN,C'.'                                                 00005610
+         BE    LEVEROR                                                  00005620
+         BAL   R14,CONCAT                                               00005700
+         B     LEVLOOP                                                  00005800
+*                                                                       00005900
+STORE    LH    R6,#WORK                                                 00006000
+         BCTR  R6,0                                                     00006100
+         EX    R6,MVLEV                                                 00006200
+         LA    R6,14(R6)                                                00006300
+         LA    R7,RECAREA(R6)                                           00006400
+         MVC   0(0,R7),=C')'                                            00006500
+*                                                                       00006600
+DSNEND   MVC   SYMBOLIC,=CL8'SYSDSNNO'                                  00006700
+         MVC   WORK(3),=C'000'                                          00006800
+         MVC   #WORK(2),=H'3'                                           00006900
+         $CALL UJP85ASN                                                 00007000
+         LA    R13,SAVE1                                                00007100
+         LA    R1,KQPARMS                  SET UP PARMS FOR LISTC       00007200
+         LINK  EP=KQCAMS                                                00007300
+         L     R13,SAVER13                                              00007400
+         CLI   ERR1000,X'1'                                             00007500
+         BE    ERRMSG                                                   00007600
+*                                                                       00007700
+RETURN   JOLRETN RC=0                      RETURN TO JOL                00007800
+*                                                                       00007900
+NOLEVERR DS    0H                          DSN NOT FOUND ETC            00008000
+         JOLERR 402,'LEVEL NAME NOT SPECIFIED'                          00008100
+         JOLRETN RC=0                                                   00008200
+*                                                                       00008300
+ERRMSG   JOLERR 101,'TOO MANY DATASET NAMES.FIRST 1000 USED'            00008400
+         JOLRETN RC=0                                                   00008500
+*                                                                       00008600
+LEVEROR  JOLERR 403,'LEVEL NAME NOT CORRECT'                            00008700
+         JOLRETN RC=0                                                   00008800
+*                                                                       00008900
+MVLEV    MVC   LEVAREA(0),WORK                                          00009000
+MVTKN    MVC   WORK(0),TKN                                              00009010
+*                                                                       00009100
+         USING DATAREA,R8                                               00009200
+UJX01GTR CSECT                                                          00009300
+         SAVE  (14,12)                                                  00009400
+         USING UJX01GTR,R11                                             00009500
+         LR    R11,15                                                   00009600
+         L     R8,0(R1)                                                 00009700
+         L     R2,SAVER2                                                00009800
+         ST    R13,R13RD                                                00009900
+         L     R13,SAVER13                                              00010000
+         CNOP  0,4  ALIGN ON FULLWORD                                   00010100
+         BAL   15,JOLSAVER   BRANCH TO JOL SAVE ROUTINE                 00010200
+         DC    A(72)                                                    00010300
+         L     R5,4(R1)                                                 00010400
+         L     R6,8(R1)                                                 00010500
+         CLI   0(R5),X'8'                                               00010600
+         BNE   RETIN                                                    00010700
+         CLI   DONE,X'1'                                                00010800
+         BE    RETFIN                                                   00010900
+         LA    R4,RECAREA                                               00011000
+         L     R7,RECLEN                                                00011100
+         ST    R4,0(R6)                                                 00011200
+         ST    R7,4(R6)                                                 00011300
+         MVI   DONE,X'1'                                                00011400
+RETIN    DS    0H                                                       00011500
+         LA    R15,0                                                    00011600
+         L     R13,R13RD                                                00011700
+         B     JRETN+4                                                  00011800
+*                                                                       00011900
+RETFIN   DS    0H                                                       00012000
+         LA    R15,12                                                   00012100
+         L     R13,R13RD                                                00012200
+         B     JRETN+4                                                  00012300
+*                                                                       00012400
+         DROP  R8                                                       00012500
+         DROP  R11                                                      00012600
+*                                                                       00012700
+         USING DATAREA,R8                                               00012800
+UJX01GTW CSECT                                                          00012900
+         SAVE  (14,12)                                                  00013000
+         USING UJX01GTW,R11                                             00013100
+         LR    R11,15                                                   00013200
+         L     R8,0(R1)                                                 00013300
+         L     R2,SAVER2                                                00013400
+         ST    R13,R13WRT                                               00013500
+         L     R13,SAVER13                                              00013600
+         CNOP  0,4  ALIGN ON FULLWORD                                   00013700
+         BAL   15,JOLSAVER   BRANCH TO JOL SAVE ROUTINE                 00013800
+         DC    A(72)                                                    00013900
+         L     R5,4(R1)                                                 00014000
+         L     R6,8(R1)                                                 00014100
+         CLI   0(R5),X'0C'                                              00014200
+         BNE   RETOUT                                                   00014300
+         L     R7,4(R6)                                                 00014400
+         L     R6,0(R6)                                                 00014500
+         CLC   1(7,R6),=C'NONVSAM'                                      00014600
+         BNE   RETOUT                                                   00014700
+         LA    R5,17                                                    00014800
+         SR    R7,R5                                                    00014900
+         STH   R7,#WORK                                                 00015000
+         BCTR  R7,0                                                     00015100
+         EX    R7,MVDSN                                                 00015200
+SETDSN   MVC   SYMBOLIC,=CL8'SYSDS000'                                  00015300
+         LH    R9,DSNNO                                                 00015400
+         LH    R7,=H'1000'                                              00015500
+         CR    R7,R9                                                    00015600
+         BE    TOOMANY                                                  00015700
+         LA    R9,1(R9)                                                 00015800
+         STH   R9,DSNNO                                                 00015900
+         CVD   R9,DBL                                                   00016000
+         UNPK  WORK1(3),DBL+6(2)                                        00016100
+         OI    WORK1+2,X'F0'                                            00016200
+         MVC   SYMBOLIC+5(3),WORK1                                      00016300
+         $CALL UJP85ASN                                                 00016400
+SETNO    MVC   SYMBOLIC,=CL8'SYSDSNNO'                                  00016500
+         MVC   WORK(3),WORK1                                            00016600
+         MVC   #WORK(2),=H'3'                                           00016700
+         $CALL UJP85ASN                                                 00016800
+RETOUT   LA    R15,0                                                    00016900
+         L     R13,R13WRT                                               00017000
+         B     JRETN+4                                                  00017100
+TOOMANY  MVI   ERR1000,X'1'                                             00017200
+         B     RETOUT                                                   00017300
+*                                                                       00017400
+MVDSN    MVC   WORK(0),17(R6)                                           00017500
+*                                                                       00017600
+         DROP  R8                                                       00017700
+         DROP  R11                                                      00017800
+*                                                                       00017900
+UJX01GTC CSECT                                                          00018000
+*                                                                       00018100
+*        DATA DEFINITION AREA                                           00018200
+*                                                                       00018300
+DATAREA  DS    0F                                                       00018400
+RECAREA  DC    CL13' LISTC LEVEL('                                      00018500
+LEVAREA  DC    CL59' '                                                  00018600
+RECLEN   DC    F'72'                                                    00018700
+DSNNO    DC    H'0'                                                     00018800
+KQPARMS  DS    0F                                                       00018900
+         DC    A(OPTLIST)                                               00019000
+         DC    F'0'                                                     00019100
+         DC    F'0'                                                     00019200
+         DC    A(IOLIST)                                                00019300
+OPTLIST  DS    0F                                                       00019400
+         DC    H'0'                                                     00019500
+IOLIST   DS    0F                                                       00019600
+         DC    F'2'                                                     00019700
+         DC    A(DDIN)                                                  00019800
+         DC    A(UJX01GTR)                                              00019900
+         DC    A(DATAREA)                                               00020000
+         DC    A(DDOUT)                                                 00020100
+         DC    A(UJX01GTW)                                              00020200
+         DC    A(DATAREA)                                               00020300
+DDIN     DC    CL10'DDSYSIN   '                                         00020400
+DDOUT    DC    CL10'DDSYSPRINT'                                         00020500
+SAVE1    DS  18F                                                        00020600
+WORK1    DS    F                                                        00020700
+SAVER2   DS    F                                                        00020800
+SAVER13  DS    F                                                        00020900
+R13RD    DS    F                                                        00021000
+R13WRT   DS    F                                                        00021100
+DONE     DC    X'0'                                                     00021200
+ERR1000  DC    X'0'                                                     00021300
+         END                                                            00021400

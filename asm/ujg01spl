@@ -1,0 +1,175 @@
+UJG01SPL TITLE 'SPOOL COPY OF JOL LISTING TO UJEINIT TO PRINT'   84023  00010002
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE/JOL 1984.                      00020000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00030000
+           SPACE 3                                                      00040000
+*                   J             000000            L                   00050000
+*                   J            0      0           L                   00060000
+*                   J           0        0          L                   00070000
+*                   J          0          0         L                   00080000
+*                   J         0            0        L                   00090000
+*                   J         0            0        L                   00100000
+*                   J         0            0        L                   00110000
+*                   J         0            0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*        J          J         0            0        L                   00160000
+*         J        J           0          0         L                   00170000
+*          J      J             0        0          L                   00180000
+*           J    J               0      0           L                   00190000
+*            JJJJ                 000000            LLLLLLLLLLL         00200000
+           SPACE 3                                                      00210000
+         PRINT OFF                                                      00220002
+         COPY JOLCOM                                                    00230000
+         PRINT ON                                                       00240002
+         PRINT DATA                                               84023 00250001
+         TITLE 'READ FROM PRINT SUB-FILE AND COPY TO JCL'               00260002
+G01SAVE  DSECT                                                          00270002
+         DS    18F                                                      00280002
+* THE FOLLOWING AREA IS USED TO READ THE PRINT FILE DATA.         84023 00290002
+G01RECA  DS    CL300           MAX LENGTH OF PRINT LINE, PLUS SOME      00300002
+G01SAVEL EQU   *-G01SAVE                                                00310002
+         JOLSAVE CSECT=UJG01SPL,SIZE=G01SAVEL                           00320002
+         L     R9,ADCBS                                                 00330002
+         USING DCBS,R9                                                  00340002
+         USING G01SAVE,R13                                              00350003
+         USING JOLCOM,R2                                                00360002
+* SET UP THE MEMBER HEADING RECORD FOR'UJEINIT'                         00370002
+         MVC DATAMEM,=CL8'$$JPRINT' MEMBER NAME                         00380002
+         MVC DATAMEM5,=CL5' 1000' BLKSIZE                               00390002
+         PUT   JCL                                                      00400004
+         MVC   0(80,R1),BLANKS                                          00410004
+         MVC   0(60,R1),DATAMEM1                                        00420004
+         SPACE 2                                                75311   00430002
+         L     R10,ACATCNTL                                       76200 00440001
+         USING CATX,R10                                           75128 00450001
+         MVC   P$LASTL,=X'7FFF'   SET OFFSET IN BLOCK VERY HIGH   84023 00460001
+         MVC   P$BLKN,ZERO  SET CURRENT BLOCK NO=ZERO             84023 00470001
+         L     R15,P$CNTL                                         84023 00480001
+         MVC   0(4,R15),ZERO  CLEAR CURRENT BLOCKLENGTH                 00490001
+* INITIALISATION COMPLETE - NOW READ A PRINT RECORD                     00500001
+*                                                                       00510001
+* WE MUST READ THE NEXT RECORD FROM THE BSAM FILE INTO            75128 00520001
+*  THE READ AREA                                                  84023 00530001
+G01RDAGN EQU   *                                                  84023 00540003
+         L     R0,AP$CNTL                                         84023 00550001
+         LA    R1,G01RECA                                         84023 00560001
+        $CALL  UJS31IN        READ THE RECORD INTO THE AREA       75128 00570001
+         LTR   R15,R15        EOF ?                                     00580001
+         BNZ   JRETN0         YES -> RETURN NORMALLY              84023 00590002
+* NOW FINALLY OUTPUT THE REQUIRED PRINT LINE                            00600002
+* NOW WE MAY HAVE TO SPLIT THE CARD UP                                  00610002
+         LA    R5,G01RECA                                         84023 00620003
+         LH    R6,0(R5)    GET LENGTH                                   00630002
+G01OPJCL PUT   JCL                                                      00640002
+         MVC   0(80,R1),BLANKS                                          00650002
+         LR    R4,R1       SAVE BUFFER ADDRESS                          00660002
+*    R5  POINTS TO CURRENT RECORD PART                                  00670002
+*    R6  CONTAINS THE LENGTH                                            00680002
+         CH    R6,=H'79'                                                00690002
+         BH    G01MUV80                                                 00700002
+         LR    R1,R6                                                    00710002
+         BCTR  R1,0                                                     00720002
+         EX    R1,G01MVC89                                        75128 00730003
+         B     G012NDCD                                                 00740002
+G01MUV80 MVC   0(80,R4),0(R5)                                           00750002
+G012NDCD LA    R5,80(R5)                                                00760002
+         SH    R6,=H'80'                                                00770002
+         BP    G01OPJCL                                                 00780002
+         B     G01RDAGN                                                 00790003
+         JOLRETN                                                        00800002
+         DROP  R10                                                75128 00810001
+G01MVC89 MVC   0(*-*,R4),0(R5)      ***** EXECUTED                84027 00820003
+         LTORG                                                          00830003
+         TITLE 'GET A RECORD SEQUENTIALLY FROM THE WORK FILE'           00840002
+         JOLSAVE CSECT=UJS31IN,SIZE=S31DSIZE                            00850000
+* THIS CSECT IS CALLED WHEN IT IS NECESSARY TO READ A RECORD            00860000
+*  FROM THE WORKFILE, IN A SEQUENTIAL MANNER.                           00870000
+         SPACE                                                          00880000
+* ON ENTRY, R0 -> CONTROL AREA                                          00890000
+*           R1 -> RECEIVE AREA                                          00900000
+*                                                                       00910000
+* THE CONTROL AREA IS THE SAME ONE AS USED FOR UJS30OP ABOVE            00920000
+         LR    R4,R0          CHANGE REGISTERS                          00930000
+         LR    R5,R1          CHANGE REGISTERS                          00940000
+         USING JOLCOM,R2                                                00950000
+         USING S30PARM,R4                                               00960000
+         USING S30OP,R5                                                 00970000
+         USING S31SAVE,R13                                              00980000
+* NOW I HAVE TO KNOW                                                    00990000
+*  1. THE BLOCKLENGTH                                                   01000000
+*  2. THE OFFSET IN THE BLOCK OF THE LAST READ RECORD                   01010000
+*                                                                       01020000
+* THE MAIN CONTROLLING MODULES WOULD HAVE SET THE CURRENT               01030000
+* BLOCKLENGTH TO 0, THE OFFSET IN THE BLOCK VERY HIGH,                  01040000
+* AND THE CURRENT BLOCKNO TO -1 FOR THE VERY FIRST READ.                01050000
+*                                                                       01060000
+*                                                                       01070000
+         L     R7,S30ABUF     LOAD ADDRESS OF THE BUFFER                01080000
+         LR    R8,R7          SAVE IT                                   01090000
+         CLC   S30LASTL,0(R8) WILL WE RUN OVER THE BLOCK ?              01100000
+         BL    S31MUV         NOPE,-> MERELY SHIFT THE RECORD           01110000
+         SPACE 3                                                        01120000
+* HERE WE HAVE TO READ A NEW BLOCK INTO STORAGE, IF THERE ARE           01130000
+*  ANY LEFT                                                             01140000
+         SPACE                                                          01150000
+         LH    R14,S30BLKNO   LOAD CURRENT BLOCK NUMBER                 01160000
+         A     R14,ONE        ADD  1 TO IT                              01170000
+         CH    R14,S30MAXBL   IS THIS BLOCK THE LAST ONE ?              01180000
+         BNH   S31MORE        NO STILL MORE(PROBABLY)              DASD 01190000
+*        BL    S31MORE        NO, STILL MORE (PROBABLY)            DASD 01200000
+S31EOF   JOLRETN RC=4         EOF                                       01210000
+         SPACE 2                                                        01220000
+S31MORE  STH   R14,S30BLKNO   RESET BLOCK NUMBER                        01230000
+         SLL   R14,2          MULT BY 4                                 01240000
+         LA    R15,S30TTR1-4(R14) LOAD A(TTR OF BLOCK)                  01250000
+         CLC   0(4,R15),ZERO  IS IT EMPTY (IE LAST BLOCK WAS LAST       01260000
+*                             OF DATA?)                                 01270000
+         BE    S31EOF         EOF, RETURN A 4                           01280000
+         L     R14,AWORKFIL                                             01290000
+         POINT (R14),(R15)    POINT TO THE TTR                          01300000
+         READ  WORKINDB,SF,,(8),MF=E READ IT                            01310000
+         CHECK WORKINDB       WAIT FOR IT                               01320000
+         MVC  S30LASTL,=H'4'    SET OFFSET TO FIRST RECORD TO 4         01330000
+         SPACE 3                                                        01340000
+S31MUV   EQU   *                                                        01350000
+         AH    R7,S30LASTL    ADD OFFSET TO POINT TO THIS RECORD        01360000
+* HERE ALL WE HAVE TO DO IS SHIFT THE RECORD TO THE AREA                01370000
+*  SPECIFIED, AND RETURN                                                01380000
+         LR    R1,R5          LOAD R1 WITH A(RECEIVE)                   01390000
+         LR    R0,R7          LOAD SEND ADDRESS                         01400000
+         BAL   R14,MOVEDATA   SHIFT IT (LOOKS AFTER > 256 BYTES)        01410000
+         LH    R1,S30LASTL                                              01420000
+         MVC   S31WORK,0(R7)  SHIFT LAST RECORD LRECL SO NO 0C6         01430000
+         AH   R1,S31WORK      CALC NEW OFFSET                           01440000
+         STH   R1,S30LASTL    RESET OFFSET IN BLOCK                     01450000
+         JOLRETN                                                        01460000
+         LTORG                                                          01470000
+         DC    S(*,*,*,*)                                               01480000
+         DC    S(*,*,*,*)                                               01490000
+         DC    S(*,*,*,*)                                               01500000
+         DC    S(*,*,*,*)                                               01510000
+         DC    S(*,*,*,*)                                               01520000
+         DC    S(*,*,*,*)                                               01530000
+         DC    S(*,*,*,*)                                               01540000
+         DC    S(*,*,*,*)                                               01550000
+         DC    S(*,*,*,*)                                               01560000
+         DC    S(*,*,*,*)                                               01570000
+         DC    S(*,*,*,*)                                               01580000
+         SPACE 3                                                        01590000
+S31SAVE  DSECT                                                          01600000
+         DS    18F                                                      01610000
+S31WORK  DS    H                                                        01620000
+         DS    H                                                        01630000
+S31DSIZE EQU   *-S31SAVE                                                01640000
+S30PARM    DSECT                                                        01650000
+S30ABUF    DS  A               ADDRESS OF BUFFER                        01660000
+S30LBUF    DS  H               LENGTH OF BUFFER                         01670000
+S30BLKNO   DS  H               CURRENT BLOCK NUMBER                     01680000
+S30MAXBL   DS  H               MAX NO OF BLOCKS                         01690000
+S30LASTL   DS  H               LAST BLOCK LENGTH                        01700000
+S30TTR1    DS  A               TTRS OF BLOCKS                           01710000
+S30OP      DSECT                                                        01720000
+#S30REC    DS  H               LENGTH OF RECORD TO GO OUT               01730000
+S30REC     DS  CL1             RECORD                                   01740000
+           END                                                          01750000

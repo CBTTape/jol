@@ -1,0 +1,169 @@
+UJEMNT   TITLE 'INFORM OPERATOR OF REQ''D VOLUMES UPD#XXX'              00000101
+         COPY  JOLGLOBL                                                 00000201
+         $UJEPARM                                                       00000301
+         GENSAVE CSECT=UJEMNT                                           00000403
+* THIS LOAD MODULE IS EXECUTED AS PART OF THE FIRST STEP OF ANY JOL     00000501
+*    PRODUCED JOB.                                                      00000601
+* INITIALLY,TEST IF A DD-CARD FOR $$UJEMNT EXISTS,IF NOT JUST RETURN    00000701
+*    BECAUSE THIS JOB REQUIRES NO VOLUMES TO BE MOUNTED FOR IT          00000801
+         FINDDD ##MNTNAM                                                00000901
+         LTR   R15,R15                                                  00001005
+         BZ    VOLSREQD        IS A DD-CARD,SO READ THE FILE AND        00001105
+*                              PULL IN THE VOLUME NAMES                 00001201
+         GENRETN RC=0                                                   00001306
+VOLSREQD FINDDD ##PRNTNM       IF THERE IS A $$PRINT DD CARD WE         00001401
+* ARE NOT EXECUTING UNDER THE GUIDANCE OF 'HASP'                        00001501
+*                              NOT RUNNING UNDER HASP                   00001601
+         LTR   R15,R15                                                  00001701
+         BZ    OPEN2                                                    00001801
+         OPEN (##UJEMNT,(INPUT))                                        00001901
+         B     FILESOPN                                                 00002001
+OPEN2    OPEN (##UJEMNT,(INPUT),##PRINT,(OUTPUT))                       00002101
+FILESOPN DS    0H                                                       00002201
+         AIF   (&X8).X8010                                              00002302
+         EXTRACT ANSAREA,'S',FIELDS=(TIOT)                              00002401
+         L     R1,ANSAREA                                               00002501
+         MVC   JOBNAME,0(R1)   MOVE IT TO JOBNAME                       00002601
+         AGO   .NX8010                                                  00002701
+.X8010   ANOP                                                           00003101
+         L     R14,X'2EC'     THIS IS FLCTOLD ON X8 SYSTEMS       88020 00003201
+         L     R14,12(,R14)   THIS POINTS TO THE JSCB             88020 00003301
+         L     R15,0(,R14)    AND NOW THE CSCB                    88020 00003401
+         MVC   JOBNAME,X'058'(R15) THE JOB NAME                   88020 00003501
+.NX8010  ANOP                                                           00003601
+         LA    R1,8            DROP BLANKS OFF THE                      00003805
+FINDEJOB LA    R14,JOBNAME(R1) END OF THE NAME                          00003905
+         CLI   0(R14),C' '     SO THE MESSAGE LOOKS BETTER              00004005
+         BNE   FIXJOBL         FIX-UP JOB NAME LENGTH                   00004105
+           BCT R1,FINDEJOB                                              00004201
+FIXJOBL    STH R1,#JOBNAME                                              00004301
+           SPACE 3                                                      00004401
+* NOW WE CAN FILL UP THE VOLUME STACK WITH VOLUME LABELS,WATCHING       00004501
+*    OF COURSE THAT WE ONLY GET THE FIRST MENTION OF A VOLUME           00004601
+*    SO THAT WE DON'T PRINT OUT VOLUME NAMES TWICE                      00004701
+           CLEAR VOLLIST                                                00004801
+GETLOOP    GET ##UJEMNT                                                 00004901
+           LR  R4,R1                                                    00005001
+           USING CARDIN,R4                                              00005101
+           CLI CARDIN,C'*'     VOLREF ?                                 00005201
+           BE  GETLOOP         YES,IGNORE THIS CARD                     00005301
+           LA  R1,CARDIN                                                00005401
+           LA  R14,6           LENGTH OF VOLUME ENTRIES                 00005501
+           LA  R15,CARDIN+72                                            00005601
+TENDCARD   CLC 0(6,R1),=CL6' ' REACHED END OF VOLUMES ON THIS CARD ?    00005701
+           BE  GETLOOP         YES,GET ANOTHER CARD THEN                00005801
+           LA  R5,VOLLIST                                               00005901
+           LA  R6,6                                                     00006001
+           LA  R7,VOLLIST+L'VOLLIST                                     00006101
+COMPLOOP   CLC 0(6,R5),=CL6' ' HAVE WE REACHED END OF VOLUMES STACKED   00006201
+*                              ALREADY ?                                00006301
+           BE  MOVIN           YES,SO SHIFT IN NEXT VOLUME FROM CARD    00006401
+           CLC 0(6,R5),0(R1)   IS VOL IN STACK=ONE ON THE CARD ?        00006501
+           BE  STEPCARD        YES,SO DON'T STORE IN,HAVE A LOOK AT     00006601
+*                              THE NEXT VOLUME ON THE CARD              00006701
+           BXLE R5,R6,COMPLOOP STEP POINTER TO LOOK AT NEXT VOLUME IN   00006801
+*                              THE STACK.                               00006901
+* HERE WE HAVE FILLED UP THE STACK,TUT,TUT.                             00007001
+           WTO 'UJEMNT:TOO MANY VOLUMES'                                00007101
+           B   EOF                                                      00007201
+           SPACE 3                                                      00007301
+MOVIN      MVC 0(6,R5),0(R1)   MOVE IN NON-REPEATED VOLUME NAME         00007401
+STEPCARD   BXLE R1,R14,TENDCARD GO AND GET NEXT VOLUME FROM CARD        00007501
+         B     GETLOOP         FELL THRU CARD LOOP,GET A NEW CARD       00007601
+EOF      DS    0H                                                       00007701
+PRINTVOL DS    0H                                                       00007801
+         CLEAR OP                                                       00007901
+         MVC    OP(20),INIT1MSS 1ST LINE OF MESSAGE                     00008001
+         LA    R1,L'INIT1MSS                                            00008101
+         LA    R14,OP(R1)                                               00008201
+         AH    R1,#JOBNAME                                              00008301
+         LA    R1,1(R1)                                                 00008401
+         STH   R1,#OP                                                   00008501
+         MVC   0(8,R14),JOBNAME                                         00008601
+* NOW LOOP ROUND ADDING TO #OP THE VOLUMES IN THE STACK UNTIL THE       00008701
+*    END OF THE STACK OR UNTIL THE LINE IS LONG ENOUGH TO PRINT.        00008801
+         LA    R5,VOLLIST                                               00008901
+         LA    R6,6                                                     00009001
+         LA    R7,L'VOLLIST+VOLLIST                                     00009101
+NEXTVOL  CLC   0(6,R5),=CL6' ' REACHED END OF VOLS IN STACK ?           00009201
+         BE    ENDLIST                                                  00009301
+* NOW DROP OFF THE BLANKS IN THE VOLUME WE ARE ABOUT TO CONCATENATE     00009401
+*    TO 'OP' STRING                                                     00009501
+           LA  R15,5           BXLE INCREMENT                           00009601
+FINDEVOL   LA  R14,0(R5,R15)   ABSOL ADDR VOLUME BYTE                   00009701
+           CLI 0(R14),C' '     BLANK ?                                  00009801
+           BNE GOTEVOL         NO,GOOD FOUND LAST BYTE OF VOLUME        00009901
+           BCT R15,FINDEVOL    LOOP TO FIND LAST BYTE                   00010001
+GOTEVOL    LH  R1,#OP          LOAD LENGTH OF STRING SO FAR             00010101
+           LR  R14,R1          KEEP IT FOR A MINUTE                     00010201
+           LA  R1,2(R1,R15)    CALC NEW LENGTH                          00010301
+           CH  R1,=AL2(L'OP)   TOO LONG ?                               00010401
+           BH  OPSTRING        YES,OUTPUT WHAT WE'VE GOT SO FAR         00010501
+           STH R1,#OP          NO,RESET LENGTH OF STRING                00010601
+           LA  R1,OP+0(R14)    CALC ADDR OF WHERE TO MOVE VOLUME TOO    00010701
+           MVC 0(6,R1),0(R5)   SHIFT IT IN                              00010801
+           LA R1,1(R1,R15)                                              00010901
+           MVI 0(R1),C','      FOLLOWED BY A COMMA                      00011001
+           BXLE R5,R6,NEXTVOL  LOOK AT NEXT VOLUME                      00011101
+ENDLIST    LH R1,#OP                                                    00011201
+           BCTR R1,0                                                    00011301
+           STH R1,#OP                                                   00011401
+           BAL  R10,OUTPUT                                              00011501
+           CLOSE (##UJEMNT,,##PRINT)                                    00011601
+           FREEPOOL ##UJEMNT                                            00011701
+           GENRETN                                                      00011801
+           SPACE 3                                                      00011901
+OPSTRING   BAL R10,OUTPUT                                               00012001
+           CLEAR OP                                                     00012101
+           MVC  OP(20),INIT2MSS 2ND LINE MESSAGE TEXT                   00012201
+           LA R1,L'INIT2MSS                                             00012301
+           LA  R14,OP(R1)                                               00012401
+           AH  R1,#JOBNAME                                              00012501
+           LA  R1,1(R1)                                                 00012601
+           STH R1,#OP                                                   00012701
+           MVC 0(8,R14),JOBNAME                                         00012801
+           B   NEXTVOL                                                  00012901
+#OPBLKS    DS  H                                                        00013001
+           DC H'0'                                                      00013101
+           DC H'0'                                                      00013201
+#OP        DS  H                                                        00013301
+OP         DS  CL80                                                     00013401
+#JOBNAME   DS  H                                                        00013501
+JOBNAME    DS  CL8                                                      00013601
+VOLLIST    DS  CL600                                                    00013701
+           PRINT NOGEN                                                  00013801
+           AIF (&X8).X8020                                              00013903
+##PRINT    DCB DDNAME=$$PRINT,RECFM=VB,LRECL=137,MACRF=W,DSORG=PS       00014003
+##UJEMNT   DCB DDNAME=$$UJEMNT,RECFM=FB,LRECL=80,EODAD=EOF,MACRF=GL,   *00014103
+               DSORG=PS                                                 00014203
+         AGO   .NX8020                                                  00014304
+.X8020   ANOP                                                           00014403
+##PRINT  DCB   DDNAME=JOLPRINT,RECFM=VB,LRECL=137,MACRF=W,DSORG=PS      00014503
+##UJEMNT DCB   DDNAME=SYSUT2,RECFM=FB,LRECL=80,EODAD=EOF,MACRF=GL,     *00014604
+               DSORG=PS                                                 00014703
+.NX8020  ANOP                                                           00014804
+OUTPUT   DS    0H                                                       00014903
+           LH  R1,#OP                                                   00015003
+           LA  R1,4(R1)                                                 00015103
+           STH R1,#OP-2                                                 00015203
+           XC  #OP,#OP                                                  00015303
+           LA  R1,4(R1)                                                 00015403
+           STH R1,#OP-6                                                 00015503
+           LA  R1,#OP-2                                                 00015603
+           SVC 35                                                       00015703
+           TM  ##PRINT+48,X'10'                                         00015803
+           BO  WRITE                                                    00015903
+           BR  R10                                                      00016003
+WRITE      WRITE DECB0,SF,##PRINT,#OPBLKS                               00016103
+           CHECK DECB0                                                  00016203
+           BR  R10                                                      00016303
+BLANK      DS  0H                                                       00016403
+BLANKS     DC  CL80' '                                                  00016503
+##MNTNAM   DC CL8'$$UJEMNT'                                             00016603
+##PRNTNM   DC  CL8'$$PRINT'                                             00016703
+ANSAREA    DS  4F                                                       00016803
+INIT1MSS   DC  C'JOL--VOLS REQD FOR '                                   00016903
+INIT2MSS   DC  C'JOL--CONT''D FOR '                                     00017003
+CARDDS     DSECT                                                        00017103
+CARDIN     DS  CL80                                                     00017203
+           END                                                          00017303

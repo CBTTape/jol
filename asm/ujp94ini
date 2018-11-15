@@ -1,0 +1,114 @@
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974,1975       00000100
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1976,1980                      00000110
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00000200
+  FIX 'SET %SYSACCT'                                                    00000210
+           SPACE 3                                                      00000300
+*                   J             000000            L                   00000400
+*                   J            0      0           L                   00000500
+*                   J           0        0          L                   00000600
+*                   J          0          0         L                   00000700
+*                   J         0            0        L                   00000800
+*                   J         0            0        L                   00000900
+*                   J         0            0        L                   00001000
+*                   J         0            0        L                   00001100
+*                   J         0            0        L                   00001200
+*                   J         0            0        L                   00001300
+*                   J         0            0        L                   00001400
+*        J          J         0            0        L                   00001500
+*         J        J           0          0         L                   00001600
+*          J      J             0        0          L                   00001700
+*           J    J               0      0           L                   00001800
+*            JJJJ                 000000            LLLLLLLLLLL         00001900
+           SPACE 3                                                      00002000
+           COPY JOLCOM                                                  00002100
+         JOLSAVE CSECT=UJP94INI                                   75128 00002200
+* THIS MODULE RECEIVES CONTROL AT THE START OF A NEW JOB                00002300
+*    FIRST CALL,IT DECODES THE COMPILER PARM FIELD                      00002400
+*    IF AN *JOL CARD IS PRESENT,IT DECODES THE OPTIONS ON IT            00002500
+* ANOTHER MODULE THEN (IF REQD) PRINTS OUT THE OPTIONS IN SHORT         00002600
+*    OR LONG FORM.                                                      00002700
+           SPACE 3                                                      00002800
+* THE ALLOWABLE OPTIONS ARE LISTED IN THE TABLE 'OPTIONS'               00002900
+           SPACE                                                        00003000
+         MVC   ICOMMAND,=CL8'MACRO' SO ASSIGNMENT ROUTINE         75128 00003100
+*                             AND DECLARE ROUTINES WON'T DO SO    75128 00003200
+*                             MUCH MESSING ROUND STORING VALUES   75128 00003300
+         SPACE 2                                                        00003400
+           USING JOLCOM,R2                                              00003500
+           USING TKNX,R3                                                00003600
+         L     R4,AJOLGEN                                         75128 00003700
+         USING GENDETS,R4                                        75128  00003800
+         MVC   WORK(80),BLANKS                                    75128 00003900
+         MVC   #WORK,ZERO                                         75128 00004000
+         MVC   SYMBOLIC,=CL8'SYSLABEL'                            75128 00004100
+         $CALL UJP85ASN                                           75128 00004200
+         MVC   SYMBOLIC,=CL8'SYSMACNM'                            75128 00004300
+         $CALL UJP85ASN                                           75128 00004400
+         MVC   SYMBOLIC,=CL8'SYSSCMD'                             75128 00004500
+         $CALL UJP85ASN                                           75128 00004600
+         MVC   #WORK+1(2),=X'01F0'                                      00004700
+         MVC   SYMBOLIC,=CL8'SYSLEVEL'                            75128 00004800
+         $CALL UJP85ASN                                                 00004900
+         MVC   SYMBOLIC,=CL8'SYSNLIST'                            75128 00005000
+         $CALL UJP85ASN                                                 00005100
+         MVC   SYMBOLIC,=CL8'SYSPFK'                              87080 00005000
+         $CALL UJP85ASN                                           87080 00005100
+         MVC   SYMBOLIC,=CL8'LASTCC'                              87080 00005000
+         $CALL UJP85ASN                                           87080 00005100
+         MVC   SYMBOLIC,=CL8'MAXCC'                               J60   00005000
+         $CALL UJP85ASN                                           J60   00005100
+         MVC   SYMBOLIC,=CL8'PANELS'                              J60
+         CLI   IFTSO,C' '                                         J60
+         BE    P94NPANL                                           J60
+         MVI   #WORK+1,3      SET LENGTH TO 3                     J60
+         MVC   WORK(3),=CL3'YES'                                  J60
+         $CALL UJP85ASN       STORE %PANEL                        J60
+         MVC   SYMBOLIC,=CL8'GUI'                                 J60
+         $CALL UJP85ASN       STORE %GUI                          J60
+         B     P94SPOL
+P94NPANL DS    0H                                                 J51
+         MVI   #WORK+1,2      SET LENGTH TO 2                     J60
+         MVC   WORK(2),=CL2'NO'                                   J60
+         $CALL UJP85ASN       STORE %PANEL                        J60
+         MVC   SYMBOLIC,=CL8'GUI'                                 J60
+         $CALL UJP85ASN       STORE %GUI                          J60
+P94SPOL  EQU   *                                                  J60
+         MVI   #WORK+1,0      SET LENGTH TO 0                     J60
+*  SET UP '%SPOOL'                                                75128 00005200
+         MVC   SYMBOLIC,=CL8'SPOOL'                               75128 00005300
+         MVI   #WORK+1,4      SET L'WORK=4                        75128 00005400
+         MVC   WORK(4),BLANKS CLEAR IT FIRST IN CASE NO SPOOL SYS 75128 00005500
+         LM    R7,R9,P94CON1  LOAD BXLE CONSTANTS                 75128 00005600
+P94FSPL  CLC   SPOOL,0(R7)    NOW FIND CORRECT SPOOLING SYSTEM    75128 00005700
+         BE    P94GOTSP       GOT IT ? YES,GO SHIFT SPOOL NAME    75128 00005800
+         BXLE  R7,R8,P94FSPL  NO, TRY NEXT ENTRY                  75128 00005900
+         B     P94NSPL        DIDN'T GET IT AT ALL, STORE BLANKS  75128 00006000
+P94GOTSP MVC   WORK(4),1(R7)  DID GET IT, SHIFT CORRECT NAME IN   75128 00006100
+P94NSPL  EQU   *                                                  75128 00006200
+         $CALL UJP85ASN       AND STORE VALUE IN SYMBOLIC TABLE   75128 00006300
+         SPACE 3                                                  75128 00006400
+         MVC   WORK(3),DEFSYS     NOW %SYSTEM                           00006500
+         MVI   #WORK+1,L'DEFSYS                                         00006600
+         MVC   SYMBOLIC,=CL8'SYSTEM'                              75128 00006700
+         $CALL UJP85ASN       AND STORE VALUE IN SYMBOLIC TABLE   75128 00006800
+           JOLRETN                                                      00006900
+         SPACE 3                                                        00007000
+P94CON1  DC    A(*+12,5,P94CON1E-5)                                     00007100
+         DC    C'HHASP'                                                 00007200
+         DC    C'AASP '                                                 00007300
+         DC    C'1JES1'                                                 00007400
+         DC    C'2JES2'                                                 00007500
+         DC    C'3JES3'                                                 00007600
+P94CON1E EQU   *                                                        00007700
+         DC    C'3JES3'                                           75128 00007800
+         DC    C'3JES3'                                           75128 00007900
+         DC    C'3JES3'                                           75128 00008000
+          DC S(*,*,*,*)                                                 00008100
+          DC S(*,*,*,*)                                                 00008200
+          DC S(*,*,*,*)                                                 00008300
+          DC S(*,*,*,*)                                                 00008400
+       DC S(*,*,*,*)                                                    00008500
+       DC S(*,*,*,*)                                                    00008600
+       DC S(*,*,*,*)                                                    00008700
+       DC S(*,*,*,*)                                                    00008800
+           END                                                          00008900

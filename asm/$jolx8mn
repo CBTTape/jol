@@ -1,0 +1,391 @@
+$JOLMN40 TITLE 'JOL RESIDENT JOB STEP MONITOR '                         00001000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973                 00002000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1976                           00003000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1980                           00004000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1982                           00005000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00006000
+           SPACE 3                                                      00007000
+*                   J             000000            L                   00008000
+*                   J            0      0           L                   00009000
+*                   J           0        0          L                   00010000
+*                   J          0          0         L                   00011000
+*                   J         0            0        L                   00012000
+*                   J         0            0        L                   00013000
+*                   J         0            0        L                   00014000
+*                   J         0            0        L                   00015000
+*                   J         0            0        L                   00016000
+*                   J         0            0        L                   00017000
+*                   J         0            0        L                   00018000
+*        J          J         0            0        L                   00019000
+*         J        J           0          0         L                   00020000
+*          J      J             0        0          L                   00021000
+*           J    J               0      0           L                   00022000
+*            JJJJ                 000000            LLLLLLLLLLL         00023000
+           SPACE 3                                                      00024000
+         GBLC  &JOLOS                                                   00025000
+         LCLA  &SP,&RSVDRC                                              00026000
+         LCLB  &X8                                                      00027000
+         LCLC  &KEY,&SUP                                                00028000
+         $UJEPARM                                                       00029000
+&SP      SETA  155        1 FOR TESTING, 155 FOR X8  PRODUCTION        .00030000
+                                         254 FOR OTHER OS/VS PRODUCTION 00031000
+&KEY     SETC  'ZERO'    NZERO FOR TESTING, ZERO FOR PRODUCTION         00032000
+&SUP     SETC  'SUP'      PROB FOR TESTING, SUP FOR PRODUCTION          00033000
+&X8      SETB  ('&JOLOS' EQ 'X8')                                       00034000
+&RSVDRC  SETA  &X8*40+(1-&X8)*4000                                      00035000
+          PUNCH '         SETCODE   AC(1)    '                          00036000
+          PUNCH '         ALIAS   $MONIT40  '                           00037000
+$JOLMN40 CSECT                                                    75128 00038000
+          USING PSA,0                                                   00039000
+* 3.0 CHANGE TO LET JOL RUN UNDER MVS.                            75311 00040000
+* APF FACILITIES ARE USED.                                        75311 00041000
+* THE JOL SCHEDULER IS ATTACHED, BUT INSTEAD OF XCTLING TO THE    75311 00042000
+* PROBLEM PROGRAM, IT RETURNS TO US HERE, THEN WE JUMP INTO SUPER-75311 00043000
+* VISOR MODE, AND USE THE SPECIAL ATTACH TO ATTACH THE PROBLEM    75311 00044000
+* PROGRAM AS A NEW JOB-STEP, AND ALLOW APF TO WORK AS USUAL.      75311 00045000
+*COURTESY MAS, SHELL AUST AND MYSELF                              75311 00046000
+           SPACE 3                                                      00047000
+* 4.0 EXTENDED SUPPORT TO OSIV/X8                                       00048000
+*     DYNAMIC ALLOCATION USED INSTEAD OF JCL                            00049000
+*     MONITOR NOW RUNS IN SUPERVISOR STATE TO RETAIN AUTHORISATION,     00050000
+*      ALL TASKS USE THE SAME JSCB                                      00051000
+           SPACE 3                                                      00052000
+R0         EQU 0                                                        00053000
+R1         EQU 1                                                        00054000
+R2         EQU 2                                                        00055000
+R3         EQU 3                                                        00056000
+R4         EQU 4                                                        00057000
+R5         EQU 5                                                        00058000
+R6         EQU 6                                                        00059000
+R7         EQU 7                                                        00060000
+R8         EQU 8                                                        00061000
+R9         EQU 9                                                        00062000
+R10        EQU 10                                                       00063000
+R11        EQU 11                                                       00064000
+R12        EQU 12                                                       00065000
+R13        EQU 13                                                       00066000
+R14        EQU 14                                                       00067000
+R15        EQU 15                                                       00068000
+           SPACE 2                                                      00069000
+           SAVE (14,12),,UJEMON.COPYRIGHT.CLARKE.COMPUTER.SOFTWARE      00070000
+           USING $JOLMN40,R11    ADDRESS OURSELVES                      00071000
+           LR  R11,R15         AND FIX UP BASE REGISTER                 00072000
+           LR  R9,R1           SAVE R1 FOR A WHILE                      00073000
+           LA  R0,(CONEND-CONSTART)    LOAD R0 WITH LENGTH OF CONSTANT  00074000
+*                                      AREA + LENGTH SAVE AREA          00075000
+           GETMAIN R,LV=(0)    GET THE REQUIRED STORAGE                 00076000
+           ST  R13,4(R1)                                                00077000
+           ST  R1,8(R13)                                                00078000
+           USING SAVEAREA,R13                                           00079000
+         LR    R13,R1          LINKAGE SET UP NOW                       00080010
+*        MODESET MODE=&SUP     TEMP                                     00081010
+* THIS MONITOR IS EXECUTED AS PART OF THE JOL SYSTEM.                   00082000
+*    JCL IS PRODUCED TO EXECUTE'$JOLSH40',AND $JOLSH40 PERFORMS         00083000
+*    SUCH ITEMS AS                                                      00084000
+*          1. THE DISPLAY INSTRUCTION                                   00085000
+*          2. ATTACHING THE USERS PROGRAM TO RUN AS A SUBTASK.          00086000
+*          3. PERFORMING ALL THE'IF'STATEMENT.                          00087000
+         SPACE 3                                                        00088000
+         LR    R1,R9              ADDRESS PARAMETERS             88036  00088105
+         LINK  EP=$JOLIN40        INITIALISE INSTRUCTION FILE    88036  00088206
+         LINK  EP=$JOLX8MI        ALLOCATE INSTRUCTION FILE      88036  00088305
+         FIX   'ALTER THE FOLLOWING WHEN STMT IS INCREASED IN SIZE'     00089000
+         MVC   STMT,=C'0010'                                            00090000
+         MVI   TASKLABL,C' '                                            00091000
+         MVC   TASKLABL+1(GOBACK-TASKLABL+1),TASKLABL            75128  00092000
+         SPACE 3                                                        00093000
+         ST    R9,APARM        STORE ORIGINAL R1 IN GOTTEN CORE         00094000
+         LA    R1,PARML                                                 00095000
+         ST    R1,ATASKPRM                                              00096000
+         XC    JOBLIBA,JOBLIBA                                          00097000
+*        DEVTYPE =CL8'JOBLIB',CALLAREA                                  00098001
+*        LTR   R15,R15                                                  00099001
+*        BNZ   M00NJLIB        BR IF NO JOBLIB                          00100001
+         FINDDD =CL8'JOBLIB',ERRET=M00NJLIB                             00100103
+         MVC   JOBLIB,DCB                                               00101000
+         MVC   JOBLIB+DCBDDNAM-IHADCB(8),=CL8'JOBLIB'                   00102000
+         MVI   JOBLIBA,X'80'                                            00103000
+         OPEN  JOBLIB,MF=(E,JOBLIBA)  OPEN THE JOBLIB                   00104000
+         LTR   R15,R15                                                  00105000
+         BZ    M00NJLIB                                                 00106000
+         XC    JOBLIBA,JOBLIBA     CLEAR JOBLIB ADDRESS IF OPEN FAILED  00107000
+M00NJLIB DS    0H                                                       00108000
+*        MODESET KEY=&KEY       INTO PROTECT KEY ZERO             75311 00109000
+         SPACE 1                                                  75311 00110000
+* BUILD JSCB FOR PROBLEM PROGRAM                                  75311 00111000
+*        LA    R4,JSCBLEN                                               00112000
+*        ICM   R4,8,=AL1(&SP)  SUBPOOL: KEY ZERO, FREE AT EOS           00113000
+*        GETMAIN R,LV=(R4)                                              00114000
+*        LR    R8,R1         SAVE ADDRESS                       75311   00115000
+*        USING JSCB,R8                                                  00116000
+*        AIF  ('&JOLOS' EQ 'X8').X8030                                  00117000
+*        SH    R8,=Y(JSCBDISP) SET OFFSET UP                            00118000
+*        L     R5,PSATOLD      PSATOLD-PSA (VS2 MACRO 'IHAPSA')   75311 00119000
+*        AGO   .NX8030                                                  00120000
+.X8030   ANOP                                                           00121000
+*        EXTRACT MF=(E,XTRACT),FIELDS=TCB                               00122000
+*        LR    R5,R0          SAVE TCB ADDRESS                          00123000
+         L     R5,PSATOLD    LOAD TCB ADDRESS                           00124000
+.NX8030  ANOP                                                           00125000
+         USING TCB,R5        ADDRESSIBILITY FOR TASK CONTROL BLOCK      00126000
+*        LR    R0,R8         ADDRESS OF RECEIVING FIELD FOR MOVE        00127000
+*        L     R14,TCBJSCB     POINT TO MASTER JSCB               75311 00128000
+*        AIF   ('&JOLOS' EQ 'X8').X8040                                 00129000
+*        LA    R14,JSCBDISP(,R14) STEP PAST THE RUBBISH                 00130000
+.X8040   ANOP                                                           00131000
+*        LR    R15,R4        LENGTH OF SENDING FIELD                    00132000
+*        LR    R1,R4         LENGTH OF RECEIVING FIELD                  00133000
+*        STM   R14,R1,JSCBWRK SAVE POINTERS                             00134000
+*        B     *+8  SKIP OFF AUTHORISATION                         DASD 00135000
+*        MODESET KEY=NZERO                                       75311  00136000
+         SR    R7,R7           DOUBLE ABEND INDICATOR SO IF THE         00137000
+*                              SCHEDULER ABENDS,THEN WE WON'T RELOAD    00138000
+*                              THE SCHEDULER AND LOOP FOREVER           00139000
+         L     R8,TCBJSCB                                        88036  00139107
+         USING JSCB,R8                                                  00139207
+ATTACH   DS    0H                                                       00140000
+         XC    TASKECB,TASKECB                                          00141000
+         XC    STEPLBDD,STEPLBDD  CLEAR DDNAME FOR STEPLIB              00142000
+         MVC   ATTACHL(ATTACHLL),ATTACH3 INITIALISE ATTACH              00151000
+*                              BECAUSE 'E' FORM DOESN'T INITIALISE      00152000
+*                              ALL THE BITS.                            00153000
+         ATTACH EP=$JOLSH40,PARAM=(PARMAREA),MF=(E,CALLAREA),     75128*00154000
+               ECB=TASKECB,SF=(E,ATTACHL),                             *00155000
+               JSCB=,JSTCB=NO,VL=1 SM=SUPV IN SUPERVISOR MODE           00156011
+*        ATTACH EP=$JOLSH40,PARAM=(PARMAREA),MF=(E,CALLAREA),     75128*00156111
+               ECB=TASKECB,SF=(E,ATTACHL),                             *00156211
+               JSCB=,JSTCB=YES,VL=1 SM=SUPV IN SUPERVISOR MODE          00156311
+         LTR   R15,R15       Q... ATTACHED?                             00157000
+         BZ    SSOK          A... YES                                   00158000
+         CVD   R15,DBL                                                  00159000
+         MVC   DBL(4),=X'40202120'                                      00160000
+         ED    DBL(4),DBL+6  CONVERT TO PRETTY PRINTABLES               00161000
+         MVC   WORK(WTOLF1L),WTOLF1 MOVE THE MESSAGE                    00162000
+         MVC   WORK+36(2),DBL+2  COPY THE PRETTY RETURN CODE            00163000
+         WTO   MF=(E,WORK)                                              00164000
+         ABEND 1,DUMP,STEP                                              00165000
+         SPACE 2                                                        00166000
+SSOK     DS    0H                                                       00167000
+         LR    R5,R1                                                    00168000
+         USING TCB,R5                                                   00169000
+         WAIT  ECB=TASKECB                                              00170000
+         SPACE 3                                                        00171000
+         AIF   ('&JOLOS' EQ 'X8').X8100                                 00172000
+* NOW CHECK IF WE ARE RUNNING UNDER A VS SYSTEM                   75311 00173000
+         CLI  VS,C' '        VS ?                               75311   00174000
+         BE  NOTVS           NOPE                               75311   00175000
+.X8100   ANOP                                                           00176000
+         ST    R5,CALLAREA     STORE TCB ADDRESS                  75311 00177000
+         MVC   TASKRETN(1),TCBFLGS1  SHIFT IN ABEND FLAG           DASD 00178000
+         MVC   TASKRETN+1(3),TASKECB+1 AND RETURN CODE             DASD 00179000
+         DETACH CALLAREA                                         76200  00180000
+         TM    TASKRETN,TCBFA  ABEND???                                 00181000
+         BNO   GOSUP           NO                                 76200 00182000
+         LTR   R7,R7                                                    00183000
+         BZ    ONCE                                                     00184000
+         WTO   'SECOND CONSECUTIVE JOL SCHEDULER ABEND',ROUTCDE=(2,11)  00185000
+         B     SETRET                                                   00186000
+ONCE     DS    0H                                                       00187000
+         WTO   'JOL SCHEDULER ABENDED',ROUTCDE=(2,11)             76200 00188000
+         LA    R7,1(,R7)                                                00189000
+         B     SETRET                                                   00190000
+GOSUP    DS    0H                                                       00191000
+         CLI   GOBACK,C' '                                        76200 00192000
+         BNE   RETNOS                                             76200 00193000
+         SR    R7,R7           CLEAR THE DOUBLE ABEND FLAG              00194000
+* NOW ATTACH PROBLEM PROGRAM.                                     75311 00195000
+         MVI   ATASKPRM,X'80'                                     75311 00196000
+         XC    TASKECB,TASKECB CLEAR ECB                          75311 00197000
+         L     R5,JOBLIBA   LOAD JOBLIB ADDRESS                         00198000
+         CLI   STEPLBDD,X'00' Q... STEPLIB SUPPLIED?                    00199000
+         BE    M00MDSET       A... YES                                  00200000
+         MVC   STEPLIB,DCB                                              00201000
+         MVC   STEPLIB+DCBDDNAM-IHADCB(8),STEPLBDD COPY SUPPLIED DDNAME 00202000
+         MVI   STEPLIBA,X'80'                                           00203000
+         OPEN  STEPLIB,MF=(E,STEPLIBA)  OPEN THE STEPLIB                00204000
+         L     R5,STEPLIBA                                              00205000
+M00MDSET DS    0H                                                       00206000
+*        MODESET MODE=&SUP,KEY=&KEY  SUPERVISOR MODE,KEY ZERO           00207000
+*        LM    R14,R1,JSCBWRK LOAD POINTERS                             00208000
+*        MVCL  R0,R14        AND COPY MY JSCB                           00209000
+         AIF   ('&JOLOS' EQ 'X8').X8120                                 00210000
+         XC   JSCBDBTB,JSCBDBTB CLEAR DEB TABLE POINTER            DASD 00211000
+.X8120   ANOP                                                           00212000
+         AIF   ('&JOLOS' NE 'X8').NX8120                                00213000
+         FIX  'SHOULD ALSO FIDDLE WITH DUMP BITS HERE'                  00214000
+.NX8120  ANOP                                                           00215000
+*        NI    JSCBOPTS,X'FF'-JSCAUTH DONG THE AUTHORISE BIT            00216000
+         LA    R5,0(,R5)    CLEAR THE HIGH-ORDER BYTE                   00217000
+*        MODESET KEY=NZERO, NON-ZERO PROTECT KEY                  75311.00218000
+               MODE=&SUP  BUT SUPERVISOR MODE                           00219000
+         MVC   ATTACHL(ATTACHLL),ATTACH3 INITIALISE ATTACH              00220000
+*                              BECAUSE 'E' FORM DOESN'T INITIALISE      00221000
+*                              ALL THE BITS.                            00222000
+         AIF   ('&KEY' EQ 'NZERO').NOSET10                       88036  00222107
+*        MODESET KEY=&KEY   KEY ZERO                             TEMP   00222210
+*        OI    JSCBOPTS,JSCAUTH SET THE AUTHORISE BIT            TEMP   00222310
+*        MODESET KEY=NZERO  NON-ZERO PROTECT KEY                 TEMP   00222410
+.NOSET10 ANOP                                                    88036  00222508
+         ATTACH EPLOC=TASKNAME,ECB=TASKECB,SF=(E,ATTACHL),        75311*00223000
+               TASKLIB=(R5),SM=PROB,                                   *00224000
+               SZERO=NO,                                         88036 .00224112
+               JSTCB=NO,MF=(E,ATASKPRM)                                 00225011
+*        ATTACH EPLOC=TASKNAME,ECB=TASKECB,SF=(E,ATTACHL),        75311*00225111
+               TASKLIB=(R5),SM=PROB,                                   *00225211
+               SZERO=NO,                                         88036 .00225312
+               JSTCB=YES,MF=(E,ATASKPRM)                                00225412
+         LR    R5,R1                                                    00226000
+         ST    R15,TASKRETN                                             00227000
+* NOW MODESET BACK TO PROBLEM PROGRAM STATE                       75311 00228000
+*        MODESET MODE=PROB                                        75311 00229000
+         ICM   R15,15,TASKRETN                                          00230000
+         BZ    USOK                                                     00231000
+         SPACE 2                                                        00232000
+*  THE ATTACH FAILED                                                    00233000
+         SPACE 1                                                        00234000
+         CVD   R15,DBL                                                  00235000
+         MVC   DBL(4),=X'40202120'                                      00236000
+         ED    DBL(4),DBL+6  CONVERT TO PRETTY PRINTABLES               00237000
+         MVC   WORK(WTOLF2L),WTOLF2 MOVE THE MESSAGE                    00238000
+         MVC   WORK+42(2),DBL+2  COPY THE PRETTY RETURN CODE            00239000
+         WTO   MF=(E,WORK)                                              00240000
+         ABEND 1,DUMP,STEP                                              00241000
+USOK     DS    0H                                                       00242000
+         WAIT ECB=TASKECB                                               00243000
+         CLI   STEPLBDD,X'00'                                           00244000
+         BE    M00NCLS                                                  00245000
+         CLOSE MF=(E,STEPLIBA)                                          00246000
+M00NCLS  DS    0H                                                       00247000
+NOTVS    DS    0H                                                       00248000
+         MVC   TASKRETN(1),TCBFLGS1  SHIFT IN ABEND CODE                00249000
+         MVC   TASKRETN+1(3),TASKECB+1 AND RETURN CODE                  00250000
+* NOW I'M BACK IN CONTROL,I.E THE SUBTASK FINISHED.                     00251000
+*    WHAT AM I TO DO NOW ?                                              00252000
+         ST    R5,CALLAREA                                              00253000
+         DETACH CALLAREA                                                00254000
+*        TM    TASKRETN,128    NORMAL RETURN FOR TASK?            75003 00255000
+*        BNO   TESTGOBK   YES,SO TEST GOBACK TO OS INDIC          76200 00256000
+*        LTR   R7,R7           TEST IF R7 =0,IF NOT,THIS IS A DOUBLE    00257000
+*                              ABEND,AND CANNOT BE ALLOWED              00258000
+* NOTE,BECAUSE JOL GENERATES A SYSUDUMP CARD,A DUMP WOULD ALREADY       00259000
+*    HAVE BEEN TAKEN                                                    00260000
+*          BNZ BADERROR        TWO ABENDS,VERY NASTY                    00261000
+*        IC  R7,TASKRETN     SET R7 = ABEND CODE                        00262000
+TESTGOBK DS    0H                                                       00263000
+*        CLI GOBACK,C' '                      RETURN TO OS YET ?        00264000
+*        BE  ATTACH                          NO,SO BETTER RE-ATTACH     00265000
+         B   ATTACH                          NO,SO BETTER RE-ATTACH     00266000
+*                                              THE OLD SCHEDULER TO SEE 00267000
+*                                              WHAT'S GOING ON.         00268000
+         SPACE 3                                                        00269000
+* WELL I DO HAVE TO RETURN TO O.S                                       00270000
+RETNOS   DS    0H                                                       00271000
+*        CLI   VS,C' '         VS ?                               75311 00272000
+*        BE    NOJSCB          NOPE, TEST ABEND THEN              75311 00273000
+*        MODESET MODE=&SUP       INTO SUPERVISOR MODE             75311 00274000
+* NOW FREE THE JSCB WE MADE                                       75311 00275000
+*        LA    R1,JSCBDISP(,R8)                                         00276000
+*        FREEMAIN R,LV=(R4),A=(1)                                 75311 00277000
+*        MODESET MODE=PROB                                        75311 00278000
+*OJSCB   DS    0H                                                       00279000
+         LH    R10,TASKRETN+2  LOAD 2ND 2 BYTES OF RETURN CODE          00280000
+BADRETN  DS    0H                                                       00281000
+         OC    JOBLIBA,JOBLIBA                                          00282000
+         BZ    M00NCLSJ                                                 00283000
+         CLOSE MF=(E,JOBLIBA)                                           00284000
+M00NCLSJ DS    0H                                                       00285000
+ AGO .X9999                                                             00286000
+         XC    CALLAREA(12),CALLAREA                                    00287000
+*        EXTRACT FIELDS=(TCB),MF=(E,CALLAREA)                           00288000
+*        LR    R4,R0        TCB ADDRESS                                 00289000
+         L     R4,PSATOLD   TCB ADDRESS                                 00290000
+         L     R4,TCBJSCB-TCB(,R4)  ADDRESS MY JSCB                     00291000
+         ICM   R4,7,JSCBFCTA-JSCB(R4)                                   00292000
+         BZ    M00FREED                                                 00293000
+         USING FCT,R4                                                   00294000
+         SPACE 2                                                        00295000
+*  FOUND THE START OF THE FCT CHAIN: NOW SCAN CHAIN FOR A FILE TO FREE  00296000
+         SPACE 2                                                        00297000
+M00NXTF  DS    0H                                                       00298000
+         TM    FCTACSN,X'40'   Q... ONE I MARKED?                       00299000
+*        CLC   =C'JOL0',FCTACSN Q... ONE I MARKED?                      00300000
+         BZ    M00FREE         A... YES                                 00301000
+         ICM   R4,7,FCTNFCTA   ADDRESS THE NEXT                         00302000
+         BZ    M00FREED                                                 00303000
+         B     M00NXTF                                                  00304000
+M00FREE  DS    0H                                                       00305000
+         XC    CALLAREA(12),CALLAREA                                    00306000
+         MVI   CALLAREA,C'F'   FREE FILE                                00307000
+         MVI   CALLAREA+1,12   TABLE SIZE                               00308000
+         MVC   CALLAREA+4(8),FCTACSN ACCESS NAME                        00309000
+         FREEFL MF=(E,CALLAREA)                                         00310000
+         LTR   R15,R15                                                  00311000
+         BZ    M00NXTF                                                  00312000
+         ABEND 1111,DUMP,STEP                                           00313000
+M00FREED DS    0H                                                       00314000
+.X9999   ANOP                                                           00315000
+         LR  R1,R13          LOAD R1 WITH THE ADDRESS OF GOTTEN         00316000
+*                              STORAGE                                  00317000
+         L   R13,4(,R13)       ADDRESS PREVIOUS SAVE AREA               00318000
+         FREEMAIN R,LV=CONEND-CONSTART,A=(1)                            00319000
+         LR  R15,R10         SET UP RETURN CODE                         00320000
+         L   R14,12(13)      AND RETURN ADDRESS                         00321000
+         LM  R0,R12,20(R13)  AND OLD REGISTERS                          00322000
+         BR  R14             AND BACK WE GO                             00323000
+BADERROR WTO 'JOL DOUBLE ABEND:JOB TERMINATED',ROUTCDE=(2,11)   76200   00324000
+SETRET   LA  R10,&RSVDRC                                                00325000
+         B   BADRETN                                                    00326000
+         SPACE 2                                                        00327000
+ATTACH3  ATTACH EP=UJESCHED,SF=L                                        00328000
+ATTACHLL EQU   *-ATTACH3                                                00329000
+WTOLF1   WTO   'JOL SCHEDULER ATTACH FAILED: RC=NN',                   .00330000
+               ROUTCDE=(11,14),MF=L                                     00331000
+WTOLF1L  EQU   *-WTOLF1                                                 00332000
+WTOLF2   WTO   'JOL USER''S PROGRAM ATTACH FAILED: RC=NN',             .00333000
+               ROUTCDE=(11,14),MF=L                                     00334000
+WTOLF2L  EQU   *-WTOLF2                                                 00335000
+         PRINT DATA                                                     00336000
+         DC    28S(*)                                                   00337000
+         LTORG                                                          00338000
+DCB      DCB   MACRF=R,DDNAME=NOTHIN,DSORG=PO                           00339000
+DCBLEN   EQU   *-DCB                                                    00340000
+         TITLE 'DATA CONTROL BLOCK FORMAT'                              00341000
+         DCBD                                                           00342000
+         TITLE 'COMMUNICATION AREA FOR MONITOR AND SCHEDULER'           00343000
+CONSTART DSECT                                                          00344000
+SAVEAREA DS    18F                                                      00345000
+PARML    DS    CL260                                                    00346000
+ATTACHL  ATTACH EP=UJESCHED,SF=L                                        00347000
+XTRACT   EXTRACT MF=L,FIELDS=TCB                                        00348000
+JSCBWRK  DC    4A(0)            FOR SETTING UP JSCB                     00349000
+JOBLIBA  DS    A                                                        00350000
+STEPLIBA DS    A                                                        00351000
+         DS    0D                                                       00352000
+JOBLIB   DS    XL(DCBLEN)      DCB FOR THE JOBLIB                       00353000
+         DS    0D                                                       00354000
+STEPLIB  DS    XL(DCBLEN)      DCB FOR THE STEPLIB                      00355000
+PARMAREA DS    0D              START OF THE AREA USED BY SCHEDULER      00356000
+         COPY  UJECOMM                                                  00357000
+CONEND   DS    0X                                                       00358000
+         PRINT GEN                                                      00359000
+         AIF  ('&JOLOS' NE 'X8').NOX8MAC                                00360000
+         TITLE 'FIXED LOW CORE'                                         00361000
+         XAMFLC  DSECT=YES                                              00362000
+PSA      EQU   FLC                                                      00363000
+PSATOLD  EQU   FLCTOLD            FOR MVS,F4 COMPATIBILITY              00364000
+         TITLE 'COMMUNICATIONS VECTOR TABLE'                            00365000
+         XAMCVT  DSECT=YES                                              00366000
+         TITLE 'TASK CONTROL BLOCK    '                                 00367000
+         XAMTCB  DSECT=YES                                              00368000
+TCBFLGS1 EQU   TCBFLAG1       EQUIVALENT FIELDS ON F4,X8                00369000
+         TITLE 'REQUEST BLOCK         '                                 00370000
+         XAMRB   DSECT=YES                                              00371000
+         TITLE 'FILE CONTROL TABLE'                                     00372000
+         XDDFCT                                                         00373000
+         TITLE 'JOB-STEP CONTROL BLOCK'                                 00374000
+         XDDJSCB                                                        00375000
+JSCBLEN  EQU   *-JSCB         MY NAME FOR ITS LENGTH                    00376000
+JSCBDISP EQU   0              MVS,F4 NAME FOR DISPLACEMENT TO START     00377000
+JSCBOPTS EQU   JSCBSTS                                                  00378000
+.NOX8MAC ANOP                                                           00379000
+           END   $JOLMN40                                               00380000

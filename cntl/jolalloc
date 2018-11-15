@@ -1,0 +1,45 @@
+//CLARKEJ JOB (NONE),CVC,CLASS=A,NOTIFY=CLARKE,MSGCLASS=X,              00010000
+// MSGLEVEL=(0,0)                                                       00020000
+//JOLC     PROC PROG=$JOLCP60,PRINTS=,SYMS=,JOB=X                       00030010
+//JOL  EXEC PGM=&PROG,                                                  00040012
+// PARM='NPC NOSRDR &PRINTS/&SYMS SYSUID=CLARKE PM',                    00041012
+// TIME=(,15)                                                           00050005
+//STEPLIB  DD  DSN=CLARKE.JOL60.LOAD,DISP=SHR                           00060010
+//$$JLOAD  DD  DSN=CLARKE.JOL60.LOAD,DISP=SHR                           00070010
+//SYSUDUMP   DD   SYSOUT=*                                              00090009
+//$$JPRINT DD  SYSOUT=*,DCB=BLKSIZE=1330                                00100000
+//*Y        DD  SYSOUT=*,DCB=(BLKSIZE=1330,RECFM=VB,LRECL=100)          00110006
+//$$JCLX   DD  SYSOUT=*,DCB=(BLKSIZE=80,BUFNO=1)                        00120012
+//$$JCL    DD  SYSOUT=(*,INTRDR),DCB=(BLKSIZE=80,BUFNO=1)               00121012
+//$$JINCL  DD  DSN=CLARKE.JOL,DISP=SHR                                  00130000
+//$$JMACRO DD  DSN=CLARKE.JOL60.CMDLIB,DISP=SHR                         00140010
+//         DD  DSN=CLARKE.JOL,DISP=SHR                                  00150004
+//$$JWORK1 DD  UNIT=SYSDA,SPACE=(CYL,(5,1)),DCB=BLKSIZE=800             00160000
+//$$JWORK2 DD  UNIT=SYSDA,SPACE=(CYL,(5,1))                             00170000
+//$$JIN   DD   DDNAME=SYSIN                                             00180000
+//*ALLOC F(Y)    CLARKE.CVCX.WRITEF NEW CAT FB 800, 800;*/              00190005
+//SYSIN    DD  DSN=CLARKE.JOL(&JOB),DISP=SHR                            00200000
+// PEND                                                                 00210000
+// EXEC JOLC                                                            00220000
+JOLOPT  PE LET CAT PJCL;                                                00221021
+$JOB H;                                                                 00230000
+  JOBLIB 'SYS2.LINKLIB' /* 'CLARKE.JOL60.LOAD' */ ;                     00230119
+  ON ERROR SNAP;                                                        00230218
+  PRINT SYS1.MACLIB(CALL);                                              00230321
+  DCL CD DS C.D 3380  1 TRACK;                                          00230420
+  PRINTSYM;                                                             00231008
+ /*  DELETE CD; */                                                      00231120
+  COPY 'SYS1.MACLIB(CALL)' TO C.D ;                                     00232020
+  CATLG CD;                                                             00233012
+//SYSINX DD *                                                           00234011
+  ALLOC F(X)    CLARKE.JOL(TESTFAST) SHR;                               00240001
+  PRINTSYM;                                                             00241008
+  ALLOC F(Y)    CLARKE.CVCX.WRITEF OLD CAT FB 80, 800;                  00250007
+  OPEN F(X) INPUT;                                                      00260002
+  OPEN F(Y) OUTPUT;                                                     00270002
+  IF %LASTCC=0 THEN COPYDS;                                             00280005
+  CLOSE X;                                                              00290001
+  CLOSE Y;                                                              00300001
+  FREEFILE X;                                                           00310002
+  FREEFILE Y;                                                           00320002
+//                                                                      00330011

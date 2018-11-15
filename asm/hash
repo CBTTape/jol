@@ -1,0 +1,117 @@
+//CLARKET JOB (HASH),CVC,MSGCLASS=X,NOTIFY=CLARKE                       00000100
+// EXEC PGM=IEUASM,PARM='LOAD,LIST,TERM,TEST,NODECK'                    00000200
+//SYSTERM DD SYSOUT=*                                                   00000300
+//SYSPRINT DD SYSOUT=*                                                  00000400
+//SYSUT1 DD SPACE=(CYL,1),UNIT=VIO                                      00000500
+//SYSUT2 DD SPACE=(CYL,1),UNIT=VIO                                      00000600
+//SYSUT3 DD SPACE=(CYL,1),UNIT=VIO                                      00000700
+//SYSGO  DD SPACE=(CYL,1),UNIT=VIO,DSN=&OBJ,DISP=(,PASS)                00000800
+//SYSLIB DD DSN=SYS1.MACLIB,DISP=SHR                                    00000900
+//SYSIN DD *                                                            00001000
+X        CSECT                                                          00001100
+R1       EQU   1                                                        00001200
+R2       EQU   2                                                        00001300
+R3       EQU   3                                                        00001400
+R4       EQU   4                                                        00001500
+R5       EQU   5                                                        00001600
+R6       EQU   6                                                        00001700
+R7       EQU   7                                                        00001800
+R8       EQU   8                                                        00001900
+R9       EQU   9                                                        00002000
+R10      EQU   10                                                       00002100
+R11      EQU   11                                                       00002200
+R12      EQU   12                                                       00002300
+R13      EQU   13                                                       00002400
+R14      EQU   14                                                       00002500
+R15      EQU   15                                                       00002600
+         USING X,R11                                                    00002700
+         SAVE  (14,12)                                                  00002800
+         LR    R11,R15                                                  00002900
+         ST    R13,SAVEAREA+4                                           00003000
+         LA    R13,SAVEAREA                                             00003100
+         B     GOBABY                                                   00003200
+SAVEAREA DS    18F                                                      00003300
+GOBABY   DS    0H                                                       00003400
+* NEW TABLE LOOK UP                                                     00003500
+*              ARRAY -> NAME TABLE                                      00003600
+*              NAMES -> DETAILS                                         00003700
+         OPEN  (INPUT,INPUT,OUTPUT,OUTPUT)                              00003800
+READ     GET   INPUT,CARD                                               00003900
+         LH    R5,CURRNUM         NUMBER OF ITEMS IN THE TABLE          00004000
+         SLL   R5,1               R5 NOW EQUALS SIZE OF TABLE           00004100
+         LTR   R6,R5              COPY TO R6 (HALF TABLE SIZE)          00004200
+         BZ    NOTFOUND           FIRST TIME IN                         00004300
+SEARCH   SRL   R6,1               DIVIDE BY TWO                         00004400
+         LH    R15,INDEX(R6)      PICK MID POINT OF TABLE               00004500
+         SLL   R15,3              MULTIPLY BY 8 (LENGTH OF ENTRIES)     00004600
+         LA    R15,NAMES(R15)     POINT TO SECONDARY NAME TABLE         00004700
+         CLC   0(8,R15),INNAME                                          00004800
+         BE    GOTNAME                                                  00004900
+         BH    TOOHIGH                                                  00005000
+* COMPARISION MUST BE TOO LOW, IE POSITION IN TABLE TOO LOW             00005100
+TOOLOW   AR    R5,R6              R5=NEW HIGH MID-POINT                 00005200
+         B     TESTEND            DIVIDE BY 2                           00005300
+* COMPARISION MUST BE TOO HIGH, IE POSITION IN TABLE TOO HIGH           00005400
+TOOHIGH  SR    R5,R6              R5=NEW LOW MID-POINT                  00005500
+TESTEND  LTR   R6,R6              TEST IF SIZE=0 (END SEARCH)           00005600
+         BNZ   SEARCH             LOOK AGAIN                            00005700
+NOTFOUND MVC   MESSAGE,=CL20'NOT THERE'                                 00005800
+         PUT   OUTPUT,CARD                                              00005900
+         B     READ                                                     00006000
+GOTNAME  MVC   MESSAGE,=CL20'OK       '                                 00006100
+         PUT   OUTPUT,CARD                                              00006200
+         B     READ                                                     00006300
+EOF      ABEND  1                                                       00006400
+CARD     DS    CL80                                                     00006500
+         ORG   CARD                                                     00006600
+INNAME   DS    CL8                                                      00006700
+LEVEL    DS    CL1                                                      00006800
+         DS    CL8                                                      00006900
+MESSAGE  DS    CL20                                                     00007000
+         ORG                                                            00007100
+TABLE    DC    A(INDEX)                                                 00007200
+CURRNUM  DC    H'5'       +++++++++++++                                 00007300
+MAXEND   DC    A(ETABLE)                                                00007400
+INDEX    DS    100H                                                     00007500
+         ORG   INDEX                                                    00007600
+         DC    H'3'                                                     00007700
+         DC    H'2'                                                     00007800
+         DC    H'6'                                                     00007900
+         DC    H'4'                                                     00008000
+         DC    H'5'                                                     00008100
+ETABLE   DS    0H                                                       00008200
+         ORG                                                            00008300
+NONAMES  DC    H'0'                                                     00008400
+MAXNAMES DC    H'100'                                                   00008500
+NAMES    DS    100CL8                                                   00008600
+         ORG   NAMES                                                    00008700
+         DC    CL8' '                  **** ALWAYS BLANK                00008800
+         DC    CL8'B'                                                   00008900
+         DC    CL8'A'                                                   00009000
+         DC    CL8'D'                                                   00009100
+         DC    CL8'E'                                                   00009200
+         DC    CL8'C'                                                   00009300
+         ORG                                                            00009400
+         LTORG                                                          00009500
+         PRINT OFF                                                      00009600
+INPUT    DCB   DDNAME=INPUT,DSORG=PS,MACRF=GM,EODAD=EOF                 00009700
+OUTPUT   DCB   DDNAME=OUTPUT,DSORG=PS,MACRF=PM                          00009800
+         END                                                            00009900
+// EXEC PGM=IEWL,PARM='LIST,MAP,TEST'                                   00010000
+//SYSPRINT DD SYSOUT=*                                                  00010100
+//SYSLIN   DD DSN=&OBJ,DISP=(OLD,DELETE)                                00010200
+//SYSUT1   DD SPACE=(CYL,1),UNIT=VIO                                    00010300
+//SYSLMOD  DD DSN=CLARKE.JOL36.LOAD(HASH),DISP=SHR                      00010400
+// EXEC PGM=HASH,TIME=(,2)                                              00010500
+//STEPLIB  DD DSN=CLARKE.JOL36.LOAD,DISP=SHR                            00010600
+//OUTPUT   DD SYSOUT=*,DCB=(BLKSIZE=80,LRECL=80,RECFM=F)                00010700
+//SYSUDUMP DD SYSOUT=*                                                  00010800
+//INPUT    DD *                                                         00010900
+A                                                                       00011000
+B                                                                       00011100
+C                                                                       00011200
+D                                                                       00011300
+E                                                                       00011400
+F                                                                       00011500
+G                                                                       00011600
+H                                                                       00011700

@@ -1,0 +1,296 @@
+***  ENQUEUE OR ENQ JOL INSTRUCTION FOR ENQUING             *********** 00010000
+*          ON DATA SETS OR ANY RESOURCE                               * 00020000
+*                                                                     * 00030000
+*    MODIFIED FROM US26ENQ BY MIKE STRAHAN, SHELL OIL, MELBOURNE.     * 00040000
+*                                                                     * 00050000
+*    FUNCTION:                                                        * 00060000
+*                                                                     * 00070000
+*         TO ISSUE AN ENQUEUE ON MAJOR AND MINOR NAMES AS             * 00080000
+*         SPECIFIED BY THE USER.                                      * 00090000
+*                                                                     * 00100000
+*    LINKAGE:                                                         * 00110000
+*                                                                     * 00120000
+*         INVOKED BY $CALL JOLENQ,(MAJOR,MINOR,WAIT)                  * 00130006
+*                                                                     * 00140000
+*                                                                     * 00150000
+*         ON ENTRY, REGISTERS CONTAIN STANDARD JOL REGISTER VALUES.   * 00160000
+*                                                                     * 00170000
+*         ON RETURN, %LASTCC IS SET TO :-                             * 00180000
+*         REGISTER 15 CONTAINS A RETURN CODE :                        * 00190000
+*         FOR ENTRY POINT US26ENQ                                     * 00200000
+*                                                                     * 00210000
+*         RC = 0   CONTROL OF RESOURCE HAS BEEN ASSIGNED.             * 00220000
+*                                                                     * 00230000
+*         RC = 4   APPLICABLE ONLY FOR BACKGROUND TASKS.              * 00240000
+*                  CONTROL OF THE RESOURCE HAS BEEN ASSIGNED,         * 00250000
+*                  BUT THE TASK WAITED FOR THE RESOURCE TO            * 00260000
+*                  BECOME AVAILABLE.                                  * 00270000
+*                  THE OPERATOR WAS INFORMED THAT THE TASK WAITED     * 00280000
+*                  AND THAT PROCESSING SUBSEQUENTLY CONTINUED.        * 00290000
+*                                                                     * 00300000
+*         RC = 8   A PREVIOUS REQUEST FOR THE RESOURCE HAS BEEN       * 00310000
+*                  MADE. THIS REQUEST IS IGNORED.                     * 00320000
+*                                                                     * 00330000
+*         RC = 12  APPLICABLE ONLY TO FOREGROUND TASKS.               * 00340000
+*                  CONTROL OF THE RESOURCE WAS NOT ASSIGNED           * 00350000
+*                  BECAUSE THE TASK WOULD HAVE WAITED FOR CONTROL     * 00360000
+*                  OF THE RESOURCE.                                   * 00370000
+*                  THE FOREGROUND USER WAS INFORMED THAT THE          * 00380000
+*                  RESOURCE WAS NOT IMMEDIATELY AVAILABLE.            * 00390000
+* NOTE:            IT IS UP TO THE MODULE INVOKING US26ENQ TO         * 00400000
+* *****            DECIDE WHAT ACTION IS TO BE TAKEN.                 * 00410000
+*                                                                     * 00420000
+*                                                                     * 00430000
+*                                                                     * 00440000
+*    MODULE ATTRIBUTES:                                               * 00450000
+*                                                                     * 00460000
+*         RE-ENTERABLE.                                               * 00470000
+*                                                                     * 00480000
+*********************************************************************** 00490000
+JOLENQ   TITLE 'ENQUE ON NAMES SPECIFIED BY USER'                       00500001
+         GBLC  &JOLOS                                                   00501013
+         $UJEPARM                                                       00502013
+         PRINT OFF                                                      00510000
+         COPY  JOLCOM                                                   00520000
+         PRINT ON                                                       00530000
+         SPACE                                                          00540000
+P26WORK  DSECT                                                          00550000
+SAVE     DS    18F                 SAVE AREA                            00560000
+LTIMESUP EQU   X'20'               LENGTH OF STIMER EXIT ROUTINE        00570000
+*                                  SHOULD = EXITLNTH                    00580000
+TIMESUP  DS    0F                  STIMER EXIT ROUTINE                  00590000
+         ORG   *+LTIMESUP                                               00600000
+WAITBIT  DS    X'0'                NOT 0 IF WE ARE TO WAIT              00610000
+TSOIND   DS    X'0'                NOT 0 IF WE ARE UNDER TSO            00620000
+MINORNM  DS    CL60                MINOR NAME COPIED HERE               00630001
+EXENQ    ENQ   (,,E,0,SYSTEM),RET=HAVE,MF=L                             00640000
+WTOID    DS    F                   USED TO ISSUE A 'DOM'                00650000
+MSGAREA  DS    0F                  TPUT/WTO MESSAGE SPACE               00660000
+         DS    F                   FOR SVC 35 RECORD LENGTH ETC         00670000
+MSJOBNAM DS    CL8                 JOBNAME (FROM TIOT = TIOTNJOB)       00680000
+MSWAITFR DC    C':WAITING FOR:-'                                        00690005
+QNAME    DS    CL8                 MAJOR NAME COPIED HERE               00700000
+RNAME2   DS    CL60                MINOR NAME COPIED HERE               00710001
+         DS    2F                  FOR SVC 35 DESCRIPTION/RTE CDES      00720000
+OPNFRMD  DS    CL1                 FLAG SHOWING THAT STIMER EXIT        00730000
+*                                  WAS ENTERED                          00740000
+LNTHWRK  EQU   *-P26WORK           LENGTH OF WORK AREA                  00750000
+*R8       EQU   8                   STORES RETURN CODE DURING EXECUTION 00760000
+*R10      EQU   10                  POINTS TO WORK AREA                 00770000
+*R11      EQU   11                  BASE REGISTER FOR BULK OF PROGRAM   00780000
+*   EQUATES FOR FIELDS IN SYSTEM CONTROL BLOCKS                         00790000
+         SPACE 1                                                        00800000
+TCBTSFLG EQU   148                 OFFSET OF FLAGS INTO TCB             00810000
+TIOCNJOB EQU   0                   OFFSET OF JOBNAME INTO TIOT          00820000
+TIOEDDNM EQU   28                  OFFSET OF DDNAME IN TIOT(1ST ENTRY)  00830000
+UCBNAME  EQU   13                  OFFSET FOR UCBNAME WITHIN UCB        00840000
+         SPACE 3                                                        00850000
+JOLENQ   CSECT                                                          00860001
+         USING JOLENQ,R15                                               00870001
+         L     R15,=V(UJP26EN2)                                         00880001
+         BR    R15                                                      00890001
+         LTORG                                                          00900002
+         DROP R15                                                       00910001
+JOLDEQ   CSECT                                                          00920001
+         USING JOLDEQ,R15                                               00930003
+         L     R15,=V(UJP26DE2)                                         00940001
+         BR    R15                                                      00950001
+         LTORG                                                          00960002
+         DROP R15                                                       00970001
+         LTORG                                                          00980001
+         JOLSAVE CSECT=UJP26EN2,SIZE=LNTHWRK                            00990001
+         USING P26WORK,R13                                              01000000
+         LR    R10,R13             SET TO POINT TO WORK AREA            01010000
+         DROP  R13                                                      01020000
+         USING P26WORK,R10                                              01030000
+         SR    R8,R8               CLEAR RETURN CODES                   01040000
+         $CALL UJP26REL                                                 01050000
+         LTR   R15,R15                                                  01060000
+         BZ    P26STRT                                                  01070000
+         JOLRETN RC=16                                                  01080000
+*    DO THE ENQUEUE ON REQUIRED RESOURCES                               01090000
+         SPACE 1                                                        01100000
+P26STRT  MVC   EXENQ(ENQLNTH),ENQ  SET UP LIST                          01110000
+RETRYENQ ENQ   (QNAME,MINORNM+1,,0),MF=(E,EXENQ)  TRY RET = USE         01120004
+         LTR   R15,R15             ENQ'D OK?                            01130000
+         BNZ   P26ENBAD            NO, FIND OUT THE ERROR               01140000
+ENQRET   JOLRETN                   ,RETURN A 0                          01150000
+P26ENBAD SR    R8,R8                                                    01160009
+         IC    R8,3(R15)           PICK UP ENQ RETURN CODE              01170009
+         CH    R8,=H'8'            WHAT HAPPENED?                       01180000
+         BE    ENQRET              ALREADY HAD IT                       01190000
+         BL    ENQRET4             ENQ RETURNED A FOUR.                 01200000
+* HERE WE HAVE AN ERROR                                                 01210000
+         JOLRETN RC=16                                                  01220001
+         SPACE 1                                                        01230000
+*   MUST BE RETURN CODE = 4                                             01240000
+*   WE WOULD HAVE HAD TO WAIT FOR OUR ENQUEUE TO BE PROCESSED           01250000
+         SPACE 1                                                        01260000
+ENQRET4  CLI   WAITBIT,X'0'        DO WE WANT TO WAIT?                  01270000
+         BNE   P26WAIT                                                  01280000
+         JOLRETN RC=4                                                   01290001
+RETURN   JOLRETN RC=(8)                                                 01300000
+         SPACE  3                                                       01310000
+P26WAIT  CLI   TSOIND,X'0'         ARE WE RUNNING UNDER TSO?            01320000
+         BE    P26BATCH            NO, SO DO BATCH THINGS               01330000
+         MVC   #WORK(L'MINORNM+2),MINORNM                               01340001
+         JOLERR 103,'WAITING FOR ''',QNAME,'/',#WORK,''''               01350000
+         TPUT   TSOWAIT,L'TSOWAIT+1,ASIS                                01360007
+*        TPUT   TSOBELL,1,ASIS                                          01370007
+         LA    R1,TKN                                                   01380000
+         TGET  (R1),10                                                  01390000
+         OI    TKN,C' '                                                 01400000
+         CLI   TKN,C'W'                                                 01410007
+         BE    P26BATCH                                                 01420000
+         CLI   TKN,C'N'                                                 01430000
+         BE    SETRC4                                                   01440000
+         B     RETRYENQ                                                 01450000
+TSOWAIT  DC    C'REPLY ''W'' FOR WAIT, ''N'' FOR NOWAIT, OR ENTER FOR R*01460000
+               ETRY '                                                   01470007
+TSOBELL  DC    X'2F'                                                    01480000
+         SPACE 1                                                        01490000
+*   FOR BACKGROUND TASKS WE WILL ENQUEUE WITH RET=HAVE BUT WITH THE     01500000
+*   INTERVAL TIMER RUNNING. IF WE WAIT FOR MORE THAN 2 MINUTES THE      01510000
+*   OPERATOR WILL BE INFORMED THAT WE ARE WAITING. WHEN WE KICK OFF     01520000
+*   THE OPERATOR WILL BE INFORMED THAT WE HAVE RESUMED PROCESSING.      01530000
+         SPACE 1                                                        01540000
+P26BATCH MVC   TIMESUP(EXITLNTH),TIMERXIT  SET UP TIMER EXIT CODE IN    01550000
+*                                          WORKING STORAGE              01560000
+         MVI   OPNFRMD,X'80'       CLEAR WTO1 ISSUED FLAG               01570000
+         WTO   MF=(E,MSGAREA)      TELL THE OPERATOR WE ARE WAITING     01580000
+         ST    R1,WTOID            STORE MESSAGE ID FOR DOM             01590000
+         B     NOTIMER             DON'T WANT A TIMER (TEST)            01600000
+         STIMER REAL,TIMESUP,BINTVL=TWOMINS  START ELAPSED TIMER TO     01610000
+*              RUN FOR 2 MINUTES SO THAT WE CAN SEE HOW LONG WE HAVE    01620000
+*              BEEN WAITING FOR OUR ENQUEUE TO BE PROCESSED.            01630000
+NOTIMER  ENQ   ,RET=HAVE,MF=(E,EXENQ)  TRY ENQ WITH RET=HAVE            01640000
+         LR    R6,R15              SAVE ENQ RETURN CODE, IF ANY         01650000
+         TTIMER CANCEL             REMOVE STIMER IF STILL ACTIVE        01660000
+         TM    OPNFRMD,X'80'       WAS WTO1 ISSUED?                     01670000
+         BZ    NOTMADE             NO SET RETURN CDE AND RETURN TO USER 01680000
+         SPACE 1                                                        01690000
+         AIF   ('&JOLOS' EQ 'X8').X8010                                 01691015
+*   TELL OPERATOR THAT WE ARE RUNNING AGAIN                             01700000
+         L     R1,WTOID                                                 01710000
+         DOM   MSG=(1)               DELETE OPERATOR MESSAGE            01720000
+.X8010   SPACE 1                                                        01730013
+         MVC   CALLAREA(8),MSJOBNAM  SAVE JOBNAME TEMPORARILY           01740000
+         MVC   MSGAREA(LNTHWTO2),WTO2                                   01750000
+         MVC   MSJOBNAM,CALLAREA                                        01760000
+         WTO   MF=(E,MSGAREA)                                           01770000
+         SPACE 1                                                        01780000
+*   ALL MESSAGES HAVE BEEN OUTPUT TO THE OPERATOR                       01790000
+*   INVESTIGATE RETURN CODE FROM ENQ                                    01800000
+         SPACE 1                                                        01810000
+NOTMADE  EQU   *                                                        01820000
+         LTR   R6,R6               ANY RETURN CODE FROM ENQ?            01830000
+         BZ    SETRC4              NO, SET RETCODE =4 'COS WE WAITED    01840000
+         SR    R8,R8                                                    01850009
+         IC    R8,3(R6)            WHAT HAPPENED?                       01860000
+         CH    R8,=H'8'                                                 01870009
+         BNE   SETRC16             DON'T KNOW WHAT HAPPENED             01880008
+         JOLRETN    ,              ALREADY HAD IT(?!) - RETURN 0        01890011
+SETRC4   DS    0H                  SET RETURN CODE = 4                  01900011
+         JOLRETN ,                 SET RETURN CODE = 0                  01910011
+         SPACE 3                                                        01920000
+*   RETURN CODE FROM FIRST ENQ WAS = 4 AND WE ARE RUNNING UNDER TSO     01930000
+         SPACE 1                                                        01940000
+SETRC12  JOLRETN RC=12             SET RETURN CODE = 12                 01950011
+SETRC16  JOLRETN RC=16             SET RETURN CODE = 16                 01960011
+         SPACE 3                                                        01970000
+*    STIMER EXIT ROUTINE - HANDLES LONG ENQUEUE WAITS                   01980000
+         SPACE 1                                                        01990000
+         USING TIMESUP,R15                                              02000000
+TIMERXIT SAVE  (14,12)                                                  02010000
+         MVI   OPNFRMD,X'80'       SET STIMER EXIT ENTERED FLAG         02020000
+         LR    R8,R15                                                   02030000
+         DROP  R15                                                      02040000
+         USING TIMESUP,R8                                               02050000
+         WTO   MF=(E,MSGAREA)      TELL THE OPERATOR WE ARE WAITING     02060000
+         ST    R1,WTOID            STORE MESSAGE ID FOR DOM             02070000
+         RETURN (14,12)                                                 02080000
+EXITLNTH EQU   *-TIMERXIT                                               02090000
+         DROP  R8                                                       02100000
+         JOLRETN                                                        02110000
+*    CONSTANTS                                                          02120000
+         SPACE 1                                                        02130000
+ENQ      ENQ   (,,E,0,SYSTEM),RET=USE,MF=L                              02140000
+         ORG   *-4                                                      02150000
+ENQLNTH  EQU   *-ENQ                                                    02160000
+TWOMINS  DC    F'12000'            TIMER INTERVAL OF 2 MINUTES          02170000
+WTO2     WTO   'XXXXXXXX:CONTINUES',                                   *02180000
+               ROUTCDE=(2),DESC=(7),MF=L                                02190000
+LNTHWTO2 EQU   *-WTO2                                                   02200000
+         SPACE 1                                                        02210000
+         LTORG                                                          02220000
+         SPACE 3                                                        02230000
+         JOLSAVE CSECT=UJP26DE2,SIZE=LNTHWRK                            02240001
+         USING P26WORK,R13                                              02250000
+         LR    R10,R13             SET TO POINT TO WORK AREA            02260000
+         DROP  R13                                                      02270000
+         USING P26WORK,R10                                              02280000
+         $CALL UJP26REL                                                 02290000
+         MVC   EXENQ(DEQLNTH),DEQ  SET UP DEQ PARAMETERS                02300000
+         DEQ   (QNAME,MINORNM+1,0),MF=(E,EXENQ)  TRY RET = USE          02310004
+         LTR   R15,R15                                                  02320000
+         BZ    DEQRET0                                                  02330000
+         JOLRETN RC=4                                                   02340000
+DEQRET0  JOLRETN                                                        02350000
+DEQ      DEQ   (,,0,SYSTEM),RET=HAVE,MF=L                               02360000
+         ORG   *-4                                                      02370000
+DEQLNTH  EQU   *-DEQ               LENGTH OF DEQ LIST                   02380000
+         LTORG                                                          02390000
+         SPACE 3                                                        02400000
+         JOLSAVE CSECT=UJP26REL,BASE=12                                 02410000
+         SPACE 2                                                        02420000
+* ON ENTRY, R1 POINTS TO:-                                              02430001
+*        DC    A(QNAME)                                                 02440001
+*        DC    A(MINORNAME)                                             02450001
+*        DC    A(WAITBIT)                                               02460001
+         LM    R5,R7,0(R1)         GET THE PARAMETERS                   02470001
+         MVC   MSGAREA(LNTHWTO1),WTO1  SET UP WTO TEXT AND CODE         02480005
+*                                      IN MESSAGE WORK LOCATION         02490005
+         MVC   QNAME,0(R5)         SHIFT QNAME                          02500001
+         MVC   MINORNM,0(R6)       AND MINOR-NAME                       02510001
+         MVC   WAITBIT,0(R7)       AND WAITBIT                          02520001
+*                                                                       02530001
+* GET RNAME FOR ANY POSSIBLE ERROR MESSAGES                             02540001
+         MVC   RNAME2,BLANKS       CLEAR AREA FIRST                     02550001
+         MVC   RNAME2,MINORNM+2    DROP VARYING STRING LENGTH           02560001
+         MVI   TSOIND,X'0'         CLEAR TSO INDICATOR                  02561012
+* TEST IF TSO                                                           02570001
+         CLI   IFTSO,C'T'                                         88020 02570113
+         BNE   NOTSO                                              88020 02570213
+         IFOS  =X8,P26X8                                          88020 02571012
+         L     R15,16                                                   02580000
+         L     R15,0(R15)                                               02590000
+         L     R15,4(R15)          GET TCB ADDRESS VIA THE CVT          02600000
+         L     R15,12(R15)         GET TIOT ADDRESS FROM TCB            02610000
+         MVC   MSJOBNAM,TIOCNJOB(R15) STORE JOB/TASK NAME               02620000
+         B     P26NX8                                                   02621012
+P26X8    DS    0H                                                 88020 02622012
+*    IS THIS A TSO TASK?                                                02622113
+         L     R14,X'2EC'     THIS IS FLCTOLD ON X8 SYSTEMS       88020 02622413
+         L     R14,12(,R14)   THIS POINTS TO THE JSCB             88020 02622513
+         L     R15,0(,R14)    AND NOW THE CSCB                    88020 02622613
+         MVC   MSJOBNAM,X'058'(R15) THE JOB NAME                  88020 02622713
+*        MVC   MSJOBNAM,X'090'(R15)                               88020 02622813
+P26NX8   DS    0H                                                 88020 02622913
+         MVI   TSOIND,X'1'         SET TSO TASK FLAG ON                 02670000
+         CLI   WAITBIT,X'0'                                             02680004
+         BE    NOTSO               IS TSO, BUT NO MESSAGE               02690004
+         B     NOTSO               **********************               02700006
+         SPACE 2                                                        02710000
+*    FIND THE RESOURCES WE WANT TO ENQ ON                               02720000
+         SPACE 1                                                        02730000
+         JOLERR 307,'WAIT NULLIFIED UNDER TSO/TSS'                      02740000
+         MVI   WAITBIT,X'0'                                             02750000
+NOTSO    EQU   *                                                        02760004
+WAITRET  JOLRETN                                                        02770000
+         LTORG                                                          02780000
+WTO1     WTO   'XXXXXXXX:WAITING FOR:-                                 *02790000
+                                   ',ROUTCDE=(2),DESC=(7),MF=L          02800000
+LNTHWTO1 EQU   *-WTO1                                                   02810000
+         SPACE 3                                                        02820000
+         LTORG                                                          02830000
+         END                                                            02840000

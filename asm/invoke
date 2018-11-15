@@ -1,0 +1,137 @@
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974,1975,1976  00000100
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-E001.           00000200
+           SPACE 3                                                      00000300
+*                   J             000000            L                   00000400
+*                   J            0      0           L                   00000500
+*                   J           0        0          L                   00000600
+*                   J          0          0         L                   00000700
+*                   J         0            0        L                   00000800
+*                   J         0            0        L                   00000900
+*                   J         0            0        L                   00001000
+*                   J         0            0        L                   00001100
+*                   J         0            0        L                   00001200
+*                   J         0            0        L                   00001300
+*                   J         0            0        L                   00001400
+*        J          J         0            0        L                   00001500
+*         J        J           0          0         L                   00001600
+*          J      J             0        0          L                   00001700
+*           J    J               0      0           L                   00001800
+*            JJJJ                 000000            LLLLLLLLLLL         00001900
+         PRINT OFF                                                      00002000
+         COPY JOLCOM                                                    00002100
+         PRINT ON,DATA                                                  00002200
+           SPACE 3                                                      00002300
+* ON ENTRY THIS ROUTINE HAS PARAMETERS POINTING TO:                     00002400
+*   R1 CONTAINS A POINTER TO 'DYNPARMS'.                                00002500
+*                                                                       00002600
+* IN ADDITION, CALLAREA CONTAINS A POINTER TO THE BLDL LIST.            00002700
+*              CALLAREA+8 POINTS TO THE $$JLOAD DCB.                    00002800
+*                                                                       00002900
+*                                                                       00003000
+           JOLSAVE CSECT=UJP38INV                                       00003100
+           ORG UJP38INV                                                 00003200
+INVOKE     EQU *                                                        00003300
+           ENTRY INVOKE                                                 00003400
+           ORG                                                          00003500
+           LM  R5,R6,CALLAREA                                           00003600
+         USING IHAPDS,R5                                                00003700
+           SPACE 3                                                      00003800
+RUNBLD0    SR  R8,R8                                                    00003900
+           IC  R8,RUNC1                                                 00004000
+           LA  R9,X'1F'                                                 00004100
+           NR  R8,R9                                                    00004200
+           SLL R8,1                                                     00004300
+           LA  R9,RUNUSDTA-4                                            00004400
+           AR  R9,R8                                                    00004500
+           MVC TASKSSI,0(R9)                                            00004600
+           MVI CALLAREA,X'80'                                     74365 00004700
+           XC TASK2ECB,TASK2ECB                                   74365 00004800
+           LA R1,CALLAREA                                               00004900
+           ATTACH DE=RUNNAME,ECB=TASK2ECB          74365                00005000
+           LR  R11,R1          SAVE TCB ADDRESS                   74365 00005100
+           WAIT 1,ECB=TASK2ECB                                          00005200
+           MVC TASKRETN(1),X'1D'(R11) SHIFT IN ABEND CODE         74365 00005300
+           MVC TASKRETN+1(3),TASK2ECB+1 AND RETURN CODE           74365 00005400
+           ST R11,CALLAREA                                        74365 00005500
+           DETACH CALLAREA                                        74365 00005600
+E98LMAX     L   R1,TASKSSI                                        75128 00005700
+           SR  R0,R0                                                    00005800
+           SLDL R0,4                                                    00005900
+           AH R1,=H'15'        X'F'                                     00006000
+           STM R0,R1,CALLAREA                                           00006100
+           UNPK ENDMSSI,CALLAREA+3(5)                                   00006200
+           OI  ENDMSSI+7,X'F0'                                          00006300
+* NOW SEE IF TASK ABENDED OR RETURNED PROPERLY.                         00006400
+           TM  TASKRETN,128                    ABEND ?                  00006500
+           BZ  NOTABND                                                  00006600
+* WAS IT A USER ABEND OR A SYSTEM ABEND ?                               00006700
+           L   R1,TASKRETN                                              00006800
+           N   R1,=X'00FFF000'                                          00006900
+           BZ  USERABND                                                 00007000
+           SRL R1,8                                                     00007100
+           ST  R1,DBL                                                   00007200
+         UNPK  ENDMRETC,DBL+1(3)                                  75311 00007300
+         OI    ENDMRETC+3,C'0'                                    75311 00007400
+           TR  ENDMRETC,HEX                                       75311 00007500
+         MVI   ENDMRETC,C'S'                                      75311 00007600
+           JOLERR 307,'STEP ',TASKLABL,' LM ',TASKNAME,' SSI ',   74365*00007700
+               ENDSSI,' SYSTEM ABEND ',ENDRETC                    74365 00007800
+           B E99R16                                                     00007900
+           SPACE 3                                                      00008000
+NOTABND    XC TASKRETN(2),TASKRETN                                      00008100
+USERABND   EQU *                                                        00008200
+           LA  R0,X'FFF'                                                00008300
+           N   R0,TASKRETN                                              00008400
+           CVD R0,DBL                                                   00008500
+           OI  DBL,15                                                   00008600
+           UNPK ENDMRETC,DBL                                            00008700
+           OI   ENDMRETC+3,X'F0'                                        00008800
+ENDMSSOK   EQU *                                                        00008900
+           TM  TASKRETN,X'80'  ABEND ?                                  00009000
+           BO  E99TYPER                                                 00009100
+           JOLERR 105,'STEP ',TASKLABL,' LM ',TASKNAME,' SSI ',   74365*00009200
+               ENDSSI,' RETURNED ',ENDRETC                        74365 00009300
+           B   E99RET4K                                                 00009400
+E99TYPER   JOLERR 306,'STEP ',TASKLABL,' LM ',TASKNAME,' SSI ',   74365*00009500
+               ENDSSI,' USER ABEND ',ENDRETC                      74365 00009600
+E99RET4K    EQU  *                                                      00009700
+           XC TASKRETN(2),TASKRETN                                      00009800
+           MVI TASKIND,C'1'                                             00009900
+           JOLRETN RC=4000                                              00010000
+E99RETN0   EQU *                                                        00010100
+E99RETNO   EQU *                                                        00010200
+           MVI TASKIND,C'1'                                             00010300
+           JOLRETN                                                      00010400
+TASKSSI    DC  CL4' '          SSI OF THE SUB-TASK                      00010500
+TASKRETN   DC  F'0'            RETURN CODE FROM TASK                    00010600
+TASKECB    DC  F'0'            EVENT CONTROL BLOCK FOR TASK             00010700
+TASKIND    DC  C' '            SET TO 1 AFTER SCHEDULER CALLED          00010800
+*                              THE FIRST TIME.                          00010900
+ENDSSI     DS 0CL8                                                      00011000
+ENDMSSI    DS  CL8                                                      00011100
+ENDRETC    DS 0CL4                                                      00011200
+ENDMRETC   DS  CL4                                                      00011300
+HEX        EQU *-240                                              75311 00011400
+           DC  C'0123456789ABCDEF'                                75311 00011500
+           DC   S(*),S(*),S(*),S(*)                                     00011600
+           DC   S(*),S(*),S(*),S(*)                                     00011700
+           DC   S(*),S(*),S(*),S(*)                                     00011800
+           DC   S(*),S(*),S(*),S(*)                                     00011900
+           DC   S(*),S(*),S(*),S(*)                                     00012000
+           DC   S(*),S(*),S(*),S(*)                                     00012100
+           DC   S(*),S(*),S(*),S(*)                                     00012200
+           DC   S(*),S(*),S(*),S(*)                                     00012300
+           DC   S(*),S(*),S(*),S(*)                                     00012400
+           DC   S(*),S(*),S(*),S(*)                                     00012500
+           DC   S(*),S(*),S(*),S(*)                                     00012600
+           DC   S(*),S(*),S(*),S(*)                                     00012700
+           DC   S(*),S(*),S(*),S(*)                                     00012800
+           DC   S(*),S(*),S(*),S(*)                                     00012900
+           DC   S(*),S(*),S(*),S(*)                                     00013000
+           DC   S(*),S(*),S(*),S(*)                                     00013100
+           DC   S(*),S(*),S(*),S(*)                                     00013200
+           DC   S(*),S(*),S(*),S(*)                                     00013300
+           DC   S(*),S(*),S(*),S(*)                                     00013400
+           DC   S(*),S(*),S(*),S(*)                                     00013500
+   IHAPDS PDSBLDL=YES                                                   00013501
+           END                                                          00013600

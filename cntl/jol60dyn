@@ -1,0 +1,71 @@
+//CLARKEJ JOB (NONE),CVC,CLASS=A,NOTIFY=CLARKE,MSGCLASS=X               00010000
+//JOLC     PROC PROG=$JOLCP60,PRINTS=,SYMS=,JOB=X                       00020000
+//JOL  EXEC PGM=&PROG,                                                  00030000
+// PARM='NPC PJCL NOSRDR &PRINTS/&SYMS SYSUID=CLARKE',                  00031000
+// TIME=(,5)                                                            00040000
+//STEPLIB  DD  DSN=JOLDIST.JOL60.LOAD,DISP=SHR                          00050000
+//$$JLOAD  DD  DSN=JOLDIST.JOL60.LOAD,DISP=SHR                          00060000
+//SYSUDUMP   DD   SYSOUT=*                                              00080000
+//$$JPRINT DD  SYSOUT=*,DCB=BLKSIZE=1330                                00090000
+//$$JCLZ  DD  UNIT=SYSDA,SPACE=(TRK,(5,1),RLSE),                        00100022
+//         DCB=(BLKSIZE=800,LRECL=80,RECFM=FB),                         00100104
+//         DSN=CLARKE.TESTDYN.CNTL,DISP=(OLD)                           00100204
+//$$JCL   DD  SYSOUT=(*,INTRDR),DCB=(BLKSIZE=80,BUFNO=1)                00101022
+//$$JCLZZ  DD  SYSOUT=*,DCB=(BLKSIZE=80,BUFNO=1)                        00102022
+//$$JINCL  DD  DSN=CLARKE.JOL,DISP=SHR                                  00110000
+//         DD  DSN=CLARKE.JOL60.CVCJOL,DISP=SHR                         00111000
+//$$JMACRO DD  DSN=JOLDIST.JOL60.CMDLIB,DISP=SHR                        00120000
+//         DD  DSN=CLARKE.JOL,DISP=SHR                                  00121000
+//*        DD  DSN=CLARKE.JOL35.SAMPLIB,DISP=SHR                        00122000
+//$$JWORK1 DD  UNIT=SYSDA,SPACE=(CYL,(5,1)),DCB=BLKSIZE=800             00130000
+//$$JWORK2 DD  UNIT=SYSDA,SPACE=(CYL,(5,1))                             00140000
+//$$JIN    DD   DDNAME=SYSIN                                            00150000
+//SYSIN    DD  DSN=CLARKE.JOL(&JOB),DISP=SHR                            00160000
+// PEND                                                                 00170000
+// EXEC JOLC ,JOB=JOB1                                                  00180000
+//SYSIN    DD  *                                                        00180300
+   JOLOPT NPM NPE;                                                      00180426
+   $JOB H;                                                              00180523
+ COMPARE JOLDIST.JOL60.SOURCE($JOLDY40)                                 00180623
+    WITH JOLDEV.JOL60.ASM($JOLDY40);                                    00180723
+  JOLOPT NPM NPE PJCL DYNM LET NOCAT;                                   00180826
+//                                                                      00180924
+  JOLOPT PM PE PJCL DYN LET NOCAT;                                      00181109
+  JOLOPT CARD2='//JOLBUG  DD SYSOUT=X';                                 00181221
+  JOLOPT CARD3='//DYNDUMP DD SYSOUT=X';                                 00181321
+  ON ERROR SNAP TO PRINTER X;                                           00181416
+  GOTO IEF;                                                             00181616
+  DISPLAY 'HELLO';                                                      00181716
+  DISPLAY 'HELLO2';                                                     00181816
+  DELETE 'NOT.THERE';                                                   00181916
+  CATALOG 'NOT.THERE2' ON 3380 VOL SARES1;                              00182016
+  DELETE 'NOT.THERE2';                                                  00182116
+IEF:                                                                    00182216
+  DCL IEFBR14 PROG                                                      00182316
+    /*    LIB X.Y */                                                    00182419
+          A READS 'SYS1.MACLIB'                                         00182516
+          ;                                                             00182616
+                                                                        00182721
+  DCL TEMPCARD   * ;                                                    00182821
+  CLEMCARD                                                              00182921
+EOF;                                                                    00183021
+  PRINT SYS1.MACLIB(CALL);                                              00183121
+  PRINT TEMPCARD;                                                       00183221
+                                                                        00183322
+  DCL TEMPDSN2 DS DSNAME '&&TEMPCVC($$0421)'                            00183422
+      UNIT 3390  1 TRACK VOL SARES1;                                    00183521
+  COPY  SYS1.MACLIB(CALL) TO TEMPDSN2;                                  00183621
+  PRINT TEMPDSN  PDS;                                                   00183721
+  PRINT TEMPDSN2;                                                       00183821
+  */                                                                    00183921
+ /*  IF MAXCC<0 | MAXCC >=0 THEN STOP; */                               00184021
+ /* RUN IEF ;                                                           00184121
+  RUN IEF 5;*/                                                          00184221
+  DISPLAY 'HELLO3 AFTER IEFBR14 RUNS';                                  00184321
+ /*  IF LASTCC=0 THEN STOP '6000'; ELSE STOP '99'; */                   00184421
+ LISTCAT LEV(CLARKE);                                                   00184521
+  PRINTSYM;                                                             00185009
+   $JOB H;                                                              00190001
+ END;                                                                   00191001
+//SYSINZ   DD  DSN=CLARKE.JOL60.INCLUDE(SAMPLE),DISP=SHR                00193001
+//*SYSIN    DD  DSN=CLARKE.TEMP.ASSIGN,DISP=SHR                         00194000

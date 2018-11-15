@@ -1,0 +1,343 @@
+         JOLSAVE CSECT=UJP25ED                                          00001000
+       USING TKNX,R3                                                    00002000
+* THIS ROUTINE, WHICH FORMS PART OF THE JOL COMPILER, IS CALLED WHEN AN 00003000
+*  'EDIT' INSTRUCTION HAS BEEN FOUND IN THE INPUT STREAM.               00004000
+* THE FORMAT OF THE EDIT IS:-                                           00005000
+*                                                                       00006000
+*          EDIT  INPUT-STRING  <OUTPUT> <FORMAT-LIST>                   00007000
+*  WHERE <OUTPUT> MAY BE:-                                              00008000
+*              NAME |(NAME-LIST)                                        00009000
+*  AND   <FORMAT-LIST> MAY BE:-                                         00010000
+*          FORMAT-ITEM   (FORMAT-ITEM,...)                              00011000
+*                                                                       00012000
+*  EG     EDIT   STRING   OUTPUT  A(5);                                 00013000
+*     OR  EDIT   STRING  ( LOCN1  LOCN2) A(5);                          00014000
+*     OR  EDIT   STRING  ( LOCN1  LOCN2) (A(5),X(1),A(2));              00015000
+*     OR  EDIT   STRING  ( LOCN1  LOCN2)A(5),X(1),A(2);                 00016000
+*                                                                       00017000
+* THE EDIT INSTRUCTION IS TERMINATED WHEN:-                             00018000
+*   1. THE INPUT STRING IS EXHAUSTED                                    00019000
+*   2. THE OUTPUT NAME LIST IS EXHAUSTED                                00020000
+*                                                                       00021000
+* IF THERE ARE FEWER FORMAT ITEMS THAN DATA ITEMS,THEY ARE SIMPLY       00022000
+*  RE-USED, AS IN PL/1.                                                 00023000
+*                                                                       00024000
+* AS USUAL IN JOL, R2-> JOLCOM, R3-> TKNX, R11 IS THE BASE REGISTER     00025000
+* THIS THEN GIVES US REGISTERS 0,1,4-10,12,14 AND 15 TO PLAY WITH.      00026000
+* BASICALLY, WE NEED SEVERAL LOOPS                                      00027000
+*   1. START AND END OF NAME LIST                                       00028000
+*   2. START AND END OF FORMAT LIST                                     00029000
+*   3. START AND END OF INPUT STRING                                    00030000
+*                                                                       00031000
+* THE FOLLOWING MUST BE DONE:-                                          00032000
+*  1. VALIDATE THE EDIT                                                 00033000
+*  2. FIND THE INPUT STRING'S VALUE                                     00034000
+*  3. SET UP REGISTERS FOR THE LOOPS                                    00035000
+*  4. PERFORM THE EDIT                                                  00036000
+*                                                                       00037000
+* NOTE ********                                                         00038000
+*  NORMALLY ONE WOULD USE 'UJS20REP' TO REPLACE THE SYMBOLIC NAME       00039000
+*  BY THE VALUE CURRENTLY ASSIGNED TO THE NAME.                         00040000
+* HOWEVER,UJS20REP ALWAYS PLACES THE STRING IN #WORK, AND IT JUST       00041000
+*  HAPPENS THAT THE SYMBOLIC ASSIGNMENT ROUTINE ALSO USES THAT,         00042000
+*  SO, BECAUSE OUR CASE HERE IS SO SIMPLE (IF WE ONLY HAVE TO           00043000
+*  FIND THE VALUE OF ONE SYMBOLIC NAME), WE SHALL SEARCH THE            00044000
+*  TABLE OURSELVES.                                                     00045000
+* IT IS UNFORTUNATE,BECAUSE THAT MEANS THAT THERE ARE NOW 3 RTNS        00046000
+*  (AS AT 8 APRIL,75) WHICH SEARCH THAT TABLE.                          00047000
+* AH WELL, BEGGERS CAN'T BE CHOOSERS, I SUPPOSE.....                    00048000
+*                                                                       00049000
+*                                                                       00050000
+* WELL,WE'D BETTER GET ON WITH THE JOB, I GUESS                         00051000
+*                                                                       00052000
+* FIRST,WE'LL FOOL THE ASSIGNMENT ROUTINE INTO THINKING WE ARE A        00053000
+*  MACRO, BECAUSE WHEN WE PERFORM A 'PSEUDO' ASSIGN TO STORE            00054000
+*  THE EDITED INFORMATION, IT WON'T DO NEARLY AS MUCH WORK (IE          00055000
+*  LET'S SAVE CPU TIME).                                                00056000
+         SPACE                                                          00057000
+         MVC ICOMMAND,=CL8'MACRO'                                       00058000
+         SPACE                                                          00059000
+* NOW,LETS FIND THE AREA WHERE THE VALUE OF THE SYMBOLIC IS             00060000
+         SPACE                                                          00061000
+         GETTKN 2            GET 2ND TOKEN, S/B INPUT STRING NAME       00062000
+         SPACE                                                          00063000
+         CLI #TKN,L'SYMNAME   LENGTH OF NAME  TOO LONG ?                00064000
+         BL  P25OK2          NOPE,ALL WELL AGAIN.                       00065000
+         JOLERR 401,'SYMBOLIC NAME ''',#TKN,''' TOO LONG'               00066000
+         JOLRETN RC=16       RETURN AGAIN OLD FRUIT                     00067000
+         SPACE                                                          00068000
+P25OK2   EQU *                                                          00069000
+* OK,SEARCH THE TABLE FOR THE NAME THEN                                 00070000
+         L  R15,ASYMTBL      LOAD START ADDRESS OF THE SYM TABLE        00071000
+         LH R1,NOSYMS        R1=CURRENT NUMBER OF SYMBOLIC NAMES        00072000
+         MH R1,=AL2(SYMADDR+4-SYMNAME) LENGTH OF TABLE ENTRIES          00073000
+         AR R1,R15           R15=HIGH ADDRESS OF TABLE,R1= LOW          00074000
+         LH R14,=AL2(SYMADDR+4-SYMNAME)                                 00075000
+         LNR R14,R14                                                    00076000
+         USING SYMOVLY,R1                                               00077000
+P25NMLUP CLC SYMNAME,TKN                                                00078000
+         BE  P25GOTNM                                                   00079000
+         BXH R1,R14,P25NMLUP                                            00080000
+         JOLERR 402,'INPUT STRING NAME %',#TKN,' CANNOT BE FOUND OR NO *00081000
+               NAME GIVEN AS INPUT '                              75128 00082000
+         JOLRETN RC=16                                                  00083000
+         SPACE 1                                                        00084000
+P25GOTNM L  R15,SYMADDR      GET ADDRESS OF STRING                      00085000
+         MVC DBL(2),0(R15)   SHIFT LENGTH TO DBL (MAY NOT BE ON HALF    00086000
+*                            WORD BOUNDARY)                             00087000
+         LA R9,2(R15)        SET R9-> 1ST BYTE IN STRING                00088000
+* NOTE *** ALL SYMBOLIC DATA STORED IN TABLE WITH 1ST 2 BYTES           00089000
+*  INDICATING THE LENGTH ******                                         00090000
+         LR R10,R9           NOW SET UP STOP ADDRESS (A(LAST CHAR))     00091000
+         AH R10,DBL          DBL=LENGTH                                 00092000
+           CLI 0(R9),C''''     DOES STRING START WITH A QUOTE ?   75311 00093000
+           BNE P25NQUOT                                           75311 00094000
+           LA  R9,1(R9)        YES,SKIP IT                        75311 00095000
+           BCTR R10,0          AND SKIP LAST AS WELL              75311 00096000
+           B   *+4                                                75311 00097000
+P25NQUOT   EQU  *                                                 75311 00098000
+         DROP R1                                                        00099000
+         SPACE 3                                                        00100000
+           SPACE                                                        00101000
+* WELL I SUPPOSE WE CAN NOW GET DOWN TO SOME SERIOUS BUSINESS           00102000
+* WHAT WE WANT TO DO IS SET SOME REGISTERS UP AS FOLLOWS:-              00103000
+*                                                                       00104000
+*     R4 = START TOKEN NUMBER OF THE OUTPUT STRINGS                     00105000
+*     R5 = STOP  TOKEN NUMBER OF THE OUTPUT STRINGS                     00106000
+*     R6 = FIRST FORMAT LIST                                            00107000
+*     R7 = FIRST FORMAT LIST INITIALLY,AND IF THE FORMAT LIST IS        00108000
+*          SHORTER THAN THE OUTPUT LIST, WE CAN SIMPLY RELOAD           00109000
+*          R7 WITH R6 TO RE-INITIALISE THE FORMAT LIST CHAIN            00110000
+*     R8 = LAST TOKEN FORMAT ITEM                                       00111000
+*     R9 = A(INPUT CHAR ADDRESS) THIS IS BUMPED UP AS WE GO             00112000
+*     R10= A(LAST CHAR IN INPUT SYMBOLIC)                               00113000
+* NOTE, WE COULD PROBABLY DO SOME FURTHER EDITING ON THE FORMAT         00114000
+*  ITEMS BEFORE WE REALLY BEGIN (IE BUILD UP SOME SORT OF TABLE         00115000
+*  BUT WE'LL LEAVE IT THIS WAY FOR NOW. IT WOULD ONLY BE MUCH           00116000
+*  MORE EFFICENT IF THERE WERE MANY -REPEAT MANY-OUTPUT NAMES           00117000
+*  AND ONLY 1 OR LESS FORMAT ITEMS).                                    00118000
+            SPACE 2                                                     00119000
+* WHILE WE ARE FINDING THE START AND END TOKEN NUMBERS OF THE           00120000
+*  OUTPUT STRINGS, WE SHALL CLEAR THE OUTPUT STRINGS TO A               00121000
+*  NULL VALUE. THAT MEANS THAT IF, FOR EXAMPLE, %X CONTAINS             00122000
+*  '1' NOW, AND WE ARE ASKED TO EDIT TO %X, WE WANT TO                  00123000
+*  CLEAR IT, EVEN IF WE DON'T PUT ANYTHING THERE (EG, INPUT             00124000
+*  STRING TOO SHORT).                                                   00125000
+         CLEAR #WORK         CLEAR (NULLIFY) THE STRING THAT THE ASSIG- 00126000
+*                            NMENT ROUTINE WILL STORE.                  00127000
+         SR  R12,R12        SET TO ZERO INITIALLY                       00128000
+         LA  R4,3            SET R6=1ST PART OF NAME LIST               00129000
+         GETTKN (R4)         GET TOKEN AFTER SEND STRING                00130000
+         CLI TKN,C'('        START OF LIST ?                            00131000
+         BNE P25GOTN1        NO,SHOULD BE A NAME (CHECK IN A MO)        00132000
+         LR  R4,R1           DID U REMEMBER THAT AFTER A 'GETTKN' THAT  00133000
+*                            R1 ALWAYS CONTAINS 1 HIGHER THAN IT DID    00134000
+*                            BEFORE?                                    00135000
+         LR  R12,R1          SET NON-ZERO(R12 TELLS US IF BRACKETS)     00136000
+*                            BET U FORGOT.                              00137000
+         GETTKN (R4)         GET THE TOKEN AFTER THE '('                00138000
+P25GOTN1 CLI TKN,C' '        IS NAME BLANK (IE NO NAMES GIVEN?)         00139000
+         BNE P25NBLK1                                                   00140000
+         JOLERR 403,'NO NAME LIST IN EDIT'                              00141000
+         JOLRETN RC=16                                                  00142000
+P25NBLK1 EQU *                                                          00143000
+         LR R5,R1            R5 IS OUR END NAME LIST CONTROLLER         00144000
+*                            SO SET IT NOW TO ONE HIGHER THAN THE       00145000
+*                            NAME WE ARE CURRENTLY EXAMINING.           00146000
+         CLI TKNTYPE,2       <IDENTIFIER> ?                             00147000
+         BE  P25NMOK1                                                   00148000
+P25ERNM1 JOLERR 404,'INVALID SYMBOL ''',#TKN,''' IN NAME LIST'          00149000
+         JOLRETN RC=16                                                  00150000
+P25NMOK1 EQU  *                                                         00151000
+* NOW ASSIGN THE NULL STRING TO THE NAME                                00152000
+         MVC SYMBOLIC,TKN       SHIFT NAME TO 'SYMBOLIC' AND DROP '%'   00153000
+        $CALL UJP85ASN       'UJP85ASN' WILL NULLIFY (OR COPY WHATEVER  00154000
+*                            WAS IN '#WORK' IN FACT.                    00155000
+*****                        IF THE NAME WAS NOT PREVIOUSLY DECLARED,   00156000
+*****                        IT WOULD ALSO DECLARE IT.                  00157000
+*                                                                       00158000
+* GOOD,NOW WE'D BETTER LOOK AT THE NEXT ITEMS.                          00159000
+         GETTKN (R5)         GET NEXT TOKEN                             00160000
+         CLI TKN,C')'        END LIST ?                                 00161000
+         BE  P25ENDL1        YES                                        00162000
+         CLI TKN,C','        ',' AFTER NAME ?                           00163000
+         BNE P25CHKL1        NO->CHECK IF '(%NM1 %NM2)' TYPE CODING     00164000
+         GETTKN (R1)         GET NEXT ITEM AFTER THE COMMA              00165000
+         CLI TKN,C')'        ',)' IS REALLY INVALID, BUT WE'LL LET IT   00166000
+*                            GO THROUGH,AND ASSUME END OF LIST.         00167000
+         BE  P25ENDL1                                                   00168000
+* OK,HERE IT SHOULD BE A NAME,OR ITS AN ERROR.                          00169000
+         B   P25NBLK1        GO BACK AND CHECK,AFTER R5 SET TO R1       00170000
+         SPACE 1                                                        00171000
+P25CHKL1 LTR R12,R12         '(' CODED ?                                00172000
+         BNZ P25NBLK1        YEP -> GO CHECK THIS FURTHER               00173000
+         LR    R6,R5          SET R6 TO POINT TO START OF               00174000
+*                             FORMAT LIST                               00175000
+         B     P25CHKB1       CHECK IF '(' NOW                          00176000
+         SPACE 3                                                        00177000
+* HERE IS THE END OF THE NAME LIST, AND ALL THE NAMES HAVE              00178000
+* BEEN INITED TO ''.                                                    00179000
+P25ENDL1 EQU *                                                          00180000
+         SPACE 3                                                        00181000
+* WELL, NOW I GUESS WE'D BETTER MOVE ON TO THE FORMAT LIST.             00182000
+*                                                                       00183000
+* NOW, TO SAVE A LITTLE CPU TIME, WE'LL EDIT (VALIDATE) THE OLD         00184000
+*  FORMAT LIST WHILE WE ARE ACTUALLY EXECUTING IT.                      00185000
+* THIS MEANS THAT IF WE FIND AN ERROR, WE WILL PROBABLY HAVE            00186000
+*  EXECUTED HALF OF THE EDIT INSTRUCTION, WHICH IS VERY                 00187000
+*  UNFORTUNATE, BUT TOUGH... CPU TIME'S IMPORTANT YOU KNOW              00188000
+*                                                                       00189000
+*                                                                       00190000
+*        R1 POINTS TO THE TOKEN AFTER THE NAME LIST                     00191000
+* SO IF WE DO A GETTKN,WE SHOULD HAVE A '(' | AN 'A' | 'X'              00192000
+         SR R12,R12          INDIC TO SAY FIRST CHAR OF FORMAT          00193000
+*                            WAS A '(' (R12=1 IF IT WAS, ELSE           00194000
+*                            R12=0).                                    00195000
+         LR R6,R1            SET R6 TO FIRST FORMAT ITEM                00196000
+* NOTE *** WE MAY HAVE TO RESET THIS LATER ON, BECAUSE                  00197000
+*  WE REALLY AREN'T INTESTED IN BRACKETS SURROUNDING THE                00198000
+*  FORMAT LIST, APART FROM DETECTING THAT THEY ARE                      00199000
+*  THERE.                                                               00200000
+         SPACE 3                                                        00201000
+         GETTKN (R1)         GET THE FIRST FORMAT ITEM                  00202000
+P25CHKB1 EQU   *                                                        00203000
+         CLI TKN,C'('        (<FORMAT LIST>) ?                          00204000
+         BNE  P25LRR7        NO-> LOAD R7 WITH R6,TEST VALID ITEM       00205000
+         LR   R6,R1          RESET R6 TO SKIP '('                       00206000
+P25LRR7  EQU *                                                          00207000
+         LR  R7,R6           SAVE STARTING POINT OF FORMAT LIST.        00208000
+*                                                                       00209000
+         EJECT                                                          00210000
+* NOW WE HAVE R6 AND R7 POINTING TO THE START OF THE FORMAT LIST        00211000
+*  EG IF  (A(7)) OR A(7) THEN TKN CONTAINS THE 'A'.                     00212000
+*                                                                       00213000
+* BASICLY, THE NEXT LINES OF CODE ARE GOING TO DO THIS:-                00214000
+*        REACHED END OF NAMES ? YES -> RETURN                           00215000
+*        GET A NAME                                                     00216000
+*        MOVE IT TO 'DBL'                                               00217000
+*        GET A FORMAT ITEM, IF END, RECYCLE FORMAT ITEMS                00218000
+*        IS IT AN 'X' TYPE-> GO TO RESET INPUT ADDRESS ROUTINE          00219000
+*        ENOUGH INPUT STILL IN STRING FOR THIS FORMAT ITEM ? NO, REDUCE 00220000
+*        MOVE INPUT STRING TO #WORK                                     00221000
+*       $CALL ASSIGNMENT ROUTINE TO STORE IT                            00222000
+*        RESET NEXT INPUT STRING ADDRESS                                00223000
+*        IF STILL MORE INPUT, BACK TO GET NEXT NAME, ELSE RETURN        00224000
+* SO....                                                                00225000
+         SPACE                                                          00226000
+P25TEND  CR R4,R5            ANY NAMES LEFT IN OUTPUT LIST ?            00227000
+         BL P25MAINL         YES                                        00228000
+         JOLRETN RC=0            NO,RETURN,ALL ENDED                    00229000
+         SPACE                                                          00230000
+P25MAINL GETTKN (R4)         GET THE NAME FIELD                         00231000
+         LR  R4,R1           SET R4 TO LOOK AT NEXT ITEM                00232000
+         CLI TKN,C','        IS THE THING WE JUST GO A FIELD SEPERATOR? 00233000
+         BE  P25MAINL        YES, SKIP IT                               00234000
+         SPACE                                                          00235000
+         MVC SYMBOLIC,TKN         SHIFT NAME TO DBL FOR ASSIGN RTN.     00236000
+         SPACE                                                          00237000
+P25SKPF1 GETTKN (R7)         GET THE FORMAT ITEM.                       00238000
+         LR  R7,R1           SET R7 TO LOOK AT THE NEXT ITEM.           00239000
+         CLI TKN,C','        FIELD SEPERATOR ?                          00240000
+         BE  P25SKPF1        YES, SKIP IT                               00241000
+         CLI TKN,C')'        END OF FORMAT LIST ?                       00242000
+         BNE P25FMT1         NO, S/B AN 'A' | 'X'                       00243000
+P25EF9   LR  R7,R6           REACHED END OF FORMAT LIST THEN,RESET TO   00244000
+*                            THE FIRST ONE AGAIN, AND ROUND WE GO       00245000
+         B   P25SKPF1                                                   00246000
+         SPACE                                                          00247000
+P25FMT1  CLC =C'A ',TKN      IS IT AN 'A' FORMAT ITEM ?                 00248000
+         BE  P25A                                                       00249000
+         CLC =C'X ',TKN      IS IT AN 'X' SPECIFICATION ?               00250000
+         BE  P25X                                                       00251000
+         CLI  TKN,C' '       END                                        00252000
+         BE   P25EF9                                                    00253000
+         JOLERR 405,'FORMAT ITEM ''',#TKN,''' INVALID'                  00254000
+         JOLRETN RC=16                                                  00255000
+P25A     EQU *                                                          00256000
+* NOTE ** SORRY-THIS NEXT HUNK OF CODE WILL BE DUPLICATED,              00257000
+*  BUT I'VE RUN OUT OF REGISTERS TO LOAD AN INDICATOR TO                00258000
+*  SAY WHETHER A THING IS 'A'|'X' THOUGH                                00259000
+         GETTKN (R1)         GET NEXT,S/B '('                           00260000
+         CLI  TKN,C'('                                                  00261000
+         BE  P25AOK1                                                    00262000
+P25FBAD1 JOLERR 406,'FORMAT LIST INVALID AT ''',#TKN,''''               00263000
+         JOLRETN RC=16                                                  00264000
+P25AOK1  GETTKN (R1)         GET THE NUMBER                             00265000
+         LR R7,R1            SAVE POINTER TO FOLLOWING BRACKET          00266000
+*                            COS NEXT INSTRUCT DESTROYS R1.             00267000
+         TNUM #TKN           TEST IF ITS NUMERIC                        00268000
+         LTR  R15,R15        WAS IT ?                                   00269000
+         BZ  P25AOK2        YES                                         00270000
+P25FBAD2 JOLERR 407,'EXPECTED A NUMBER IN FORMAT:-''',#TKN,''' INVALID' 00271000
+         JOLRETN RC=16                                                  00272000
+P25AOK2   LR   R15,R1      SET R15=TNUM RETURN                          00273000
+         LR  R14,R10         R14=A(LAST BYTE INPUT STRING)              00274000
+         SR  R14,R9          R9=A(CURRENT CHARACTER),WHICH NOW LEAVES   00275000
+*                            R14=AMOUNT LEFT                            00276000
+         CR  R14,R15         IS THE FORMAT ITEM > AMOUNT LEFT ?         00277000
+         BH  P25AOK3         NOPE                                       00278000
+         LR  R15,R14         SET R15= AMOUNT LEFT                       00279000
+P25AOK3  CH  R15,=H'120'     TOO BIG AN ITEM ?                          00280000
+         BL  P25AOK4         NO, SO EXECUTE THE MOVE                    00281000
+P25FBAD3 JOLERR 408,'FORMAT LENGTH OF ',#TKN,' TOO BIG'                 00282000
+         JOLRETN RC=16                                                  00283000
+P25AOK4  EX R15,P25EXMVC     SHIFT THE DATA (YES, I KNOW | CHAR TOO     00284000
+*                            MANY WILL BE MOVED, BUT IT'S QUICKER       00285000
+*                            THAN SUBTRACTING ONE, AND ANYWAY, IT       00286000
+*                            JUST DOESN'T MATTER - ASSN RTN WILL        00287000
+         STH R15,#WORK       ONLY MOVE THE RIGHT AMOUNT).               00288000
+        $CALL UJP85ASN       STORE AWAY NOW IN THE SYMBOLIC TABLE.      00289000
+         AR R9,R1           BUMP UP INPUT ADDRESS                       00290000
+         CR R9,R10           REACHED END OF INPUT STRING?               00291000
+         BL P25MORE1         STILL MORE TO GO                           00292000
+         JOLRETN                                                        00293000
+P25MORE1 GETTKN (R7)         GET THE TOKEN AFTER THE <NUMBER>           00294000
+         CLI TKN,C')'        IS THERE A ')' AFTER THE NUMBER            00295000
+         BNE P25TEND        NOPE, ANYONE VERY UPSET ?                   00296000
+         LR  R7,R1           YES,SKIP IT                                00297000
+         B   P25TEND        AND -> BACK TO MAIN LOOP                    00298000
+         B   P25RESET        GO AND RESET THE INPUT STRINGS,AND         00299000
+*                            CHECK FOR THE ')' AFTER THE FORMAT         00300000
+*                            NUMBER.                                    00301000
+         SPACE 2                                                        00302000
+* HERE IS THE BIT OF DUPLICATED CODE I PROMISED YOU.                    00303000
+         SPACE                                                          00304000
+P25X     GETTKN (R1)         NEXT TKN S/B '('                           00305000
+         CLI TKN,C'('                                                   00306000
+         BNE P25FBAD1                                                   00307000
+         GETTKN (R1)         GET <NUMBER>                               00308000
+         LR  R7,R1           SAVE NEXT TOKEN NUMBER                     00309000
+         TNUM #TKN           CONVERT TO NUMERIC                         00310000
+         LTR R15,R15         IS IT NUMERIC ?                            00311000
+         BNZ P25FBAD2        -> NO ,ERROR                               00312000
+         CH  R1,=H'250'     > 250                                       00313000
+         BH  P25FBAD3        -> YES,ERROR                               00314000
+         SPACE 2                                                        00315000
+P25RESET EQU *                                                          00316000
+         AR R9,R1           BUMP UP INPUT ADDRESS                       00317000
+         CR R9,R10           REACHED END OF INPUT STRING?               00318000
+         BL P25MORE          STILL MORE TO GO                           00319000
+         JOLRETN                                                        00320000
+P25MORE  GETTKN (R7)         GET THE TOKEN AFTER THE <NUMBER>           00321000
+         CLI TKN,C')'        IS THERE A ')' AFTER THE NUMBER            00322000
+         BNE P25SKPF1        NOPE, ANYONE VERY UPSET ?                  00323000
+         LR  R7,R1           YES,SKIP IT                                00324000
+         B   P25SKPF1        AND -> BACK TO MAIN LOOP                   00325000
+         SPACE 3                                                        00326000
+P25EXMVC MVC WORK(*-*),0(R9) SHIFT DATA FROM INPUT STRING               00327000
+         LTORG                                                          00328000
+P25ZAPS  DC    S(*,*,*,*)                                               00329000
+         DC  S(*,*,*,*)                                                 00330000
+         DC  S(*,*,*,*)                                                 00331000
+         DC  S(*,*,*,*)                                                 00332000
+         DC  S(*,*,*,*)                                                 00333000
+         DC  S(*,*,*,*)                                                 00334000
+         DC  S(*,*,*,*)                                                 00335000
+         DC  S(*,*,*,*)                                                 00336000
+         DC  S(*,*,*,*)                                                 00337000
+         DC  S(*,*,*,*)                                                 00338000
+         DC  S(*,*,*,*)                                                 00339000
+         DC  S(*,*,*,*)                                                 00340000
+         DC  S(*,*,*,*)                                                 00341000
+         DC  S(*,*,*,*)                                                 00342000
+         DC  S(*,*,*,*)                                                 00343000

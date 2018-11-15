@@ -1,0 +1,1547 @@
+UJV00MN TITLE 'VALIDATE, SEARCH CATALOGUES ETC'                         00010000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973                 00020000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00030008
+* COPYRIGHT CCS 1974,1975,1976                                          00040000
+* COPYRIGHT CCS 1980                                                    00050000
+* CCS-JOL 1988                                                          00060030
+*                                                                       00070000
+           SPACE 3                                                      00080009
+*                   J             000000            L                   00090000
+*                   J            0      0           L                   00100000
+*                   J           0        0          L                   00110000
+*                   J          0          0         L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0            0        L                   00160000
+*                   J         0            0        L                   00170000
+*                   J         0            0        L                   00180000
+*                   J         0            0        L                   00190000
+*        J          J         0            0        L                   00200000
+*         J        J           0          0         L                   00210000
+*          J      J             0        0          L                   00220000
+*           J    J               0      0           L                   00230000
+*            JJJJ                 000000            LLLLLLLLLLL         00240000
+           EJECT                                                        00250009
+* FIXES APPLIED JULY,1976                                               00260009
+*                                                                       00270009
+*JOL30007:- DONT ISSUE ERR MESSAGE FOR + GDG IF NOCAT                   00280009
+*JOL30008:- REMOVE MESSAGE FOR 2 DSN'S OUTPUT IN JOB                    00290009
+*JOL30037:- 2 NODSN'S RESOLVE TO SAME DATA-SET                          00300009
+*JOL30038:- WHEN DSID WRITTEN,READ,WRITTEN,SPACE(ETC) NOT PROPOGATED    00310009
+*JOL30039:- >9 WORK DATA SETS GIVES WRONG DSNAME                        00320009
+*JOL30045:- (+0) GIVES NOT CATLGD MESSAGE                               00330009
+*JOL30075:- OUTPUT,CATLG | DELETE GIVES ERROR MESSAGE                   00340009
+*                                                                       00350009
+* FIXES APPLIED JULY,1982                                               00360009
+*                                                                       00370009
+* NO NUMBER:- MANY CHANGES HAVE BEEN MADE AROUND JULY, AUGUST 1982      00380009
+*  TO INCORPORATE SOME CHANGES THAT WERE ORIGINALLY DISCOVERED BY       00390009
+*  MYER MELBOURNE WHEN THEY HAD TO SPECIFY UNITAFF TO OVERCOME A JES3   00400009
+*  BUG.                                                                 00410009
+* PRIMARILY, THESE WERE INVOLVED WITH UNITAFF.                          00420009
+*  FOR EXAMPLE, IF A DATA SET WAS CREATED IN STEP ONE (WITH UNITAFF)    00430009
+*  AND READ IN STEP TWO (WITH UNITAFF) AND THEN READ IN STEP THREE      00440009
+*  (WITHOUT UNITAFF), JOL DID NOT PUT A UNIT ON THE DATA SET.           00450009
+*  -----------------                                                    00460009
+*                                                                       00470009
+* OTHER PROBLEMS WERE FIXED WITH SORT WORK AREAS BEING PASSED, AND      00480009
+*  ANOTHER PROBLEM WITH NEW GDGS BEING CREATED THAT DID NOT YET HAVE    00490009
+*  A DATA SET CATALOGUED UNDER THAT NAME (IE FIRST TIME).               00500009
+* ALSO, A FALSE ERROR MESSAGE WAS STOPPED FOR HSMED OR MIGRATED         00510009
+*  DATA SET (JOL DID NOT KNOW THE DEVICE TYPE).                         00520009
+* YET ANOTHER PROBLEM WAS DISCOVERED WITH MULTI-VOLUME, MULTI-FILE      00530009
+*  DATA SETS. WHEN A DATA SET WAS CREATED WITH VOLREF EARLIER IN A JOB, 00540009
+*  AND READ LATER, THE VOLUME REFERENCES REFERRED TO THE ORIGINAL TAPE, 00550009
+*  AND SO IF THE SECOND DATA SET SPANNED TWO VOLUMES, IT COULD ONLY     00560009
+*  FIND THE FIRST.                                                      00570009
+*                                                                       00580000
+*                                                                       00590000
+******************************************************************      00600000
+*                                                                       00610000
+*                                                                       00620000
+* MODIFIED BY C. V. CLARKE TO INCLUDE XA SUPPORT DEC, 1983              00630000
+*    THIS SUPPORT REPLACES THE CODE THAT CHECKED THE DEVNAMET           00640000
+*    WITH A CALL TO A NEW MODULE UJS01DEV IN SOURCE MODULE              00650000
+*    UJS02XA                                                            00660000
+*                                                                       00670000
+*                                                                       00680000
+******************************************************************      00690000
+           EJECT                                                        00700009
+         COPY JOLCOM                                                    00710000
+         SPACE 3                                                        00720000
+           PRINT DATA                                             75311 00730000
+           JOLSAVE CSECT=UJV00MN,BASE=10                                00740000
+         EXTRN VALIDATE ENHAPPY THE LINKAGE EDITOR                      00750000
+           $LINK UJO39GDG      FIX GDG BIAS (IF ANY)              75311 00760000
+* WE HAD BETTER SEE IF WE DID READ ANY RECORDS FROM THE INSTRUCT FILE.  00770019
+           L  R1,AVTBLE        LOAD ADDRESS OF THE TABLE          74303 00780000
+           L  R4,TOTAVREC      LOAD END ADDRESS OF THE TABLE      84100 00790000
+           CR  R1,R4                                              75128 00800000
+           BNE V00DOCAT                                                 00810000
+V00NOTXT JOLERR 402,'NO PROGRAM TEXT FOUND IN GENERATE PHASE:-COMPILER *00820000
+               PRODUCED NO TEXT'                                        00830000
+         JOLRETN RC=16     NAUGHTY, NO TEXT THERE TO EXECUTE      75128 00840000
+V00DOCAT   ZAP WORKDS,=P'0'    ZERO WORK DATA SET COUNTER               00850000
+           ZAP TEMPDS,=P'0'    ZERO TEMP DATA SET COUNTER               00860000
+           USING DDDSNDET,R3                                            00870000
+          $CALL UJO40DD        FIX UP +1 GDGS                           00880000
+          $CALL UJO43DD                                                 00890000
+* NOW I FEEL THAT PERHAPS WE MIGHT CALL THE JOB VET ROUTINE             00900000
+*  TO VET THE JOB DETAILS                                               00910000
+           L   R3,AJOBDETS                                        75311 00920000
+           $CALL UJV01JOB                                         75311 00930000
+           JOLRETN                                                      00940000
+           SPACE 3                                                      00950000
+VETDISP    EQU *                                                        00960000
+* THIS SUBROUTINE IS CALLED TO VET DISPOSITION PROCESSING. BAL USES R8. 00970000
+           MVC STMT,DDDDNAME+2   SET STMT UP FOR ERROR MESSAGES   75128 00980000
+* SET UP PARAMETERS FOR USER EXITS.                                     00990000
+           ST  R2,CALLAREA                                              01000000
+           MVC CALLAREA+4(4),AJOBDETS                                   01010000
+           MVC CALLAREA+8(4),ATKN1     ADDRESS OF LAST PGM STATEMENT    01020000
+           ST  R3,CALLAREA+12                                           01030000
+           LR  R1,R2       POINT TO CALLAREA                            01040000
+           L   R15,AUVALID        GET ADDRESS OF USER VALIDATE RTN75128 01050000
+         CLI   DDDDNAME+1,C'C'                                          01060000
+           BNE V00NCAT                                                  01070000
+          L    R15,12(R15)     USER CATLG VALIDATE                      01080000
+           BALR  R14,R15                                                01090000
+           L   R15,=V(UJV05CAT)                                         01100000
+           BALR R14,R15                                                 01110000
+           BR  R8                                                       01120000
+           SPACE                                                        01130000
+V00NCAT    CLI DDDDNAME+1,C'K' KEEP ?                                   01140000
+           BNE V00NKEEP                                                 01150000
+           L   R15,20(R15)     USER KEEP VALIDATE                       01160000
+           BALR  R14,R15                                                01170000
+           L   R15,=V(UJV07KEE)                                         01180000
+           BALR R14,R15                                                 01190000
+           BR  R8                                                       01200000
+           SPACE                                                        01210000
+V00NKEEP   CLI DDDDNAME+1,C'D' DELETE ?                                 01220000
+           BNE V00NDEL                                                  01230000
+           L R15,28(R15)  ADDRESS OF DELETE VALIDATE(USERS)             01240000
+           BALR  R14,R15                                                01250000
+           L   R15,=V(UJV09DEL)                                         01260000
+           BALR R14,R15                                                 01270000
+           BR  R8                                                       01280000
+           SPACE                                                        01290000
+V00NDEL    CLI DDDDNAME+1,C'S' SCRATCH ?                                01300000
+           BNE V00NSCR                                                  01310000
+           L   R15,24(R15)                                              01320000
+           BALR  R14,R15                                                01330000
+           L   R15,=V(UJV08SCR)                                         01340000
+           BALR R14,R15                                                 01350000
+           BR  R8                                                       01360000
+           SPACE                                                        01370000
+V00NSCR    CLI DDDDNAME+1,C'U' UNCATLG ?                                01380000
+           BNE 0(R8)           NO,GO BACK,DON'T KNOW WHAT IT WAS.       01390000
+           L  R15,16(R15)     USER UNCAT VALIDATE                       01400000
+           BALR  R14,R15                                                01410000
+           L   R15,=V(UJV06UNC)                                         01420000
+           BALR R14,R15                                                 01430000
+           BR  R8                                                       01440000
+         SPACE 3                                                        01450000
+* THIS SMALL ROUTINE IS BAL'D TO ON R8, AND CHECKS IF THE         75    01460000
+*  DSNAME -> R3 IS 'NEW', AND IF SO CHANGES THE DISPOSITION             01470000
+*  TO 'USES',BECAUSE YOU CAN'T HAVE A DATA SET CREATED TWICE            01480000
+*  IN 1 JOB (DUPLICATE NAMES OCCUR-AND THE JOB JCL FAILS AT             01490000
+*  EXECUTE TIME).                                                       01500000
+*                                                                       01510000
+* THE JCL THAT WILL BE GENERATED WILL BE SOMETHING LIKE:-               01520000
+*  //$$XXX   DD DSN=NAME,DISP=(MOD,PASS),SPACE=,UNIT=,VOL= ETC          01530000
+*  //REALDD  DD DSN=NAME,DISP=(OLD,PASS),SPACE=,UNIT=,VOL= ETC          01540000
+*                                                                       01550000
+V00TNEW    TM DDUSE-DDDSNDET(R3),X'40' NEW ?                            01560000
+         B     0(R8)          *************************  JOL30008 76200 01570000
+           BZ 0(R8)                    NOPE?                            01580000
+           TM DDUSE-DDDSNDET(R3),X'80' ALREADY 'USES' ?                 01590000
+           BO 0(R8)                    YEP, BACK OFF AGAIN.             01600000
+*                                                                       01610000
+* BUT WE MUST **** CHECK THAT THE MEMBER NAME IS NOT THE SAME AS        01620000
+* WELL, OTHERWISE SOME EMBARRASSING COMMENTS COME OUT...                01630000
+*                                                                       01640000
+           CLC DDMBR,=C'PRIME   '                                 75311 01650000
+           BE  0(R8)                                              75311 01660000
+           CLC DDMBR,=C'INDEX   '                                 75311 01670000
+           BE  0(R8)                                             75311  01680000
+           CLC DDMBR,=C'OFLOW    '                                75311 01690000
+           BE  0(R8)                                              75311 01700000
+         CLI   DDDSNAME,C'%'    NODSNAME?                               01710000
+         BE    0(R8)                                                    01720000
+         CLC   =C'NULLFILE ',DDDSNAME                                   01730000
+         BE    0(R8)                                                    01740000
+         CLC DDMBR,DDMBR-DDDSNDET(R4) SAME (IF BLANK, THIS IS OK)       01750000
+         BNE 0(R8)                    NO, RETURN NOW                    01760000
+VNOTPRIM   EQU *                                                  75311 01770000
+* NOW ALSO CHECK IF THE OLD INSTRUCTION IS A 'DELETE'                   01780000
+         CLI DDDDNAME+1-DDDSNDET(R4),C'D'                               01790000
+         BE  0(R8)                                                      01800000
+         CLI DDDDNAME+1-DDDSNDET(R4),C'S'                               01810000
+         BE  0(R8)                                                      01820000
+* HERE, THIS IS NEW, AND IT HAS BEEN ALREADY CREATED, SO CHANGE IT75    01830000
+            $CALL UJS99SET       SET UP ERROR DSNAME                    01840000
+           JOLERR 204,#STRING,                                    75311*01850000
+               ' IS ALSO OUTPUT HERE:- CHANGED TO ''REWRITES'''         01860000
+           OI DDUSE-DDDSNDET(R3),X'C0' MAKE 'USES'                      01870000
+           BR  R8                                                       01880000
+         CNOP  0,8            ALIGN BETTER                  FIX-X 76200 01890000
+           SPACE 3                                                      01900000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 01910000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 01920000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 01930000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 01940000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 01950000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 01960000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 01970000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 01980000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 01990000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 02000000
+          LTORG                                                         02010000
+         TITLE 'CHECK AND CATLG SEARCH FOR GENERATION DATA SETS'        02020000
+           JOLSAVE CSECT=UJO40DD                                        02030000
+* THIS CSECT RUNS DOWN THE STACK AND FINDS +1 GENERATION DATA SETS.     02040000
+*    IT THEN CONTINUES DOWN THE STACK LOOKING FOR WHERE IT IS           02050000
+*    CATALOGUED.                                                        02060000
+* IT ALSO TAKES CARE OF THE NORMAL GENERATION DATA SET NAMES.           02070000
+           L R3,AVTBLE         GET START OF TABLE                 74303 02080000
+O40TDD1    CLI DDDD1,C'D'      IS IT A DD-CARD                          02090000
+           BE  O40DD1          YES                                      02100000
+           CLI DDDD1,C'E'      EXECUTE OR RUN INSTRUCTION?              02110000
+           BNE O40STEP1                                                 02120000
+           MVC STMT,PGMESTMT-PGMDETS(R3)   MOVE IN STMT NUMBER FOR MESS 02130000
+O40STEP1   AH  R3,0(R3)                                                 02140000
+           CLC DDOSVB,=H'0'    END OF STACK ?                           02150000
+           BNE O40TDD1                                                  02160000
+           JOLRETN                                                      02170000
+           SPACE 3                                                      02180000
+O40DD1     EQU  *                                                       02190000
+           CLI DDCATLGS,C' '   CATLG ALREADY SEARCHED ?                 02200000
+           BNE  O40STEP1       YES,SO DON'T DO IT AGAIN FOR             02210000
+*                              HEAVENS SAKE                             02220000
+         CLI   DDTYPE,DDGDGREL RELATIVE GENERATION?                     02230000
+         BE    O40REL         YES                                       02240000
+*********************************************************************** 02250000
+*                                                                       02260000
+* THE ENTIRE MODULE UJO41DD (FIX TEMPS) HAS BEEN DELETED                02270000
+*                                                                       02280000
+* NOW (75128 OR VER 3.0 JULY 23 75) ALL DATA SET NAMES THAT             02290000
+* WOULD HAVE ENDED UP AS TEMPORARY DSNAMES ARE MADE TEMPNNNN            02300000
+* WHERE NNNN IS THE STATEMENT NUMBER THAT THEY WERE DECLARED            02310000
+* AT.                                                                   02320000
+*                                                                       02330000
+*********************************************************************** 02340000
+         SPACE 1                                                        02350000
+         IFVALUE DDDSNAME,O40STEP1 DSN HAS A NAME???                    02360000
+         MVC   DDDSNAME(6),=C'&&&&TEMP'                                 02370000
+         MVC   DDDSNAME+6(4),DDSTMT                                     02380000
+         OC    DDDSNAME+6(4),=C'0000'                                   02390000
+         MVI   DDTYPE,DDTEMPPS                                    75128 02400000
+         B     O40STEP1                                                 02410000
+         SPACE 2                                                        02420000
+O40REL   EQU   *                                                        02430000
+           CLI DDMBR+1,C'+'    + GDG ?                            75311 02440000
+           BE  O40GOTPL        YES,HURRAY                               02450000
+O40REL0X EQU   *                                         JOL30045 76200 02460000
+           LR  R4,R3           SAVE CURRENT ADDRESS IN TABLE            02470030
+           B  O40GENR2                                                  02480000
+           SPACE 3                                                      02490000
+O40GOTPL   EQU *                                                        02500000
+         CLC   =C'0000',DDMBR+2 +0 ?,IF SO IGNORE        JOL30045 76200 02510000
+         BE    O40REL0X       IGNORE IT                  JOL30045 76200 02520000
+* HERE WE HAVE A + GDG.                                                 02530000
+           TM DDUSE,B'11000000' NEW,MODS OR REWRITES ?                  02540000
+           BM  O40NEWG         YES                                      02550000
+* IF THIS IS A DISPOSITION INSTRUCTION,CALL THE USER VETTING MODULES    02560000
+*    TO GIVE AN ERROR MESSAGE,AS WELL AS DELETING THE OFFENDING         02570000
+*    INSTRUCTION.                                                       02580000
+           CLI DDDDNAME,C'%'   DISPOSITION INSTRUCTION ?                02590000
+*          BNE O40NDIS1        NO                                       02600030
+           BC  0,O40NDIS1      MAYBE MAYBE NOT                          02601030
+           BAL  R8,VETDISP     VETDISP(IN UJV00CAT CSECT) WILL CALL     02610000
+*                              APPROPRIATE VETS                         02620000
+           B   O40STEP1        BACK TO MAIN LOOP                        02630000
+           SPACE 2                                                      02640000
+O40NDIS1   EQU *                                                        02650000
+            $CALL UJS99SET       SET UP ERROR DSNAME                    02660000
+         JOLERR 402,#STRING,                                           *02670000
+               ' IS BEING READ BUT HAS NOT YET BEEN WRITTEN'            02680000
+O40NEWG    EQU  *                                                       02690000
+*                                                        JOL30007 76200 02700000
+* CHECK IF NOCAT, AND ISSUE MESSAGE SAYING WILL BE CATLGDJOL30007 76200 02710000
+* WHEN OUTPUT.                                           JOL30007 76200 02720000
+         TM    PARMSRCH,X'01' NOCAT                      JOL30007 76200 02730000
+         BO    O40CATNW       YES,MESSAGE                JOL30007 76200 02740000
+         CLI   DDCATLGS,C' '  NOCAT ON DSID              JOL30007 76200 02750000
+         BE    O40STR4        YES, NO MESSAGE            JOL30007 76200 02760000
+O40CATNW $CALL UJS99SET                                  JOL30007 76200 02770000
+*        JOLERR 103,#STRING,'HAS NOCAT SPECIFIED;-DATA SET WILL BE CATA 02780014
+*              LOGUED WHEN CREATED'                                     02790014
+         FIX   'CHECK MVS/VS1:- THEY ARE DIFFERENT'                     02800000
+         B     O40REL0X                                  JOL30007 76200 02810000
+         SPACE 2                                         JOL30007 76200 02820000
+O40STR4  EQU   *                                         JOL30007 76200 02830000
+*    LETS GO DOWN STACK AND SEE IF IT IS CATLG OR NOT                   02840000
+           LR  R4,R3           SAVE THE POINTER TO WHERE                02850000
+*                              WE ARE NOW.                              02860000
+O40STP2    AH  R3,0(R3)        STEP ON.                                 02870000
+           CLC DDOSVB,=H'0'    END STACK ?                              02880000
+           BE  O40DIDNT        DIDN'T GET A CATLG ANYWHERE AND          02890000
+*                              THERE-FORE WE CAN CHANGE ITS NAME        02900000
+           CLI DDDD1,C'D'      DD ?                                     02910000
+           BNE O40STP2                                                  02920000
+           CLI DDTYPE,DDGDGREL RELATIVE GDG?                      75128 02930000
+           BNE O40STP2         NO,STEP ON                               02940000
+           CLC =C'%C',DDDDNAME CATALOG ?                                02950000
+           BE  O40CAT                                                   02960000
+           CLC =C'%K',DDDDNAME KEEP ?                                   02970000
+           BE  O40CAT                                                   02980000
+* TAIN'T A CATALOGUE,SO STEP ON                                         02990000
+           B   O40STP2                                                  03000000
+           SPACE 3                                                      03010000
+O40CAT     CLC DDDSNAME(L'DDDSNAME+L'DDMBR),DDDSNAME-DDDSNDET(R4) 75311 03020000
+           BNE O40STP2         NO,STEP ON LOOKING,LOOKING               03030000
+* NOW HERE PEOPLES WE FOUND A CATALOGUE FOR A +1 AND THEREFORE          03040000
+*    WE HAD BETTER START OFF A R4 AGAIN,SEARCH THE CATALOGUE AND        03050000
+*    PROPOGATE THE NAME DOWN THE STACK.                                 03060000
+*FIRST, CHECK IF NO-CATLG, AND ISSUE MESSAGE             JOL30007 76200 03070000
+         CLI   DDCATLGS,C' '  NOCAT ON DSID ?            JOL30007 76200 03080000
+         BNE   O40ERR4                                   JOL30007 76200 03090000
+         TM    PARMSRCH,X'01' NOCAT PARM | * JOL ?       JOL30007 76200 03100000
+         BZ    O40GENR2       NO,NO MESSAGE              JOL30007 76200 03110000
+         FIX   'CHECK MVS/VS1'                           JOL30007 76200 03120000
+O40ERR4  $CALL UJS99SET                                  JOL30007 76200 03130000
+*        JOLERR 104,#STRING,'HAS NOCAT SPECIFIED:-DATA SET WILL BE CATA 03140014
+*              LOGUED WHEN CREATED','; INSTRUCTION IGNORED'             03150014
+O40GENR2   EQU  *                                                       03160000
+           LR  R3,R4           START OFF AT ORIGINAL                    03170000
+           MVC WORK(44+8),DDDSNAME SAVE NAME SO WE CAN COMPARE    75311 03180000
+*                              AFTER THE CATALOGUE SEARCH ROUTINE HAS   03190000
+*                              CHANGED THE DSNAME.                      03200000
+          $CALL UJS01CAT,DDDSNDET                                74303  03210000
+*          LR  R4,R3           SAVE THIS POINTER AGAIN                  03220000
+* OK,WE HAVE SEARCHED THE CATALOG.                                      03230000
+           SPACE                                                        03240000
+*    IF IT IS A DISPOSITION INSTRUCTION,WE WON'T BOTHER PROPOGATING     03250000
+*    THE VOLUME NAME DOWN THE TABLE,BUT WE WILL GIVE THE VETTING        03260000
+*    MODULES CONTROL SO THAT THEY MAY COMPLAIN IF NECESSARY             03270000
+           CLI DDDDNAME,C'%'   DISPOSITION INSTRUCTION ?                03280000
+           BNE O40STP3     NO,SO PROPOGATE THE VOLUME DOWN              03290000
+           BAL R8,VETDISP      CALL DISPOSITION VETS.                   03300000
+           B   O40STEP1    STEP ON TO NEW NAME                          03310000
+*********************************************************************** 03320000
+*                                                                       03330000
+* IT IS IMPORTANT TO NOTE THAT IF A NEW DATA SET IS CREATED,THEN        03340000
+*    A DISPOSITION INSTRUCTION IS EXECUTED,THAT THE ABOVE CODE          03350000
+*    DOES NOT RECEIVE CONTROL,AND THE NORMAL PROPOGATING OF             03360000
+*    VOLUMES AND UNITS OCCURS AS USUAL.                                 03370000
+*********************************************************************** 03380000
+* DOWN,DOWN AGAIN LOOKING FOR ALL OUR COMPANIONS                        03390000
+O40STP3    AH  R3,0(R3)        STEP ON                                  03400000
+           CLC 0(2,R3),=H'0'   END STACK ??                             03410000
+           BNE O40TDD3         NO,TEST IF DD CARD                       03420000
+           LR  R3,R4           RESTORE MAIN POINTER                     03430000
+           B   O40STEP1        JOIN THE VERY MAIN LOOP                  03440000
+           SPACE 3                                                      03450000
+O40TDD3    CLI DDDD1,C'D'      DD-CARD                                  03460000
+           BNE O40STP3         NO,STEP ON                               03470000
+           CLC DDDSNAME(44+8),WORK DSNAMES=                       75311 03480000
+           BNE O40STP3         NO,STEP ON                               03490000
+* HURRAY,THEY ARE EQUAL HERE                                            03500000
+           MVC DDDSNAME,DDDSNAME-DDDSNDET(R4) SHIFT IN CORRECTED,       03510000
+*                              SUPER-SONICALLY UPDATED GENERATION       03520000
+*                              DSNAME                                   03530000
+           MVC DDCATLGS,DDCATLGS-DDDSNDET(R4) SHIFT IN CATLG INDIC      03540000
+           MVC DDMBR,DDMBR-DDDSNDET(R4) IN CASE GDG IND TURNED OFF      03550000
+           BAL R8,V00TNEW CHECK IF NEW, CHANGE TO RE-WRITES,USES  75    03560000
+           CLI DDVOLUME,C' '   VOL SET UP ALREADY ?                     03570000
+           BNE O40TUNIT                                                 03580000
+O40VOLS    MVC DDVOLUME,DDVOLUME-DDDSNDET(R4)                           03590000
+O40TUNIT   EQU  *                                                       03600000
+           TM  DDUSE,B'00000001' UNITAFF ?                         DASD 03610003
+           BO  O40TLAB           YES TEST LABEL                         03620003
+           TM  DDUSE-DDDSNDET(R4),B'00000001' UNITAFF ON OLD GUY   DASD 03630003
+           BO  O40TLAB           YEP TEST LABEL                         03640003
+           CLI DDUNIT,C' '                                              03650000
+         BNE   O40TLAB                                                  03660030
+O40UNIT  MVC   DDUNIT,DDUNIT-DDDSNDET(R4)                               03670030
+         MVC   DDUNITYP(2),DDUNITYP-DDDSNDET(R4)  SHIFT IN TYPE OF UNIT 03680030
+*                                              WHICH MAY HAVE BEEN      03690000
+*                                              SET UP.                  03700000
+O40TLAB    EQU  *                                                       03710000
+           IFVALUE DDLABEL,O40STP3 ALREADY SET UP?                80290 03720000
+           MVC DDLABEL,DDLABEL-DDDSNDET(R4)                             03730000
+           B   O40STP3         AND AWAY AGAIN                           03740000
+           SPACE 3                                                      03750000
+O40DIDNT   EQU *                                                        03760000
+* THE DSNAME WE WERE LOOKING AT WASN'T CATALOGUED ANYWHERE              03770000
+           LR  R3,R4           START OFF AT ORIGINAL                    03780000
+            $CALL UJS99SET       SET UP ERROR DSNAME                    03790000
+         JOLERR 101,#STRING,                                           *03800000
+               ' IS A NEW GENERATION DATA SET BUT THERE IS NO CATLG INS*03810000
+               TRUCTION FOR IT'                                   75311 03820000
+           LR  R4,R3           SAVE THIS POINTER AGAIN                  03830000
+           B   O40GENR2        GO TO STEP ON                            03840000
+         CNOP  0,8                                          FIX-X 76200 03850000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 03860000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 03870000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 03880000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 03890000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 03900000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 03910000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 03920000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 03930000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                         75311 03940000
+           JOLSAVE CSECT=UJO43DD                                        03950000
+* THIS CSECT LOOKS FOR REAL DSNAMES AND PASSES THE DATA-SETS            03960000
+*    ALONG WHEN NECESSARY                                               03970000
+* ALL NORMAL DSNAMES ARE 'EXTERNAL'                                     03980000
+           L R3,AVTBLE                                            74303 03990000
+O43TDD1    CLI DDDD1,C'D'      DD-CARD                                  04000000
+           BE  O43DD1                                                   04010000
+           CLI DDDD1,C'E'      EXECUTE OR RUN STATEMENT                 04020000
+           BNE O43STP1         NO,STEP ON                               04030000
+           MVC STMT,PGMESTMT-PGMDETS(R3) MOVE IN RUN STATEMENT FOR      04040000
+*                                        ANY ERROR MESSAGES             04050000
+           $CALL UJV02PGM      VET PROGRAM DETAILS                75311 04060000
+           SPACE 1                                                75311 04070000
+           ZAP P85NO2,=P'0'    CLEAR 'UT' NUMBER FOR INITIATOR    75311 04080000
+*                              DEDICATED WORK FILES               75311 04090000
+           SPACE                                                        04100000
+O43STP1    AH  R3,DDOSVB       STEP ON                                  04110000
+           CLC DDOSVB,=H'0'    END STACK ?                              04120000
+           BNE O43TDD1                                                  04130000
+*    (IE WHERE R3 IS NOW) AND FIND ANY VOLREFS,                         04140000
+*    AND GO BACK UP THE STACK UNTIL WE FIND A DSID THAT IS EUAL TO THE  04150000
+*    DSID REFERRED TO IN THE VOLREF AND COPY ITS DSNAME IN              04160000
+           SPACE                                                        04170000
+O43TDD9    CLI DDDD1,C'D'      IS IT A DDCARD?                          04180000
+           BE O43TVRF1         YES,TEST FOR VREFS                       04190000
+O43BACK1   EQU  *                                                       04200000
+           SH R3,2(R3)         STEP BACKWARD ONE RECORD                 04210000
+           CLC 2(2,R3),=H'0'    AT THE BEGINNING AGAIN ?                04220010
+           BNE O43TDD9         NO,TEST IF A DDCARD                      04230000
+           JOLRETN                                                      04240000
+O43TVRF1 DS    0H                                                       04250032
+* TEST IF THIS IS A REAL DSNAME (NOT SYSIN OR SYSOUT THAT IS)           04260000
+           CLI DDDSNAME,C'*'   SYSIN OR NODSNAME SPECIFIED?             04270000
+           BE O43BACK1         IGNORE IT                                04280000
+         CLI  DDTYPE,DDSPECOU     SYSOUT OR LESS?                75128  04290000
+           BNH O43BACK1         YES,IGNORE IT TOO                 75128 04300000
+           IFOS ^=X8,O43TVREF   IF JCL, CARRY ON                 83200  04310010
+* CHECK IF THIS IS A CATLG OR SOMESUCH, AND IF SO DON'T ATTEMPT  83200  04320015
+* TO DO ANY PASSING, AS IT HOLDS THE TAPE UP TOO LONG.           83200  04330019
+           TM  DDUNITYP,X'80'    DISK ? YES, DO PASS             83200  04340019
+           BO  O43TVREF          CARRY ON AS USUAL   .           83200  04350019
+           CLI DDDDNAME,C'%'     DISPOSITION INSTRUCTION ?       83200  04360019
+           BE  O43BACK1          YES, IGNORE NOW                 83200  04370019
+O43TVREF   CLI DDVOLUME,C'-'   VOL REF ?                                04380000
+         BNE   O43TVOLS       NO, SO BACK UP LOOKING FOR CHG26018 76200 04390000
+*                             VOLS WE WANT TO PASS       CHG26018 76200 04400000
+* OK,WE HAVE A VOLUME REFERENCE                                         04410000
+           LR R4,R3            SAVE R3 COS WE WANT TO STEP BACK         04420000
+*                              LOOKING FOR THE RIGHT DSID               04430000
+O43BACK2   SH R4,2(R4)         BACK UP 1 ENTRY                          04440000
+           CLC 2(2,R4),=H'0'    AT THE BEGINNING AGAIN ?                04450047
+           BE O43BACK1         YES,BACK UP ONE AND LOOK AT THE          04460000
+*    NEXT DDCARD                                                        04470000
+           CLI DDDD1-DDDSNDET(R4),C'D' DDCARD ?                         04480000
+           BNE O43BACK2                                                 04490000
+* NOW R4 IS POINTING TO A DDCARD                                        04500000
+           CLC DDDSID-DDDSNDET(L'DDDSID,R4),DDVOLUME+1 DSID=VOLREF?     04510000
+           BE  O43TAST         YES, TEST IF RESOLVED ALREADY            04520000
+          CLC   DDVOLUME,DDVOLUME-DDDSNDET(R4) VOLS EQUAL?       83200  04530001
+           BNE O43BACK2        NO,BACK AGAIN                     83200  04540010
+ZDISP1A  DS    0H                                                 J40C  04541044
+ZDISP1   MVI   DDDISP+1-DDDSNDET(R4),C'P' MARK IT PASS          83200   04550047
+         B     O43BACK2        NO,BACK AGAIN                     83200  04560047
+* NOW THE VOLREF = DSID                                                 04570000
+O43TAST    CLI DDVOLUME,C'*'   RESOLVED ALREADY?                        04580000
+           BE O43PASS9         YES,SO MERELY MAKE SURE IT IS PASSED     04590000
+           MVI DDVOLUME,C'*'   RESOLVED  VREF INDICATOR                 04600000
+*          IFDYNAM O43ASTDD    IF SVC 99, MAKE ** DDNAME INSTEAD  87150 04601034
+           B   O43SHFTV        SHIFT THE VOLUME INSTEAD           87150 04602033
+*        NOP   O43SHFTV        SHIFT THE VOLUME REGARDLESS        J40B  04602133
+O43ASTDD   MVC DDVOLUME+2(L'DDDDNAME),DDDDNAME-DDDSNDET(R4) SHIFT 87150 04603026
+*                              IN DDNAME                          87150 04603124
+           MVI DDVOLUME+1,C'*' RESOLVED  VREF INDICATOR           87150 04603225
+           B   O43TAFFV        TEST UNIT AFF                      87150 04604224
+O43SHFTV   MVC DDVOLUME+1(L'DDVOLUME-1),DDDSNAME-DDDSNDET(R4) SHIFT     04610024
+*                              IN DSNAME                                04620000
+O43TAFFV   TM  DDUSE,B'00000001' UNITAFF ?                         DASD 04630024
+           BO  O43PASS9          PASS THE DATA SET.                     04640003
+           TM  DDUSE-DDDSNDET(R4),B'00000001' UNITAFF ON OLD GUY   DASD 04650003
+           BO  O43PASS9          PASS THE DATA SET.                     04660003
+           MVC DDUNIT,DDUNIT-DDDSNDET(R4) SHIFT IN OTHER UNIT CVC 82200 04670000
+         MVC   DDUNITYP(2),DDUNITYP-DDDSNDET(R4) AND JOL TYPE CVC 82200 04680031
+O43PASS9 DS    0H                                                       04690030
+         MVI   DDDISP+1-DDDSNDET(R4),C'P' AND MARK IT PASS              04700030
+         B     O43BACK2        AND TEST FOR MORE                        04710030
+         SPACE 3                                                        04720000
+O43TVOLS CLI   DDVOLUME,C' '  VOL BLANK ?                CHG26018 76200 04730000
+         BE    O43BACK1       YES, IGNORE THIS           CHG26018 76200 04740000
+         LR    R4,R3          SAVE CURRENT POINTER       CHG26018 76200 04750000
+O43VLUP1 SH    R4,2(R4)       STEP BACK TO PREVIOUS RCD. CHG26018 76200 04760000
+         CLC   2(2,R4),ZERO   AT BEGINNING ?             CHG26018 76200 04770000
+         BE    O43BACK1       YES, START ALL OVER AGAIN  CHG26018 76200 04780000
+         CLI   DDDD1-DDDSNDET(R4),C'D' DD RECORD ?       CHG26018 76200 04790000
+         BNE   O43VLUP1                                  CHG26018 76200 04800000
+         CLC   DDVOLUME,DDVOLUME-DDDSNDET(R4) VOLS EQUAL?CHG26018 76200 04810000
+         BNE   O43VLUP1                                  CHG26018 76200 04820000
+ZDISP2A  DS    0H                                                 J40C  04821046
+ZDISP2   MVI   DDDISP+1-DDDSNDET(R4),C'P' MARK IT PASS   CHG26018 76200 04830046
+         B     O43VLUP1       GO BACK AND TEST FOR MORE  CHG26018 76200 04840000
+         SPACE 4                                         CHG26018 76200 04850046
+O43DD1   EQU    *                                                       04870031
+         SPACE                                                          04880031
+         CLI   DDTYPE,DDWORKDS                                          04890000
+         BL    O43VETDS                                                 04900000
+           CLI DDDSNAME,C' '   BLANK DSNAME ? (SHOULDN'T BE)            04910000
+           BNE O43REALD        WE HAVE A REAL DSNAME AT LAST            04920000
+         JOLERR 501,'NO DSNAME:-DCL STMT=',DDSTMT                 75128 04930000
+           B   O43STP1                                                  04940000
+           SPACE 3                                                      04950000
+O43VETDS   EQU *                                                        04960000
+          $CALL UJV03DS        VET DD STMT                              04970000
+           B   O43STP1                                                  04980000
+           SPACE                                                        04990000
+O43REALD   EQU *                                                        05000000
+         CLI   DDDISP+1,C' '   ALREADY HAD SOME ACTION ?                05010043
+           BNE O43STP1         YES,SO LEAVE IT ALONE                    05020000
+* NOW CALL THE USER DD-CARD VET ROUTINE TO HAVE A PLAY,UNLESS THIS IS   05030000
+*    A DISPOSITION INSTRUCTION WHICH WILL BE VETTED LATER               05040000
+           CLI DDDDNAME,C'%'   DISPOSITION INSTRUCTION ?                05050000
+           BE  O43IGNRX                                                 05060000
+          CLI  DDDSNAME,C'*'   DUMMY MAYBE??                      75128 05070000
+          BE   O43VETDS        YEAH, DONT TRY AND PASS IT...      75128 05080000
+         CLI   DDDSNAME,C'%'  NODSN CODED ?              JOL30037 76200 05090000
+         BE    O43VETDS       DONT PASS IT EITHER        JOL30037 76200 05100000
+O43IGNRX   EQU *                                                        05110000
+           SPACE 3                                                      05120000
+* NOW SEE IF IT IS USED LATER ON,AND IF SO PUT 'PASS' ON IT.            05130000
+           TM  DDUSE,B'10000000' MOD MAYBE ? '10' ?               75311 05140000
+           BM  O43NOTNW        NO                                 75311 05150000
+           TM  DDUSE,B'01000000'                                  75311 05160000
+           BO  O43NEW                                             75311 05170000
+O43NOTNW   EQU *                                                  75311 05180000
+           CLI DDVOLUME,C' '   VOLUME BLANK ?                           05190000
+           BE O43CATS                                                   05200000
+           CLI DDVOLUME,C'-'   VOLREF ?                                 05210000
+           BE O43NEW           YES,SO DON'T SEARCH CATLG FOR IT         05220000
+           CLI DDVOLUME,C'*'   VOLREF ?                            DASD 05230000
+           BE O43NEW           YES,SO DON'T SEARCH CATLG FOR IT    DASD 05240000
+           TM DDUSE,1      IF UNITAFF,DON'T SEARCH CATLG,OLD FRUIT75049 05250000
+           BO O43NEW       UNITAFF,SO LEAVE                       75049 05260000
+           CLI DDUNIT,C' '     UNIT BLANK ?                             05270000
+           BNE  O43NEW         DON'T CATLG SEARCH                       05280000
+           CLI DDUNITYP,C' '   UNIT-TYPE SET UP THOUGH ('PREFERRED?')   05290000
+           BNE  O43NEW         YES,SO DON'T CATLG SEARCH                05300000
+O43CATS    EQU  *                                                       05310000
+          $CALL UJS01CAT,DDDSNDET                                 74303 05320000
+           SPACE 3                                                      05330000
+O43NEW     EQU  *                                                       05340000
+* BOTH THE DDUNITYP AND THE DDUNIT FIELDS MUST BE SET UP SOMEHOW        05350000
+* IF THE VOLUME ANF UNIT WAS FOUND FROM THE CATALOGUE THEN THE DDUNITYP 05360000
+* FIELD WOULD CONTAIN INFORMATION,AND SIMILARLY IF IT WAS A PREFERRED   05370000
+* VOLUME OF SOME SORT                                                   05380000
+* HOWEVER THE UNIT MAY HAVE BEEN SPECIFIED BY THE USER,AND WE MUST      05390000
+* SET UP THE UNITYP FILED SO WE KNOW IF IT IS A DISC,TAPE ETC ETC       05400000
+** BUT IF UNITAFF WAS CODED, WE CAN BYPASS THIS SECTION                 05410000
+         SPACE                2                                         05420000
+         TM    DDUSE,1        UNIT AFF?                                 05430000
+         BO    O43LEAVE       YES                                       05440000
+         SPACE 1                                                        05450000
+           IFNULL DDUNIT,DDUNITYP,O43LEAVE LEAVE THE UNITS FOR A USER   05460000
+*                                        VET TO FIX (OR OURS IF HE      05470000
+*                                        DOESN'T DO SOMETHING           05480000
+*                                        CONSTRUCTIVE)                  05490000
+           CLI DDUNITYP,C' '                                            05500000
+           BE O43TYPU          FIX UP UNITYP FIELD                      05510000
+           CLI DDUNIT,C' '     UNIT FIELD BLANK ?                       05520000
+           BNE O43LEAVE        NO,IT ALREADY HAS A VALUE,LEAVE IT       05530000
+* HERE THE DDUNITYP FIELD IS NOT BLANK BUT THE UNIT IS,SO FIX IT        05540000
+           LA  R15,B'10011111'                                    J60   05550052
+           IC  R14,DDUNITYP                                             05560000
+           NR  R14,R15         GET TYPE OF UNIT                         05570000
+            STC   R14,DBL                                         75128 05580000
+         L     R1,AJOLGEN                                         75128 05590000
+         USING GENDETS,R1                                         75128 05600000
+         L     R1,AGENUNIT                                        75128 05610000
+           LM R7,R9,0(R1)                                               05620000
+* HAD TO CHANGE THIS CODE TO SEARCH TABLE FROM OTHER END                05630000
+* COS NOW USER UNIT NAMES ARE IN THE TABLE TOO....                      05640000
+           LR R1,R9  *** EX OR'S WOULD BE BETTER,WON'T THEY??     75128 05650000
+           LR R9,R7                                               75128 05660000
+           LR R7,R1                                               75128 05670000
+           LNR R8,R8                                              75128 05680000
+O43CLC1    CLC DBL(1),16(R7)                                            05690000
+           BE O43GUN1                                                   05700000
+           BXH  R7,R8,O43CLC1                                     75128 05710000
+            $CALL UJS99SET       SET UP ERROR DSNAME                    05720000
+         JOLERR 202,#STRING,                                           *05730000
+               ' HAS UNKNOWN INTERNAL UNIT TYPE'                        05740000
+           B   O43LEAVE                                                 05750000
+O43GUN1  MVC   DDUNIT,0(R7)                                       75128 05760000
+           B O43LEAVE                                                   05770000
+O43TYPU    EQU *                                                        05780000
+         CLC =C'NULLFILE ',DDDSNAME                               80290 05790000
+         BE    O43LEAVE                                           80290 05800000
+         L     R1,AJOLGEN                                         75128 05810000
+         L     R1,AGENUNIT                                        75128 05820000
+         DROP  R1                                                 75128 05830000
+           CLI DDUNIT,C' '     ANY UNIT CODED AT ALL              81075 05840000
+           BE  O43LEAVE        NO, SO NO ERROR MESSAGE            81075 05850000
+           LM R7,R9,0(R1)                                               05860000
+O43CLC2    CLC DDUNIT,0(R7)                                             05870000
+           BE O43GUN2                                                   05880000
+           BXLE  R7,R8,O43CLC2                                    75128 05890000
+            $CALL UJS99SET       SET UP ERROR DSNAME                    05900000
+         JOLERR 203,#STRING,                                           *05910000
+               ' HAS UNKNOWN UNIT TYPE OF ''',DDUNIT,''''               05920000
+           B O43LEAVE                                                   05930000
+*43GUN2    MVC DDUNITYP,0(R7)  USETO BE THIS                            05940030
+O43GUN2    MVC DDUNITYP,17(R7)                                          05941030
+O43LEAVE   EQU  *                                                       05950000
+* NOW IF THE DATA SET THING IS FOR AN INSTRUCTION (SCRATCH ETC)   75311 05960000
+*    WE WONT PROPOGATE THE VOLUMES DOWN                           75311 05970000
+           CLI DDDDNAME,C'%'   INSTRUCTION ?                      75311 05980000
+           BNE O43NOTIN        NO                                 75311 05990000
+           BAL R8,VETDISP      YES, VET DISPOSITION               75311 06000000
+           B   O43STP1         LOOK AT NEXT DATA SET              75311 06010000
+O43NOTIN   EQU *                                                  75311 06020000
+          $CALL UJV03DS        DO DD VET ROUTINES ARE GIVEN A GO        06030000
+           LR  R5,R3           SAVE WHERE WE ARE AT.                    06040000
+           LR  R4,R3           SAVE POINTER TO THIS'DD-CARD'            06050000
+* DURING THE FOLLOWING SEARCHING,                                 J40C  06052049
+*  (R3)  =     ADDRESS OF PROSPECTIVE MATCHING RECORD            J40C  .06053049
+                               THIS CHANGED FREQUENTLY DURING THE SCAN  06053149
+*  (R4)  =     ADDRESS OF RECORD AGAINST WHICH OTHERS ARE COMPARED 40C .06054049
+                               THIS IS HELD CONSTANT DURING THE SCAN    06054149
+*  (R5)  =     ADDRESS OF A RECORD KNOWN TO MATCH THE ONE POINTED TO BY.06055049
+                               R3                               J40C    06056049
+O43STP2    AH  R3,DDOSVB       STEP ON                                  06060000
+           CLC DDOSVB,=H'0'    END STACK ?                              06070000
+           BNE O43TDD2         TEST IF DD                               06080000
+* END OF STACK HERE                                                     06090000
+         SPACE 1                                                        06100000
+* NOW WE CAN CHECK IF THIS DATA SET WE JUST DEALT WITH WAS PASSED       06110000
+* TO ANYONE, AND IF NOT, WE'LL MAKE IT A &&WORK DATA SET, IF            06120000
+* IT WAS &&TEMP (SET IN MODULE UJO40 ABOVE)                             06130000
+         SPACE 1                                                        06140000
+         CR    R5,R4          DID WE FIND A MATCHING DATA SET?          06150000
+         BNE   O43SETR3       NO                                        06160000
+          LR  R3,R5          SET R3-> DDDSNDET WE STARTED WITH    75311 06170000
+         CLC   =C'&&&&TEMP',DDDSNAME                                    06180000
+         BNE   O43SETR3                                                 06190000
+           MVC DDDSNAME+1(10),=CL10'UT' SHIFT UT NUMBER           75311 06200000
+           AP  P85NO2,=P'1'    ADD 1 TO UTN                       75311 06210000
+           CP  P85NO2,=P'10'   > 10 ?                             75311 06220000
+         BNL   O43GT10        YES,UNPACK > 1 CHARACTER   JOL30039 76200 06230000
+           UNPK DDDSNAME+3(1),P85NO2                              75311 06240000
+           OI  DDDSNAME+3,C'0' FIX LAST BYTE                      75311 06250000
+         B     O43INDWK       SET WORK INDICATOR         JOL30039 76200 06260000
+O43GT10    UNPK DDDSNAME+3(2),P85NO2                              75311 06270000
+           OI   DDDSNAME+4,C'0' FIX LAST BYTE                     75311 06280000
+O43INDWK EQU   *                                         JOL30039 76200 06290000
+         MVI   DDTYPE,DDWORKPS CHANGE TYPE OF DATA SET            75311 06300047
+         MVI   DDDISP+1,C'D'   MAKE LAST USE SO NO PASS           82200 06310049
+O43SETR3 EQU   *                                                        06320000
+           LR  R3,R5           RELOAD ORIGINAL ENTRY                    06330000
+           B   O43STP1                                                  06340000
+O43TDD2    CLI DDDD1,C'D'      DDCARD ?                                 06350000
+           BNE O43STP2                                                  06360000
+           CLC DDDSNAME,DDDSNAME-DDDSNDET(R4)  DSNAMES EQUAL ?          06370000
+           BNE O43STP2                                                  06380000
+* DSNAMES ARE EQUAL                                                     06390000
+*                                                                       06400000
+* BEFORE PROPOGATING INFORMATION DOWN, AND PASSING THE DATA SETS, 75311 06410000
+*  WE MUST CHECK A LITTLE MORE FULLY TO SEE THAT THE DATA SETS    75311 06420000
+* ARE REALLY THE SAME (ONE MAY BE ON A DIFFERENT VOLUME)           DASD 06430000
+*                                                                 75311 06440000
+           CLC DDDSID,DDDSID-DDDSNDET(R4)      DSIDS = ?          75311 06450000
+           BE  O43SMDSN                        YES                75311 06460000
+           CLC DDVOLUME,DDVOLUME-DDDSNDET(R4)  VOLUMES SAME ?     75311 06470000
+           BE  O43SMDSN                                           75311 06480000
+           CLC DDVOLUME,BLANKS                 IS THIS 2ND VOL='' 75311 06490000
+           BE  O43SMDSN                                           75311 06500000
+* WELL HERE IT LOOKS LIKE A DIFFERENT DATA SET TO ME.             75311 06510000
+           B   O43STP2         STEP ON THEN                       75311 06520000
+         SPACE 3                                                  75311 06530042
+O43SMDSN DS    0H                                                 75311 06540036
+         TM    DDUSE,X'80'       Q... MOD OR USES?                J40C  06541042
+         BO    O43SMDS2          A... YES                         J40C  06542042
+         TM    DDUSE,X'40'       Q... NEW                         J40C  06543042
+         BO    O43STP2           A... YES, CAN'T BE SAME DS       J40C  06544042
+O43SMDS2 DS    0H                                                 75311 06545036
+         MVI   DDDISP+1-DDDSNDET(R4),C'P'      PASS                     06550042
+         MVI   DDDISP+1,C'L'   LAST USE INDICATOR OF DATA SET           06560042
+*                              WHICH MAY BE OVER-WRITTEN IF             06570000
+*                              THIS IS PASSED FURTHER                   06580000
+         MVC   DDCATLGS,DDCATLGS-DDDSNDET(R4) SHIFT IN CATLG INDIC      06590042
+O43SMDS3 DS    0H                                                 75311 06591040
+*   NOW CHECK FOR ISAM    IF SO  DONT DO ANY OF THIS               DASD 06600000
+         CLC   0(2,R3),=AL2(DDCATLGS-DDOSVB+2) SHORT RECORD?       DASD 06610042
+         BNH   O43DONTC   YES  DSORG NOT PRESENT                   DASD 06620042
+         CLC   =C'IS',DDDSORG                                      DASD 06630042
+         BE    O43SWAPY    YEP  HOPEFULLY NO MORE PROBLEMS         DASD 06640042
+O43DONTC DS    0H                                                  DASD 06650036
+*******************************************************************DASD 06670000
+*                                                                  DASD 06680000
+*  ALLOW A DATASET TO READ, DELETED AND WRITTED                    DASD 06690000
+*                                                                  DASD 06700000
+****************************************************************** DASD 06710000
+         TM    DDUSE,X'40'     IS THIS A NEW DATASET               DASD 06720000
+         BNO   O43NOPE         NOPE                                DASD 06730000
+**** HAVE TO VALIDATE THIS GUY--THIS DUP IS NEW AGAIN ****         DASD 06780000
+O43VETIT $CALL UJV03DS                                             DASD 06790000
+         B     O43SWAPY                                            DASD 06800000
+* SORRY GUY NO DUPES ALLOWED                                       DASD 06810000
+O43NOPE  EQU   *                                                   DASD 06820000
+********************************************************************    06830005
+         IFDYNAM   O43NVRIN      DON'T CANCEL VREF FOR X8, WE WON'T     06840024
+*                                FIND THE VOLUME AGAIN...               06850005
+********************************************************************    06860005
+         TM  DDUSE,B'11000000'     IS THIS INPUT?                82200  06870043
+         BM  O43NVRIN     NO , TEST  IF VOL ALREADY SET UP       82200  06880006
+* HERE IT IS INPUT, AND PASSED FROM SOMEWHERE ELSE.                     06890005
+*   IF IT IS A VOLREF, BLANK OUT THE VOLUME SO OS CAN GET CORRECT       06900005
+*   DATA.                                                               06910005
+         CLI  DDVOLUME,C'-'    VOLREF ?                                 06920005
+         BE  O43VRIN    YES ,  CANCEL VOLUME INFO                82200  06930005
+         CLI  DDVOLUME,C'*'    VOLREF ?                                 06940005
+         BE  O43VRIN    YES ,  CANCEL VOLUME INFO                82200  06950005
+         B   O43NVRIN   NO, GO TO NORMAL PROCESSING.             82200  06960005
+O43VRIN  CLEAR DDVOLUME                                                 06970005
+         B   O43TUNIT   NOW GO TEST UNIT AS USUAL.                      06980005
+O43NVRIN   CLI DDVOLUME,C' '   VOL SET UP ALREADY ?                     06990008
+           BNE O43TUNIT                                                 07000000
+           MVC DDVOLUME,DDVOLUME-DDDSNDET(R4)                           07010000
+O43TUNIT   EQU  *                                                       07020000
+         TM  DDUSE,B'11000000'     IS THIS INPUT?                76200  07030043
+    BZ  O43OVRTU     YES, OVER-WRITE WHATEVER UNIT WAS SPECIFIED 76200  07040000
+         TM  DDUSE,B'10000000'     IS THIS MOD?                    DASD 07050043
+    BO  O43OVRTU     YES, OVER-WRITE WHATEVER UNIT WAS SPECIFIED   DASD 07060000
+           CLI DDUNIT,C' '                                              07070000
+           BNE O43TLAB                                                  07080000
+O43OVRTU    EQU   *   OVER-WRITE INPUT UNIT                      76200  07090000
+           TM  DDUSE,B'00000001' UNITAFF ?                       76200  07100000
+           BO  O43MAKU           TRY AND MAKE A UNIT UP          82200  07110003
+           TM  DDUSE-DDDSNDET(R4),B'00000001' UNITAFF ON OLD GUY 76200  07120000
+           BO  O43MAKU           TRY AND MAKE A UNIT UP          82200  07130003
+           MVC DDUNIT,DDUNIT-DDDSNDET(R4)                               07140000
+           MVC DDUNITNO,DDUNITNO-DDDSNDET(R4)  GET # OF UNITS      DASD 07150000
+*          MVC DDUNITYP,DDUNITYP-DDDSNDET(R4)  SHIFT IN TYPE OF UNIT    07160030
+           MVC DDUNITYP(2),DDUNITYP-DDDSNDET(R4)  SHIFT IN TYPE OF UNIT 07161030
+*                                              WHICH MAY HAVE BEEN      07170000
+*                                              SET UP.                  07180000
+           B  O43TLAB                                                   07190003
+         SPACE 1                                                        07200003
+O43MAKU    EQU   *                                                      07210003
+           MVC DDUNITNO,DDUNITNO-DDDSNDET(R4)  GET # OF UNITS      DASD 07220003
+*          MVC DDUNITYP,DDUNITYP-DDDSNDET(R4)  SHIFT IN TYPE OF UNIT    07230030
+         MVC   DDUNITYP(2),DDUNITYP-DDDSNDET(R4)  SHIFT IN TYPE OF UNIT 07231030
+*                                              WHICH MAY HAVE BEEN      07240003
+*                                              SET UP.                  07250003
+           CLI DDUNITYP,C' '                                            07260003
+           BE O43TLAB          IGNORE UNIT NOW                          07270003
+           CLI DDUNIT,C' '     UNIT FIELD BLANK ?                       07280003
+           BNE O43TLAB         NO,IT ALREADY HAS A VALUE,LEAVE IT       07290003
+* HERE THE DDUNITYP FIELD IS NOT BLANK BUT THE UNIT IS,SO FIX IT        07300003
+           LA  R15,B'10011111'                                    J60   07310052
+           IC  R14,DDUNITYP                                             07320003
+           NR  R14,R15         GET TYPE OF UNIT                         07330003
+            STC   R14,DBL                                         75128 07340003
+         L     R1,AJOLGEN                                         75128 07350003
+         USING GENDETS,R1                                         75128 07360003
+         L     R1,AGENUNIT                                        75128 07370003
+           LM R7,R9,0(R1)                                               07380003
+* HAD TO CHANGE THIS CODE TO SEARCH TABLE FROM OTHER END                07390003
+* COS NOW USER UNIT NAMES ARE IN THE TABLE TOO....                      07400003
+           LR R1,R9  *** EX OR'S WOULD BE BETTER,WON'T THEY??     75128 07410003
+           LR R9,R7                                               75128 07420003
+           LR R7,R1                                               75128 07430003
+           LNR R8,R8                                              75128 07440003
+O43CLC5    CLC DBL(1),16(R7)                                            07450003
+           BE O43GUN3                                                   07460003
+           BXH  R7,R8,O43CLC5                                     75128 07470003
+            $CALL UJS99SET       SET UP ERROR DSNAME                    07480003
+         JOLERR 204,#STRING,                                           *07490008
+               ' HAS UNKNOWN INTERNAL UNIT TYPE'                        07500003
+           B   O43TLAB                                                  07510003
+O43GUN3  MVC   DDUNIT,0(R7)                                       75128 07520003
+O43TLAB    EQU  *                                                       07530000
+           IFVALUE DDLABEL,O43SWAP ALREADY SET UP?                80290 07540000
+           MVC DDLABEL,DDLABEL-DDDSNDET(R4)                             07550000
+O43SWAP    EQU  *                                                       07560000
+         CLI   DDDDNAME-DDDSNDET(R3),C'%' DISPOSITION    JOL30075 76200 07570000
+           BNE O43SWAPX                        -> NO                    07580000
+           BAL R8,VETDISP                      VET DISPOSITION          07590000
+           B   O43SWAPY                        STEP ON                  07600000
+O43SWAPX   EQU *                                                        07610000
+         CLC   0(2,R3),=AL2(DDCATLGS-DDOSVB+2) SHORT RECORD?            07620049
+         BNH   O43SWAPY                        -> YES,IGNORE IT         07630049
+         CLC   0(2,R5),=AL2(DDCATLGS-DDOSVB+2) SHORT REC?JOL30038 76200 07640000
+         BNH   O43SWAPY                        -> YES IGNORE IT         07650049
+*                         PROPOGATE ENTRIES                             07660000
+         TM  DDUSE,B'11000000'     IS THIS INPUT?                  DASD 07670043
+         BZ O43SWAPY               YES DONT COPY SPACE             DASD 07680000
+         MVC   DDSPACE(DDFUNC-DDSPACE),DDSPACE-DDDSNDET(R5) 30038 76200 07690000
+O43SWAPY EQU   *                                                        07700049
+         LR    R4,R3           SWAP R4 TO LOOK AT THIS NEW ONE          07710049
+         B     O43STP2         STEP ON AGAIN                            07720049
+         LTORG                                                          07730049
+         DS    0D                                           FIX-X 76200 07740050
+         DC    40S(*)                                                   07750050
+         TITLE 'CATALOG SEARCHING'                                      07890050
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974            07900000
+* COPYRIGHT 1975,1976                                                   07910000
+* FIXES FOR 3.0                                                         07920000
+*                                                                       07930000
+*JOL30046:-    TEMP DS GETS ERROR MESSAGE EVEN IF MOD                   07940000
+*JOL30058:- ** NOT NEEDED **                                            07950000
+*JOL30062:-    ENSURE 3330-1 IS SUBSET OF 3330                          07960000
+*JOL30064:-    STOP MSG S01-17 FOR 3330 ETC                             07970000
+*JOL30071:-    +1 AND NO INDEX :- GENERATE +1                           07980000
+*JOL30073:-    +0 GDG SOMETIMES DO NOT GET UNIT/VOL FROM CATLG          07990000
+*JOL30072:-    ALTER NOT FOUND MSSGE FOR DELETE                         08000000
+           LTORG                                                        08010009
+           EJECT                                                        08020009
+           JOLSAVE CSECT=UJS01CAT                                       08030000
+* THIS ROUTINE DOES THE CATALOGUE SEARCHING                             08040000
+           SPACE                                                        08050000
+* ON ENTRY R1 CONTAINS A POINTER TO THE FOLLOWING PARAMETER LIST        08060000
+*    1. POINTER TO JOLCOM                                               08070000
+*    2. POINTER TO THE DATA SET IDENTIFIER TO BE SEARCHED               08080000
+*    IF R0 =0 ON ENTRY THEN THIS MODULE MUST PRINT AN ERROR MESSAGE     08090050
+*      STATING THAT THE NAME BEING SEARCHED FOR WAS NOT PRESENT         08100050
+*      OTHER-WISE IT MUST MERELY RETURN THE VALUE FROM REGISTER 15      08110050
+*      THAT THE CATALOGUE ROUTINE RETURNED.                             08120050
+         SPACE 2                                                        08130050
+*                                                                       08140000
+* NOTE: THERE ARE SEVERAL CHANGES FOR THE FULL VERSION 3.0,       75311 08150000
+*    MOST INTRODUCED BY SHELL, AND ONE BY STANDARD OIL (INDIANA)  75311 08160000
+*                                                                 75311 08170000
+*    1. IF A DSN IS MOD, THEN WE WANT THE VOLUME AND UNIT         75311 08180000
+*       FROM THE CATALOG IF POSSIBLE                              75311 08190000
+*     THE SAME GOES FOR 'RE-WRITES' | 'USES'                      75311 08200000
+*                                                                 75311 08210000
+*    2. IF A DSN IS A + GDG, AND NO VOLUME | UNIT HAVE BEEN       75311 08220050
+*       PROVIDED, WE WANT TO COPY THE INFORMATION FROM THE (0)    75311 08230050
+*       GENERATION.                                               75311 08240050
+*                                                                 75311 08250050
+*    3. IF WRITES IS SPECIFIED FOR A RELATIVE GDG, GIVE ERROR     75311 08260050
+*       MESSAGE                                                   75311 08270050
+*                                                                 75311 08280050
+*    4. ?                                                         75311 08290050
+*                                                                 75311 08300050
+* IN ORDER TO IMPLEMENT THESE A LITTLE MORE EASILY THAN MIGHT     75311 08310050
+*    OTHER WISE WE MAY HAVE, THE GENERATION NUMBER HAS BEEN SPLIT 75311 08320050
+*    AWAY FROM THE DSNAME TO SAVE LOOKING FOR IT ALL OVER THE     75311 08330050
+*    PLACE                                                        75311 08340050
+*                                                                 75311 08350050
+* WE CAN BREAK THIS DOWN A LITTLE TO:-                            75311 08360050
+*                                                                 75311 08370050
+*    IF NOT GDG THEN SEARCH AS USUAL, BUT DO NOT GIVE AN ERROR    75311 08380050
+*     MESSAGE FOR 'MODS' |'USES' IF THE CATLG FAILS.              75311 08390050
+*                                                                 75311 08400050
+*    IF GDG, THEN IF (0) |- GDG, SEARCH AS USUAL, AFTER SETTING UP75311 08410050
+*     THE CORRECT DSNAME                                          75311 08420050
+*    IF + GDG, SEARCH FOR (0), BUT IF IT IS A TAPE, DO NOT COPY IN75311 08430050
+*     THE VOLUME.                                                 75311 08440050
+*    THEN ADD TO THE DSN RETURNED TO GET THE CORRECT GEN NUMBER   75311 08450050
+* NOTE:- WE CANNOT BE CALLED FOR A + GDG TO MOD, AND FIND A       75311 08460050
+*    VOLUME NUMBER FOR IT BY DEFINITION.                          75311 08470050
+           SPACE                                                        08480000
+           L   R3,0(R1)        LOAD ADDRESS OF DD-CARD            74303 08490000
+           USING JOLCOM,R2                                              08500000
+           USING DDDSNDET,R3                                            08510000
+           CLI DDDSNAME,C'&&'                  TEMPORARY DSNAME ?       08520000
+         BNE   S01TSYIN                                           75128 08530000
+         TM    DDUSE,X'80'  IS TEMPORARY MOD ?          JOL30046  76200 08540047
+         BO    S01RET0       YES, NO ERROR MESSAGE       JOL30046 76200 08550000
+            $CALL UJS99SET       SET UP ERROR DSNAME                    08560000
+         JOLERR 416,#STRING,                                      75128*08570000
+               'IS A TEMPORARY DATA SET THAT HAS NOT BEEN CREATED' 5128 08580000
+         MVI   DDCATLGS,8                                         75128 08590000
+         JOLRETN RC=16                                            75128 08600000
+S01TSYIN EQU   *                                                  75128 08610000
+           CLI DDDSNAME,C'*'                   SYSIN ?                  08620000
+           BE  S01RET0                                            74256 08630000
+           CLI DDDSNAME,C'%'                   NO DSNAME SPECIFIED ?    08640000
+           BE  S01RET0                                            74256 08650000
+           CLC =C'NULLFILE ',DDDSNAME          DUMMY ?                  08660000
+           BE  S01RET0                                            74256 08670000
+           CLI DDCATLGS,0                      CATALOGUE ALREADY SEARCH 08680000
+*                                              -ED ?                    08690000
+           BE  S01TGDGA        TEST IF REL GDG NEEDS ALTERING     75311 08700000
+           TM  PARMSRCH,X'01'  TOLD NOT TO SEARCH CATLG ?         75311 08710000
+           BO  S01RETN0                                           75311 08720000
+           CLI DDCATLGS,C' '                   CATLG NOT SEARCHED YET ? 08730000
+           BE  DOSEARCH                                                 08740000
+* HERE THE CATALOGUE HAS BEEN SEARCHED,BUT RETURNED A NON-ZERO          08750000
+*    CODE                                                               08760000
+           CLI DDMBR,C'+'                      IS THIS THE 2ND TIME     08770000
+*                                              WE WERE CALLED FOR A     08780000
+*                                              + GDG ?                  08790000
+           BNE RETNOLD                                            75311 08800000
+           MVI DDMBR,C' '                                               08810000
+           B  RETND8                           PRINT ERROR MESSAGE      08820000
+RETNOLD    EQU *                                                        08830000
+           SR  R15,R15                                                  08840000
+           IC  R15,DDCATLGS                                             08850000
+S01RET15   B   JRETN                                              74256 08860000
+S01RETN0   EQU *                                                  75311 08870000
+S01RET0    JOLRETN RC=0                                           74303 08880000
+S01RET16   JOLRETN RC=16                                          74256 08890000
+* NOW IF THIS IS A GDG, WE MUST ALTER THE DSNAME TO LOOK LIKE     75311 08900000
+*    A REAL GDG                                                   75311 08910000
+S01TGDGA   CLI DDTYPE,DDGDG    IS IT A GDG OF SOME DESCRIPTION ?  75311 08920000
+           BL  S01RET0         NO, -> GO HOME                     75311 08930000
+           B   RETNOLD                                            75311 08940000
+           SPACE 3                                                      08950000
+DOSEARCH   EQU *                                                        08960000
+* NEW FEATURE ..... IF NOCATGDG SPECIFIED, DON'T                        08970000
+* SEARCH FOR GDG'S.                                                     08980000
+         TM    PARMSRCH,B'00000100'  NOCATGDG?                          08990000
+         BZ    REALSRCH                                                 09000000
+         CLI   DDMBR,C'('     GDG?                                      09010000
+         BNE   REALSRCH                                                 09020000
+         MVI   DDCATLGS,0                                               09030000
+         B     S01RET0                                                  09040000
+REALSRCH EQU   *                                                        09050000
+* NEW FEATURE 21/4/75, DONT CATLG SEARCH IF JOL-GEN SPECIFIES     75    09060000
+*  CERTAIN DATA SETS.                                                   09070000
+* ALL WE HAVE TO DO IS BRANCH TO A SMALL ROUTINE WHICH WAS GENER- 75    09080000
+*  ATED, AND TEST ITS RETURN CODE, AND EITHER SEARCH OR NOT       75    09090000
+* ALSO,IF DEDICATED DATA SETS ARE USED,THE DSN WILL BE ALTERED          09100000
+           L   R15,AJOLGEN                                              09110000
+         USING GENDETS,R15                                              09120000
+          L    R15,AS01NCAT                                             09130000
+            BALR  R14,R15                                         75128 09140000
+         DROP R15                                                       09150000
+           LTR R15,R15         IS IT THERE ?                            09160000
+           BZ  S01NORTN        NOPE, SO NO BRANCH                       09170000
+           LA  R1,DDDSNAME     LA DSN                                   09180000
+           BALR R14,R15        BRANCH TO IT                             09190000
+           LTR R0,R0           DID IT FIND DSNAME                       09200000
+           BNZ S01NORTN        NOPE                                     09210000
+           STC R0,DDCATLGS     YES,DON'T SEARCH CATLG                   09220000
+           JOLRETN RC=0        AND RETURN                               09230000
+S01NORTN   SR  R8,R8                                                    09240000
+           CLI DDMBR,C'('      IS IT A GDG ?                            09250000
+           BNE FINDIT                                                   09260000
+*                                                                 75311 09270000
+* NOW WE HAVE A GDG AND IF IT IS A + GDG, WE WILL CATLG           75311 09280000
+*  SEARCH FOR 0, AND MAYBE COPY IN A VOLUME AND UNIT, +FIXING     75311 09290000
+*  THE GENERATION NUMBER (OF COURSE).                             75311 09300000
+* IF IT IS NEGATIVE , OR(0),WE WILL CATALOG SEARCH IN THE USUAL   75311 09310000
+*  WAY                                                            75311 09320000
+*                                                                 75311 09330000
+           LA  R1,DDDSNAME                     SEARCH AND SEE IF WE ARE 09340000
+*                                              LOOKING FOR A '+' GEN    09350000
+           LA  R15,L'DDDSNAME-1(R1)                               75311 09360000
+           LA  R14,1                                                    09370000
+FINDEND    CLI 0(R1),C' '      GOT END OF DSN ?                   75311 09380000
+           BE  GOTEND          YES                                75311 09390000
+           BXLE R1,R14,FINDEND LOOK FOR END                       75311 09400000
+GOTEND     ST  R1,AUJS20       USE AS A WORK AREA ***             75311 09410000
+           MVC 0(3,R1),=C'(0)'                                    75311 09420000
+           CLI DDMBR+1,C'-'    -VE GENERATION ?                   75311 09430000
+           BNE S01TABS         NO, TEST IF ABSOLUTE GEN           75311 09440000
+*          MVC 1(5,R1),DDMBR+1                                    75311 09450030
+           MVC 1(1,R1),DDMBR+1                                    75311 09451030
+           MVC 2(3,R1),DDMBR+3                                    75311 09452030
+           MVI 5(R1),C')'                                         75311 09460030
+S01CL45  CLEAR DDMBR                                                    09470000
+         TM DDUSE,B'01000000' NEW ?                               75311 09480000
+         BZ FINDIT                                                      09490000
+         $CALL UJS99SET                                                 09500000
+         JOLERR 119,#STRING,'IS BEING OVER-WRITTEN'                     09510000
+         OI    DDSPECT2,X'20'   SET NODEFAULTS UP                 75311 09520000
+           B   FINDIT                                             75311 09530000
+S01TABS    EQU *                                                  75311 09540000
+* NOW WE'D BETTER GET IF IT IS AN ABSOLUTE GENERATION             75311 09550000
+         CLC   DDMBR+2(4),=C'0000' (0)                                  09560000
+         BE    S01CL45                                                  09570000
+         CLI   DDMBR+1,C'+'   +GDG ?                     JOL30073 76200 09580000
+         BE    FINDIT        YES ->                      JOL30073 76200 09590000
+           MVC 0(9,R1),=C'.G0000V00'                              75311 09600000
+           MVC 2(4,R1),DDMBR+2 SHIFT IN REAL NUMBER               75311 09610000
+         CLEAR DDMBR                                              75311 09620000
+FINDIT     EQU *                                                        09630000
+           SPACE 3                                                      09640000
+* NOW SET UP THE EQUIVALENT OF 'CAMLST' MACRO CAUSE WE CAN'T USE IT     09650000
+*    AS IT USES ADDRESS CONSTANTS AND I WANT LAOD ADDRESSES             09660000
+           XC  CALLAREA(20),CALLAREA    CLEAR IR                        09670000
+           MVI  CALLAREA,68                                             09680000
+           AGO .S01LITX        IGNORE QUOTED DSN CODING           75311 09690000
+* CHECK IF THE DSNAME HAD '' AROUND,AND REMOVE IF SO                    09700000
+           MVI WORK+100,C' '                                            09710000
+           CLI DDDSNAME,C''''  QUOTE ?                                  09720000
+           BNE S01NOTQU                                                 09730000
+* WE HAVE A QUOTE                                                       09740000
+******* I'M NOT GOING TO WORRY ABOUT DOUBLE QUOTES AT THE MOMENT        09750000
+*         ANYWAY,I DON'T THINK THAT THEY ARE LEGAL IN A CATALOGUED      09760000
+*         DSNAME.                                                       09770000
+           MVC WORK+100(L'DDDSNAME),DDDSNAME                            09780000
+* WORK BACKWARDS AND DROP THE QUOTE OFF THE END FIRST                   09790000
+           LA  R15,L'DDDSNAME                                           09800000
+S01FEQUT   LA  R14,DDDSNAME-1(R15)                                      09810000
+           CLI 0(R14),C' '                                              09820000
+           BNE S01GEQUO                                                 09830000
+           BCT R15,S01FEQUT                                             09840000
+* NO ENDING QUOTE,WILL COME UP AS AN ERROR LATER                        09850000
+           MVI WORK+100,C' '   SET QUOTED NAME IND TO ''                09860000
+           B   S01NOTQU        SEARCH CATLG AS USUAL                    09870000
+           SPACE                                                        09880000
+S01GEQUO   EQU *                                                        09890000
+           MVI 0(R14),C' '                                              09900000
+           MVC DDDSNAME(L'DDDSNAME-1),DDDSNAME+1                        09910000
+S01NOTQU   EQU *                                                        09920000
+.S01LITX   ANOP                                                   75311 09930000
+           LA R1,DDDSNAME                                               09940000
+           ST R1,CALLAREA+4                                             09950000
+           LA   R1,WORK+200             GET WORK AND ON DOUBLE WD 75311 09960000
+           SRL  R1,3                                                    09970000
+           SLL  R1,3                                                    09980000
+           ST R1,CALLAREA+12                                            09990000
+**** NOTE,THE NEXT BIT OF CODE MAY BE INCORRECT,BUT IT WILL BE    74303 10000000
+*    ZAPABLE TO CORRECT ANY PROBLEMS,ESPECIALLY WITH THE ZAP AREA 74303 10010000
+*    DOWN THE BACK (OR SO WE HOPE).                               74303 10020000
+********  THE FOLLOWING VS CODE HAS BEEN REMOVED ********          DASD 10030000
+S01NOTVS   EQU *                                                  74303 10330000
+           $LOCATE CALLAREA                                             10340028
+S01STR15   EQU *                                                  74303 10350000
+           STC R15,DDCATLGS                                             10360000
+* IF WE WERE CALLED TO DO A CATALOG SEARCH FOR A DISPOSITION INSTRUCT-  10370000
+*    ION,WE ARE NOT GOING TO PRODUCE ANY ERROR MESSAGES,BUT THE         10380000
+*    VETTING MODULES CAN DO ALL THIS LATER                              10390000
+           SPACE                                                        10400000
+S01TRET1   LTR R15,R15         DID CATALOG FAIL ?                 75128 10410000
+           BNZ S01TDEL         NO, SO TEST IF A DELETE OR NOT     86225 10420019
+*                                                                 86225 10420119
+* THE CATALOG SEARCH DIDN'T FAIL, SO CHECK IF IT IS VSAM DATA SET 86225 10420219
+* IF VSAM, THEN DON'T COPY THE VOLUME INFO INTO THE JCL.          86225 10420319
+*                                                                 86225 10421219
+         MVC   WORK+800(2),=H'100' MAX LENGTH OF RETURN           86225 10422219
+         XC    CALLAREA(40),CALLAREA CLEAR PARAMETER AREA         86226 10422320
+         SHOWCAT AREA=WORK+800,NAME=DDDSNAME,MF=(E,CALLAREA)      86225 10423219
+         LTR   R15,R15         IF NON-ZERO, THEN NOT VSAM         86225 10424219
+         BNZ   RETND0          NOT VSAM, SO GET VOLS ETC          86225 10425219
+* HERE IT IS A VSAM DATA SET, SO DON'T COPY THE VOLUMES           86225 10426219
+         OI    DDSPECT2,X'01' TURN ON VSAM                        86225 10427319
+         B     RETND0          CONTINUE HAVING SET VSAM IND       86225 10428319
+S01TDEL    CLI DDDDNAME,C'%'   IS IT A DISPOSITION MESSAGE ?            10430019
+           BNE S01NZERO        NO,ISSUE APPROPRIATE ERROR MESSAGE       10440000
+*                              AFTER GDG CHECKS                         10450000
+           LTR R15,R15                                            75128 10460000
+           BZ  RETND0                                             75128 10470000
+           CH  R15,=H'8'      CATLG SEARCH FAIL??                 75128 10480000
+           BNE RETNTAB(R15)                                       75128 10490000
+********************************************************           DASD 10500000
+** CHECK TO SEE IF VS AND IF SO GO DO RETND12 WORK    **           DASD 10510000
+********************************************************           DASD 10520000
+          L   R15,16     LOAD CVT POINTER                          DASD 10530000
+          TM  116(R15),X'12'  DAT FEATURE PLUS VS2 ?               DASD 10540000
+          BO  RETND12    YEP LETS DO ANOTHER LOCATE(GDG FAMILY?)   DASD 10550000
+S01CEMSG    $CALL UJS99SET       SET UP ERROR DSNAME               DASD 10560000
+           JOLERR 011,#STRING,                                    75128*10570000
+               'CATALOG SEARCH FAILED:-INSTRUCTION IGNORED ',     75128*10580000
+               ' FOR DISPOSITIONS'                                75128 10590000
+           MVI DDDD1,C'%'     DELETE THE INSTRUCTION              75128 10600000
+         MVI DDCATLGS,8                                           75128 10610000
+         JOLRETN RC=8                                             75128 10620000
+S01NZERO  EQU *    CHECK IF GDG, IF SO PERFORM ACTIONS                  10630000
+         CLI   DDMBR,C'('     GDG?                                      10640000
+         BNE   RETNTAB(R15)   NO,SO ON WITH NORMAL PROCESSING           10650000
+         CLI   DDMBR+1,C'+'   PLUS WE WERE AFTER?                       10660000
+         BNE   S01CLRG                                                  10670000
+* NOW COPY IN THE GENERATION NUMBER SO THAT IT IS AN ABSOLUTE ONE 82200 10680001
+           L   R1,AUJS20       LOAD DSN POINT WHERE WE COPIED (0) 75311 10690001
+           SPACE 1                                                75311 10700001
+         MVC   0(9,R1),=C'.G0000V00'                              82200 10710001
+         MVC   2(4,R1),DDMBR+2   SHIFT IN GENERATION NUMBER       82200 10720001
+         MVC  DDMBR+0(8),BLANKS CLEAR OUT RETURNED ABS GDG        J40B  10730035
+* NOW SET THE DDMBR FIELD TO A '+' SO THAT IF CALLED AGAIN WE CAN       10740004
+*         PRINT AN ERROR MESSAGE.                                       10750004
+*          MVI DDMBR,C'+'      REMOVED 88036                            10760030
+* THERE, GENERATION NUMBER FIXED                                  75311 10770001
+         B     RETNTAB(R15)   GO TO ERROR ROUTINE                       10780000
+S01CLRG  CLEAR DDMBR                                                    10790000
+         B     RETNTAB(R15)                                             10800000
+RETNTAB    B   RETND0                                                   10810000
+           B   RETND4                                                   10820000
+           B   RETND8                                                   10830000
+           B   RETND12                                                  10840000
+           B   RETND16                                                  10850000
+           B   RETND20                                                  10860000
+           B   RETND24                                                  10870000
+           B   RETND28                                                  10880000
+           B   RETND32                                                  10890000
+           TITLE 'CATLG SEARCH RETURNED 0'                              10900000
+RETND0     EQU *                                                        10910000
+*THIS NEXT BIT OF CODE IS A LITTLE TRICKY.                              10920000
+* THE CATALOG HAS RETURNED A UNIT/VOLUME TO US.                         10930000
+*                                                                       10940000
+* WE ARE GOING TO SAY SOMETHING ALONG THESE LINES...                    10950000
+*  IF MOD THEN DO;                                                      10960000
+*         TURN ON DEFAULT BIT (SO NO DCB DEFAULT)                       10970000
+*         IF LRECL,BLKSIZE OR RECFM CODED, CANCEL THEM WITH             10980000
+*            AN ERROR MESSAGE. (IF USER WISHES TO CHANGE DCB            10990000
+*            ON A MOD FILE, HE WILL HAVE TO SPECIFY VOL AND             11000000
+*            UNIT SO JOL WONT SEARCH CATLG).                            11010000
+*      GO TO NORMAL ROUTINES.                                           11020000
+*  END;                                                                 11030000
+*  IF -GDG OR (0) GDG OR NORMAL DATA SET, THEN GO TO NORMAL             11040000
+*  ROUTINES BUT... CLEAR DDMBR IF (0) OR -(N) GDG.                      11050000
+* THAT LEAVES + GDGS.                                                   11060000
+*  WHAT WE WANT TO DO HERE IS AS FOLLOWS:                               11070000
+*  IF NO UNIT OR VOL WERE CODED, AND CATLG RETURNED A 'DISK'            11080000
+*     THEN COPY IN UNIT AND VOLUME FROM CATLG.                          11090000
+*     IF, HOWEVER, UNIT FROM CTLG WAS TAPE, THEN COPY ONLY UNIT AS      11100000
+*     DEFAULT.                                                          11110000
+*  IF USER CODED TAPE, AND CATLG SAID DISK, DON'T COPY VOL.             11120000
+*  IF USER CODED DISK, AND NO VOL, COPY CATLG VOL.                      11130000
+*  IF USER CODED DISK AND VOL, LEAVE.                                   11140000
+           LA  R10,WORK+200             GET WORK AND ON DOUBLE WD 75311 11150000
+           SRL  R10,3                                                   11160000
+           SLL  R10,3                                                   11170000
+           USING VOLINFO,R10                                            11180000
+           SPACE 2                                                      11190000
+* IF MOD | REWRITE, TURN ON NODEFAULT, AND IF DCB CODED, GIVE           11200000
+*    ERROR MESSAGE, THEN GO TO NORMAL PROCESSING.                       11210000
+         TM  DDUSE,B'10000000'   USES OR RE-WRITES?                     11220000
+         BZ  S01TPL01                                                   11230000
+         OI    DDSPECT2,X'20' TURN ON NO DEFAULTS                       11240000
+         IFNULL DDRECFM,DDBLKSZE,DDLRECL,S01TPL01                       11250000
+         CLI   DDRECFM,C'%'   NODCB???                            75311 11260000
+         BE    S01TPL01                                           75311 11270000
+         $CALL UJS99SET       SET UP ERROR MESSAGE                      11280000
+         JOLERR 118,#STRING,'USER DCB CANCELLED FOR EXISTING MOD DATA S*11290000
+               ET'                                                75311 11300000
+*        CLEAR DDRECFM,DDBLKSZE,DDLRECL                            DASD 11310000
+*************************************************************      DASD 11320000
+*                                                           *      DASD 11330000
+* WE CAN NOT CLEAR DCB HERE AS PLANNED  MUST WAIT UNTIL     *      DASD 11340000
+* THE GENERATE PHASE--THE SPACE CALCULATION MIGHT NEED      *      DASD 11350000
+* LRECL OR BLKSIZE--IS NOW IN (UJG00MN)                     *      DASD 11360000
+*                                                           *      DASD 11370000
+*************************************************************      DASD 11380000
+         OI    DDSPECT2,X'20'    SET NO DEFAULTS UP               75311 11390000
+           SPACE 2                                                      11400000
+* NOW WERE WE AFTER A '+' GENERATION ?                                  11410000
+S01TPL01   CLI DDMBR+1,C'+'                                       75311 11420000
+           BE  S01PLU                                                   11430000
+* NOW CHECK IF (0) OR (-) AND CLEAR DDMBR IF NEC                        11440000
+          CLI  DDMBR,C'('          GDG?                                 11450000
+          BNE  TNOVOLS                                                  11460000
+          CLEAR DDMBR                                                   11470000
+         B     TNOVOLS                                                  11480000
+           SPACE                                                        11490000
+* NOW SET THE DDMBR FIELD TO A '+' SO THAT IF CALLED AGAIN WE CAN       11500000
+*         PRINT AN ERROR MESSAGE.                                       11510000
+S01PLU     MVI DDMBR,C'+'                                               11520000
+* NOW COPY IN THE CORRECT GENERATION NUMBER                       75311 11530000
+           L   R1,AUJS20       LOAD DSN POINT WHERE WE COPIED (0) 75311 11540000
+           PACK DBL(4),2(4,R1) PACK THE GENERATION NUMBER RETND   75311 11550000
+           PACK DBL+4(4),DDMBR+2(4) PACK THE + BIT                75311 11560000
+           AP  DBL(4),DBL+4(4) ADD THEM BOTH                      75311 11570000
+* IF > 9999 WILL END UP AS 0000, SO OK                            75311 11580000
+           UNPK 2(4,R1),DBL(4) UNPACK AGAIN TO DSNAME             75311 11590000
+           OI  5(R1),C'0'      MAKE PRINTABLE                     75311 11600000
+           MVC  DDMBR+1(7),BLANKS CLEAR OUT RETURNED ABS GDG            11610000
+* THERE, GENERATION NUMBER FIXED                                  75311 11620000
+           SPACE 1                                                75311 11630000
+* OK PLUS ,NOW CHECK UNIT TYPE FROM USER (IF ONE)                       11640000
+* NOW GO AHEAD AND SET UP THE VOLUME AND UNIT RETURNED FROM THE   75311 11650000
+*  (0) GENERATION OF THE CATALOG.                                 75311 11660000
+            IFNULL  DDUNIT,DDVOLUME,TNOVOLS IF NEITHER UNIT & VOL       11670000
+* HERE WE DID HAVE A UNIT OR VOL.                                       11680000
+            IFNULL DDUNIT,S01PLVOL  VOL ONLY CODED                      11690000
+* HERE UNIT CODED. DDUNITYP SHOULD BE SET UP TOO OR ELSE                11700000
+* WE DONT KNOW THE UNIT THAT WAS CODED. THATS BAD, SO A                 11710000
+* MISTAKE WILL PROBABLY BE MADE IN THIS SECTION.                        11720000
+            TM  DDUNITYP,X'80'   DISK HAS HIGH ORDER BIT ON             11730000
+            BZ  S01PLRET         TAPE MAYBE HAS VOL. WE DONT CARE       11740000
+* HERE A DISK AND NO VOL.                                               11750000
+         B     TNOVOLS       GET DEFAULT VOL                            11760000
+S01PLVOL EQU   *              HERE ONLY VOLUME CODED                    11770000
+         B     TNOVOLS       GO TO NORMAL BIT (CHECKS + TOO,THO)        11780000
+S01PLRET CLEAR DDMBR                                                    11790000
+         JOLRETN RC=0                                                   11800000
+           SPACE 3                                                      11810000
+* NOW IF VOL FIELD BLANK,SET UP VOLS. FIRST THOUGH WE MUST CHECK        11820000
+*    THAT ALL THE UNITS ARE THE SAME,OR THAT THERE ARE NOT A HORRENDOUS 11830000
+*    NUMBER OF VOLUMES.IF SO,OS CAN HANDLE THE MOUNTING ETC OF THESE    11840000
+*    THINGS.                                                            11850000
+TNOVOLS    EQU *                                                        11860000
+*          CLC NOVOLS,=AL2(L'DDVOLUME/6) TOO MANY VOLUMES?         DASD 11870000
+           CLC NOVOLS,=AL2(5) ***************************************   11880000
+           BL  NOVOLSOK                                                 11890000
+         $CALL UJS99SET   SET UP FIRST PART OF ERROR MESSAGE            11900000
+         JOLERR 101,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *11910000
+               'HAS TOO MANY VOLUMES:-',                               *11920000
+               'OS WILL SEARCH CATLG AT EXECUTION'                      11930000
+           JOLRETN RC=0                                           74256 11940000
+NOVOLSOK   EQU *                                                        11950000
+           CLI  CATDEV+2,X'80'   SOME SORT OF TAPE?                     11960000
+           BE   S01CATTP                                                11970000
+* NOW WE MUST CHECK TO SEE IF IT IS A GENERIC UNIT, AND IF SO     80290 11980000
+*    SKIP THIS CODE FOR NOW.                                      80290 11990000
+           CLI  CATDEV,X'00'   GENERIC UNIT NAME?                 80290 12000000
+           BE   S01CATTP       YES, SO DON'T RESET THE BITS       80290 12010000
+           NI   CATDEV+1,X'FF'-X'20' TURN OFF DEVICE SHARED INDIC   J60 12020051
+S01CATTP   EQU  *                                                       12030000
+           LA R1,CATDEV                                                 12040000
+           LA  R14,L'CATDEV+L'CATVOL+L'CATLABEL                         12050000
+           LH R15,NOVOLS                                                12060000
+           MH R15,=AL2(L'CATDEV+L'CATVOL+L'CATLABEL)                    12070000
+           AR R15,R1                                                    12080000
+S01UBXLE   BXLE R1,R14,DEVTOK  DEVICES ARE OK                           12090000
+           CLC CATDEV,CATDEV-VOLINFO(R15)                               12100000
+           BNE DIFFDEVT                                                 12110000
+           B   S01UBXLE                                                 12120000
+DEVTOK     EQU  *                                                       12130000
+           CLI DDMBR,C'+'        IS THIS + GDG ?                75311   12140000
+           BE  S01TUNX             YES,LEAVE VOL AS IS            75311 12150000
+           IFNULL DDVOLUME,MUVVOLS                                      12160000
+* NEW CODE. PROBLEM OCCURS WHEN DATA SETS ARE DECLARED FOR OUTPUT       12170009
+*  WITH VOLREFS, BUT THE STEP IS BY-PASSED DUE TO SYMBOLIC PROCESSING   12180009
+*  AND THE GENERATION NUMBERS ARE RESET (AGAIN BY SYMBOLICS) BUT        12190009
+*  VOLREFS ARE LEFT ON, AND THE DATA SET IS READ BUT NOT WRITTEN        12200009
+*  EARLIER. JOL QUITE GETS UPSET AND SAYS THE VOLUMES FROM THE          12210009
+*  CATALOG DIFFER TO THOSE SUPPLIED.                                    12220009
+* WE WILL ASSUME CATALOG IS CORRECT UNDER THOSE CIRCUMSTANCES           12230009
+*  BUT WON'T COMPLAIN.                                                  12240009
+         SPACE 2                                                        12250009
+         CLI  DDVOLUME,C'-'    VOLREF ?                                 12260009
+         BE  MUVVOLS    YES ,  USE THE CATALOG VOLUME INFO       82200  12270009
+         CLI  DDVOLUME,C'*'    VOLREF ?                                 12280009
+         BE  MUVVOLS    YES ,  USE THE CATALOG VOLUME INFO       82200  12290009
+           CLC DDVOLUME(6),CATVOL  IS THE VOLUME THE SAME ?       75311 12300000
+           BE  S01TUNX             YES                            75311 12310000
+         $CALL UJS99SET   SET UP FIRST PART OF ERROR MESSAGE            12320000
+         JOLERR 115,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *12330000
+               'HAD INCORRECT VOLUME',                                 *12340000
+               ' SPECIFIED:CATALOG ONE USED'                            12350000
+MUVVOLS    CLEAR DDVOLUME      CLEAR DDVOL FIELD BEFORE PUTTING IN VOLS 12360000
+           LA  R1,CATVOL                                                12370009
+           CLC =CL6'MIGRAT',0(R1)    WAS THE DATASET HSM-ED?      81250 12380000
+           BE  S01MIG                YES, SO IGNORE IT.           81250 12390000
+           CLC =CL6'ARCIVE',0(R1)    WAS THE DATASET ARCHIVED (DMS)2300 12400012
+           BNE S01DOVOL              YES, SO IGNORE IT.           81250 12410010
+           B   S01IGNR               IGNORE THE VOLUMES ETC NOW   81300 12411023
+         JOLERR 321,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *12420012
+               'HAS BEEN ARCHIVED WITH DMS - RESTORE THE DATA SET BEFOR*12430010
+               E RELEASING THE JOB'                                     12440011
+           B   S01IGNR               IGNORE THE VOLUMES ETC NOW   81300 12450010
+S01DOVOL   LA  R9,DDVOLUME     FROM THE CATALOG                         12460010
+           LA  R1,CATVOL                                                12470000
+           LH R15,NOVOLS                       NO OF VOLS               12480000
+           BCTR R15,0                                                   12490000
+           MH R15,=H'12'                       MULT BY 12 TO GET        12500000
+*                                              CORRECT STOP ADDRESS     12510000
+           AR R15,R1                                                    12520000
+           LA  R14,L'CATDEV+L'CATVOL+L'CATLABEL                         12530000
+VOLUP1     MVC 0(6,R9),0(R1)                                            12540000
+           LA  R9,6(R9)                                                 12550000
+           BXLE R1,R14,VOLUP1                                           12560000
+S01TUNX    EQU *                                                  75311 12570000
+* NOW TO TEST THE UNIT TO BE OK.                                  74303 12580000
+         TM    DDUSE,X'01'    UNITAFF?                            75311 12590000
+         BO    S01TLABL       YES,SKIP ERR MESSAGE                75311 12600000
+* CHECK IF AFTER + GDG, IF SO LEAVE UNIT ALONE                          12610000
+         CLI   DDMBR,C'+'    +GDG?                                75311 12620000
+         BE    S01TNEWG                                           75311 12630000
+         SPACE 3                                                        12640000
+********************************************************************    12650000
+         IFOS  =X8,S01TLABL      LEAVE THE UNIT CHECKING AND FIXING.    12660000
+********************************************************************    12670000
+         SPACE 3                                                        12680000
+           IFNULL DDUNIT,S01MUVUN                                 74303 12690000
+         SPACE 1                                                        12700000
+* BECAUSE A USER CAN CODE A DSID WITH (SAY) SYSDA, BUT READ             12710000
+*  THE DATASET, DELETE IT AND THEN RE-WRITE IT, AND BECAUSE             12720000
+*  THE OLD DATA SET MAY REALLY RESIDE ON A 3330 NOT INCLUDED            12730000
+*  IN THE SYSDA GROUP, WE WILL OVER-WRITE THE UNIT SPECIFIED            12740000
+*  WITH WHAT THE CATALOGUE SAYS IF THE DSID IS BEING USED               12750000
+*  FOR INPUT.                                                           12760000
+         SPACE 1                                                        12770000
+         TM    DDUSE,B'11000000' INPUT?                    FIX-X  76200 12780047
+         BZ    S01MUVUN       YES,USE CATLG UNIT ALWAYS     FIX-X 76200 12790000
+         TM    DDUSE,B'10000000' MOD ?                             DASD 12800047
+         BO    S01MUVUN       YEP,USE CATLG UNIT ALWAYS            DASD 12810000
+         SPACE 1                                            FIX-X 7620/ 12820000
+* THE UNIT IS NOT BLANK, AND THERE-FORE WAS PROVIDED BY THE USER. 74303 12830000
+*    IF THE DEVICE-TYPE DIFFERS RADICALLY FROM THE ONE THE USER   74303 12840000
+*    HAS GIVEN,WE WILL TAKE THE CATALOG ONE                       74303 12850000
+           TM  DDUNITYP,X'80'  DID USER SAY SOME SORT OF TAPE?    74303 12860000
+           BZ  S01USERT        YES                                75311 12870000
+* HERE WE HAVE A NON-TAPE UNIT,AND THEREFORE THE UNITS MUST MATCH 74303 12880000
+*    EXACTLY. IF THEY DON'T,THE USER MAY NOT BE ABLE TO MOUNT     74303 12890000
+*    THE VOLUME                                                   74303 12900000
+         MVC   CALLAREA(1),DDUNITYP                               75311 12910000
+         NI    CALLAREA,X'FF'-B'01000000'     DROP PERM BIT       75311 12920000
+         LM    R5,R7,S01UNITS                                     74303 12930030
+         CLC   CALLAREA(0),4(R5)                         JOL30064 76200 12940000
+           BE  S01GOTU1                                           74303 12950000
+           BXLE R5,R6,*-10                                        74303 12960000
+           B   S01TDEVN                                           75311 12970000
+* OK,WE HAVE THE UNIT THE USER SPECIFIED.                         74303 12980000
+S01GOTU1   EQU  *                                                 74303 12990000
+           CLC CATDEV,0(R5)    ARE THEY THE SAME ?                74303 13000000
+           BE  S01TPREF        OK,LEAVE THINGS ALONE,TEST PREFVOL 74303 13010000
+*                                                                       13020000
+* CHECK IF 3330 COPED AND 3330-1 RETURNED, AND           JOL30062 76200 13030000
+*  THEN DON'T ISSUE AN ERROR MESSAGE                     JOL30062 76200 13040000
+* * NOTE ****   NOT NEC WITH INPUT CODE ABOVE           JOL30062 76200  13050000
+           B   S01ERR13        ISSUE ERROR MESSAGE                74303 13060000
+           SPACE 1                                                74303 13070000
+S01USERT   CLI CATDEV+2,X'80'  IS THE CATALOG UNIT A TAPE?        74303 13080000
+           BE  S01TPREF        YEP,SO ALL IS WELL                 74303 13090000
+           SPACE 1                                                74303 13100000
+S01ERR13   EQU *                                                  74303 13110000
+         $CALL UJS99SET   SET UP FIRST PART OF ERROR MESSAGE            13120000
+         JOLERR 113,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *13130000
+               'HAD INCORRECT UNIT',                                   *13140000
+               ' SPECIFIED:CATALOG ONE USED'                            13150000
+S01MUVUN    EQU    *                                                    13160000
+           CLEAR DDUNIT                                           74303 13170000
+****************************************************************** DASD 13180000
+*                                                                * DASD 13190000
+* PROBLEM HERE IF A DATA SET HAS LESS VOLUMES IN THE CATALOG     * DASD 13200000
+* THAN THE DSID SPECFIES, OS WILL SAY TO MOUNT SCRATCH VOLUMES   * DASD 13210000
+* TO COVER THE REST OF THE UNIT COUNT                            * DASD 13220000
+*                                                                * DASD 13230000
+* SOO---ALL WE HAVE TO DO IS (WE HAVE ALREADY CHECK THE CATALOG  * DASD 13240000
+*  VIA LOCATE) LOOK AT THE NUMBER OF VOLUMES FOR THIS GUY        * DASD 13250000
+* AND IF THE DSID SAYS MORE THAN WE HAVE CHANGE THE UNITNO       * DASD 13260000
+* IN THE DSID AREA DDUNITNO----SIMPLE HUH ?                      * DASD 13270000
+*                                                                * DASD 13280000
+****************************************************************** DASD 13290000
+         CLI   DDUNITNO,C'P'  PARALLEL MOUNT?                     80290 13300000
+         BE    S10PARLE       MAYBE A 'P' FOR PARALLEL ?          80290 13310000
+         SR    R14,R14                                            80290 13320000
+         IC    R14,DDUNITNO   LOAD THE UNIT NUMBER                80290 13330000
+         CH    R14,NOVOLS     CHECK CATALOG VOL COUNT              DASD 13340000
+         BNH   S10PARLE       WELL   ITS OK                        DASD 13350000
+         LH    R14,NOVOLS     LOAD  THE GOOD GUY                   DASD 13360000
+         STC   R14,DDUNITNO   STORE IN THE UNIT NUMBER            80290 13370000
+S10PARLE   EQU   *                                                 DASD 13380000
+           LM  R5,R7,S01UNITS                                     74303 13390000
+*                                                                 74303 13400000
+S01UNLUP   CLC CATDEV,0(R5)                                       74303 13410000
+           BE  GOTUNIT                                                  13420000
+           BXLE R5,R6,S01UNLUP                                    74303 13430000
+*                                                                       13450000
+* NOW WE WILL SEARCH THE 'DEVNAMET' TABLE FOR THE UNIT                  13460000
+* AND IF ITS STILL NOT THERE, THEN WE ARE IN TROUBLE                    13470000
+*                                                                       13480000
+* WE CALL UJS01DEV IN SOURCE MODULE UJS02XA TO EITHER SEARCH THE     XA 13490000
+* DEVNAMET OR USE THE XA ROUTINES TO SEARCH FOR US.                  XA 13500000
+*                                                                       13510000
+S01TDEVN DS    0H                                                       13520000
+         $CALL UJS01DEV,(CATDEV,DDDSNDET)                               13530000
+         LTR   R15,R15        DID WE FIND IT?                        XA 13540000
+         BZ    S01DEVUN       YES                                    XA 13550000
+S01UNBAD   EQU *                                                  74303 13560000
+         $CALL UJS99SET   SET UP FIRST PART OF ERROR MESSAGE            13570000
+         JOLERR 217,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *13580000
+               'SPECIFIES UNIT ',DDUNIT,' WHICH IS UNKNOWN, OR DEVICE T*13590000
+               YPE RETURNED FROM CATLG NOT KNOWN TO SYSTEM'          XA 13600000
+           JOLRETN RC=16                                          74256 13610000
+         SPACE 3                                                        13620000
+GOTUNIT  MVC   DDUNITYP,4(R5)  SHIFT IN UNIT TYPE(GETS CONVERTED        13630030
+*                              TO IBM TYPE LATER)                       13640000
+S01TPREF   EQU *                                                  74303 13650000
+         L     R1,AJOLGEN                                               13660000
+         USING GENDETS,R1                                               13670000
+         L     R1,APREFVOL                                              13680000
+         DROP  R1                                                       13690000
+           LM  R5,R7,0(R1)                                        74303 13700000
+*                                                                 74303 13710000
+S01TPRE2   EQU *                                                  74303 13720000
+           CLC 0(6,R5),DDVOLUME PREFERRED VOLUME ?                74303 13730000
+           BE  S01ISPRE                                           74303 13740000
+           BXLE R5,R6,S01TPRE2                                    74303 13750000
+           B   S01TLABL                                           74303 13760000
+S01ISPRE   EQU *                                                  74303 13770000
+          MVC DDUNITYP,6(R5)                                            13780000
+           B   S01TLABL                                           74303 13790000
+S01UNITS   DC  A(S01UNTAB,5,S01UNTBE-5)                           74303 13800000
+S01UNTAB   EQU *                                                  74303 13810000
+          COPY  UNITABLE                                           DASD 13820000
+S01UNTBE   EQU *                                                  74303 13830000
+           DS 0H                                                        13840000
+S01DEVUN EQU   *              WE HAVE FOUND THE DEVICE IN 'DEVNAMET'    13850000
+S01TLABL  DS   0H                                                       13860007
+          CLC   DDLABEL,CATLABEL   ARE THE LABEL NUMBERS EQUAL?   82200 13870007
+          BE    TCATLABL           YES, SO GO                     82200 13880007
+          CLI DDMBR,C'+' +GDG?                                    75311 13890007
+         BE    S01CMEMZ                                           75311 13900000
+           IFNULL DDLABEL,TCATLABL                                74303 13910000
+         $CALL UJS99SET   SET UP FIRST PART OF ERROR MESSAGE            13920000
+         JOLERR 114,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *13930000
+               'HAD INCORRECT FILENO/LABELNO',                         *13940000
+               ' SPECIFIED:CATALOG ONE USED'                            13950000
+TCATLABL  IFNULL CATLABEL,TLBLNUL                                       13960000
+           MVC DDLABEL,CATLABEL      DDLABEL NOW NUMERIC CVC      80290 13970000
+           B   S01TNEWG                                           75311 13980000
+TLBLNUL   EQU *                                                         13990000
+          CLEAR DDLABEL      CLEAR USER SPECIFIED LABEL           80290 14000000
+S01TNEWG   CLI DDMBR,C'+'    AFTER A + GDG ?                      75311 14010000
+           BNE S01RET0         NO,RETURN                                14020000
+S01CMEMZ   CLEAR  DDMBR                                           75311 14030000
+           JOLRETN RC=0                                           74256 14040000
+S01MIG   EQU  *                                                         14050000
+         B     S01IGNR                                            87150 14051023
+          SPACE 3                                                       14060000
+          $CALL UJS99SET   SET UP FIRST PART OF ERROR MESSAGE           14070000
+         JOLERR 120,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *14080012
+               ' WAS MIGRATED, DATA SET WILL BE RESTORED AT EXECUTION T*14090000
+               IME'                                                     14100000
+S01IGNR    CLEAR DDUNIT                                           74303 14110010
+           JOLRETN RC=0                                           74256 14120000
+           TITLE 'CATLG SEARCH RETURNED 4'                              14130000
+RETND4    $CALL UJS99SET   SET UP FIRST PART OF ERROR MESSAGE           14140000
+         JOLERR 103,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *14150000
+               'CATLG VOL NOT MOUNTED',                                *14160000
+               'OS WILL SEARCH CATLG AT EXECUTION'                      14170000
+           JOLRETN RC=0                                           74256 14180000
+           TITLE 'CATLG SEARCH RETURNED 8'                         DASD 14190000
+RETND8     EQU *                                                  75311 14200000
+********************************************************           DASD 14210000
+** CHECK TO SEE IF VS AND IF SO GO DO RETND12 WORK    **           DASD 14220000
+********************************************************           DASD 14230000
+          L   R15,16     LOAD CVT POINTER                          DASD 14240000
+          TM  116(R15),X'12'  DAT FEATURE PLUS VS2 ?               DASD 14250000
+          BO  RETND12    YEP LETS DO ANOTHER LOCATE(GDG FAMILY?)   DASD 14260000
+RETND812  EQU *          COME BACK HERE FROM RETND12               DASD 14270000
+* CATLG SEARCH FAILED.                                            75311 14280000
+* IF THIS IS A MOD | USES DATA SET, RETURN WITHOUT AN ERROR MSSGE 75311 14290000
+           TM  DDUSE,B'11000000'                                  75311 14300000
+           BZ  S01REAL8                                           75311 14310000
+           JOLRETN RC=16                                          75311 14320000
+           SPACE 1                                                75311 14330000
+S01REAL8   CLI DDDDNAME,C'%'   IS IT A DISPOSITION MESSAGE ?       DASD 14340000
+           BE  S01CEMSG       YES,ISSUE APPROPRIATE ERROR MESSAGE  DASD 14350000
+          $CALL UJS99SET    SET UP FIRST PART OF ERROR MESSAGE 7531DASD 14360000
+         JOLERR 404,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *14370000
+               ':- CATALOG SEARCH FAILED'                               14380027
+           JOLRETN RC=16                                          74256 14390000
+           TITLE 'CATLG SEARCH RETURNED 12'                             14400000
+RETND12    EQU *                                                  75    14410000
+* THE CATLG SEARCH RTN SAID THAT WE STRUCK AN INDEX NAME BEFORE WE75    14420000
+*  FOUND A DATA SET NAME, SO I GUESS WE'D BETTER NOW CHECK TO           14430000
+*  SEE IF IT IS GDG ALL. HAVING CHECKED THE RETURN CODES                14440000
+*  UNDER TSO FROM THE 'LOCATE' MACRO, IT SEEMS THAT YOU HAVE            14450000
+*  TO GO TO A LOT OF TROUBLE TO FIND OUT WHETHER IT IS GDG ALL          14460000
+*  OR NOT, PRESUMABLY YOU HAVE TO READ THE CATLG NOW BY TTR'S           14470000
+*  ETC, BUT WE'LL TAKE THE SIMPLE WAY OUT (OF COURSE) AND               14480000
+*  WE'LL LET THE INIATOR DO IT.....                                     14490000
+           LA  R15,DDDSNAME+L'DDDSNAME-1 GET LAST CHAR OF DSN           14500000
+           CLI 0(R15),C' '   FIND END OF DSNAME                         14510000
+           BNE *+8           NOT ' ',GOT IT                             14520000
+           BCT R15,*-8       BACK LOOK AT PREVIOUS CHAR                 14530000
+           MVC 1(3,R15),=C'(0)' SHIFT IN REL GEN OF ZERO                14540000
+           LR  R8,R15        SAVE R15                                   14550000
+           $LOCATE CALLAREA   DO CATLG SEARCH                           14560028
+           MVC 1(9,R8),BLANKS RETURN DSNAME AS IT WAS                   14570000
+           LTR R15,R15       HOW DID WE GO THIS TIME ?                  14580000
+           BNZ S01IS12       NO GOOD,THEREFORE A REAL ERROR.            14590000
+         MVI   DDCATLGS,104   TELL US GDG-ALL            JOL30112 76200 14600000
+           JOLRETN RC=0      AND RETURN                                 14610000
+S01IS12    EQU *                                                        14620000
+          L   R15,16     LOAD CVT POINTER                          DASD 14630000
+          TM  116(R15),X'12'  DAT FEATURE PLUS VS2 ?               DASD 14640000
+          BO  RETND812   YEP LETS GET BACK TO WHERE WE CAME FROM   DASD 14650000
+         $CALL UJS99SET   SET UP FIRST PART OF ERROR MESSAGE            14660000
+         JOLERR 405,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *14670000
+               ':- SPECIFIED AN INDEX BLOCK'                            14680000
+           JOLRETN RC=16                                          74256 14690000
+           TITLE 'CATLG SEARCH RETURNED 16'                             14700000
+RETND16  $CALL UJS99SET   SET UP FIRST PART OF ERROR MESSAGE            14710000
+         JOLERR 406,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *14720000
+               ':- ANOTHER DATA SET WAS FOUND AT A LOWER INDEX LEVEL'   14730000
+           JOLRETN RC=16                                          74256 14740000
+           TITLE 'CATLG SEARCH RETURNED 20'                             14750000
+RETND20    $CALL UJS99SET   SET UP FIRST PART OF ERROR MESSAGE          14760000
+         JOLERR 407,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *14770000
+               'HAS INCORRECT SYNTAX'                                   14780000
+           JOLRETN RC=16                                          74256 14790000
+           TITLE 'CATLG SEARCH RETURNED 24'                             14800000
+RETND24   $CALL UJS99SET   SET UP FIRST PART OF ERROR MESSAGE           14810000
+         JOLERR 408,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *14820000
+               ':- PERM I/O ERR ON CATLG'                               14830000
+           WTO 'UJS01-08 JOL COMPILER:-I/O ERR ON CATLG'          74303 14840000
+           JOLRETN RC=16                                          74256 14850000
+           TITLE 'CATLG SEARCH RETURNED 28'                             14860000
+RETND28   $CALL UJS99SET   SET UP FIRST PART OF ERROR MESSAGE           14870000
+         JOLERR 409,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *14880000
+               ':- CAT RTN RETND 28'                                    14890000
+           JOLRETN RC=16                                          74256 14900000
+           TITLE 'CATLG SEARCH RETURNED 32'                             14910000
+RETND32   $CALL UJS99SET   SET UP FIRST PART OF ERROR MESSAGE           14920000
+         JOLERR 510,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *14930000
+               'INV WORK AREA'                                          14940000
+             JOLRETN RC=16                                              14950000
+DIFFDEVT     EQU   *                                                    14960000
+         $CALL UJS99SET   SET UP FIRST PART OF ERROR MESSAGE            14970000
+         JOLERR 102,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *14980000
+               'CONTAINS DIFFERING UNIT TYPES:-'                       *14990000
+               'OS WILL SEARCH CATLG AT EXECUTION'                      15000000
+           JOLRETN RC=0                                           74256 15010000
+DIFFLABL EQU   *                                                  75128 15020000
+         $CALL UJS99SET   SET UP FIRST PART OF ERROR MESSAGE            15030000
+         JOLERR 112,#STRING,  #STRING CONTAINS FIRST PART ERR MESS     *15040000
+               'HAS DIFFERING FILENOS/LABELNOS',                       *15050000
+               'OS WILL SEARCH CATLG AT EXECUTION'                      15060000
+           JOLRETN RC=0                                           74256 15070000
+           LTORG                                                        15080000
+         DC    40S(*)                                             J50   15090050
+         JOLSAVE  CSECT=UJS99SET                                        15150050
+* THIS ROUTINE SETS UP THE FIRST PART OF THE ERROR MESSAGE IN     75128 15160000
+*  '#STRING'                                                      75128 15170000
+         CLEAR STRING                                             75128 15180000
+         LA    R10,STRING                                         75128 15190000
+         CONCAT 'DSID ''',DDDSID,''' DSNAME ''',DDDSNAME          75128 15200000
+         CLI   0(R10),C' '    DROP TRAILING BLANKS                75128 15210000
+         BNE   S01ENBLK                                           75128 15220000
+         BCT   R10,*-8                                            75128 15230000
+S01ENBLK LA    R10,1(R10)     STEP BACK UP TO BLANK               75128 15240000
+           CLI DDMBR,C'('                                         75311 15250000
+           BNE S01CDCL                                            75311 15260000
+           CONCAT DDMBR                                           75311 15270021
+           BCTR R10,0         REMOVE 2 CHARACTERS FROM END OF GDG 87150 15270122
+           BCTR R10,0         REMOVE 2 CHARACTERS FROM END OF GDG 87150 15270222
+           CONCAT ')'                                             75311 15271021
+S01CDCL    EQU *                                                  75311 15280000
+         CONCAT ''' DECLARED AT ',DDSTMT,' '                      75128 15290000
+         LA    R1,STRING      GET ADDRESS OF STRING               75128 15300000
+         SR    R10,R1         - WHERE WE ARE UP TO                75128 15310000
+         STH   R10,#STRING    SET LENGTH OF STRING                75128 15320000
+****************************************************************** DASD 15330000
+* CHECK FOR A DISPOSITION INSTRUCTION AND UPDATES THE "STMT"     * DASD 15340000
+* NUMBER TO CORRECT PROBLEM OF MESSAGE POINTING TO WRONG         * DASD 15350000
+* LINE NUMBER                                                    * DASD 15360000
+****************************************************************** DASD 15370000
+        CLI   DDDDNAME,C'%'    DISPOSITION INSTRUCTION ?           DASD 15380000
+        BNE   S01NODSP         NOPE                                DASD 15390000
+        MVC   STMT,DDDDNAME+2  SLIDE IN CURRENT GUY                DASD 15400000
+S01NODSP EQU  *                                                    DASD 15410000
+             JOLRETN  RC=0                                              15420000
+         SPACE 3                                                  75128 15430000
+           LTORG                                                        15440000
+           DC   S(*),S(*),S(*),S(*)                                     15450000
+           DC   S(*),S(*),S(*),S(*)                                     15460000
+           DC   S(*),S(*),S(*),S(*)                                     15470000
+           DC   S(*),S(*),S(*),S(*)                                     15480000
+           DC   S(*),S(*),S(*),S(*)                                     15490000
+           DC   S(*),S(*),S(*),S(*)                                     15500000
+VOLINFO    DSECT                                                        15510000
+NOVOLS     DS  H                                                        15520000
+CATDEV     DS  XL4                                                      15530000
+CATVOL     DS  CL6                                                      15540000
+CATLABEL   DS  H                                                        15550000
+         END                                                            15560000

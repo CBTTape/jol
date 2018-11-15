@@ -1,0 +1,97 @@
+           GENSAVE CSECT=UJEPRINT                                       00000100
+           SPACE 3                                                      00000200
+* THIS PROGRAM IS USED BY THE JOL 'PRINT' COMMAND.                      00000300
+*                                                                       00000400
+* PREVIOUSLY, IEBGENER WAS USED, BUT UNDER HASP THE RESULT IS NOT       00000500
+*  VERY ATTRACTIVE. IEBGENER GOES INTO A BLOCK BY BLOCK COPY            00000600
+*  IF NO DCB IS SPECIFIED ON THE OUTPUT DCB.                            00000700
+*                                                                       00000800
+* THE FILES REQUIRED ARE:-                                              00000900
+*    SYSPRINT FOR ANY ERROR MESSAGES                                    00001000
+*    INPUT                                                              00001100
+*    OUT01,OUT02 ETC TO A MAXIMUM OF 5.                                 00001200
+*                                                                       00001300
+* WE WILL SEE HOW MANY 'OUTPUT' FILES WE HAVE.                          00001400
+           SR  R4,R4                                                    00001500
+           DEVTYPE =CL8'OUT02',OUT02                                    00001600
+           LTR R15,R15                                                  00001700
+           BNZ ONE                                                      00001800
+           DEVTYPE =CL8'OUT03',OUT03                                    00001900
+           LTR R15,R15                                                  00002000
+           BNZ TWO                                                      00002100
+           DEVTYPE =CL8'OUT04',OUT04                                    00002200
+           LTR R15,R15                                                  00002300
+           BNZ THREE                                                    00002400
+           DEVTYPE =CL8'OUT05',OUT05                                    00002500
+           LTR R15,R15                                                  00002600
+           BNZ FOUR                                                     00002700
+ONE        OI  OUT01L,X'80'    SHORTEN OPEN LIST                        00002800
+TWO        OI  OUT02L,X'80'    SHORTEN OPEN LIST                        00002900
+THREE      OI  OUT03L,X'80'    SHORTEN OPEN LIST                        00003000
+FOUR       OI  OUT04L,X'80'    SHORTEN OPEN LIST                        00003100
+FIVE       OI  OUT05L,X'80'    SHORTEN OPEN LIST                        00003200
+           OPEN MF=(E,OPENLIST)                                         00003300
+* NOW COMMENCE COPYING MADLY.                                           00003400
+COPY       GET INPUT                                                    00003500
+           PUT OUT01,(1)                                                00003600
+           TM  OUT02L,X'80'                                             00003700
+           BO  COPY                                                     00003800
+           PUT OUT02,(1)                                                00003900
+           TM  OUT03L,X'80'                                             00004000
+           BO  COPY                                                     00004100
+           PUT OUT03,(1)                                                00004200
+           TM  OUT04L,X'80'                                             00004300
+           BO  COPY                                                     00004400
+           PUT OUT04,(1)                                                00004500
+           TM  OUT05L,X'80'                                             00004600
+           BO  COPY                                                     00004700
+           PUT OUT05,(1)                                                00004800
+           B   COPY                                                     00004900
+           SPACE 3                                                      00005000
+EOFINPUT   EQU *                                                        00005100
+           CLOSE (SYSPRINT,,INPUT,,OUT01,,OUT02,,OUT03,,OUT04,,OUT05)   00005200
+           FREEPOOL SYSPRINT                                            00005300
+           FREEPOOL INPUT                                               00005400
+           FREEPOOL OUT01                                               00005500
+           TM  OUT02L,X'80'                                             00005600
+           BO  RETN                                                     00005700
+           FREEPOOL OUT02                                               00005800
+           TM  OUT03L,X'80'                                             00005900
+           BO  RETN                                                     00006000
+           FREEPOOL OUT03                                               00006100
+           TM  OUT04L,X'80'                                             00006200
+           BO  RETN                                                     00006300
+           FREEPOOL OUT04                                               00006400
+           TM  OUT05L,X'80'                                             00006500
+           BO  RETN                                                     00006600
+           FREEPOOL OUT05                                               00006700
+RETN       GENRETN                                                      00006800
+DCBEXIT    EQU  *                                                       00006900
+* R1 -> CURRENT DCB                                                     00007000
+           LA   R4,INPUT                                                00007100
+           USING IHADCB,R4                                              00007200
+* COPY DCB FROM INPUT TO OUTPUT DATA SET                                00007300
+           MVC  DCBRECFM(                                               00007400
+           DS  0D                                                       00007500
+OPENLIST   DC  AL1(15),AL3(SYSPRINT)                                    00007600
+           DC  AL1(0),AL3(INPUT)                                        00007700
+OUT01L     DC  AL1(15),AL3(OUT01)                                       00007800
+OUT02L     DC  AL1(15),AL3(OUT02)                                       00007900
+OUT03L     DC  AL1(15),AL3(OUT03)                                       00008000
+OUT04L     DC  AL1(15),AL3(OUT04)                                       00008100
+OUT05L     DC  AL1(15),AL3(OUT05)                                       00008200
+           PRINT NOGEN                                                  00008300
+SYSPRINT   DCB DDNAME=SYSPRINT,RECFM=VB,LRECL=150,BLKSIZE=160,DSORG=PS,*00008400
+               MACRF=PM                                                 00008500
+INPUT DCB DDNAME=INPUT,EODAD=EOFINPUT,MACRF=GL,DSORG=PS,DEVD=DA         00008600
+OUT01 DCB DDNAME=OUT01,DSORG=PS,DEVD=DA,MACRF=PM,EXLST=FIXDCB           00008700
+OUT02 DCB DDNAME=OUT02,DSORG=PS,DEVD=DA,MACRF=PM,EXLST=FIXDCB           00008800
+OUT03 DCB DDNAME=OUT03,DSORG=PS,DEVD=DA,MACRF=PM,EXLST=FIXDCB           00008900
+OUT04 DCB DDNAME=OUT04,DSORG=PS,DEVD=DA,MACRF=PM,EXLST=FIXDCB           00009000
+OUT05 DCB DDNAME=OUT05,DSORG=PS,DEVD=DA,MACRF=PM,EXLST=FIXDCB           00009100
+           PRINT GEN                                                    00009200
+       DCBD DSORG=PS                                                    00009300
+FIXDCB   DC X'85',AL3(DCBEXIT)                                          00009400
+           PRINT GEN                                                    00009500
+           LTORG                                                        00009600
+           END                                                          00009700

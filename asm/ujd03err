@@ -1,0 +1,193 @@
+UJD03ERR TITLE 'DYNAMIC ALLOCATION ERROR REPORT'                        00010000
+* JOL COPYRIGHT CCS-JOL PTY LTD 1988                                    00020000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-E001.           00030000
+         SPACE 3                                                        00040000
+*                   J             000000            L                   00050000
+*                   J            0      0           L                   00060000
+*                   J           0        0          L                   00070000
+*                   J          0          0         L                   00080000
+*                   J         0            0        L                   00090000
+*                   J         0            0        L                   00100000
+*                   J         0            0        L                   00110000
+*                   J         0            0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*        J          J         0            0        L                   00160000
+*         J        J           0          0         L                   00170000
+*          J      J             0        0          L                   00180000
+*           J    J               0      0           L                   00190000
+*            JJJJ                 000000            LLLLLLLLLLL         00200000
+           SPACE 3                                                      00210000
+* LAST SOURCE UPDATE                                                    00220000
+*   CHANGES:-                                                           00230000
+*     1.                                                                00240000
+         COPY  JOLGLOBL                                                 00250000
+         LCLC  &C                                                 J40B  00251001
+         $UJEPARM                                                       00260000
+&TYPE    SETC  'SCHED'                                           88036  00270000
+         PRINT ON,DATA                                                  00280000
+UJECOMM  DSECT                                                          00290000
+         USING UJECOMM,R3,R5                                            00300000
+         COPY  UJECOMM                                                  00310000
+D03WORK  DSECT                                                    J40B  00320000
+         DS    18F                                                J40B  00330000
+         DS    F,H                                                      00340000
+D03CLR1  DS    0XL4                                              88036  00350000
+#D03MSG1 DC    H'0'                                                     00360000
+#D03MS1O DC    H'0',251C' '                                             00370000
+D03CLR2  DS    0XL4                                              88036  00380000
+#D03MSG2 DC    H'0'                                                     00390000
+#D03MS2O DC    H'0',251C' '                                             00400000
+         DS    0D                                                88036  00410000
+D03WORKS EQU   *-D03WORK                                          J40B  00420000
+         JOLSAVE CSECT=UJD03ERR,                                       .00430000
+               SIZE=D03WORKS,                                     J40B .00440000
+               BASE=R11                                                 00450000
+         USING D03WORK,R13                                       88036  00460000
+         LR    R8,R1           POINTER TO SVC99 PARM BLOCK              00470000
+         LR    R9,R0           ERROR CODE                               00480000
+         USING S99RB,R8                                                 00490000
+* PRINT  SVC99  ERRORS                                                  00500000
+         NOP   NODYNDMP                                                 00510000
+*        L     R1,CALLAREA              REQUEST BLOCK POINTER           00520000
+         ICM   R15,15,=V(DYNDUMP)       GET DUMP ROUTINE                00530000
+         BZ    NODYNDMP                                                 00540000
+         WXTRN DYNDUMP                                                  00550000
+         BALR  R14,R15                  GO TO IT                        00560000
+         SPACE  3                                                       00570000
+NODYNDMP DS    0H                                                       00580000
+         FIX   'WHY DON''T WE USE JOLERR TO PRINT THIS?'                00590000
+         CVD   R9,DBL                                                   00600000
+         OI    DBL+7,X'0F'          (CONVERT                            00610000
+         UNPK  D03MSGH,DBL           CODES                              00620000
+         UNPK  D03MSGI(9),S99ERROR(5) TO SOME                           00630000
+         TR    D03MSGI(8),HEX          PRINTABLE FORM                   00640000
+         MVI   D03MSGI+L'D03MSGI,0 PATCH DESCRIPTOR CODE                00650000
+         LA    R1,D03MSG                AND PRINT THEM                  00660000
+         SVC   35               WTO, ROUTCDE=11                         00670000
+&C       SETC  (&X8)'KEQEFF18'.(1-&X8)'IKJEFF18'                 88036  00680000
+         ST    R9,CALLAREA+12                                    88036  00690000
+         XC    D03CLR1,D03CLR1                                   88036  00700000
+         XC    D03CLR2,D03CLR2                                   88036  00710000
+         LINK  EP=&C,PARAM=(S99RB,CALLAREA+12,TSOADR,                  .00720000
+               TSOADR+4,0,#D03MSG1),MF=(E,CALLAREA+16)                  00730000
+         FIX   ' SUBTRACT 2 FROM EACH OF THESE NEXT ASSEMBLY'           00740000
+         LH    R15,#D03MSG1    SET UP BLOCK DESCRIPTOR WORDS     88036  00750000
+         LA    R15,6(,R15)                                       88036  00760000
+         SLL   R15,16                                            88036  00770000
+         ST    R15,#D03MSG1-6  BLOCK DESCRIPTOR WORD                    00780000
+         LH    R15,#D03MSG1    SET UP BLOCK DESCRIPTOR WORDS     88036  00790000
+         LA    R15,2(,R15)                                       88036  00800000
+         SLL   R15,16                                            88036  00810000
+         ST    R15,#D03MSG1-2  RECORD DESCRIPTOR WORD                   00820000
+         MVC   #D03MS1O,BLANKS                                   88036  00830000
+         LH    R15,#D03MSG2    FOR LENGTH FIELDS                        00840000
+         LTR   R15,R15                                                  00850000
+         BZ    DNO2NDMS                                                 00860000
+         LA    R15,6(,R15)                                       88036  00870000
+         SLL   R15,16                                            88036  00880000
+DNO2NDMS ST    R15,#D03MSG2-6                                           00890000
+         LH    R15,#D03MSG2    SET UP RECORD DESCRIPTOR WORDS    88036  00900000
+         LA    R15,2(,R15)                                       88036  00910000
+         SLL   R15,16                                            88036  00920000
+         ST    R15,#D03MSG2-2  RECORD DESCRIPTOR WORD                   00930000
+         MVC   #D03MS2O,BLANKS                                   88036  00940000
+         JOLERR 330,                                                   *00950000
+               'DSID ''',DDDSID,''' DDNAME ''',DDDDNAME,               *00960000
+               ''' ALLOCATION FAILED.'                                  00970000
+         PRPUT #D03MSG1-6                                        88036  00980000
+         CLC   #D03MSG2-6(2),=H'0'                                      00990000
+         BE    D03NSECM        NO SECOND MESSAGE                 87150  01000000
+         PRPUT #D03MSG2-6                                        88036  01010000
+D03NSECM DS    0H                                                       01020000
+         CLI   ISTSO,C' '                                         J40B  01030001
+         BE    D03NTS                                             J40B  01040002
+         LH    R0,#D03MSG1-6                                      J40B  01050000
+         SH    R0,=H'8'                                           J40B  01060000
+         LA    R1,#D03MSG1+2                                      J40B  01070000
+         TPUT  (1),(0),R                                          J40B  01080000
+         CLC   #D03MSG2-6(2),=H'0'                                J40B  01090000
+         BE    D03NTS          NO SECOND MESSAGE                  J40B  01100000
+         LH    R0,#D03MSG2-6                                      J40B  01110000
+         SH    R0,=H'8'                                           J40B  01120000
+         LA    R1,#D03MSG2+2                                      J40B  01130000
+         TPUT  (1),(0),R                                          J40B  01140000
+D03NTS   DS    0H                                                 J40B  01150000
+*        LA    R0,D03MSGL-4                                             01160000
+         FIX   'YOU REALISE THIS IS SUPPOSED TO BE REENTRANT DON''T U'  01170000
+         AIF   (NOT &X8).X8550                                    J40B  01180000
+         L     R1,S99ERROR                                       88036  01190000
+         SRL   R1,16                                             88036  01200000
+         LR    R0,R1                                             88036  01210000
+         SRL   R0,12                                             88036  01220000
+         CLM   R0,1,=X'0E'                                       88036  01230000
+         BNE   D03NO45                                           88036  01240000
+         N     R1,=A(X'FFF')   R1 CONTAINS 3 DECIMAL DIGITS       J40B  01241006
+         XC    DBL,DBL                                            J40B  01242006
+         SLL   R1,4            MAKE WAY FOR ZONES                 J40B  01243006
+         STH   R1,DBL+6                                           J40B  01244006
+         OI    DBL+7,X'0F'     SET ZONES                          J40B  01245006
+         CVB   R1,DBL                                             J40B  01246006
+         CALL  UJS45AER                                          88036  01250000
+D03NO45  DS    0H                                                88036  01260000
+         CLM   R0,1,=X'0F'                                       88036  01270000
+         BNE   D03NO46                                           88036  01280000
+         CALL  UJS46FER                                          88036  01290000
+D03NO46  DS    0H                                                88036  01300000
+.X8550   ANOP                                                     J40B  01310000
+         JOLRETN  RC=16                                                 01320000
+D03MSG   DS    0F                                                       01330000
+         DC    Y(D03MSGL),X'8000'    LENGTH AND FLAGS                   01340000
+         DC    C' DYNALLOC RETURN CODE '                                01350000
+D03MSGH  DS    H                                                        01360000
+         DC    C', ERROR AND INFO CODE '                                01370000
+D03MSGI  DS    XL8                 SPACE FOR ERROR AND INFO CODES       01380000
+D03MSGL  EQU   *-D03MSG            LENGTH OF MESSAGE                    01390000
+         DC    X'0000'         DESCRIPTOR CODES                         01400000
+         DC    X'0020'         ROUTING CODES                            01410000
+TSOADR   DC    F'0'        DON'T KNOW ADDR OF IKJEFF02                  01420000
+*        DC    X'80'      '80' WANT WTO, '00' WANT PUTLINE              01430000
+         DC    X'40'      JUST GIVE US THE MESSAGE. WE'LL PRINT IT      01440000
+         DC    X'32'      '32' IF SVC99 USED, '01' IF DAIR USED         01450000
+         DC    C'JL'                                                    01460000
+         SPACE 1                                                        01470000
+         LTORG                                                          01480000
+         AIF   (&X8).X8740                                       88036  01500001
+         IHAPDS                                                         01510001
+         TITLE 'DYNAMIC ALLOCATION STUFF'                               01520001
+         IEFZB4D0                                                       01530001
+         EJECT                                                   88036  01540001
+         IEFZB4D2                                                       01550001
+.X8740   ANOP                                                    88036  01560001
+         DS    0D                                                       01570001
+         PRINT GEN,NODATA                                               01580001
+         AIF  (NOT &X8).NOX8MAC                                         01590001
+         TITLE 'FIXED LOW CORE'                                         01600001
+         XAMFLC  DSECT=YES                                              01610001
+PSA      EQU   FLC                                                      01620001
+PSATOLD  EQU   FLCTOLD            FOR MVS,F4 COMPATIBILITY              01630001
+         TITLE 'COMMUNICATIONS VECTOR TABLE'                            01640001
+         XAMCVT  DSECT=YES                                              01650001
+         TITLE 'TASK CONTROL BLOCK    '                                 01660001
+         XAMTCB  DSECT=YES                                              01670001
+TCBFLGS1 EQU   TCBFLAG1       EQUIVALENT FIELDS ON F4,X8                01680001
+         TITLE 'REQUEST BLOCK         '                                 01690001
+         XAMRB   DSECT=YES                                              01700001
+         TITLE 'FILE CONTROL TABLE    '                                 01710001
+         XDDFCT                                                         01720001
+         TITLE 'JOB-STEP CONTROL BLOCK'                                 01730001
+         XDDJSCB                                                        01740001
+JSCBLEN  EQU   *-JSCB         MY NAME FOR ITS LENGTH                    01750001
+JSCBDISP EQU   0              MVS,F4 NAME FOR DISPLACEMENT TO START     01760001
+JSCBOPTS EQU   JSCBSTS                                                  01770001
+         TITLE 'COMMAND SCHEDULER CONTROL BLOCK'                        01780001
+         XDDCSCB                                                        01790001
+         TITLE 'PDS DIRECTORY ENTRY'                                    01800001
+*        KAAPDS                                                         01810007
+         TITLE 'DYNAMIC ALLOCATION STUFF'                               01820001
+         KDJZB4D0                                                       01830001
+         EJECT                                                   88036  01840001
+         KDJZB4D2                                                       01850001
+.NOX8MAC ANOP                                                           01860001
+         END                                                            01870001

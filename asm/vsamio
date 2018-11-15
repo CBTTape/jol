@@ -1,0 +1,467 @@
+VSAMIO   TITLE 'JOL VSAM INPUT/OUTPUT SUBROUTINES'                      00010000
+* JOL COPYRIGHT CCS-JOL, 1989                                           00020000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00030000
+           SPACE 3                                                      00040000
+*                   J             000000            L                   00050000
+*                   J            0      0           L                   00060000
+*                   J           0        0          L                   00070000
+*                   J          0          0         L                   00080000
+*                   J         0   ¬    ¬   0        L                   00090000
+*                   J         0   O    O   0        L                   00100000
+*                   J         0            0        L                   00110000
+*                   J         0     O      0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0   <___>    0        L                   00140000
+*                   J         0            0        L                   00150000
+*        J          J         0            0        L                   00160000
+*         J        J           0          0         L                   00170000
+*          J      J             0        0          L                   00180000
+*           J    J               0      0           L                   00190000
+*            JJJJ                 000000            LLLLLLLLLLL         00200000
+         SPACE 3                                                        00210000
+*********************************************************************** 00220000
+*                                                                       00230000
+*       BUILT BY JOHN SUMMERFIELD                                       00240000
+*                                                                       00250000
+*********************************************************************** 00260000
+         COPY  JOLCOM                                                   00270000
+         EJECT                                                          00280000
+OPENWA   DSECT                                                          00290000
+OWASA    DS    18F                                                      00300000
+OFSAV    DS    4F                                                       00310000
+OWARRET  DS    A                                                        00320000
+OWARETC  DS    F                                                        00330000
+OWAWA    DS    50F                                                      00340000
+OWAACBSZ DS    F                                                        00350000
+OWARPLSZ DS    F                                                        00360000
+OWAEXLSZ DS    F                                                        00370000
+OWAJFCA  DS    A                                                        00371000
+OPENWASZ EQU   *-OPENWA                                                 00380000
+         SPACE 3                                                        00390000
+VSPARM   DSECT                                                          00400000
+VSPWA    DS    0A                                                       00410000
+VSPFLAGS DS    BL1                                                      00420000
+VSPFEOL  EQU   X'80'                                                    00430000
+VSPFINP  EQU   X'01'             INPUT FILE                             00440000
+VSPFUPD  EQU   X'02'             UPDATE FILE                            00450000
+VSPFCRE  EQU   X'04'             CREATE: DELETE EXISTING DATA           00460000
+VSPFEXT  EQU   X'08'             EXTEND: BULK ADD OF NEW DATA           00470000
+         DS    AL3               ADDRESS OF FILE DEFINITION             00480000
+         SPACE 3                                                        00490000
+VSWKA    DSECT                                                          00500000
+VSWDDN   DS    CL8               DDNAME FOR THE DATA FILE               00510000
+VSWACCES DS    AL1               TYPE OF ACCESS REQUIRED                00520000
+VSWRESVD DS    3AL1              RESERVED FOR FUTURE USE                00530000
+VSWPROC  DS    A                 ADDRESS OF PROCESSING ROUTINE          00540000
+VSWXWA   DS    A                 ADDRESS OF EXTENDED WORK AREA          00550000
+VSWFDBK  DS    F                                                        00551000
+VSWFTNCD DS    F                                                        00552000
+VSWRETCD DS    F                                                        00553000
+         SPACE 3                                                        00560000
+VSXWKA   DSECT                   EXTENDED WORK AREA                     00570000
+VSXID    DS    CL8                                                      00580000
+VSXFLAGS DS    BL1                                                      00590000
+VSXFLAG1 DS    XL1                                                      00600000
+VSXF1NXT EQU   X'80'                                                    00610000
+VSXF1GET EQU   X'40'                                                    00611000
+VSXOMODE DS    X                                                        00620000
+VSXOU    EQU   X'01'             OPEN FOR UPDATE/CREATE/INSERT          00640000
+VSXRESVD DS    BL1               RESERVED FOR FUTURE USE                00650000
+VSXACBL  DS    A                 LENGTH OF VSAM ACB                     00660000
+VSXACBA  DS    A                 ADDRESS OF VSAM ACB                    00670000
+VSXRPLL  DS    A                 LENGTH OF VSAM RPL                     00680000
+VSXRPLA  DS    A                 ADDRESS OF VSAM RPL                    00690000
+VSXEXTL  DS    A                 LENGTH OF VSAM EXITS LIST              00700000
+VSXEXTA  DS    A                 ADDRESS OF VSAM EXISTS LIST            00710000
+VSXRECSZ DS    F                 VSAM RECORD SIZE                       00720000
+VSXKEYLN DS    F                 SIZE OF THE RECORD KEY                 00730000
+VSXRKP   DS    F                 RELATIVE KEY POSITION                  00740000
+VSXKEYAD DS    A                 ADDRESS OF MOST RECENT KEY             00750000
+VSXRECA  DS    A                 VSAM RECORD ADDRESS                    00760000
+VSXCLRSZ EQU   *-VSXWKA          AREA SIZE                              00770000
+VSXACBM  DS    CL128                                                    00790000
+VSXENQ   ENQ   (SYSNAME,VSXJFCB,E,44,SYSTEM),MF=L                 J50   00790100
+VSXENQL  EQU   *-VSXENQ                                           J50   00790200
+VSXJFCB  DS    XL176                                                    00791000
+VSXWKASZ EQU   *-VSXWKA          AREA SIZE                              00800000
+         JOLSAVE CSECT=UJA01OPN,       JOL DS DATABASE OPEN            .00810000
+               SIZE=OPENWASZ                                            00820000
+         USING OPENWA,R13                                               00830000
+         LR    R4,R1                                                    00840000
+         USING VSPARM,R4                                                00850000
+         XC    OWARETC,OWARETC   CLEAR PROSPECTIVE RETURN CODE          00860000
+AOP20    DS    0H                                                       00870000
+         L     R5,0(,R4)         ADDRESS FIRST/NEXT FWA                 00880000
+         USING VSWKA,R5                                                 00890000
+         BAL   R14,OFILE         OPEN IT                                00900000
+         LA    R4,4(,R4)         POINT TO NEXT ELEMENT OF LIST          00910000
+         LTR   R5,R5             Q... ANY MORE?                         00920000
+         BNM   AOP20             A... YES                               00930000
+         L     R15,OWARETC       LOAD RETURN CODE                       00940000
+         JOLRETN RC=(15)         RETURN TO CALLER                       00950000
+OFILE    DS    0H                                                       00960000
+         STM   R14,R1,OFSAV                                             00970000
+         MVC   VSWPROC,=A(UJA02IO)                                      00971000
+         FINDDD VSWDDN,NRETURN=OF05                               J50   00972000
+         JOLERR 500,VSWDDN,' NOT USABLE BECAUSE THE FILE IS NOT ALLOCATE00973000
+               ED',RC=16                                          J50   00974000
+OF05     DS    0H                                                 J50   00975000
+         MVI   OWAJFCA,0                                          J50   00976000
+         MVC   OWAJFCA+1(3),12(R1)  COPY JFCB ADDRESS                   00977000
+BONG     GETMAIN R,LV=VSXWKASZ,SP=2                                     00980000
+         ST    R1,VSWXWA         ALLOCATE EXTENDED WORK AREA            00990000
+         LR    R6,R1                                                    01000000
+         USING VSXWKA,R6                                                01010000
+         XC    VSXWKA(VSXCLRSZ),VSXWKA                                  01020000
+         MVC   VSXID,=CL7'VSXWKA '                                      01030000
+         GENCB BLK=EXLST,EODAD=VSEOD,LERAD=VSLERR,SYNAD=VSIOERR,       .01040000
+               MF=(G,OWAWA,ELEN)                                        01050000
+         IFOK  OF10                                                     01060000
+         JOLERR 501,'ERROR ',VSWRETCD,' BUILDING A VSAM EXITS LIST',   .01070000
+               RC=16                                                    01080000
+OF10     DS    0H                                                       01090000
+GOTEXLST DS    0H                                                       01100000
+         MVC   VSXFLAGS,VSPFLAGS TAKE A COPY OF THE FLAGS               01110000
+         NI    VSXFLAGS,X'7F'    TURN OFF END-OF-LIST INDICATOR         01120000
+         STM   R0,R1,VSXEXTL                                            01130000
+         GETMAIN R,LV=4096,SP=3                                   J50   01131000
+         LR    R8,R1                                              J50   01132000
+         GENCB BLK=ACB,DDNAME=(*,VSWDDN),                              .01140000
+               EXLST=(*,VSXEXTA),                                      .01150000
+               MACRF=(KEY,IN,DIR,SEQ,NRS),                             .01160000
+               MAREA=(S,VSXACBM),                                      .01170000
+               JFCB=(R8),                                         J50  .01171000
+               MLEN=128,                                               .01180000
+               MF=(G,OWAWA,ALEN)                                        01190000
+         IFOK  OF20                                                     01200000
+         JOLERR 502,'ERROR ',VSWRETCD,' BUILDING A VSAM ACB',          .01210000
+               RC=16                                                    01220000
+OF20     DS    0H                                                       01230000
+         STM   R0,R1,VSXACBL                                            01250000
+         MVI   VSXOMODE,0        CLEAR FLAG BYTE                        01251000
+         CLI   VSXFLAGS,VSPFINP  INPUT FILE?                            01260000
+         BE    OF50              YES                                    01270000
+         MVC   VSXENQ(VSXENQL),SYSENQ                             J50   01271000
+         L     R15,OWAJFCA                                        J50   01272000
+         MVC   VSXJFCB,16(R15)   COPY THE JFCB                    J50   01273000
+ENQ      ENQ   (SYSNAME,VSXJFCB,E,44,SYSTEM),                     J50  .01274000
+               MF=(E,VSXENQ)                                      J50   01275000
+         OI    VSXOMODE,VSXOU    IT'S OPEN FOR UPDATING                 01280000
+         MODCB ACB=(*,VSXACBA),                                        .01290000
+               MACRF=(OUT),                                            .01300000
+               MF=(G,OWAWA,ALEN1)                                       01310000
+         IFNOK OF30                                                     01320000
+         CLI   VSXFLAGS,VSPFUPD  RECREATE THE FILE?                     01330000
+         BE    OF50              NO                                     01340000
+MA02     MODCB ACB=(*,VSXACBA),                                        .01350000
+               MACRF=(SIS,RST),                                        .01360000
+               MF=(G,OWAWA,ALEN2)                                       01370000
+         IFNOK OF30                                                     01380000
+         CLI   VSXFLAGS,VSPFCRE  DO WE REMOVE EXISTING DATA?            01390000
+         BNE   OF50                                                     01400000
+MA03     MODCB ACB=(*,VSXACBA),                                        .01410000
+               MACRF=(RST),                                            .01420000
+               MF=(G,OWAWA,ALEN3)                                       01430000
+         IFOK  OF50                                                     01440000
+OF30     EQU   *-4                                                      01450000
+         JOLERR 503,'ERROR ',VSWRETCD,' CHANGING A VSAM ACB',          .01470000
+               RC=16                                                    01480000
+OF50     DS    0H                                                       01490000
+         OI    VSXACBA,X'80'                                            01500000
+         OPEN  MF=(E,VSXACBA)                                           01511000
+         IFOK  OF60                                                     01520000
+         JOLERR 404,'ERROR ',VSWRETCD,' OPENING VSAM FILE',            .01530000
+               RC=16                                                    01540000
+OF60     DS    0H                I OPENED THE FILE|                     01550000
+SA01     SHOWCB ACB=(*,VSXACBA),                                       .01570000
+               FIELDS=(LRECL,KEYLEN,RKP),                              .01580000
+               AREA=(S,VSXRECSZ),LENGTH=12,                            .01590000
+               MF=(G,OWAWA,ALEN4)                                       01600000
+         IFOK  OF80                                                     01610000
+         JOLERR 405,'ERROR ',VSWRETCD,' GETTING VSAM STATS',           .01620000
+               RC=16                                                    01630000
+OF80     DS    0H                                                       01640000
+         GENCB BLK=RPL,ACB=(*,VSXACBA),                                .01650000
+               OPTCD=(KEY,SYN,KEQ,FKS,LOC),                            .01660000
+               KEYLEN=(*,VSXKEYLN),                                    .01680000
+               MF=(G,OWAWA,RLEN)                                        01690000
+         IFOK  OF100                                                    01700000
+         JOLERR 506,'ERROR ',VSWRETCD,' BUILDING A VSAM RPL',          .01710000
+               RC=16                                                    01720000
+OF100    DS    0H                                                       01730000
+GOTRPL   DS    0H                                                       01740000
+         STM   R0,R1,VSXRPLL                                            01750000
+*        JOLERR 007,'VSAM INFO FOR ',VSWDDN,': LRECL=',VSXRECSZ,      . 01760000
+*              ' RKP=',VSXRKP,' KEYLEN=',VSXKEYLN                       01770000
+         L     R0,VSXKEYLN                                              01790000
+         ICM   R0,8,=AL1(2)                                             01800000
+         GETMAIN R,LV=(0)                                               01810000
+         ST    R1,VSXKEYAD                                              01820000
+         LR    R0,R1                                                    01830000
+         L     R1,VSXKEYLN                                              01840000
+         SLR   R15,R15                                                  01850000
+         MVCL  R0,R14            CLEAR THE KEY AREA                     01860000
+         LM    R14,R1,OFSAV                                             01870000
+         BR    R14                                                      01880000
+VSEOD    DS    0H                END-OF-DATA                            01890000
+         JOLRETN RC=4                                             J52   01891000
+         CVD   13,1(13)                                                 01900000
+         DC    C'END OF DATA'                                           01910000
+VSLERR   DS    0H                LOGIC ERROR EXIT                       01920000
+         LR    R0,R1                                                    01930000
+         SHOWCB RPL=(0),                                               .01940000
+               FIELDS=(FDBK,FTNCD),                                    .01950000
+               AREA=(S,VSWFDBK),LENGTH=8,                              .01960000
+               MF=(G,OWAWA)                                             01970000
+         IFOK  VE20                                                     01980000
+         JOLERR 415,'ERROR ',VSWRETCD,' GETTING VSAM ERROR INFO',      .01990000
+               RC=16                                                    02000000
+VE20     DS    0H                                                       02010000
+         CLC   =F'16',VSWFDBK    Q... RECORD NOT FOUND?           J50   02011000
+         BE    JRETN4            A... YES, DON'T ISSUE A MSG      J50   02012000
+         CLC   =F'08',VSWFDBK    Q... DUPLICATE RECORD?           J50   02013000
+         BE    VSLDUP            A... YES, ISSUE A SPECIAL MSG    J50   02014000
+         JOLERR 316,'VSAM LOGICAL ERROR CODE ',VSWFDBK,                .02020000
+               RC=16                                                    02030000
+VSLDUP   DS    0H                                                       02031000
+         L     R3,VSXRECA                                               02031100
+         A     R3,VSXRKP                                          J50   02031200
+         USING REC,R3                                             J50   02031300
+         JOLERR 117,'DUPLICATE RECORD ',RECKEY,RC=4                     02032000
+VSIOERR  DS    0H                I/O ERROR PROCESSING                   02040000
+         D     R0,=D'0'                                                 02050000
+         DC    C'I/O ERROR'                                             02060000
+SYSENQ   ENQ   (SYSNAME,*-*,E,44,SYSTEM),MF=L                     J50   02061000
+SYSNAME  DC    CL8'SPFDSN'                                        J50   02062000
+         LTORG                                                          02070000
+         DC    40S(*)                                                   02080000
+         SPACE 3                                                        02090000
+IOWA     DSECT                                                          02100000
+IOSA     DS    18F                                                      02110000
+IOWKREGS DS    4F                                                       02120000
+IOWBUFFA DS    A                                                        02130000
+IOWORK   DS    128X                                                     02140000
+IOWASIZE EQU   *-IOWA                                                   02150000
+REC      DSECT                                                    J50   02151000
+RECKEY   DS    CL44              FOR PRINTING ERROR MSGS          J50   02152000
+         EJECT                                                          02160000
+         JOLSAVE CSECT=UJA02IO,  JOL DS I/O ROUTINE                    .02170000
+               BASE=R10,                                               .02180000
+               SIZE=IOWASIZE                                            02190000
+         USING IOWA,R13                                                 02200000
+         L     R11,=A(UJA01OPN)                                         02210000
+         LR    R5,R1                                                    02220000
+         ICM   R6,15,VSWXWA                                             02230000
+         BNZ   A0210                                              J50   02230100
+         JOLERR 500,VSWDDN,' NOT USABLE BECAUSE THE FILE IS NOT OPEN', .02231000
+               RC=16                                              J50   02232000
+A0210    DS    0H                                                       02233000
+         LR    R7,R0             LOAD RECORD ADDRESS                    02240000
+         SLR   R15,R15                                                  02250000
+         IC    R15,VSWACCES                                             02260000
+JUMP     B     JUMP+4(R15)                                              02270000
+         B     INS                                                      02280000
+         B     UPD                                                      02290000
+         B     DEL                                                      02300000
+         B     RD                                                       02310000
+         B     RDN                                                      02320000
+         B     REL                                                      02330000
+         EJECT                                                          02340000
+INS      DS    0H                                                       02350000
+* INSERT A RECORD.                                                      02360000
+*        1     IF RECORD IS OUT OF SEQUENCE, WE SHOULD ISSUE AN         02370000
+*              ENDREQ REQUEST AND INFORM THE USER                       02380000
+*        2     NEXT WE CHANGE THE RPL AS NECESSARY, AND ADD THE NEW     02390000
+*              RECORD                                                   02400000
+*        3     IF ANY ERRORS OCCUR, WE SHOULD ISSUE A MESSAGE FOR       02410000
+*              THE USER SO HE KNOWS IT DIDN'T WORK AS EXPECTED          02420000
+         L     R0,VSXKEYAD                                              02430000
+         L     R14,VSXRKP        KEY OFFSET                             02440000
+         ALR   R14,R7            KEY POSITION IN RECORD                 02450000
+         L     R15,VSXKEYLN      KEY LENGTH                             02460000
+         LR    R1,R15            COMPARE OLD KEY WITH NEW               02470000
+         STM   R14,R1,IOWKREGS   SAVE POINTERS A MOMENT OR TWO          02480000
+         CLCL  R0,R14                                                   02490000
+         NOP   INS10             KEYS ARE IN SEQUENCE                   02500000
+*        BNH   INS10             KEYS ARE IN SEQUENCE                   02501000
+         L     R1,VSXRPLA                                               02510000
+         ENDREQ RPL=(1)                                                 02520000
+         IFOK  INS10                                                    02530000
+         JOLERR 508,'ERROR ',VSWRETCD,' ISSUING A VSAM ENDREQ',        .02540000
+               RC=16                                                    02550000
+INS10    DS    0H                                                       02560000
+         LH    R0,0(,R7)                                          J50   02561000
+         ST    R0,VSXRECSZ                                        J50   02562000
+         MODCB RPL=(*,VSXRPLA),AREA=(R7),                            . .02570000
+               OPTCD=(MVE,NUP),                                        .02580000
+               RECLEN=(*,VSXRECSZ),                                    .02581000
+               MF=(G,IOWORK,ALEN5)                                      02590000
+INS15    DS    0H                                                       02591000
+         IFOK  INS20                                                    02600000
+         JOLERR 509,'ERROR ',VSWRETCD,' CHANGING A VSAM RPL',          .02610000
+               RC=16                                                    02620000
+INS20    DS    0H                                                       02630000
+*        TM    VSXFLAG1,VSXF1GET Q... DID WE JUST READ A RECORD?  J50   02630100
+*        BZ    INS25             A... NO                                02630200
+*        MODCB RPL=(*,VSXRPLA),                                        .02630300
+               OPTCD=(NUP),                                            .02630400
+               MF=(G,IOWORK)                                            02630500
+*        IFNOK RD20                                                     02630600
+INS25    DS    0H                                                       02630700
+*        JOLERR 514,'ERROR ',VSWRETCD,' CHANGING A VSAM RPL',          .02630800
+               RC=16                                                    02630900
+INS30    DS    0H                                                       02631000
+         NI    VSXFLAG1,255-VSXF1GET                              J50   02631100
+         L     R1,VSXRPLA                                               02640000
+         PUT   RPL=(1)                                                  02650000
+         IFOK  INS40                                                    02660000
+         JOLERR 510,'ERROR ',VSWRETCD,' INSERTING A VSAM RECORD',      .02670000
+               RC=16                                                    02680000
+INS40    LM    R14,R1,IOWKREGS                                          02690000
+         MVCL  R0,R14            COPY THE NEW KEY                       02700000
+         JOLRETN                                                        02710000
+         EJECT                                                          02720000
+UPD      DS    0H                                                       02730000
+* UPDATE A RECORD.                                                      02740000
+*        1     CHANGE THE RPL AS NECESSARY, AND ADD THE NEW RECORD      02750000
+*        2     IF ANY ERRORS OCCUR, WE SHOULD ISSUE A MESSAGE FOR THE   02760000
+*              USER SO HE KNOWS IT DIDN'T WORK AS EXPECTED              02770000
+         LH    R0,0(,R7)                                          J50   02771000
+         ST    R0,VSXRECSZ                                        J50   02772000
+         MODCB RPL=(*,VSXRPLA),AREA=(R7),                            . .02780000
+               RECLEN=(*,VSXRECSZ),                                    .02781000
+               OPTCD=(MVE,SEQ),                                        .02790000
+               MF=(G,IOWORK) LEN5)                                      02800000
+         IFOK  UPD015                                                   02810000
+         JOLERR 511,'ERROR ',VSWRETCD,' CHANGING A VSAM RPL',          .02820000
+               RC=16                                                    02830000
+UPD015   DS    0H                                                       02840000
+         L     R1,VSXRPLA                                               02850000
+         NI    VSXFLAG1,255-VSXF1GET                              J50   02851000
+         PUT   RPL=(1)                                                  02860000
+         IFOK  UPD20                                                    02870000
+         JOLERR 312,'ERROR ',VSWRETCD,' INSERTING A VSAM RECORD',      .02880000
+               RC=16                                                    02890000
+UPD20    DS    0H                                                       02900000
+         JOLRETN                                                        02910000
+DEL      DS    0H                                                       02920000
+         NI    VSXFLAG1,255-VSXF1GET                              J50   02921000
+         L     R1,VSXRPLA                                               02930000
+         ERASE RPL=(1)                                                  02940000
+         IFOK  DEL20                                                    02950000
+         JOLERR 313,'ERROR ',VSWRETCD,' DELETING A VSAM RECORD',       .02960000
+               RC=16                                                    02970000
+DEL20    DS    0H                                                       02980000
+         L     R1,VSXRPLA                                               02981000
+         ENDREQ RPL=(1)                                                 02982000
+         JOLRETN                                                        02990000
+RDN      DS    0H                                                       03000000
+         OI    VSXFLAG1,VSXF1NXT                                        03010000
+         ST    R0,IOWBUFFA                                              03020000
+         A     R0,VSXRKP                                          J50   03021000
+         MODCB RPL=(*,VSXRPLA),AREA=(S,VSXRECA),                     . .03030000
+               ARG=(0),                                                .03040000
+               OPTCD=(KEY,SYN,KEQ,FKS,LOC,SEQ),                        ,03060000
+               MF=(G,IOWORK)                                            03070000
+         B     RD10                                                     03080000
+         EJECT                                                          03090000
+RD       DS    0H                                                       03100000
+         NI    VSXFLAG1,255-VSXF1NXT                                    03110000
+         ST    R0,IOWBUFFA                                              03120000
+         A     R0,VSXRKP                                          J50   03121000
+         MODCB RPL=(*,VSXRPLA),AREA=(S,VSXRECA),                     . .03130000
+               ARG=(0),                                                .03150000
+               OPTCD=(KEY,SYN,KGE,LOC,DIR,GEN), CVC CHANGED TO GEN     .03160000
+               MF=(G,IOWORK)  ***                                       03170000
+*              OPTCD=(KEY,SYN,KEQ,FKS,LOC,DIR,GEN), CVC ADDED GEN       03171000
+RD10     DS    0H                                                       03180000
+         IFNOK RD20                                                     03190000
+         TM    VSXOMODE,VSXOU    Q... OPEN FOR INPUT                    03200000
+         BZ    RD30              A... YES                               03210000
+         MODCB RPL=(*,VSXRPLA),                                        .03220000
+               OPTCD=(UPD),                                            .03230000
+               MF=(G,IOWORK)                                            03240000
+         IFOK  RD30                                                     03250000
+RD20     EQU   *-4                                                      03260000
+         JOLERR 514,'ERROR ',VSWRETCD,' CHANGING A VSAM RPL',          .03280000
+               RC=16                                                    03290000
+RD30     DS    0H                                                       03300000
+         L     R1,VSXRPLA                                               03310000
+*        ENDREQ RPL=(1)                                                 03320000
+*        IFOK  RD40                                                     03330000
+*        JOLERR 515,'ERROR ',VSWRETCD,' ISSUING A VSAM ENDREQ',        .03340000
+               RC=16                                                    03350000
+RD40     DS    0H                                                       03360000
+         OI    VSXFLAG1,VSXF1GET                                  J50   03361000
+         L     R1,VSXRPLA                                               03370000
+         GET   RPL=(1)                                                  03380000
+         L     R0,IOWBUFFA                                              03390000
+         L     R14,VSXRECA                                              03400000
+         USING IFGRPL,R1                                                03410000
+         L     R1,RPLRLEN                                               03420000
+         DROP  R1                                                       03430000
+         LR    R15,R1                                                   03440000
+DIE      DS    0H                                                       03450000
+         MVCL  R0,R14                                                   03460000
+*        JOLRETN RC=(R15)                                               03470000
+         JOLRETN RC=0                                                   03471000
+         EJECT                                                          03480000
+REL      DS    0H                                                       03490000
+         L     R1,VSXRPLA                                               03500000
+         ENDREQ RPL=(1)                                                 03510000
+         IFOK  REL20                                                    03520000
+         JOLERR 515,'ERROR ',VSWRETCD,' ISSUING A VSAM ENDREQ',        .03530000
+               RC=16                                                    03540000
+REL20    DS    0H                                                       03550000
+         JOLRETN                                                        03560000
+         LTORG                                                          03570000
+         JOLSAVE CSECT=UJA03CLS,       JOL DS DATABASE CLOSE           .03580000
+               SIZE=OPENWASZ                                            03590000
+         USING OPENWA,R13                                               03600000
+         LR    R4,R1                                                    03610000
+         USING VSPARM,R4                                                03620000
+         XC    OWARETC,OWARETC   CLEAR PROSPECTIVE RETURN CODE          03630000
+COP20    DS    0H                                                       03640000
+         L     R5,0(,R4)         ADDRESS FIRST/NEXT FWA                 03650000
+         USING VSWKA,R5                                                 03660000
+         BAL   R14,CFILE         OPEN IT                                03670000
+         LA    R4,4(,R4)         POINT TO NEXT ELEMENT OF LIST          03680000
+         LTR   R5,R5             Q... ANY MORE?                         03690000
+         BNM   COP20             A... YES                               03700000
+         L     R15,OWARETC       LOAD RETURN CODE                       03710000
+         JOLRETN RC=(15)         RETURN TO CALLER                       03720000
+CFILE    DS    0H                                                       03730000
+         STM   R14,R1,OFSAV                                             03740000
+         ICM   R6,15,VSWXWA                                             03741000
+         BNZ   CF10                                               J50   03742000
+         MVI   OWARETC+3,4                                        J50   03742100
+         JOLERR 200,VSWDDN,' NOT CLOSABLE BECAUSE THE FILE IS NOT OPEN' 03743000
+         B     CF90                                               J50   03744000
+CF10     DS    0H                                                       03745000
+         CLOSE MF=(E,VSXACBA)                                           03760000
+         TM    VSXOMODE,VSXOU    Q... OPEN FOR INPUT                    03761000
+         BZ    CF50              NO                                     03762000
+DEQ      DEQ   MF=(E,VSXENQ)                                      J50   03763000
+CF50     DS    0H                                                       03764000
+         LM    R0,R1,VSXRPLL                                            03770000
+         FREEMAIN R,LV=(0),A=(1)                                        03780000
+         LM    R0,R1,VSXACBL                                            03790000
+         FREEMAIN R,LV=(0),A=(1)                                        03800000
+         LM    R0,R1,VSXEXTL                                            03810000
+         FREEMAIN R,LV=(0),A=(1)                                        03820000
+         L     R1,VSWXWA         FREE EXTENDED WORK AREA                03830000
+         FREEMAIN R,LV=VSXWKASZ,SP=2,A=(1)                              03840000
+CF90     DS    0H                                                       03841000
+         LM    R14,R1,OFSAV                                             03850000
+         BR    R14                                                      03860000
+         DC    40S(*)                                                   03870000
+SYSNAME1 DC    CL8'SPFDSN'                                        J50   03871000
+         LTORG                                                          03880000
+         PRINT  OFF                                               J52   03881000
+         TITLE 'REQUEST PARAMETER LIST'                                 03890000
+         IFGRPL DSECT=YES                                               03900000
+         TITLE 'ACCESS METHOD CONTROL BLOCK'                            03910000
+         IFGACB DSECT=YES                                               03920000
+         TITLE 'VSAM EXISTS LIST'                                       03930000
+         IFGEXLST DSECT=YES                                             03940000
+         END                                                            03950000

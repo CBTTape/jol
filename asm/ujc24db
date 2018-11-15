@@ -1,0 +1,214 @@
+UJC24DB    TITLE 'GET DATA FROM THE DATA BASE OF DATA SETS'             00010001
+* NEW MODULE, J. SUMMERFIELD AND C. V. CLARKE, NOVEMBER 15,1989         00020019
+*                                                                       00023024
+* COPYRIGHT CCS-JOL 1989                                                00030001
+          COPY JOLCOM                                                   00040009
+&DEBUG   SETB  1                                                        00042009
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00050001
+           SPACE 3                                                      00060001
+*                   J             000000            L                   00070001
+*                   J            0      0           L                   00080001
+*                   J           0        0          L                   00090001
+*                   J          0          0         L                   00100001
+*                   J         0            0        L                   00110001
+*                   J         0            0        L                   00120001
+*                   J         0            0        L                   00130001
+*                   J         0            0        L                   00140001
+*                   J         0            0        L                   00150001
+*                   J         0            0        L                   00160001
+*                   J         0            0        L                   00170001
+*        J          J         0            0        L                   00180001
+*         J        J           0          0         L                   00190001
+*          J      J             0        0          L                   00200001
+*           J    J               0      0           L                   00210001
+*            JJJJ                 000000            LLLLLLLLLLL         00220001
+           SPACE 6                                                      00230001
+*********************************************************************** 00240001
+*                                                                       00250001
+* NOTE                    NOTE                    NOTE                  00260001
+*     NOTE            NOTE    NOTE            NOTE    NOTE              00270001
+*         NOTE    NOTE            NOTE    NOTE            NOTE    NOTE  00280001
+*             NOTE                    NOTE                    NOTE      00290001
+*                                                                       00300001
+*********************************************************************** 00310001
+*                                                                       00320001
+* THIS MODULE  IS CALLED BY UJC24RUN TO OUTPUT A DDCARD.                00330002
+*                                                                       00340001
+* IT CHECKS IF IT IS A NEW DATA SET, AND IF SO CALLS THE                00350001
+* ROUTINE TO READ DATA SET INFORMATION FROM THE DATA BASE, AND          00360001
+* THEN MERGES THE INFORMATION WITH THE ORIGINAL DDDSNDET.               00370001
+*                                                                       00380001
+C242SAVE DSECT                                                    89311 00381012
+         DS    18F                                                89311 00382012
+C242DS   DS    0XL256          THIS IS WHERE THE DDDSNDET IS READ 89311 00383012
+         ORG   C242DS+DDDSNAME-DDDSNDET                           J50   00383114
+C242DSN  DS    CL44            THIS IS WHERE THE DDDSNDET IS READ 89311 00383212
+         DS    (512-44)X       FROM THE VSAM DATA BASE   CVC      J50   00384025
+C242AID  DS    A                                                        00389008
+C242SVEL EQU (*-C242SAVE)                                         75311 00389108
+         JOLSAVE CSECT=UJC24DB,SIZE=C242SVEL                      75311 00389208
+         USING C242SAVE,R13                                       75311 00389308
+         USING JOLCOM,R2                                                00389408
+         USING DDDSNDET,R7                                              00389508
+         L     R7,0(R1)          GET ADDRESS OF DDDSNDET          J50   00389608
+         CLI   DDDSID,C'$'                                        J50   00389722
+         BNE   C24RET0                                            J50   00389823
+         TM    DDUSE,B'11000000' INPUT ?                          75311 00389922
+         BM    C24NOTIN        NOPE                               75311 00390022
+C24RET0  JOLRETN RC=0                                             J50   00390122
+C24NOTIN DS    0H                MUST LOOK UP THE DATA BASE       J50   00390222
+         L     R6,VSAMCBS                                         J50   00390331
+         TM    UJFLAG1,UF1DBOPN+UF1DBERR                          J50   00390422
+         BNZ   C24XX             OPENED, OR IN ERROR              J50   00390522
+         USING VSAMINFO,R6                                        J50   00390622
+         VSOPEN (JOLDSDB,INPUT),                                       .00390722
+               MF=(E,CALLAREA),NRETURN=C24XX                            00390822
+         ST    R15,CALLAREA                                       J50   00390922
+         OI    UJFLAG1,UF1DBERR                                   J50   00391022
+         JOLERR 507,'ERROR ',CALLAREA,' OPENING JOL DS DB',RC=16        00391122
+C24XX    DS    0H                                                 J50   00391222
+         OI    UJFLAG1,UF1DBOPN                                   J50   00391322
+         TM    UJFLAG1,UF1DBERR  IF VSAM ERROR,                   J50   00391422
+         BNZ   C24RET0           IGNORE IT                        J50   00391522
+         TM    UJFLAG1,UF1DBOPN  IF NOT OPEN                      J50   00391622
+         BZ    C24RET0           IGNORE IT                        J50   00391722
+         IC    R15,DDOSVB+1                                       J50   00391822
+         BCTR  R15,0                                              J50   00391922
+         EX    R15,*+4                                            J50   00392022
+         MVC   C242DS(0),DDDSNDET                                 J50   00392122
+C24MODL  DS    0H                                                       00392232
+         LA    R6,C242DS                                          J50   00392332
+         JOLERR 000,'FINDING ''',                                      .00392434
+               DDDSNAME-DDDSNDET(R6),                            J50   *00392534
+               ''' IN DATA SET REPOSITORY'                       J52    00392635
+         MVC   OP(44),DDDSNAME-DDDSNDET(R6)                       J52   00392738
+         MVC   #OP,=H'44'                                         J52   00392838
+         L     R6,VSAMCBS        RELOADED FOR MODEL LOOP CVC      J50   00392938
+         VSIO  GETFIRST,JOLDSDB,C242DS,NRETURN=C24MERG                  00393238
+*        VSIO  GETFIRST,JOLDSDB,(R7),NRETURN=JRETN0                     00393338
+         CH    R15,=H'4'         NOT FOUND                        J50   00393438
+         BE    C24NF             THAT'S IT!                       J50   00393538
+         ST    R15,CALLAREA                                       J50   00393638
+         OI    UJFLAG1,UF1DBERR                                   J50   00393738
+         JOLERR 309,'VSAM READ ERROR ON JOLDSDB: PROCESSING CANCELLED',.00393838
+               RC=4                                               J50   00393938
+C24NF    JOLERR 310,'OUTPUT DATASET ''',#OP,                           .00394038
+               ''' IS NOT DEFINED IN THE JOL DATASET DATABASE',   J50  .00394138
+               RC=4                                               J50   00394238
+C24MERG  DS    0H                                                 J50   00394338
+*        JOLRETN RC=0                                             J50   00394438
+*        AGO   .X                                                 J50   00394538
+         DROP  R6                                                 J50   00394638
+*        NOW   MERGE                                              J50   00394738
+* CHECK  IF THE DSNAME IS EQUAL BECAUSE WE ARE DOING GENERIC      J52   00404233
+* LOOKUPS.                                                        J52   00405233
+           LA  R6,C242DS         ADDRESS THE NEW DETAILS                00406233
+           CLC OP(44),DDDSNAME-DDDSNDET(R6)                       J52   00407237
+           BNE C24NF                                              J52   00408233
+         JOLERR 017,'GATHERING DB INFORMATION ',                  J52  *00410037
+               'FOR DSID ''',DDDSID,''' DSNAME '''                J52  *00411037
+               #OP                                                J52   00412037
+* AND SO WE HAVE THE FOLLOWING SITUATION:-                              00420000
+*     1.  THE OLD DSID IS POINTED TO BY R7                              00430001
+*     2.  THE NEW DSID IS IN OUR WORK AREA OF THE SAVE AREA CHAIN       00440001
+* NOW ANY INFORMATION THAT IS IN THE NEW ONE THAT ISN'T IN THE OLD89128 00450001
+*  ONE MUST BE SHIFTED TO THE NEW ONE                             89128 00460001
+           LA  R6,C242DS         ADDRESS THE NEW DETAILS                00480017
+C03DOLIK EQU   *                                                  75128 00490000
+*          IFVALUE DDDSNAME,C03LDSN            ALREADY HAS VALUE,LEAVE  00500019
+*          MVC DDDSNAME,DDDSNAME-DDDSNDET(R6)                           00510019
+*          MVC DDMBR,DDMBR-DDDSNDET(R6)                                 00520019
+            MVC  DDTYPE,DDTYPE-DDDSNDET(R6)                             00530000
+C03LDSN    EQU *                                                        00540000
+C03LMBR    IFVALUE DDVOLUME,C03LVOL            ALREADY HAS VALUE,LEAVE  00550000
+           MVC DDVOLUME,DDVOLUME-DDDSNDET(R6)                           00560000
+C03LVOL    IFVALUE DDUNIT,C03LUNIT             ALREADY HAS VALUE,LEAVE  00570000
+           MVC DDUNIT(L'DDUNIT+L'DDUNITNO+L'DDUNITYP),DDUNIT-DDDSNDET(R*00580000
+               6)                                                       00590000
+C03LUNIT   IFVALUE DDPRIM,DDSEC,DDDIRECT,C03LSPC LEAVE AS IS            00600000
+           MVC DDPRIM(L'DDPRIM+L'DDSEC+L'DDDIRECT+L'DDCYLTRK),DDPRIM-DD*00610000
+               DSNDET(R6)                                               00620000
+C03LSPC    IFVALUE DDRECFM,C03LRECF           ALREADY HAS VALUE,LEAVE   00630000
+         MVC   DDRECFM,DDRECFM-DDDSNDET(R6)              JOL30053 76200 00640000
+C03LRECF IFVALUE DDBLKSZE,C03LBLKS                       JOL30053 76200 00650000
+         MVC   DDBLKSZE,DDBLKSZE-DDDSNDET(R6)            JOL30053 76200 00660000
+C03LBLKS IFVALUE DDLRECL,C03LRECL                        JOL30053 76200 00670000
+         MVC   DDLRECL,DDLRECL-DDDSNDET(R6)              JOL30053 76200 00680000
+C03LRECL IFVALUE DDCATLGS,C03LCATS                       JOL30053 76200 00690000
+         MVC   DDCATLGS,DDCATLGS-DDDSNDET(R6)            JOL30053 76200 00700000
+C03LCATS IFVALUE DDBUFL,C03LBUFL                         JOL30053 76200 00710000
+         MVC   DDBUFL,DDBUFL-DDDSNDET(R6)                JOL30053 76200 00720000
+C03LBUFL IFVALUE DDBUFNI,C03LBFNI                                 82300 00730000
+         MVC   DDBUFNI,DDBUFNI-DDDSNDET(R6)                       82300 00740000
+C03LBFNI IFVALUE DDBUFND,C03LBFND                                 82300 00750000
+         MVC   DDBUFND,DDBUFND-DDDSNDET(R6)                       82300 00760000
+C03LBFND IFVALUE DDVOLSEQ,C03LVSEQ                       JOL30053 76200 00770000
+         MVC   DDVOLSEQ,DDVOLSEQ-DDDSNDET(R6)            JOL30053 76200 00780000
+C03LVSEQ IFVALUE DDMAXVOL,C03LMXV                        JOL30053 76200 00790000
+         MVC   DDMAXVOL,DDMAXVOL-DDDSNDET(R6)            JOL30053 76200 00800000
+C03LMXV  IFVALUE DDCODE,C03LCODE                         JOL30053 76200 00810000
+         MVC   DDCODE,DDCODE-DDDSNDET(R6)                JOL30053 76200 00820000
+C03LCODE IFVALUE DDFUNC,C03LFUNC                         JOL30053 76200 00830000
+         MVC   DDFUNC,DDFUNC-DDDSNDET(R6)                JOL30053 76200 00840000
+C03LFUNC IFVALUE DDSIZE(DDSIZEQ-DDSIZE),C03LSIZE         JOL30053 76200 00850000
+         MVC   DDSIZE(DDSIZEQ-DDSIZE+L'DDSIZEQ),DDSIZE-DDDSNDET(R6) 200 00860000
+C03LSIZE IFVALUE DDBUFNO,C03LBUF            ALREADY HAS VALUE,LEAVE     00870000
+         MVC DDBUFNO,DDBUFNO-DDDSNDET(R6)                               00880000
+C03LBUF  IFVALUE DDOPTCD,C03LOPTC           ALREADY HAS VALUE,LEAVE     00890000
+         MVC DDOPTCD,DDOPTCD-DDDSNDET(R6)                               00900000
+C03LOPTC IFVALUE DDDENS,C03LDENS            ALREADY HAS VALUE,LEAVE     00910000
+         MVC DDDENS,DDDENS-DDDSNDET(R6)                                 00920000
+C03LDENS IFVALUE DDRKP,C03LRKP              ALREADY HAS VALUE,LEAVE     00930000
+         MVC DDRKP,DDRKP-DDDSNDET(R6)                                   00940000
+C03LRKP  IFVALUE DDKEYLEN,C03LKEYL          ALREADY HAS VALUE,LEAVE     00950000
+         MVC DDKEYLEN,DDKEYLEN-DDDSNDET(R6)                             00960000
+C03LKEYL IFVALUE DDOVERFL,C03LOVRF          ALREADY HAS VALUE,LEAVE     00970000
+         MVC DDOVERFL,DDOVERFL-DDDSNDET(R6)                             00980000
+C03LOVRF IFVALUE DDDSORG,C03LDSRG           ALREADY HAS VALUE,LEAVE     00990000
+         MVC DDDSORG,DDDSORG-DDDSNDET(R6)                               01000000
+C03LDSRG IFVALUE DDLABEL,C03LLAB            ALREADY HAS VALUE,LEAVE     01010000
+         MVC DDLABEL,DDLABEL-DDDSNDET(R6)                               01020000
+C03LLAB  IFVALUE DDAEXTRA,C03LPREF          ALREADY HAS VALUE,LEAVE     01030000
+         MVC DDAEXTRA,DDAEXTRA-DDDSNDET(R6)                             01040000
+C03LPREF EQU    *           IFVALUE DDRETPD,C03LRTP                DASD 01050000
+*        MVC   DDRETPD,DDRETPD-DDDSNDET(R6)                        DASD 01060000
+C03LRTP  IFVALUE DDEXPDT,C03LEXP                                  75128 01070000
+*DDRETPD AND DDEXPDT ARE SAME REALLY--MUST MOVE RETPD IF EXPDT     DASD 01080000
+         MVC   DDRETPD,DDRETPD-DDDSNDET(R6)                        DASD 01090000
+         MVC   DDEXPDT,DDEXPDT-DDDSNDET(R6)                       75128 01100000
+C03LEXP  EQU   *                                                  75128 01110000
+* THERE ARE A FEW THINGS THAT NEED COPYING BUT IN A 'BIT' FASHION 75128 01120000
+         OC    DDSPECT2,DDSPECT2-DDDSNDET(R6)                     75128 01130000
+         OC    DDSPECTP,DDSPECTP-DDDSNDET(R6)                     75128 01140000
+         OC    DDUNITQU,DDUNITQU-DDDSNDET(R6)                     82200 01150000
+         IFVALUE DDLABTYP,C03LTYP                                 75128 01160000
+         MVC   DDLABTYP,DDLABTYP-DDDSNDET(R6)                           01170000
+C03LTYP  EQU   *                                                        01180000
+*                                                                       01190000
+* NOW CHECK IF 'DCB-EXTRA' WAS CODED ON OLD, BUT NOT ON NEW,AND   75128 01200000
+*        COPY IF SO                                               75128 01210000
+         CLC   DDOSVB,=AL2(DDLEN)  LONGER THAN USUAL ?            75128 01220000
+         BH    C03LEXTR            YES,LEAVE EXTRA                75128 01230000
+         CLC   DDOSVB-DDDSNDET(R6),=AL2(DDLEN) IS OLD RECORD LONG?75128 01240000
+         BNH   C03LEXTR            NO, BOTH RECORDS ARE SHORT     75128 01250000
+         MVC   DDOSVB,DDOSVB-DDDSNDET(R6) SWAP LENGHTS            75128 01260000
+         MVC   DDEXTRA,DDEXTRA-DDDSNDET(R6) SHIFT 'EXTRA' INFO    75128 01270000
+C03LEXTR EQU   *                                                  75128 01280000
+C03WRITE   EQU *                                                        01290000
+C03WRIT2 EQU   *                                                  75128 01300000
+*                                                                 J50   01301028
+* CHECK IF THERE IS A MODEL ASSOCIATED WITH THE DATA SET.         J50   01302028
+*                                                                 J50   01303028
+         CLI   DDDSID-DDDSNDET(R6),C' '    IS THERE A MODEL?      J50   01304028
+         BE    C24NOMOD          NO, SO WE CAN NOW RETURN         J50   01305028
+         MVC   DDDSNAME-DDDSNDET(,R6),BLANKS                      J50   01306029
+         MVC   DDDSNAME-DDDSNDET(6,R6),=C'MODEL='                 J50   01306130
+         MVC   DDDSNAME-DDDSNDET+6(12,R6),DDDSID-DDDSNDET(R6)     J50   01307030
+         B     C24MODL           GET THE MODEL, AND REPEAT        J50   01308028
+         FIX   'IF VSAM, SET VSAM  BIT, AND OUTPUT VSAM CNTL CARDS IN  .01310005
+               SPECIAL FORMAT'                                    J50   01320007
+C24NOMOD DS    0H                                                 J50   01330028
+         JOLRETN RC=0                                             J50   01340001
+.X       ANOP                                                     J50   01341019
+         LTORG                                                    J50   01350003
+         END                                                            01360005

@@ -1,0 +1,199 @@
+UJE70OPN TITLE 'JOL SCHEDULER FILE OPEN'                         88036  00010001
+         COPY  JOLGLOBL                                          88036  00020001
+         LCLC  &C                                                88036  00030001
+         $UJEPARM                                                88036  00040001
+         TITLE 'EXECUTION PHASE COMMON WORK AREA'                88036  00050001
+UJECOMM  DSECT                                                   88036  00070001
+         USING UJECOMM,R3                                               00071006
+         COPY  UJECOMM                                           88036  00080001
+         TITLE 'JOL SCHEDULER FILE OPEN'                         88036  00090001
+         JOLSAVE CSECT=UJE70OPN                                         00100001
+         LR  R9,R1           SAVE PARAMETER AREA ADDRESS INTO R9        00110001
+* B 4 WE GET TOO INVOLVED, LET'S  OPEN THE PRINT FILE INCASE      J40B  00110110
+*        FINDDD =CL8'JOLPRINT'                                          00110212
+*        LTR   R15,R15         IS IT PRESENT ?                          00110312
+*        BNZ   E70OPEN         GO AND OPEN THE OTHER FILES              00110412
+*        JOLOPEN (,AD),MF=(E,AFPRINT)   EXTEND THE PRINT FILE           00110510
+         JOLOPEN (,OUTPUT),MF=(E,AFPRINT)   EXTEND THE PRINT FILE       00110610
+         LTR   R15,R15                                           88036  00110710
+         BZ    E70OPEN                                           88036  00110810
+         SPEAK 'I THINK THE PRINT FILE OPENED'                   88036  00110910
+E70OPEN  DS    0H                                                       00111010
+         SPEAK 'WELL HERE WE ARE IN UJE70OPN'                    88036  00111110
+* FUNCTION : OPEN REQUIRED FILES, SET INDICATORS, LOAD IBM JOBQ RTN     00120000
+*  IF NECESSARY.                                                        00130000
+         SPACE 3                                                        00140000
+&C       SETC  (&X8)'FLCTOLD'.(1-&X8)'PSATOLD'                   88036  00150001
+*        MVC   ATCB,&C         COPY MY TCB ADDRESS               88036  00160001
+         AIF   (&X8).X8040                                              00170001
+         AGO   .Z040                                              J40B  00171007
+         L     R2,=A(JOBQCOM)                                           00180001
+         USING JOBQCOM,R2                                               00190000
+         L     R10,ATCB        SAVE FOR LATER USE                       00200001
+         USING TCB,R10                                                  00210000
+* NOW SET TTR ADDRESS OF JCT. FOR VS1 SYSTEMS WE WILL ALTER LATER,      00220000
+*  BUT THIS IS OK FOR OTHER SYSTEMS.                                    00230000
+         L   R14,TCBJSCB     R14-> JSCB NOW                             00240000
+         ST  R14,AJSCB       SAVED                                      00250000
+         MVC   JCTTTR,261(R14) THERE, JCT ADDRESS SET UP                00260001
+* NOTE : MVS MAY BE A REAL CORE ADDRESS, THEREFORE DIFFERENT.           00270000
+* EXPERIENCE WILL TELL.                                                 00280000
+           SPACE 3                                                      00290000
+* NOW LETS SEE WHAT SORT OF SYSTEM ETC.                                 00300000
+* START BY PREPARING TO OPEN THE INSTRUCT AND RETN FILES                00310000
+         FIX   'IT WILL BE NECESSARY TO DO SOME WORK HERE FOR F4/MVS'   00320001
+*        MVC   DCBSOPEN(4),AINSTRUC INSTRUCTION FILE                    00330001
+*        MVI   DCBSOPEN,X'0'   INPUT                                    00340001
+*        MVC   DCBSOPEN+4(4),ARETN  RETURNCODE MEMBER.                  00350001
+*        MVI   DCBSOPEN+4,X'0F' OUTPUT                                  00360001
+* NOW CHECK IF $$PRNT PRESENT OR NOT                                    00370000
+         LA    R5,DCBSOPEN     NEXT HOLE IN DCB LIST                    00380001
+*        DEVTYPE =CL8'$$PRNT',WORK                                      00390001
+         FINDDD =CL8'$$PRNT'                                            00400000
+         LTR   R15,R15         IS IT PRESENT ?                          00410000
+         BNZ   E70CHKSY        NOW CHECK SYSTEM TYPE.                   00420000
+* THERE IS A $$PRNT DD CARD                                             00430000
+         MVC   0(4,R5),AFPRINT   SHIFT DCB ADDRESS INTO LIST            00440001
+         MVI   0(R5),X'0F'     OUTPUT DATA SET, SET OPEN OPTION         00450001
+         SPACE 3                                                        00460000
+E70CHKSY DS    0H                                                       00470000
+.Z040    ANOP                                                     J40B  00471007
+         SPACE 2                                                        00480000
+* NOW WE HAVE TO WORK OUT WHAT TYPE OF SYSTEM WE ARE ON SO THAT WE      00490000
+*  CAN DETERMINE IF WE HAVE TO OPEN THE JOBQ DATA SET OR NOT.           00500000
+         SPACE 2                                                        00510000
+         MVI   VS,C' '     SET TO BLANK INITIALLY                       00520001
+*        MVI   SYSTYPE,C' ' AS ABOVE                                    00530008
+         L     R15,16          CVT POINTER                              00540001
+         TM    116(R15),X'02'  USING DAT FEATURE (VS?) ?                00550001
+         BO    E70VS             IT'S VS SOMETHING                      00560009
+         JOLERR 501,'THIS VERSION OF JOL REQUIRES A VIRTUAL-STORAGE OPER00561008
+               RATING SYSTEM'                                     J40B  00562008
+* OK, IS A VS SYSTEM OF SOME DESRIPTION                                 00570000
+E70VS    DS    0H                                                       00571008
+         TM    116(R15),X'10'  MVS (VS2)                                00580001
+         BO    E70MVS                                                   00590001
+         JOLERR 502,'THIS VERSION OF JOL WILL NOT RUN ON OS/VS1'  J40B  00592008
+* HERE A VS1 SYSTEM.                                                    00600000
+*        MVI   VS,C'1'         INDICATE VS1 SYSTEM                      00610008
+*        MVI   SYSTYPE,C'1'    INDICATE VS1 SYSTEM                      00620008
+         SPACE 1                                                        00630000
+         AGO   .Z050                                              J40B  00630108
+* NOW FIND OUT IF WE ARE USING SWA OR SWADS                             00640000
+         L     R1,AJSCB       ADDRESS OF THE JOB STEP CONTROL BLOCK     00650000
+         L     R1,X'E0'(R1)   POINT TO SWA CONTROL BLOCK                00660000
+         TM    68(R1),X'80'   USING SWA?                                00670000
+         BO    E70SWA1        YES, GO ELSEWHERE                         00680000
+* HERE WE ARE USING SWADS.                                              00690000
+*        WTO 'VS1 USING SWADS DATA SET',ROUTCDE=11                      00700000
+         MVC   0(4,R4),=X'00000100'   FIRST RECORD IN SWADS IS JCT      00710000
+         B     E70OPNJB                                                 00720000
+         B     LOADRAW                                                  00730000
+E70SWA1  EQU   *              SWA ON VS1 SYSTEM HERE                    00740010
+*THE ADDRESS OF THE JCT IN A VS1 SYSTEM IS THE FIRST RECORD IN SWA      00750010
+         MVC   0(3,R4),69  SHIFT CORE ADDRESS (WE KNOW TO SHIFT RIGHT)  00760000
+         MVI   3(R4),0        ZERO RIGHT BYTE                           00770000
+         WTO 'VS1 USING SWA',ROUTCDE=11                                 00780000
+         B     E70OPEN                                                  00790000
+         B     LOADRAW                                                  00800000
+* NOW WE WILL PUT IN CODE TO SUPPORT 'SWADS' AND OUR '$$JOBQ'           00810000
+*    DCB  THIS HOPEFULLY WILL NEVER BE REQUIRED, BUT                    00820010
+E70OPNJB DS    0H                                                       00830001
+         LA    R5,4(R5)        BUMP UP OPEN'S PARAMETER LIST            00840010
+         MVC   0(4,R5),AFJOBQ   SHIFT IN JOBQ DCB                       00850001
+         MVI   0(R5),X'04'     OPEN FOR UPDATE                          00860001
+         B     E70OPEN                                                  00870001
+         B     *+4                                                      00880001
+         B     *+4                                                      00890001
+         B     *+4                                                      00900001
+         B     *+4                                                      00910001
+         B     *+4                                                      00920001
+         B     *+4                                                      00930001
+         SPACE 3                                                        00940001
+.Z050    ANOP                                                     J40B  00941008
+E70MVS   MVI   VS,C'2'         MVS (VS2)                                00950001
+*        MVI   SYSTYPE,C'2'    MVS (VS2) AGAIN                          00960008
+         B     E70DONE         BYPASS LOAD IEFQMRAW.....                00970011
+         AGO   .Z060                                              J40B  00971008
+LOADRAW  EQU   *                                                        00980000
+E70NVS   DS    0H                                                       00990008
+         MVC   IBMRTN,=CL8'IEFQMRAW'                                    00991008
+         SPACE 3                                                        01000001
+E70OPEN  OI    0(R5),X'80'     TURN OFF LIST FOR OPEN                   01010001
+         OPEN  MF=(E,DCBSOPEN) OPEN THE DATA SETS.                      01020001
+* NOW LOAD ROUTINE IF NECESSARY.                                        01030000
+         CLI   IBMRTN,C' '                                              01040001
+         BE    E70NLOAD                                                 01050001
+* IF THE SYSTEM IS A VS SYSTEM, WE WILL POP INTO SUPERVISOR             01060000
+* BEFORE LOADING THE QMRAW ROUTINE.                                     01070000
+         CLI   VS,C' '     VS?                                          01080001
+         BE    JUSTLOAD                                                 01090000
+*        LA    R1,X'3C'       INTO SUPERVISOR STATE                     01100000
+*        SVC   107            MODESET                                   01110000
+JUSTLOAD EQU   *                                                        01120000
+         LOAD EPLOC=IBMRTN   LOAD RTN                                   01130001
+         ST   R0,AQMRAW                                                 01140001
+* NOW CHECK IF WE HAD TO GO INTO SUPERVISOR MODE                        01150000
+         CLI   VS,C' '     DID WE?                                      01160001
+         BE    LOADOK                                                   01170000
+*        LA    R1,X'24'       PROBLEM STATE NOW                         01180000
+*        SVC   107                                                      01190000
+LOADOK   DS    0H                                                       01200000
+         AGO   .NX8040                                                  01210000
+.X8040   AIF   (NOT &X8).NX8040                                         01220007
+         SPACE 2                                                        01230000
+*  CHECK THAT THIS REALLY IS AN X8 SYSTEM                               01240000
+         SPACE                                                          01250000
+         L     R15,X'010'    ADDRESS THE CVT                            01260000
+         USING CVT,R15                                                  01270000
+         CLI   CVTDCB,X'83'  THIS IS THE VALUE FOR X8                   01280000
+         BE    E70TISX8      AND THAT'S WHAT'S THERE!!                  01290000
+         WTO   'THIS VERSION OF JOL ONLY SUPPORTS OSIV/X8, AND THIS SYS.01300000
+               TEM ISN''T',ROUTCDE=(11,14)                              01310000
+         ABEND 3,DUMP,STEP                                              01320000
+         SPACE 3                                                        01330000
+E70TISX8 DS    0H                                                       01340000
+         MVI   VS,C'X'          AND SAY "IT IS OSIV/X8"                 01350001
+.Z060    ANOP                                                     J40B  01351007
+         AGO   .JCS                                               J40B  01352010
+         FINDDD =CL8'JOLPRINT'                                          01360000
+         LTR   R15,R15         IS IT PRESENT ?                          01370000
+         BNZ   E70OPEN         GO AND OPEN THE OTHER FILES              01380000
+*        JOLOPEN (,AD),MF=(E,AFPRINT)   EXTEND THE PRINT FILE           01390004
+         JOLOPEN (,OUTPUT),MF=(E,AFPRINT)   EXTEND THE PRINT FILE       01391004
+         LTR   R15,R15                                           88036  01391105
+         BZ    E70OPEN                                           88036  01391205
+         SPEAK 'I THINK THE PRINT FILE OPENED'                   88036  01392005
+E70OPEN  DS    0H                                                       01400000
+.JCS     ANOP                                                     J40B  01401010
+         SPACE 2                                                 88036  01430000
+.NX8040  ANOP                                                           01450000
+E70NLOAD DS    0H                                                       01460011
+E70DONE  DS    0H                                                       01460111
+         JOLRETN RC=0                                                   01461011
+         DC    10S(*)                                                   01470001
+         LTORG                                                          01480001
+*JEJOBQ  CSECT                                                    J60   01490013
+*        DC    D'0'    ANYBODY CALLING THIS IS IN FOR A SHOCK     J60   01500013
+         SPACE 2                                                  J40B  01560007
+         AIF   (&F4).F4CB                                         J40B  01570007
+         AIF   (&MVS).MVSCB                                       J40B  01580007
+         TITLE 'LOW STORAGE'   VECTOR TABLE'                            01590007
+         XAMFLC DSECT=YES                                               01600007
+         TITLE 'COMMUNICATIONS VECTOR TABLE'                            01610007
+         XAMCVT DSECT=YES                                               01620007
+         AGO   .CBDUN                                             J40B  01630007
+.F4CB    ANOP                                                     J40B  01640007
+         TITLE 'LOW STORAGE'   VECTOR TABLE'                      J40B  01650007
+         KAAFLC DSECT=YES                                         J40B  01660007
+         TITLE 'COMMUNICATIONS VECTOR TABLE'                      J40B  01670007
+         KAACVT DSECT=YES                                         J40B  01680007
+         AGO   .CBDUN                                             J40B  01690007
+.MVSCB   ANOP                                                     J40B  01700007
+         TITLE 'LOW STORAGE'   VECTOR TABLE'                      J40B  01710007
+         IHAPSA DSECT=YES                                         J40B  01720007
+         TITLE 'COMMUNICATIONS VECTOR TABLE'                      J40B  01730007
+         CVT DSECT=YES,SYS=AOS2,                                  J40B .01740007
+               PREFIX=YES                                         J40B  01750007
+.CBDUN   ANOP                                                     J40B  01760007
+         END                                                            01770007

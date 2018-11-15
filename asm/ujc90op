@@ -1,0 +1,60 @@
+UJC90OP  TITLE 'OUTPUT INSTRUCTION TO NEXT PHASE'                       00010002
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973                 00020001
+*  1974,1975                                                            00030001
+* COPYRIGHT CCS 1971-1976                                               00040001
+* COPYRIGHT CCS 1980                                                    00050001
+* COPYRIGHT CCS 1982                                                    00060001
+* COPYRIGHT CCS-JOL 1988                                                00070001
+          COPY   JOLCOM                                                 00080001
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00090001
+           SPACE 3                                                      00100001
+*                   J             000000            L                   00110001
+*                   J            0      0           L                   00120001
+*                   J           0        0          L                   00130001
+*                   J          0          0         L                   00140001
+*                   J         0            0        L                   00150001
+*                   J         0            0        L                   00160001
+*                   J         0            0        L                   00170001
+*                   J         0            0        L                   00180001
+*                   J         0            0        L                   00190001
+*                   J         0            0        L                   00200001
+*                   J         0            0        L                   00210001
+*        J          J         0            0        L                   00220001
+*         J        J           0          0         L                   00230001
+*          J      J             0        0          L                   00240001
+*           J    J               0      0           L                   00250001
+*            JJJJ                 000000            LLLLLLLLLLL         00260001
+       JOLSAVE CSECT=UJC90OP                                            00270000
+* ON ENTRY R1 POINTS TO THE RECORD TO GO OUT                            00280000
+*                                                                       00290000
+* NOW BEFORE ACTUALLY OUTPUTTING THE RECORD, WE MUST SEE                00300000
+* IF WE ARE STARTING AT, AND IF SO, DON'T OUTPUT IT, UNLESS             00310000
+* IT IS A 'DO' OR 'END'.                                                00320000
+*                                                                       00330000
+           IFNULL   STARTAT,C90OP                                       00340000
+            CLC =C'DO ',ICOMMAND-INST(R1)                               00350000
+            BE  C90OP                                                   00360000
+            CLC =C'END ',ICOMMAND-INST(R1)                              00370000
+            BE  C90OP                                                   00380000
+         CLC   =C'MACRO ',ICOMMAND-INST(R1)              JOL30091 76200 00390000
+         BE    C90OP                                     JOL30091 76200 00400000
+         CLC   =C'OPCNTLA ',ICOMMAND-INST(R1)            JOL30091 76200 00410000
+         BE    C90OP                                     JOL30091 76200 00420000
+            JOLRETN   RC=0   LET'S THINK IT HAS GONE                    00430000
+C90OP      EQU   *                                                      00440000
+         CLI   STOPAT,X'FF'   PASSED STOP AT?            CHG30008 76200 00450000
+         BE    C90RETN        YES, NO OUTPUT             CHG30008 76200 00460000
+       L   R0,AINSCNTL     GET CONTROL AREA FOR INSTRUCTIONS            00470000
+       L    R15,AUJS30OP    GET OUTPUT ROUTINE ADDRESS                  00480000
+       BALR R14,R15         OUTPUT IT                                   00490000
+C90RETN  EQU   *                                         CHG30008 76200 00500000
+       JOLRETN RC=0              AND RETURN                             00510000
+       LTORG                                                            00520000
+     DC   S(*,*,*,*)                                                    00530000
+     DC   S(*,*,*,*)                                                    00540000
+     DC   S(*,*,*,*)                                                    00550000
+     DC   S(*,*,*,*)                                                    00560000
+     DC   S(*,*,*,*)                                                    00570000
+     DC   S(*,*,*,*)                                                    00580000
+     DC   S(*,*,*,*)                                                    00590000
+           END                                                          00710003

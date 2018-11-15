@@ -1,0 +1,339 @@
+         PRINT OFF                                                      00010002
+         COPY  JOLCOM                                                   00020000
+         PRINT ON,DATA                                                  00030002
+         TITLE 'INITIALISE BINARY SEARCH TABLE FOR PREPROCESSOR'        00040016
+         JOLSAVE CSECT=PSYMINIT                                         00050000
+         LH    R0,MAXSYMS     MAXIMUM NUMBER OF SYMBOLICS ALLOWED 87150 00060016
+         MH    R0,=Y(15*2)    15 LEVELS * TWO BYTES FOR POINTERS  87150 00070016
+         A     R0,=A(TABSIZE) ADD THE CONTROL SECTION OF THE TABLE87150 00080016
+         ST    R0,LTBLCNTL    SAVE LENGTH FOR FREE-MAIN LATER     75128 00090016
+         GETMAIN R,LV=(0)                                         75128 00100016
+         ST    R1,ATBLCNTL    SAVE POSITION FOR FREE-MAIN LATER   75128 00110016
+* NOW INITIALISE THE TABLES                                             00120016
+         USING TABLCNTL,R1                                              00130016
+         XC    TABLCNTL(TABSIZE),TABLCNTL                         87150 00140016
+         MVC   NOSYMS,=H'1'                                             00150016
+         MVC   #POWER2,=H'1'                                            00160016
+         MVC   #ITEMS,=H'1'                                             00170016
+         L     R14,ASYMTBL                                        87150 00180024
+         USING SYMOVLY,R14                                              00190024
+         MVC   SYMNAME,=XL8'FFFFFFFFFFFFFFFF'                           00200016
+* CALCULATE FIRST SPOT FOR VALUE PART OF SYMBOLIC VARIABLES             00221024
+         LA    R15,12          SIZE OF SYMBOLIC NAME AND ADDRESS        00230014
+         MH    R15,MAXSYMS                                              00240014
+         A     R15,ASYMTBL                                              00250014
+* R15 = FIRST SPOT FOR VALUE PART OF SYMBOLIC VARIABLES                 00251024
+         ST    R15,SYMADDR     SET FIRST VALUE TO NULL (X'FF' SYM )     00252024
+         DROP  R14                                                      00253024
+         MVC   0(2,R15),ZERO   INIT TO A NULL VALUE                     00260014
+         LA    R15,2(R15)      POINT PAST FIRST SYMBOLIC                00270024
+         ST    R15,ANEXTSYM    SET NEXT SPOT                            00280024
+* CALCULATE FIRST SPOT FOR BINARY LOOKUP TABLE                          00281024
+         LH    R15,MAXSYMS                                              00290016
+         AR    R15,R15                                                  00300016
+         LA    R15,BINOFFS-2(R15) GET ADDRESS OF LAST ENTRY IN          00310016
+*                             OFFSET TABLE FOR LEVEL 0                  00320016
+         MVC   0(2,R15),=H'0'                                           00330016
+* NOW SET THE CURRENT OFFSET ADDRESS                                    00340016
+         ST    R15,ACUROFFS                                             00350016
+* 1ST SYMBOLIC NAME NOW HAS HEX FF'S                                    00360016
+         LA    R6,15          MAX LEVELS                                00370016
+         LH    R0,MAXSYMS                                               00380016
+         AR    R0,R0          DOUBLE IT                                 00390016
+         LA    R15,BINOFFS                                              00400016
+         LA    R14,ABINOFFS   GET ADDRESS OF LEVEL(0) CONTROL TABLE     00410016
+M00SYMIN ST    R15,0(R14)                                               00420016
+         AR    R15,R0                                                   00430016
+         LA    R14,4(R14)     POINT TO NEXT HOLE                        00440016
+         BCT   R6,M00SYMIN    NO, CONTINUE                              00450016
+         JOLRETN                                                        00460016
+         JOLSAVE CSECT=PSYMFREE                                         00470000
+         L     R1,ATBLCNTL    FREE SYMBOLIC BINARY SEARCH TABLE   87150 00480016
+         L     R0,LTBLCNTL                                        87150 00490016
+         FREEMAIN R,LV=(0),A=(1)                                  87150 00500016
+         JOLRETN                                                        00510016
+         DROP                                                           00520016
+         TITLE 'INSERT SYMBOLIC VARIABLE IN BINARY SEARCH TABLE'        00530016
+         USING JOLCOM,R2                                                00540016
+UJP02INS JOLSAVE BASE=12                                                00550019
+         L     R1,0(R1)        INSERT POINT                             00560008
+         LH    R8,0(R1)        INSERT POINT                             00570008
+*        ST    R8,CALLAREA                                              00580020
+*        JOLERR 101,'P02 INSERTING ',SYMBOLIC,' AT ',CALLAREA           00590020
+         L     R3,ATBLCNTL                                              00600000
+         USING TABLCNTL,R3     TELL IEUASM                              00610000
+         LH    R1,#ITEMS       CURRENT NUMBER OF SYMBOLS                00620015
+         LA    R1,1(R1)        INCREMENT                                00630015
+         STH   R1,#ITEMS       RESET IN TABLE                           00640015
+         LH    R1,NOSYMS       CURRENT NUMBER OF SYMBOLS                00650015
+         LR    R6,R1                                                    00660000
+         LH    R0,#POWER2      NEAREST POWER OF 2                       00670000
+         CLR   R0,R1                                                    00680000
+         BH    NODOUBL                                                  00690000
+         ALR   R0,R0           NEED NEXT POWER OF TWO                   00700001
+         STH   R0,#POWER2                                               00710000
+NODOUBL  DS    0H                                                       00720000
+         L     R10,ACUROFFS    ADDRESS OFFSET TABLE                     00730000
+         LH    R9,NOSYMS       NUMBER OF ITEMS                          00740000
+         SH    R8,=H'1'                                                 00750000
+         BP    MUSTMUV         NOT GOING IN AT STACK TOP                00760000
+         SH    R10,=H'2'       TWO OFF STACK-TOP                        00770000
+         ST    R10,ACUROFFS    STORE NEW ADDRESS                        00780000
+*        JOLERR 102,'P02 ON STACK TOP '                                 00790021
+         LR    R15,R10                                                  00800011
+         B     STOROFF         STORE OFFSET AND LEAVE                   00810000
+MUSTMUV  LA    R9,0(R8,R8)                                              00820000
+         LR    R11,R9          COPIED FOR MVCL                          00830000
+         LR    R8,R10                                                   00840000
+         SH    R8,=H'2'                                                 00850000
+         ST    R8,ACUROFFS     NEW ADDRESS                              00860000
+         LA    R15,0(R8,R9)    TOP+LENGTH IS THE PLACE                  00870000
+         MVCL  R8,R10          MOVEITALONG                              00880000
+STOROFF  LH    R14,NOSYMS      MOVE OFFSET INTO TABLE                   00890000
+         BCTR  R14,0                                                    00900000
+         MH    R14,=H'12'                                               00910000
+         STH   R14,0(,R15)     ADDRESS OF NEW ENTRY                     00920008
+         JOLRETN                                                        00930000
+         LTORG                                                          00940002
+         DC    30S(*)                                                   00950002
+         DROP                                                           00960016
+         TITLE 'SEARCH BINARY TABLE FOR SYMBOLIC SYMBOL'                00970016
+         USING JOLCOM,R2                                                00980016
+UJPFSYM  CSECT                                                          00990001
+         STM   R3,R10,12(R13)                                           01000006
+         LR    R9,R15                                                   01010000
+         LR    R10,R1          GET ADDRESS OF VARAIBLE WE ARE FINDING   01020006
+         USING UJPFSYM,R9                                               01030004
+         USING JOLCOM,R2       THIS POINTS AT JOL COMMON                01040000
+         L     R3,ATBLCNTL     ADDRESS MAIN ATBLE                       01050000
+         USING TABLCNTL,R3     TELL IEUASM                              01060000
+         LH    R6,#ITEMS       LOAD NUMBER OF SYMBOLS                   01070016
+         L     R4,ACUROFFS     OFFSET TABLE                             01080000
+         L     R5,ASYMTBL      UNORDERED SYMBOL TABLE                   01090000
+*                                                                       01100000
+         LH    R1,#POWER2      LOAD POWER-OF-TWO NUMBER INFO            01110000
+         SRL   R1,1            MID-POINT                                01120000
+         LTR   R0,R1           COPY, TEST FOR ZERO                      01130000
+         BZ    ISFIRST         FIRST TIME, GO INITIALISE                01140000
+LOOP     SRL   R0,1            DIVIDE AGAIN                             01150000
+         CLR   R1,R6           TOO HIGH?                                01160000
+         BH    TOOHIGH         YEAH                                     01170000
+         LR    R3,R1                                                    01180000
+         BCTR  R3,0            SUBTRACT ONE                             01190000
+         ALR   R3,R3           TIME TWO                                 01200000
+         LH    R15,0(R4,R3)    LOAD OFFSET OF ENTRY                     01210001
+         ALR   R15,R5          GET ADDRESS OF ACTUAL SYMBOL             01220001
+         CLC   0(8,R15),0(R10) Q... IS THIS THE ONE I WANT?             01230006
+         BE    FOUND           A... YES, IT IS.                         01240001
+         BH    TOOHIGH                                                  01250000
+TOOLOW   ALR   R1,R0           LOOK UP                                  01260000
+         B     TESTEND                                                  01270000
+TOOHIGH  SR    R1,R0                                                    01280000
+TESTEND  LTR   R0,R0                                                    01290000
+         BNZ   LOOP                                                     01300000
+NOTFOUND CLC   0(8,R15),0(R10)                                          01310006
+         BH    SUBONE                                                   01320000
+ISFIRST  LA    R1,1(,R1)       THE PLACE TO INSERT                      01330000
+         B     RETRN                                                    01340013
+SUBONE   DS    0H                                                       01350000
+*        BCTR  R1,0                                                     01360014
+RETRN    LA    R15,4                                                    01370013
+         B     DONE                                                     01380000
+FOUND    LR    R0,R15          SAVE THE ADDRESS POINTER TO SYMNAME      01390005
+*                              FOR THE CALLER                           01400005
+         SLR   R15,R15                                                  01410005
+DONE     DS    0H                                                       01420000
+         LM    R3,R10,12(R13)                                           01430006
+         BR    R14                                                      01440000
+         LTORG                                                          01450002
+         DC    30S(*)                                                   01460002
+         DROP                                                           01470016
+         TITLE 'COPY OFFSET TABLE UP A LEVEL FOR NEW MACRO'             01480002
+*UJP19CTB COPIES THE OFFSET TABLE SO THAT IT CAN BE RESTORED WHEN       01490002
+* A MACRO 'END' STATEMENT IS F OUND.                                    01500002
+*        AND VALUE OR TO PRINT ONLY SELECTED ONES.                      01510002
+         USING JOLCOM,R2                                                01520019
+         JOLSAVE CSECT=UJP19CTB                                         01530002
+         L     R10,ATBLCNTL            R10 POINTS TO ORDERED TABLE      01540016
+         USING TABLCNTL,R10                                             01550016
+         L     R3,ACUROFFS                                              01560002
+         LH    R4,#ITEMS                                                01570002
+         LH    R5,#POWER2                                               01580002
+         LH    R6,NOSYMS                                                01590016
+         LH    R1,LEVEL        LEVEL HAS BEEN INCREMENTED IN 'P53MAC'   01600002
+         SLL   R1,1            MULT BY TWO                              01610002
+         STH   R4,#LEVITEM(R1) SAVE CURRENT NO. OF ITEMS                01620002
+         STH   R5,#LEVPOW2(R1) SAVE #POWER2                             01630002
+         STH   R6,OLDNOSYM(R1) SAVE OLD NO OF SYMS                      01640016
+         SLL   R1,1            MULT BY TWO                              01650016
+         ST    R3,ALEVOFFS(R1) SAVE CURRENT OFFSET ADDRESS              01660016
+         AH    R3,MAXSYMS                                               01670016
+         AH    R3,MAXSYMS                                               01680016
+         ST    R3,ACUROFFS                                              01690016
+         L     R8,ABINOFFS(R1) GET THE ADDRESS OF WHERE WE WANT TO      01700002
+*                              COPY THE TABLE                           01710002
+         L     R6,ABINOFFS-4(R1) GET THE FROM ADDRESS OF THE TABLE.     01720010
+         LH    R7,MAXSYMS                                               01730005
+         SLL   R7,1            MULT BY TWO                              01740005
+         LR    R9,R7                                                    01750005
+         MVCL  R8,R6           SHIFT THE TABLE                          01760005
+         JOLRETN                                                        01770002
+         LTORG                                                          01780016
+         DC    S(*,*,*,*)                                               01790016
+         DC    S(*,*,*,*)                                               01800016
+         DC    S(*,*,*,*)                                               01810016
+         DC    S(*,*,*,*)                                               01820016
+         DC    S(*,*,*,*)                                               01830016
+         DC    S(*,*,*,*)                                               01840016
+         DROP                                                           01850002
+         TITLE 'RESTORE OFFSET TABLE WHEN MACRO END FOUND'              01860002
+         USING JOLCOM,R2                                                01870002
+         JOLSAVE CSECT=UJP19RSM                                         01880002
+*UJP19RSM RESTORES THE OFFSET TABLE AFTER A MACRO END IS FOUND.         01890002
+* IT THEN INSERTS ANY GLOBAL ITEMS THAT MAY HAVE BEEN DECLARED          01900002
+* IN A MACRO.                                                           01910002
+*NOTE THAT 'LEVEL' HAS BEEN DECREMENTED WHEN THIS ROUTINE GETS          01920002
+* CONTROL, AND THAT ALL THE ITEMS WITH LEVEL GREATER THAN THE           01930002
+* CURRENT LEVEL HAVE BEEN DELETED FROM THE UNORDERED SYMBOLIC TABLE     01940002
+*THIS ROUTINE MUST THEN INSERT ANY EXTRA ITEMS IN THE ORDERED           01950002
+* OFFSET TABLE .                                                        01960002
+         L     R10,ATBLCNTL            R10 POINTS TO ORDERED TABLE      01970002
+         USING TABLCNTL,R10                                             01980002
+         LH    R1,LEVEL        LEVEL HAS BEEN DECREMENTED IN 'P00MN'    01990002
+         SLL   R1,1            MULT BY TWO                              02000002
+         LH    R4,#LEVITEM+2(R1) GET PREVIOUS CURRENT NO. OF ITEMS      02010002
+         STH   R4,#ITEMS                                                02020002
+         LH    R5,#LEVPOW2+2(R1) GET PREVIOUS #POWER2                   02030002
+         STH   R5,#POWER2                                               02040002
+* NOTE *** R7 IS USED BELOW TO  CALCULATE HOW MANY WERE INSERTED        02050016
+         LH    R7,OLDNOSYM+2(R1) GET PREVIOUS 'NOSYMS'                  02060016
+* NOTE *** R7 IS USED BELOW                                             02070016
+         SLL   R1,1            MULT BY TWO                              02080016
+         L     R3,ALEVOFFS+4(R1) SAVE CURRENT OFFSET ADDRESS            02090016
+         ST    R3,ACUROFFS                                              02100016
+*NOW WE MUST INSERT ANY GLOBAL ITEMS THAT WERE DECLARED IN THE          02110016
+* MACRO INTO THE TABLE.                                                 02120016
+*WE KNOW THAT THE 'NOSYMS' HAS THE CURRENT NUMBER OF SYMBOLICS,         02130016
+* AND THAT 'OLDNOSYM' CONTAINS THE NUMBER OF SYMBOLICS BEFORE THE       02140016
+* MACRO WAS CALLED.                                                     02150016
+*BY A SIMPLE SUBTRACT, WE KNOW HOW MANY WE HAVE TO INSERT IN THE        02160016
+* ORDERED TABLE.                                                        02170016
+         LH    R6,NOSYMS                                                02180016
+         SR    R6,R7                                                    02190016
+         BNP   P19RET          NONE TO INSERT, SO LEAVE                 02200016
+* R6 CONTAINS THE NUMBER TO INSERT                                      02210016
+*NOTE THAT THE INSERT ROUTINE  USES 'NOSYMS' AS THE SYMBOL TO INSERT    02220016
+* SO WE MUST CONSTANTLY RESET  IT BEFORE CALLING 'P02INS'.              02230016
+         LH    R1,#ITEMS                                                02240017
+*        ST    R1,CALLAREA                                              02250020
+*        JOLERR 102,'BEFORE STARTING, #ITEMS=',CALLAREA                 02260020
+*        JOLERR 103,'BEFORE STARTING, NOSYMS=',NOSYMS                   02270020
+         LH    R8,NOSYMS       SAVE IT TILL WE END THE INSERTS          02280017
+P19L2    STH   R7,NOSYMS                                                02290017
+         LR    R9,R7           GET READY TO CALCULATE STARTING POINT    02300017
+         MH    R9,=Y(12)       POINT TO OFFSET                          02310017
+         A     R9,ASYMTBL              R5 POINTS TO SYMBOLIC TABLE      02320017
+         USING SYMOVLY,R9                                               02330017
+*        JOLERR 104,'FINDING : NOSYMS=',NOSYMS,' SYM=',SYMNAME          02340020
+*        MVC   SYMBOLIC,SYMNAME ******************* TESTS ONLY          02350020
+         CLI   SYMNAME,0       *** EMERGENCY EXIT                       02360022
+         BE    P19RET2         *** EMERGENCY EXIT                       02370022
+         FINDSYM SYMNAME       SEE IF WE CAN FIND IT.                   02380022
+         LTR   R15,R15         DID WE?                                  02390022
+         BZ    P19ERRX         ERROR                                    02400022
+         STH   R1,CALLAREA+12                                           02410022
+         LH    R1,NOSYMS                                                02420022
+         LA    R1,1(R1)                                                 02430022
+         STH   R1,NOSYMS                                                02440022
+         $CALL UJP02INS,(CALLAREA+12) INSERT IT.                        02450022
+P19INCR  LA    R7,1(R7)        POINT TO NEXT ITEM TO BE INSERTED        02460022
+         CR    R7,R8           DONE THEM ALL?                           02470022
+         BL    P19L2           CONTINUE                                 02480022
+P19RET2  STH   R8,NOSYMS       RESTORE NOSYMS                           02490022
+         DROP  R10                                                      02500022
+P19RET   JOLRETN                                                        02510022
+P19ERRX  JOLERR 410,'SYMBOLIC VARIABLE ''',SYMNAME,''' IS ALREADY IN TH*02520022
+               E ORDERED SYMBOLIC TABLE'                                02530022
+         B     P19INCR                                                  02540022
+         LTORG                                                          02550022
+         DC    S(*,*,*,*)                                               02560022
+         DC    S(*,*,*,*)                                               02570022
+         DC    S(*,*,*,*)                                               02580022
+         DC    S(*,*,*,*)                                               02590022
+         DC    S(*,*,*,*)                                               02600022
+         DC    S(*,*,*,*)                                               02610022
+         DROP                                                           02620022
+         TITLE 'LIST SYMBOLIC  VARIABLES IN ORDER'                      02630022
+*UJP31LST LISTS SYMBOLIC VARIABLES AND THEIR LEVEL,LENGTH & VALUE       02640022
+* MODIFIED TO EITHER PRINT ALL SYMBOLIC VARIABLES AND THEIR LEVEL,      02650022
+* LENGTH AND VALUE OR TO PRINT ONLY SELECTED ONES.                      02660022
+         USING JOLCOM,R2                                                02670022
+         JOLSAVE CSECT=UJP31LST                                         02680022
+         USING TKNX,R3                                                  02690022
+         CLEAR WORK                                                     02700022
+         CLC   TKNNO,=H'1'             LISTSYMS ALONE ?                 02710022
+         BE    TKNSCAN                 YES GO AHEAD                     02720022
+         MVC   TKNCURR,=H'2'           PREPARE TO GET FIRST VARIABLE.   02730022
+NEXTTKN  GETTKN TKNCURR                GET FIRST SYMBOL NAME            02740022
+         STH   R1,TKNCURR                                               02750022
+         CLI   TKN,C','                                                 02760022
+         BE    NEXTTKN                                                  02770022
+         FINDSYM TKN                   FIND SYMBOLIC                    02780022
+         LTR   R15,R15                                                  02790022
+         BNZ   NOTFND                                                   02800022
+         LR    R4,R0                                                    02810022
+         BAL   R9,OPSYM                                                 02820022
+         B     TEND                                                     02830022
+NOTFND   DS    0H                                                       02840022
+         JOLERR 101,'SYMBOL ''',#TKN,''' NOT IN SYMBOL TABLE'           02850022
+TEND     CLC   TKNCURR,TKNNO           ALL DONE ?                       02860022
+         BH    P31DONE                                                  02870022
+         B     NEXTTKN                                                  02880022
+TKNSCAN  DS    0H              PRINT ENTIRE SYMBOLIC TABLE              02890022
+         L     R5,ASYMTBL              R5 POINTS TO SYMBOLIC TABLE      02900022
+         USING SYMOVLY,R5                                               02910022
+         L     R10,ATBLCNTL            R10 POINTS TO ORDERED TABLE      02920022
+         USING TABLCNTL,R10                                             02930022
+         LH    R6,#ITEMS                                                02940022
+         BCTR  R6,0            LAST ENTRY IS THE X'FF', IGNORE IT       02950022
+         L     R10,ACUROFFS                                             02960022
+         DROP  R10                                                      02970022
+NEXTENT  LH    R5,0(R10)       LOAD OFFSET TO SYMNAME                   02980022
+         A     R5,ASYMTBL      POINT TO APPROPRIATE ENTRY               02990022
+         BAL   R9,OPSYM                                                 03000022
+         LA    R10,2(R10)      LOOK AT NEXT ENTRY                       03010022
+         BCT   R6,NEXTENT      LOOPS TILL ALL DONE                      03020022
+         JOLRETN                                                        03030022
+OPSYM    LA    R8,WORK                 ADDRESS OF PRINT BUFFER          03040022
+         MVC   5(8,R8),SYMNAME         MOVE IN SYMBOLIC NAME            03050022
+         MVC   14(1,R8),SYMLEVEL       MOVE IN LEVEL OF SYMBOLIC        03060022
+         OI    14(R8),C'0'             SET SIGN TO X'F' FOR PRINTING    03070022
+         L     R15,SYMADDR                                              03080022
+         MVC   DBL(2),0(R15)           MOVE LENGTH OF SYMBOLIC          03090022
+         LH    R1,DBL                  PUT IT IN R1                     03100022
+         CVD   R1,DBL                  CONVERT IT TO DECIMAL            03110022
+         UNPK  17(3,R8),DBL            UNPACK 3 BYTES                   03120022
+         OI    19(R8),C'0'             SET SIGN TO X'F' FOR PRINTING    03130022
+         S     R1,=F'1'                                                 03140022
+         BM    NOVALUE                 -> IF A NULL VALUE               03150022
+         CH    R1,=H'120'              MAX LENGTC FOR PRINTING          03160022
+         BL    *+8                     -> IF LESS THEN MAX LENGTH       03170022
+         LA    R1,120                  SET IT TO 120                    03180022
+         EX    R1,MVC                  MOVE VALUE INTO PRINT LINE       03190022
+NOVALUE  LA    R1,22(R1)               LENGTH OF OUTPUT LINE            03200022
+         LR    R0,R1           LENGTH                                   03210022
+         LA    R1,WORK                                                  03220022
+         OC    WORK(150),BLANKS        CONVERT TO UPPER CASE (BAD?) J60 03221026
+         SVC   93                                                       03230022
+         BR    R9                      RETURN FOR NEXT SYMNAME          03240022
+P31DONE  JOLRETN                                                        03250022
+MVC      MVC   21(*-*,R8),2(R15)       SUBJECT OF EXECUTE               03260022
+         LTORG                                                          03270022
+         DC    S(*,*,*,*)                                               03280022
+         DC    S(*,*,*,*)                                               03290022
+         DC    S(*,*,*,*)                                               03300022
+         DC    S(*,*,*,*)                                               03310022
+         DC    S(*,*,*,*)                                               03320022
+         DC    S(*,*,*,*)                                               03330022
+         DC    S(*,*,*,*)                                               03340022
+         END                                                            03350016

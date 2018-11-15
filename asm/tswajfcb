@@ -1,0 +1,118 @@
+TIEFQMRA RMODE 24                                                       00010000
+TIEFQMRA AMODE 31                                                       00020000
+*                                                                       00030000
+         GENSAVE  CSECT=TIEFQMRA                                        00040000
+         L     R15,X'010'          ADDRESS OF CVT                       00050000
+         L     R15,0(0,R15)        TCB WORDS                            00060000
+         L     R15,4(,R15)         ADDRESS OF MY TCB                    00070000
+         L     R15,TCBTIO-TCB(,R15) TIOT ADDRESS                        00090000
+         L     R2,TCBSWA-TCB(,R15)  SWA ADDRESS                         00091002
+         LR     R6,R15                                                  00100000
+         OPEN  (SNAP,(OUTPUT))                                          00110000
+         SNAP  DCB=SNAP,ID=10,PDATA=(ALL),SDATA=(SWA)                   00120000
+         CLOSE (SNAP)                                                   00130000
+         LA    R4,CALLAREA                                              00140000
+         EXTRACT (4),'S',FIELDS=(TIOT)                                  00150000
+         L     R1,CALLAREA                                              00160000
+         ST    R1,ATIOT        SAVE ADDRESS OF TIOT                     00170000
+         LR    R6,R1                                                    00180001
+         LA     5,EPA                  GET ADDRESS OF THE EPA           00190001
+         USING  SWAMMEPA,5             ESTABLISH EPA ADDRESSABILITY     00200001
+         LA     1,QMPA                 GET ADDRESS OF THE QMPA          00210001
+         USING  IOPARAMS,1             ESTABLISH QMPA ADDRESSABILITY    00220001
+         XC     IOPARAMS(36),IOPARAMS  INITIALIZE THE QMPA              00230001
+         MVI    QMPOP,QMREAD           INDICATE READ FUNCTION           00240001
+         MVI    QMPCL,1                INDICATE 1 EPA IS BEING PASSED   00250001
+         STCM   5,7,QMPACL             PUT 3-BYTE EPA ADDRESS IN QMPA   00260001
+         XC     SWAMMEPA,SWAMMEPA      INITIALIZE THE EPA               00270001
+         USING  TIOT1,6                ESTABLISH ADDRESSABILITY TO TIOT 00280001
+         MVC    SWROWVA,TIOEJFCB       SVA OF JFCB MOVED TO EPA         00290001
+         L      R1,TIOEJFCB                                             00291002
+         DC   H'0'                                                      00293002
+         LA     8,JFCBCOPY             SET THE POINTER TO THE JFCB      00300001
+         ST     8,SWBUFPTR             SET BUFFER POINTER IN EPA        00310001
+         DC     X'010D'                SAM31 31 BIT                     00310102
+* OK, POP INTO SUP MODE, SHIFT RECORD, RETURN                           00311002
+         LA    R1,X'3C'                                                 00312002
+         SVC 107                                                        00313002
+         IEFQMREQ                      COPY SWA BLOCK TO THE BUFFER     00320001
+         LA    R1,X'24'        MODESET                                  00321002
+         SVC 107                                                        00322002
+         DC   H'0'                                                      00330001
+         USING  INFMJFCB,8             ESTABLISH ADDRESSABILITY TO JFCB 00340001
+*                                                                       00350001
+         DS    0D                                                       00360001
+SNAP DCB DDNAME=SNAP,DSORG=PS,RECFM=VBA,MACRF=W,BLKSIZE=882,LRECL=125   00370001
+         DS    0D                                                       00380001
+         DC    C'JFCBJFCBJFCBJFCB'                                      00390001
+JFCBCOPY DS    CL176                   BUFFER TO READ THE JFCB INTO     00400001
+         DC    C'EPA EPA EPA EPA '                                      00410001
+EPA      DS    CL8                                                      00420001
+         DC    C'QMPAQMPAQMPAQMPA'                                      00430001
+QMPA     DS    CL36                                                     00440001
+CALLAREA DS    40F                                                      00450002
+         DS    0D                                                       00460002
+         DC    CL8'ATIOT'                                               00470002
+ATIOT    DC    A(0)                                                     00480002
+JCTTTR   DC    F'0'                                                     00490002
+JCTSSTR  DC    F'0'                                                     00500002
+         CVT DSECT=YES                                                  00510001
+         IKJTCB                                                         00511002
+         IEFAJCTB                                                       00520002
+         IEFJESCT                                                       00530001
+         IEFZB506                                                       00540001
+         IEFQMNGR                                                       00550001
+TIOT     DSECT                                                          00560001
+         IEFTIOT1                                                       00570001
+         IEFJFCBN                                                       00580001
+         END                                                            00590001
+         ST     8,SWBUFPTR             SET BUFFER POINTER IN EPA        00600000
+*        L     2,SWVA             OLD SVA ADDRESS                       00610000
+*        L     3,SWBLKPTR         @ OF HIGH SVA                         00620000
+         L     4,TIOEJFCB       SVA OF JFCB MOVED TO EPA                00630000
+         OPEN  (SNAP,(OUTPUT))                                          00640000
+         SNAP  DCB=SNAP,ID=10,PDATA=(ALL),SDATA=(SWA)                   00650000
+         DC     X'010D'                SAM31                            00660000
+      MODESET  KEY=ZERO                                                 00670000
+         IEFQMREQ                      COPY SWA BLOCK TO THE BUFFER     00680000
+      MODESET  KEY=NZERO                                                00690000
+         DC   H'0'                                                      00700000
+            ABEND   0                                                   00710000
+            GENRETN                                                     00720000
+         USING  INFMJFCB,8             ESTABLISH ADDRESSABILITY TO JFCB 00730000
+*                                                                       00740000
+SNAP DCB DDNAME=SNAP,DSORG=PS,RECFM=VBA,MACRF=W,BLKSIZE=882,LRECL=125   00750000
+         DS    0F                                                       00760000
+CALLAREA DS    40F                                                      00770000
+         DS    0D                                                       00780000
+         DC    CL8'ATIOT'                                               00790000
+ATIOT    DC    A                                                        00800000
+JCTTTR   DC    F                                                        00810000
+JCTSSTR  DC    F                                                        00820000
+         DC    CL8'JFCBJFCB'                                            00830000
+         DC    CL8'JFCBJFCB'                                            00840000
+JFCBCOPY DS    CL176                   BUFFER TO READ THE JFCB INTO     00850000
+         DC    CL8'EPA EPA '                                            00860000
+         DC    CL8'EPA EPA '                                            00870000
+EPA      DS    CL28                                                     00880000
+         DC    CL8'QMPAQMPA'                                            00890000
+         DC    CL8'QMPAQMPA'                                            00900000
+QMPA     DS    CL36                                                     00910000
+         DS    0F                                                       00920000
+         DC    CL8'SWEPSWEP'                                            00930000
+         DC    CL8'SWEPSWEP'                                            00940000
+SWEPAPTR DS    F                                                        00950000
+SWAPARMS SWAREQ MF=L                                                    00960000
+         TITLE 'TASK CONTROL BLOCK'                                     00970000
+         IKJTCB                                                         00980000
+         CVT DSECT=YES                                                  00990000
+         IEFJESCT                                                       01000000
+         IEFZB506                                                       01010000
+         IEFZB505    LOCEPAX=YES                                        01020000
+         IEFQMNGR                                                       01030000
+         IEFAJCTB                                                       01040000
+TIOT     DSECT                                                          01050000
+         IEFTIOT1                                                       01060000
+         IEFJFCBN  LIST=YES                                             01070000
+*                                                                       01080000
+            END                                                         01090000

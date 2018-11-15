@@ -1,0 +1,130 @@
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1980.                          00010000
+* JOL COPYRIGHT CCS-JOL 1988      1992                                  00020001
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00030000
+           SPACE 3                                                      00040000
+*                   J             000000            L                   00050000
+*                   J            0      0           L                   00060000
+*                   J           0        0          L                   00070000
+*                   J          0          0         L                   00080000
+*                   J         0            0        L                   00090000
+*                   J         0  ¬     ¬   0        L                   00100000
+*                   J         0  O     O   0        L                   00110000
+*                   J         0            0        L                   00120000
+*                   J         0     V      0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0   <____>   0        L                   00150000
+*        J          J         0            0        L                   00160000
+*         J        J           0          0         L                   00170000
+*          J      J             0        0          L                   00180000
+*           J    J               0      0           L                   00190000
+*            JJJJ                 000000            LLLLLLLLLLL         00200000
+         MACRO                                                    J52   00201002
+         TERMTYPE                                                       00202004
+* Fujitsu machines only.  If run on IBM, Register 15 is set ¬0    J52   00203002
+         CNOP  0,4                                                J52   00204002
+         SR    R1,R1                                              J52   00205002
+         LA    R0,2                                               J52   00206002
+         SLL   R0,24                                              J52   00207002
+         LNR   R0,R0                                              J52   00208002
+         SVC   94                                                 J52   00209002
+         MEND                                                           00209104
+*                                                                 J52   00209202
+*                                                                 J52   00209302
+         SPACE 3                                                        00210000
+         PRINT OFF                                                J50   00220000
+         COPY  JOLCOM                                                   00230000
+*      COPY CPY/JOLCOMD.CPY                                             00240000
+         PRINT ON                                                 J50   00250000
+*        COPY  P28PARMS                                           J50   00260000
+*                                                                       00270000
+* This small module initialises the jol panel areas.                    00280000
+*                                                                       00290000
+*It is called from UJI00MN ONCE at the start of JOL.                    00291001
+*                                                                       00300000
+*                                                                       00310000
+********************************************************************    00320000
+*                                                                       00330000
+*                                                                       00340000
+*       int          ujp27pop()                                         00350000
+*                                                                       00360000
+P27INIT  JOLSAVE CSECT=P27INIT                                          00370000
+         L    R10,P27GBL                                                00380000
+         USING PANELWRK,R10                                             00390000
+         TERMTYPE                Fujitsu only macro               J50   00400001
+         LTR   R15,R15           Did it return 0 (Fujitsu only)   J50   00410001
+         BNZ   P29IBM            Assume an IBM machine            J52   00420003
+*                                                                       00421001
+         CLM   R0,1,=X'08'       9525/3270 STYLE TERMINAL?        J52   00430002
+         BNE   NOTTERM           NO: KILL IT                      J52   00440002
+         STCM  R1,2,SCRNTYPE     STORE TERMINAL TYPE FLAGS        J50   00450000
+P29NTT   DS    0H                                                 J50   00460000
+         LA    R0,80                                              J50   00470000
+         ST    R0,SCRNCOLS                                        J50   00480000
+         LA    R0,24                                              J50   00490000
+         ST    R0,SCRNROWS                                        J50   00500000
+         GTTERM  PRMSZE=SIZE1,                                    J50  .00510000
+               ALTSZE=SIZE2,                                      J50  .00520000
+               ATTRIB=DWORD,                                      J50  .00530000
+               MF=(E,CALLAREA)                                    J50   00540000
+         LTR   R15,R15                                            J50   00560000
+         BNZ   P29NGT                                             J50   00570000
+         SLR   R0,R0                                              J50   00580000
+         IC    R0,SIZE2                                           J50   00590000
+         ST    R0,SCRNROWS                                        J50   00600000
+         IC    R0,SIZE2+1                                         J50   00610000
+         ST    R0,SCRNCOLS                                        J50   00620000
+         TM    DWORD+3,X'01'     Read Partition (Query) allowed?  J50   00630002
+         BZ    P29NOEXT          No, so don't use extended streamsJ50   00640003
+* Set up FAL terminal codes                                       J52   00650003
+         OI    SCRNTYPE,X'01'    EXTENDED DATA STREAM             J50   00660000
+         MVI   VIDSFE,X'1B'      FUJITSU SFE CODE                 J51   00670000
+         MVI   VIDSFEC,X'0F'     FUJITSU SET Count Field          J51   00680000
+         MVI   VIDSA,X'0E'       FUJITSU SET ATTRIBUTE CODE       J51   00690000
+         MVC   MONOSCRN,ZERO     TELL US COLOR (EVEN IF NOT!!)    J51   00700000
+P29NOEXT DS    0H                                                       00700103
+         JOLRETN                                                        00701001
+P29IBM   DS    0H                                                       00710001
+         LA    R0,80                                              J50   00710103
+         ST    R0,SCRNCOLS                                        J50   00710203
+         LA    R0,24                                              J50   00710303
+         ST    R0,SCRNROWS                                        J50   00710403
+         GTTERM  PRMSZE=SIZE1,                                    J50  .00710503
+               ALTSZE=SIZE2,                                      J50  .00710603
+               ATTRIB=DWORD,                                      J50  .00710703
+               MF=(E,CALLAREA)                                    J50   00710803
+*        GTTERM  PRMSZE=SIZE1,ALTSZE=SIZE2,ATTRIB=DWORD,MF=(E,CALLAREA) 00710903
+         LTR   R15,R15                                            J50   00711403
+         BNZ   P29NGT                                             J50   00711503
+         SLR   R0,R0                                              J50   00711603
+         IC    R0,SIZE2                                           J50   00711703
+         ST    R0,SCRNROWS                                        J50   00711803
+         IC    R0,SIZE2+1                                         J50   00711903
+         LA    R0,80                                              J60
+         ST    R0,SCRNCOLS                                        J50   00712003
+         GTTERM  ATTRIB=DWORD,                                    J50  .00712105
+               MF=(E,CALLAREA)                                    J50   00712205
+         TM    DWORD+3,X'01'     Read Partition (Query) allowed?  J50   00712303
+         BZ    P29NOEXT          No, so don't use extended streamsJ50   00712403
+* Set up IBM terminal codes                                       J52   00712503
+         OI    SCRNTYPE,X'01'    EXTENDED DATA STREAM             J52   00712601
+         MVI   VIDSFE,X'29'      IBM SFE CODE                     J52   00712701
+         MVI   VIDSFEC,X'0F'     FUJITSU SET Count Field          J52   00712801
+         MVI   VIDSA,X'28'       IBM SET ATTRIBUTE CODE           J52   00712901
+         MVC   MONOSCRN,ZERO     TELL US COLOR (EVEN IF NOT!!)    J52   00713001
+P29NGT   DS    0H                                                       00714001
+         JOLRETN                                                        00720000
+NOTTERM  DS    0H                                                 J51   00730000
+         JOLRETN RC=16                                                  00740000
+         LTORG                                                          00750000
+         DC  S(*,*,*,*)          Zap Space                        J52   00760001
+         DC  S(*,*,*,*)          Zap Space                        J52   00770001
+         DC  S(*,*,*,*)          Zap Space                        J52   00780001
+         DC  S(*,*,*,*)          Zap Space                        J52   00790001
+         DC  S(*,*,*,*)          Zap Space                        J52   00800001
+         DC  S(*,*,*,*)          Zap Space                        J52   00810001
+         DC  S(*,*,*,*)          Zap Space                        J52   00820001
+         DC  S(*,*,*,*)          Zap Space                        J52   00830001
+         DC  S(*,*,*,*)          Zap Space                        J52   00840001
+         DC  S(*,*,*,*)          Zap Space                        J52   00850001
+         DC  S(*,*,*,*)          Zap Space                        J52   00860001
+

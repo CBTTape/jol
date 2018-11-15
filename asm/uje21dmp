@@ -1,0 +1,105 @@
+UJE21DMP TITLE 'STORAGE DUMP'                                           00010009
+* JOL COPYRIGHT CCS-JOL PTY LTD 1988                                    00020002
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-E001.           00030002
+         SPACE 3                                                        00040002
+*                   J             000000            L                   00050002
+*                   J            0      0           L                   00060002
+*                   J           0        0          L                   00070002
+*                   J          0          0         L                   00080002
+*                   J         0            0        L                   00090002
+*                   J         0            0        L                   00100002
+*                   J         0            0        L                   00110002
+*                   J         0            0        L                   00120002
+*                   J         0            0        L                   00130002
+*                   J         0            0        L                   00140002
+*                   J         0            0        L                   00150002
+*        J          J         0            0        L                   00160002
+*         J        J           0          0         L                   00170002
+*          J      J             0        0          L                   00180002
+*           J    J               0      0           L                   00190002
+*            JJJJ                 000000            LLLLLLLLLLL         00200002
+           SPACE 3                                                      00210002
+* CREATED APRIL 1988 BY J SUMMERFIELD                                   00220002
+*                                   OF KURRAWANG COMPUTER PROGRAMMING   00230002
+         COPY  JOLGLOBL                                                 00240000
+         LCLC  &C,&C1,&C2,&C3,&C4,&C5,&C6                               00250002
+         $UJEPARM                                                       00260002
+         PRINT ON,DATA                                                  00270002
+UJECOMM  DSECT                                                          00280002
+         USING UJECOMM,R3,R5                                            00290000
+         COPY  UJECOMM                                                  00300002
+E21WORK  DSECT                                                   88036  00310001
+         DS    18F             SAVE AREA                         88036  00320001
+ENDADDR  DS    A                                                        00340005
+STARTADD DS    A                                                        00341006
+TEMP     DS    XL5                                               88036  00350004
+HEXCONV  DS    CL9                                               88036  00360004
+DPBLOCK  DS    F                                                        00370004
+DPLINE   DS    F                                                        00380004
+DPDATA   DS    0CL125                                                   00390004
+         DS    C                                                        00400008
+DPADDR   DS    CL6                                                      00410004
+         DS    C                                                        00420004
+DPOFFS   DS    CL3,2C                                                   00430004
+DPHEX    DS    CL75                                                     00440004
+DPCHARS  DS    CL32                                                     00450004
+DPLINEL  EQU   *-DPLINE                                                 00460004
+DPBLKL   EQU   *-DPBLOCK                                                00470004
+         DS    0D                                                88036  00480004
+E21WORKL EQU   *-E21WORK                                         88036  00490004
+         TITLE 'UJE21DMP: DUMP A STORAGE AREA'                          00500004
+*JE21DMP CSECT                                                   88036  00501006
+*        DC    D'0'                                              88036  00502006
+         JOLSAVE CSECT=UJE21DMP,SIZE=E21WORKL                           00510001
+         USING E21WORK,R13                                       88036  00520002
+         ALR   R0,R1           CALCULATE END ADDRESS             88036  00530004
+         STM   R0,R1,ENDADDR      STORE PARAMETER ADDRESSES             00540007
+         CLEAR DPDATA                                                   00550000
+         LA    R0,DPBLKL                                                00560000
+         SLL   R0,16                                                    00570000
+         ST    R0,DPBLOCK                                               00580000
+         LA    R0,DPLINEL                                               00590000
+         SLL   R0,16                                                    00600000
+         ST    R0,DPLINE                                                00610000
+         L     R2,STARTADD     ADDRESS OF THE AREA                      00620008
+         MVI   DPDATA,C' '     SINGLE SPACE                             00630008
+E21LP0   DS    0H                                                       00640000
+         ST    R2,TEMP                                                  00650003
+         UNPK  HEXCONV,TEMP                                             00660003
+         TR    HEXCONV,HEX                                              00670003
+         MVC   DPADDR,HEXCONV+2                                         00680003
+         S     R2,STARTADD        SUBTRACT ORIGINAL ADDRESS             00690004
+         ST    R2,TEMP            STORE OFFSET                          00700003
+         A     R2,STARTADD        RESTORE IT                            00710004
+         UNPK  HEXCONV,TEMP                                             00720003
+         TR    HEXCONV,HEX                                              00730003
+         MVC   DPOFFS,HEXCONV+5                                         00740003
+         MVC   DPCHARS,0(R2)   COPY DATA IN CHARACTERS                  00750000
+         TR    DPCHARS,TRTAB   REMOVE SOME HARD-TO-PRINT DATA           00760000
+         LA    R14,DPHEX       ADDRESS FOR HEX DATA                     00770000
+         LA    R1,2                                                     00780000
+E21LP1   DS    0H                                                       00790000
+         LA    R0,4            4 SEGMENTS                               00800000
+E21LP2   DS    0H                                                       00810000
+         UNPK  HEXCONV,0(5,R2) CONVERT SOME TO HEX                      00820003
+         TR    HEXCONV,HEX                                              00830003
+         MVC   0(8,R14),HEXCONV INTO THE PRINT LINE                     00840003
+         LA    R14,9(,R14)     NEXT FOR OUTPUT                          00850000
+         LA    R2,4(,R2)       NEXT FOR INPUT                           00860000
+         BCT   R0,E21LP2                                                00870000
+         LA    R14,1(,R14)    AN EXTRA SKIP IN PAGE CENTRE              00880000
+         BCT   R1,E21LP1                                                00890000
+         PRPUT DPBLOCK                                                  00900002
+         MVI   DPDATA,C' '        SINGLE SPACE                          00910000
+         C     R2,ENDADDR      Q... ANY MORE?                           00920004
+         BNH   E21LP0          A... YES                                 00930000
+         JOLRETN RC=0                                                   00940000
+         DC    20S(*)   FOR PATCHES                                     00950000
+TRTAB    DC    256AL1(*-TRTAB) ALL THINGS TO ALL THINGS                 00960000
+         ORG   TRTAB                                                    00970000
+         DC    64X'40'         FIX THE FIRST ONES                       00980000
+         ORG   TRTAB+C'9'+1                                             00990000
+         DC    6C' '           AND THE LAST ONES                        01000000
+         ORG                                                            01010000
+         LTORG                                                          01020000
+         END                                                            01030000

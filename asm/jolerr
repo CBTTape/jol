@@ -1,0 +1,135 @@
+         MACRO                                                          00010000
+&NAME    JOLERR &STMT=STMT                                              00020001
+.* THIS MACRO WILL PUT INTO A LOCATION A STRING OF CHARACTERS           00030000
+.* THE STRING MAY BE IN A BUFFER OR JOL MAY ITSELF CONTROL              00040000
+.* THE WHERE-ABOUTS OF THE ERROR MESSAGE.                               00050000
+.*                                                                      00060000
+.* SYSLIST(1) IS TAKEN TO BE THE ERROR SEVERITY AND ALSO THE            00070000
+.* ERROR NUMBER.                                                        00080000
+         LCLA  &LITPOSN,&LITLEN,&LEN,&NUMCNT                            00090000
+         LCLC  &CSECT,&ERRNO                                            00100000
+         LCLC  &JOLERR,&CHAR1                                           00110000
+         LCLC  &CSECTNO                                           74303 00120000
+         LCLC  &MODNAME                                                 00121002
+         LCLA  &LENGTH,&THIS,&NOVAR,&POSN,&L,&K,&STMTLEN                00130000
+         AIF  (T'&NAME EQ 'O').NONAME                                   00131000
+&NAME    DS   0H                                                        00132000
+.NONAME  ANOP                                                           00133000
+&STMTLEN SETA  4                                                        00140000
+&CSECT   SETC  '&SYSECT'(3,1)                                           00150000
+&CSECTNO SETC  '&SYSECT'(4,2)                                           00160000
+&ERRNO   SETC  '&SYSLIST(1)'(2,2)                                       00170000
+&CHAR1   SETC  '&SYSLIST(1)'(1,1)                                       00180000
+&MODNAME SETC  'UJS23EP'.'&CHAR1'                                       00181000
+         SPACE 2                                                        00190000
+*********************************************************************** 00200000
+&THIS    SETA  2                                                        00210000
+&NUMCNT  SETA  1                                                        00220000
+.NUMLUP  ANOP                                                           00230000
+         AIF   (&THIS GT N'&SYSLIST).REALST   REAL START                00240000
+         AIF   ('&SYSLIST(&THIS)'(1,1) EQ '#').IGNR                     00250000
+         AIF   ('&SYSLIST(&THIS)'(1,1) EQ '''').IGNR                    00260000
+         AIF   (T'&SYSLIST(&THIS) EQ 'C').IGNR                          00270000
+&LEN     SETA  L'&SYSLIST(&THIS)                                        00280000
+         AIF   (T'&SYSLIST(&THIS) EQ 'H').HALF                          00290000
+         AIF   (T'&SYSLIST(&THIS) EQ 'F').FULL                          00300000
+         AIF   (T'&SYSLIST(&THIS) EQ 'X').BIT                           00310000
+         AIF   (T'&SYSLIST(&THIS) EQ 'R').XPLACO  EXPLICT LENGTH A      00320000
+         AIF   (T'&SYSLIST(&THIS) EQ 'G').XPLFCO   OR F CONSTANTS       00330000
+         MNOTE 12,'UNKNOWN DATA TYPE FOR &SYSLIST(&THIS)'               00340000
+.HALF    LH    1,&SYSLIST(&THIS)                                        00350000
+         AGO   .CONV         CONVERT TO CHAR                            00360000
+.FULL    L     1,&SYSLIST(&THIS)  LOAD THE NUMBER IN R1                 00370000
+         AGO .CONV             CONVERT TO CHAR                          00380000
+.BIT     ANOP                                                           00390000
+.XPLACO  ANOP                                                           00400000
+.XPLFCO  ANOP                                                           00410000
+.* HERE WE HAVE AN EXPLICTLY DECLARED ITEM,THEREFORE IT MAY NOT         00420000
+.*   BE ALIGNED. DEPENDING ON THE LENGTH,WE SHALL DO DIFFERENT          00430000
+.*   THINGS                                                             00440000
+         AIF   (&LEN EQ 1).IC                                           00450000
+         AIF   (&LEN EQ 2).ICBY2                                        00460000
+         AIF   (&LEN EQ 3).MVC3                                         00470000
+         AIF   (&LEN EQ 4).MVC4                                         00480000
+         MNOTE 12,'LENGTH FOR BINARY NUMBER NOT SUPPORTED.L=&LEN'       00490000
+         MEXIT                                                          00500000
+.IC      ANOP                                                           00510000
+         SR    R1,R1         CLEAR REGISTER 1                           00520000
+         IC    R1,&SYSLIST(&THIS) LOAD 1 BYTE NUMBER                    00530000
+         AGO   .CONV         CONVERT TO CHARACTER                       00540000
+.ICBY2   ANOP                                                           00550000
+         MVC   CALLAREA+8(2),&SYSLIST(&THIS) SHIFT                      00560000
+         LH    R1,CALLAREA+8 LOAD NUMBER                                00570000
+.MVC3    MVI   CALLAREA+8,0  ZERO FIRST BYTE                            00580000
+         MVC   CALLAREA+9(3),&SYSLIST(&THIS) SHIFT                      00590000
+         L     R1,CALLAREA+8 LOAD NUMBER                                00600000
+         AGO   .CONV         CONVERT TO CHARACTER                       00610000
+.MVC4    ANOP                                                           00620000
+         MVC   CALLAREA+8(4),&SYSLIST(&THIS) SHIFT                      00630000
+         L     R1,CALLAREA+8 LOAD NUMBER                                00640000
+         AGO   .CONV         CONVERT TO CHARACTER                       00650000
+.CONV    ANOP                                                           00660000
+         CVD   R1,DBL        CONVERT TO PACKED                          00670000
+         UNPK  ERRNUM&NUMCNT,DBL                                        00680000
+         OI    ERRNUM&NUMCNT+4,C'0' FIX UP LAST CHARACTER               00690000
+&NUMCNT  SETA  &NUMCNT+1                                                00700000
+.IGNR    ANOP                                                           00710000
+&THIS    SETA  &THIS+1                                                  00720000
+         AGO   .NUMLUP                                                  00730000
+.REALST  ANOP                                                           00740000
+         AIF   (T'&MODNAME EQ  'U').BALR                                00750000
+         BAL   14,&MODNAME      BRANCH AND LINK TO ERROR ROUTINE        00751000
+         AGO  .NOBALR                                                   00752000
+.BALR    ANOP                                                           00753000
+         L    15,=V(UJSERR)                                             00754002
+         BALR 14,15                                                     00755000
+.NOBALR  ANOP                                                           00756000
+&JOLERR  SETC  'ER&CSECT&CSECTNO&ERRNO'   SET  UP NAME FOR X REF 74303  00760000
+&JOLERR  DC    C'&CSECT',AL1(&CSECTNO,&CHAR1,&ERRNO),S(&STMT)           00770000
+E&SYSNDX EQU   &JOLERR                                                  00780000
+&THIS    SETA  2                                                        00790000
+&NUMCNT  SETA  1                                                        00800000
+.LUP4    ANOP                                                           00810000
+         AIF   (&THIS GT N'&SYSLIST).END                                00820000
+         AIF   ('&SYSLIST(&THIS)'(1,1) EQ '#').VAR2                     00830000
+         AIF   ('&SYSLIST(&THIS)'(1,1) EQ '''').LIT2                    00840000
+         AIF   (T'&SYSLIST(&THIS) EQ 'H').NUMC                          00850000
+         AIF   (T'&SYSLIST(&THIS) EQ 'F').NUMC                          00860000
+         AIF   (T'&SYSLIST(&THIS) EQ 'X').NUMC                          00870000
+         AIF   (T'&SYSLIST(&THIS) EQ 'R').NUMC    EXPLICT LENGTH A      00880000
+         AIF   (T'&SYSLIST(&THIS) EQ 'G').NUMC     OR F CONSTANTS       00890000
+.* HERE IT SHOULD BE A CHAR VARIABLE                                    00900000
+         AGO   .CHAR9                                                   00910000
+.NUMC    ANOP                                                           00920000
+         MVC   0(5,1),ERRNUM&NUMCNT SHIFT CONVERTED NUMBER              00930000
+&NUMCNT  SETA  &NUMCNT+1                                                00940000
+         AGO   .ADD3                                                    00950000
+.CHAR9   ANOP                                                           00960000
+&L       SETA L'&SYSLIST(&THIS)                                         00970000
+         MVC   0(&L,1),&SYSLIST(&THIS) FIXED CHAR STRING                00980000
+         AGO   .ADD3                                                    00990000
+.LIT2    ANOP                                                           01000000
+.* NOW LOOK FOR DOUBLE QUOTES IN STRING TO CALCULATE THE CORRECT        01010000
+.*   LENGTH                                                             01020000
+&LITPOSN SETA   2             START AFTER 1ST QUOTE                     01030000
+&LITLEN  SETA   K'&SYSLIST(&THIS)                                       01040000
+&LITLEN  SETA   &LITLEN-2                                               01050000
+.TQUOTE2 AIF    ('&SYSLIST(&THIS)'(&LITPOSN,2) NE '''''').NOTDBL2       01060000
+&LITPOSN SETA   &LITPOSN+1                                              01070000
+&LITLEN  SETA   &LITLEN-1                                               01080000
+.NOTDBL2 ANOP                                                           01090000
+&LITPOSN SETA   &LITPOSN+1                                              01100000
+         AIF    (&LITPOSN LT K'&SYSLIST(&THIS)).TQUOTE2                 01110000
+&K       SETA   &LITLEN                                                 01120000
+         MVC    0(&K,1),=C&SYSLIST(&THIS) MOVE LITERAL STRING           01130000
+&POSN    SETA   &POSN+&K                                                01140000
+         AGO    .ADD3                                                   01150000
+.VAR2    ANOP                                                           01160000
+         LA     1,&SYSLIST(&THIS) LOAD ADDRESS OF THE VARYING STRING    01170000
+.ADD3    ANOP                                                           01180000
+&THIS    SETA   &THIS+1                                                 01190000
+         AGO    .LUP4                                                   01200000
+.END     DC     H'0'                            END LIST                01210000
+*********************************************************************** 01220000
+         SPACE  2                                                       01230000
+         MEND                                                           01240000

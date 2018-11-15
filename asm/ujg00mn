@@ -1,0 +1,1846 @@
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974            00010000
+* COPYRIGHT CCS 1975,1976,1980                                          00020000
+* COPYRIGHT CCS-JOL 1987.                                               00021012
+*                                                                       00030000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00040000
+           SPACE 3                                                      00050000
+*                   J             000000            L                   00060000
+*                   J            0      0           L                   00070000
+*                   J           0        0          L                   00080000
+*                   J          0          0         L                   00090000
+*                   J         0            0        L                   00100000
+*                   J         0            0        L                   00110000
+*                   J         0            0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0            0        L                   00160000
+*        J          J         0            0        L                   00170000
+*         J        J           0          0         L                   00180000
+*          J      J             0        0          L                   00190000
+*           J    J               0      0           L                   00200000
+*            JJJJ                 000000            LLLLLLLLLLL         00210000
+        SPACE 3                                                         00220000
+* FIXES:-                                                               00230000
+* JOL30009:-  LABEL OUT REMOVED                                         00240000
+* JOL30042:-  LABEL IN NOT GENERATED FOR SOME DATA SETS                 00250000
+* JOL30043:-  MXIG (,) ROUND                                            00260000
+* JOL30044:-  DSN'S = GIVES DISP OLD INSTEAD OF MOD                     00270000
+* JOL30047:-  DCBEXTRA NOT GENERATED IF NO OTHER DCB.                   00280000
+* JOL30056:-  LABEL IN NOT PRODUCED FOR CARD (SYSIN) FILES              00290000
+* JOL30061:-  BAD JCL WITH NOCAT AND ABSOLUTE GDGS.                     00300000
+* JOL30069:-1.2 NODSN'S IN ONE STEP RESOLVE TO SAME DATASET             00310000
+*           2.IF NOCAT IS USED,READS (0),WRITES(+1) RESOLVES            00320000
+*             TO SAME DATA SET                                          00330000
+* JOL30078:-  CANCELLED DCB FOR MOD DATA SET WITH SPACE SPECIFIED       00340000
+*             AS BLOCKS OR RECORDS PRODUCES BAD SPACE PARAMETER         00350000
+***        NOTE:- TEMPORARY FIX TILL FULL 3.1 CREATED.                  00360000
+* THESE FIXES ARE DESIGNED TO BE COMPATIBLE WITH 3.0                    00370000
+*                                                                       00380000
+*                                                                       00390000
+******************************************************************      00400000
+*                                                                       00410000
+*                                                                       00420000
+* MODIFIED BY C. V. CLARKE TO INCLUDE XA SUPPORT DEC, 1983              00430000
+*    THIS SUPPORT REPLACES THE CODE THAT CHECKED THE UCB                00440000
+*    WITH A CALL TO A NEW MODULE UJG00UCB IN SOURCE MODULE              00450000
+*    UJS02XA                                                            00460000
+*                                                                       00470000
+* MODIFIED BY D.DOUBTFIRE TO ALLOW USE OF SPECIAL PARAMETERS            00480007
+* FOR LASER PRINTERS (FLASH,MODIFY,BURST,CHARS)                         00490007
+*                                                                       00500007
+*                                                                       00510000
+******************************************************************      00520000
+         EJECT                                                          00530000
+*        PRINT OFF SUPPRESS JOLCOM                                      00540000
+         COPY   JOLCOM                                                  00550000
+         PRINT DATA,ON                                            75128 00560000
+         TITLE 'GENERATE MAIN LINE'                                     00570000
+           JOLSAVE CSECT=UJG00MN,BASE=12                          74303 00580000
+           USING JOLCOM,R2                                              00590000
+           USING DDDSNDET,R8                                            00600000
+           MVC STMT,=CL4'   0'                                          00610000
+* NOW SET'NEST' TO ZERO SO LATER WE KNOW IF WE HAVE GENERATED ANY OS    00620000
+*    STEPS.UJG02PGM SETS IT TO 1 IF IT HAS BEEN CALLED AT ALL.          00630000
+           MVI NEST,0                                                   00640000
+           SPACE                                                        00650000
+           L  R8,AVTBLE                                                 00660000
+G00TDD     CLI DDDD1,C'D'      DD CARD?                                 00670000
+           BNE G00NOTDD                                                 00680000
+           CLI DDDDNAME,C'%'   INSTRUCTION ?                            00690000
+           BNE G00REALD        NO IT'S A REAL DD CARD AND MUST BE OUTP  00700000
+*                              -UT                                      00710000
+*NOW WE HAVE FOOUND A DISPOSITION INSTRUCTION                           00720000
+*    EG CATLG,DELETE ETC                                                00730000
+* THIS GETS VERY COMPLEX ABOUT THIS AREA BECAUSE IF WE HAD THE          00740000
+*    SITUATION                                                          00750000
+*    1.    RUN  A  (USES SAY DISK01)                                    00760000
+*    2.    IF B THEN                                                    00770000
+*          CATLG X (ON DISK01)                                          00780000
+* WE DON'T WANT TO HAVE 2 OS STEPS IF WE CAN AVOID IT.                  00790000
+           SPACE                                                        00800000
+* THE FOLLOWING PIECES OF VITAL INFORMATION MUST BE TAKEN               00810000
+*    INTO ACCOUNT.                                                      00820000
+* 1.                                                                    00830000
+*    JOL IS MORE THAN HAPPY TO PLAY WITH JOBQ,PDQ ETC TO KEEP AND       00840000
+*    CATLG DATA-SETS                                                    00850000
+           SPACE                                                        00860000
+* 2. A DELETE OR SCRATCH MUST HAVE THE PACK MOUNTED                     00870000
+*    A TAPE NEED NOT BE MOUNTED FOR A SCRATCH,BECAUSE NO 'SCRATCH'      00880000
+*          IS ACTUALLY ISSUED.                                          00890000
+           SPACE                                                        00900000
+* 3.                                                                    00910000
+*    A KEEP OR CATLG NEED ONLY HAVE A DD-CARD POINTING TO THE           00920000
+*    VOLUME IF THE VOLUME IS NO LONGER RETAINED,I.E OS MAY UNLOAD       00930000
+*    THE VOLUME IF IT SO DESIRES                                        00940000
+***** NOTE THIS MAY BE CHANGED LATER *****                              00950000
+           SPACE                                                        00960000
+* 4.                                                                    00970000
+*    PERMANENTLY  MOUNTED VOLUMES DO NOT COME INTO THIS CATEFORY.       00980000
+           SPACE                                                        00990000
+* 5.                                                                    01000000
+*    UNCATLG NEVER NEEDS TO HAVE THE VOLUME MOUNTED AND                 01010000
+*    IS REALLY (AS FAR AS THIS DISCUSSION IS CONCERNED) A NOP.          01020000
+           SPACE                                                        01030000
+* 6.                                                                    01040000
+*    AS MENTIONED EARLIER,JOL CAN DYNAMICALLY PERFORM MAY ACTIONS.      01050000
+*    IF IT CANNOT THOUGH (SAY PACK NOT UP),IT MUST BE ABLE TO           01060000
+*    HAVE THE PACK(S) MOUNTED THROUGH JCL,AND THEREFORE EXTRA STEPS     01070000
+*    ARE INSERTED WHICH MAY BE BY-PASSED BY JOL IN A SUPER-HI-SPEED     01080000
+*    SUPER-DUPER JOB STEP LEAP                                          01090000
+* WOW: LETS GO                                                          01100000
+           SPACE 3                                                      01110000
+* IF UNCATLG,IGNORE                                                     01120000
+           CLI DDDDNAME+1,C'U' UNCATALOG ?                              01130000
+           BE  G00OLDST        GOOD OH,DON'T GENERATE A NEW STEP        01140000
+           SPACE                                                        01150000
+* IS IT A KEEP OR CATLG,BUT THE VOLUME STILL MARKED RETAIN ?            01160000
+           CLI DDDDNAME+1,C'K' KEEP?                                    01170000
+           BE  G00OLDST                                                 01180000
+*          BE  G00KEEP1                                                 01190000
+           CLI DDDDNAME+1,C'C' CATALOG  ?                               01200000
+           BE  G00OLDST                                                 01210000
+*          BE  G00KEEP1                                                 01220000
+* WELL,IT CAN ONLY BE A 'DELETE' OR A 'SCRATCH'                         01230000
+* MUST OUTPUT A STEP IF NOT A PERMANENT VOLUME                          01240000
+* **** BUT IF THIS IS THE VERY FIRST STEP, WE WILL OUTPUT A             01250000
+* STEP SO THAT WE DON'T GET THE SITUATION THAT A DS IS SCRATCHED        01260000
+* IN THE SAME STEP THAT CREATES IT....                                  01270000
+         MVI   DDDISP+1,C' '  MAKE IT NO PASS            JOL30112 87150 01280018
+         CLI   NEST,0         ANY STEPS CREATED YET ?    JOL30101 76200 01290000
+         BE    G00NEWST                                           75311 01300000
+*                                                                 76200 01310000
+* FOR DELETE GDGALL, WE WILL LET OS DO IT. ALL WE HAVE TO DO IS   76200 01320000
+*  POP OUT A STEP FOR THE MONITOR TO EXECUTE, AND PUT A DISP OF   76200 01330000
+*  OLD,DELETE ON THE JCL.                                         76200 01340000
+*                                                                76200  01350000
+         CLI   DDCATLGS,104   IS THIS A GDG ALL?         JOL30112 76200 01360000
+         BNE   G00NGDGA       NOPE                       JOL30112 76200 01370000
+         MVI   DDUSE,X'10'   OLD                        JOL30112  76200 01380041
+         MVI   DDDISP+1,C'D'  DELETE                     JOL30112 76200 01390000
+         B     G00NEWST       GO CREATE SPECIAL STEP     JOL30112 76200 01400000
+G00NGDGA EQU   *                                         JOL30112 76200 01410000
+         SPACE 2                                         JOL30112 76200 01420000
+           TM  DDUNITYP,B'01000000' PERM                                01430000
+           BO  G00OLDST        YES,NO STEP REQUIRED                     01440000
+   FIX 'FACOM TAPE UNITS WRONG'                                         01450000
+           TM  DDUNITYP,B'10000000' IS IT A TAPE ?                74303 01460000
+           BZ  G00OLDST             YES,NO NEW NEW STEP REQ'D     74303 01470000
+* NOW WE SHALL SCAN THE UCBS TO FIND WHICH VOLS ARE UP     FIX-X 76200  01480000
+* PERMANENTLY BY A CALL TO UJG00UCB (HANDLES XA AS WELL).            XA 01490000
+*                                                                       01500000
+         $CALL UJG00UCB,DDDSNDET                                     XA 01510000
+         LTR   R15,R15        WAS VOLUME PERMANENTLY MOUNTED ?       XA 01520000
+         BZ    G00OLDST       OLD STEP ,, HURRAY....                 XA 01530000
+* SUCH A BORE,OUTPUT A STEP OLD FRUIT.                                  01540000
+G00NEWST   EQU  *                                                       01550000
+***********                                                             01560000
+*                                                                       01570000
+* IT IS POSSIBLE,GOOD AND PROPER TO SORT ANY FOLLOWING                  01580000
+* DISPOSITION INSTRUCTIONS INTO PACK ORDER                              01590000
+*                                                                       01600000
+***********                                                             01610000
+* LATER                                                                 01620000
+      SPACE 3                                                           01630000
+           MVC STMT,DDDDNAME+2  DISP STMT NUMBER                        01640000
+*          OC STMT,=C'0000'                                             01650000
+          $CALL UJG02PGM,DDDSNDET                                74303  01660000
+         ZAP   WORKDS,=P'0'      CLEAR WORK FIELD  76200                01670000
+G00OPDSP   EQU *                                                        01680000
+* IF UNCATLG, KEEP OR CATLG IGNORE                          76200       01690000
+          CLI DDDDNAME+1,C'U' UNCATALOG ?                   76200       01700000
+          BE  G00OBYPS                                      76200       01710000
+          CLI DDDDNAME+1,C'K' KEEP?                         76200       01720000
+          BE  G00OBYPS                                      76200       01730000
+          CLI DDDDNAME+1,C'C' CATALOG  ?                    76200       01740000
+          BE  G00OBYPS                                      76200       01750000
+         AP    WORKDS,=P'1'     UPDATE WORK COUNTER         76200       01760000
+         OI    WORKDS+1,X'0F'   CHANGE SIGN TO SOMETHING GOO76200       01770000
+         UNPK  DDDDNAME+6(2),WORKDS APPEND 2 BYTES TO DDNAME76200       01780000
+          $CALL UJG03DS,DDDSNDET                                 74303  01790000
+* NOW IF PERCHANCE THE NEXT ITEM IN THE TABLE IN ANOTHER                01800000
+*     DISPOSITION INSTRUCTION,AND IT USES THE SAME VOLUMES              01810000
+*     AS THIS ONE,THERE APPEARS TO BE VERY LITTLE POINT IN              01820000
+*     GENERATING AN EXTRA OS JOB STEP,SO WE WON'T OF COURSE             01830000
+G00OBYPS   LR R1,R8            SAVE POINTER                             01840000
+           AH R8,0(R8)         STEP ON                                  01850000
+           CLC 0(2,R8),=H'0'   END STACK                                01860000
+           BE G00NG001         NO GOOD FOR THIS PURPOSE                 01870000
+           CLI DDDD1,C'D'      DD-CARD ENTRY ?                          01880000
+           BNE G00NG001        NO GOOD EITHER                           01890000
+           CLI DDVOLUME,C' '   VOL BLANK ?                              01900000
+           BE  G00NG001        NO GOOD EITHER                           01910000
+           CLC DDVOLUME,DDVOLUME-DDDSNDET(R1) VOLS EQUAL ?              01920000
+           BNE G00NG001        WELL THATS NO GOOD EITHER                01930000
+* ALL LOOKS WELL,OUTPUT THE REQUIRED INFORMATION                        01940000
+           B   G00OPDSP                                                 01950000
+G00NG001   LR  R8,R1                                                    01960000
+           B   G00OLDST        STEP ON TO NEXT ITEM.                    01970000
+           SPACE 3                                                      01980000
+*        PLEASE NOTE THAT "G00KEEP1"  CODE IS NO LONGER                 01990000
+*        BRANCHED TO AS OF 10-29-76                                     02000000
+*        IT WAS REMOVED TO STOP STEPS BEING GENERATED                   02010000
+*        FOR DELETS CATLG AND UNCATLOGS                                 02020000
+G00KEEP1   EQU *                                                        02030000
+* NOW WE DON'T REALLY WANT TO GENERATE A NEW STEP UNLESS THE VOLUME     02040000
+*    HAS TO COME DOWN.                                                  02050000
+* THE VOLUME DOESN'T COME DOWN IF IT IS A PERMANENT OR PREFERRED        02060000
+*    TO STAY MOUNTED VOLUME                                             02070000
+           TM  DDUNITYP,B'01100000'                                     02080000
+           BM  G00OLDST        GOOD,NO NEW JCL REQUIRED.                02090000
+           BO  G00OLDST                                                 02100000
+* ALSO,IF IT IS A TAPE THERE IS NOT NEED TO GENERATE A NEW STEP   74303 02110000
+           TM  DDUNITYP,B'10000000' TAPE ?                        74303 02120000
+           BZ  G00OLDST             YEP                           74303 02130000
+           CLI DDDISP+1,C'L'   THIS LAST USE OF DATA SET IN JOB?        02140000
+           BNE G00OLDST        YES,SO DON'T BOTHER CREATING A NEW       02150000
+*                              OS STEP                                  02160000
+          OI  DDUSE,X'02'     TURN ON DEFERRED MOUNT FOR KEEP/CATLG     02170000
+           B   G00NEWST        CREATE A NEW STEP                        02180000
+G00REALD   EQU  *                                                       02190000
+* JUST BEFORE OUTPUTTING THE DD-CARD WE MUST SEE IF THE VOLUME          02200000
+*     SPECIFIED FOR A REAL DATA SET IS A VREF OR A BLANK,AND            02210000
+*     IF SO WE MUST REFER TO AN EARLIER DD-CARD SO OS WON'T JCL         02220000
+*     US OFF AT STEP INITIATION,OR WORSE,IT MAY SEARCH THE              02230000
+*     CATALOGUE TO FIND IT AND BECAUSE THE DSNAME COULD BE THE SAME     02240000
+*     AS A CATALOGUED ONE,THE WRONG VOLUME COULD BE USED.               02250000
+* NOW IF THIS IS A SYSOUT OR SYSIN DATA SET,IGNORE IT HERE              02260000
+         CLI   DDTYPE,25      REAL DATA SET?                      75128 02270000
+         BL    G00VOLOK       NO,FORGET IT FOR NOW                75128 02280000
+* A REAL DATA APPEARS TO EXIST                                          02290000
+           CLI DDVOLUME,C'*'   VOLREF ?                                 02300000
+           BE  G00VREF1        YES,GO CHECK IF IN THIS OS STEP          02310000
+           CLI DDVOLUME,C' '   PASSED OR NEW,CHECK IS DSNAME            02320000
+*                              ALREADY USED IN THIS STEP AND            02330000
+*                              IF SO/GIVE IT A VREF                     02340000
+           BNE G00VOLOK        VOL ^'' SO OUTPUT THE DDCARD       87150 02350029
+           SPACE 3                                                      02370000
+G00VREF1   EQU *                                                        02380000
+           LA R15,DDDSNDET     SORRY,COULD HAVE USED A LR,BUT THIS IS   02390000
+*                              MORE FLEXIBLE                            02400000
+G00BACK1   EQU *                                                        02410000
+           SH R15,2(R15)       STEP BACKWARDS ONE RECORD                02420000
+           CLC 2(2,R15),=H'0'  GONE BACK TO START ?                     02430000
+           BE  G00VOLOK        NO VOL REF THEN OBVIOUSLY.               02440000
+           CLI DDDD1-DDDSNDET(R15),C'E' STEP START ?                    02450000
+           BNE G00DDAGN        NO, TEST IF ITS A DD CARD THEN     87150 02460029
+* HERE WE WILL CLEAR OUT THE VOLUME, SO IT WILL FIND IT IN THE PDQ87150 02470029
+          TM    DDUSE,B'01000000'   IS THIS A NEW DATASET ?        J50  02470142
+          BO    G00VOLOK            NOPE, CLEAR VOL                J50  02470242
+          CLEAR DDVOLUME                                                02470342
+         B     G00VOLOK        DIDN'T FIND A DDCARD THEN TO MATCH.      02471029
+*                              SO MERELY GENERATE THE DDCARD.           02472029
+G00DDAGN CLI   DDDD1-DDDSNDET(R15),C'D' DD-CARD ?                       02480029
+         BNE   G00BACK1        GO BACK ANOTHER DD-CARD                  02490029
+* RIGHT 0H,A DD CARD IN THIS VERY JCL STEP EXISTS.                      02500000
+           CLI DDVOLUME,C'*'                                            02510000
+           BE  G00VREF2                                                 02520000
+* BLANK VOLUME,CHECK IF DSN'S EQUAL                                     02530000
+* BUT WE MUST ALSO CHECK THAT THE DSNAMES AREN'T EQUAL                  02540000
+* AND ****** BLANK ******                                               02550000
+         IFNULL  DDDSNAME,G00BACK1                                      02560000
+         CLC =C'*DUMMY',DDDSNAME                                  75311 02570000
+         BE  G00BACK1                                             75311 02580000
+         CLC   DDDDNAME-DDDSNDET(,R15),BLANKS DDNAME=''  JOL30120 76200 02590000
+         BE    G00BACK1                                           75311 02600000
+           CLC DDDSNAME,DDDSNAME-DDDSNDET(R15)                          02610000
+           BNE G00BACK1                                                 02620000
+         SPACE 2                                                        02630000
+         CLI   DDDSNAME,C'%'  IS THIS A NODSN IDENTIFIER?JOL30069 76200 02640000
+         BE    G00BACK1       YES, SO ASSUME DIFF  D/S   JOL30069 76200 02650000
+         CLI   DDMBR,C'('     IS THIS A GDG REL / ABS ?  JOL30069 76200 02660000
+         BNE   G00MAKVR       NO,AND DSN'S EQUAL,SO MAKE=JOL30069 76200 02670000
+         CLI   DDMBR-DDDSNDET(R15),C'(' 2ND DSID GDG?    JOL30069 76200 02680000
+         BNE   G00BACK1       NO,MUST BE GDGALL,NO VOLREFJOL30069 76200 02690000
+* HERE WE HAVE 2 DSNAMES THE SAME,AND BOTH GDGS.         JOL30069 76200 02700000
+**TEST IF GDG NUMBERS ARE THE SAME THEN.                 JOL30069 76200 02710000
+         SPACE 1                                         JOL30069 76200 02720000
+         CLC   DDMBR(6),DDMBR-DDDSNDET(R15) GDG NUMBERS=?JOL30069 76200 02730000
+         BNE   G00BACK1                     NO -> ...    JOL30069 76200 02740000
+         SPACE 2                                         JOL30069 76200 02750000
+G00MAKVR   EQU *                                                        02760000
+           CLEAR DDVOLUME                                               02770000
+           MVC DDVOLUME(3),=C'**.' SET DDNAME VREF INDICATOR            02780000
+           MVC DDVOLUME+3(8),DDDDNAME-DDDSNDET(R15) PUT IN VREFD NAME   02790000
+* TO CORRECT A PROBLEM WITH NOCAT AND VOLREFS, WE WILL CLEAR THE        02800000
+*  DSNAME IF THE DDNAME HERE STARTS WITH '$$VR'                         02810000
+           CLC =C'$$VR',DDDDNAME                                        02820000
+           BNE  G00CHKDS                                                02830000
+           CLEAR DDDSNAME,DDDDNAME                                      02840000
+           FIX 'IT MAY BE POSSIBLE TO IGNORE THIS IF **DDNAME SPECI'    02850000
+           B    G00STEP      DON'T OUTPUT THIS DDCARD                   02860000
+G00CHKDS   DS   0H                                                      02870000
+           CLC DDDSNAME,DDDSNAME-DDDSNDET(R15) DSNS=        C0034-74191 02880000
+           BNE G00VOLOK                                     C0034- DASD 02880129
+         CLI   DDMBR,C'('     IS THIS A GDG REL / ABS ?  JOL30069 87150 02880229
+         BNE   G00TISAM       NO,AND DSN'S EQUAL,SO MAKE=JOL30069 87150 02880329
+         CLI   DDMBR-DDDSNDET(R15),C'(' 2ND DSID GDG?    JOL30069 87150 02880429
+         BNE   G00TISAM       NO,MUST BE GDGALL,NO VOLREFJOL30069 87150 02880529
+* HERE WE HAVE 2 DSNAMES THE SAME,AND BOTH GDGS.         JOL30069 87150 02880629
+**TEST IF GDG NUMBERS ARE THE SAME THEN.                 JOL30069 87150 02880729
+         SPACE 1                                         JOL30069 87150 02880829
+         CLC   DDMBR(6),DDMBR-DDDSNDET(R15) GDG NUMBERS=?JOL30069 87150 02880929
+         BNE   G00VOLOK                     NO -> ...    JOL30069 87150 02881029
+G00TISAM CLC   =C'IS',DDDSORG   CHECK FOR ISAM  (ABEND S034)       DASD 02900029
+         BE    G00VOLOK         OK  DONT CHANGE TO  SHR,PASS       DASD 02910029
+* THIS WILL LEAVE THE 2ND AND 3RD (PRIME & OVFLOW) AT NEW,PASS     DASD 02920000
+         CLI   DDUSE,X'C0'    DISP=SHR AND LABEL^=IN ?             SOCO 02930041
+         BE    G00VOLOK                                            SOCO 02940000
+* THIS WILL LEAVE DISP=SHR & LABEL^=IN ALONE                       SOCO 02950000
+         NI    DDUSE,X'81'   CHANGE DISP TO SHR (LEAVE  JOL30044  76200 02960041
+*                             MOD AND UNITAFF ON THOUGH) JOL30044 76200 02970000
+           B  G00VOLOK                                                  02980000
+           SPACE 1                                                      02990000
+G00VREF2   EQU *                                                        03000000
+           CLC DDVOLUME+1(L'DDDSNAME-3),DDDSNAME-DDDSNDET(R15)          03010000
+           BE  G00MAKVR                   YES,FIX VREF                  03020000
+           B   G00BACK1        NO,CONTINUE CHECKING                     03030000
+G00VOLOK   EQU *                                                        03040000
+         $CALL UJG03DS,DDDSNDET                                  74303  03050039
+         B     G00STEP                                                  03060000
+G00NOTDD LR    R4,R8                                                    03070000
+         USING PGMDETS,R4                                               03080000
+         CLI   DDDD1,C'E'      RUN STATEMENT ?                          03090000
+         BNE   G00TPARM    NO SO NO NEW OS STEP                         03100000
+         L     R1,AGENDETS                                              03110000
+         USING GENDETS,R1                                               03120000
+         TM    PARMPRNT,X'10'      Q... PRINT JCL?                      03130000
+         BZ    G00X8010            A... NO                              03140000
+         L     R10,APRINTLN                                             03150000
+         XC    0(4,R10),0(R10)                                          03160000
+         MVC   4(6,R10),=CL6' '                                         03170000
+         LA    R10,10(,R10)         POINT TO DATA AREA                  03180000
+         CONCAT PGMESTMT,' ',PGMLABEL,' EX ',PGM                        03190000
+         IFNULL PGMSIZE,G00X8NRG    IF NO REGION ...                    03200000
+         CONCAT ' REGION ',PGMSIZE                                      03210000
+G00X8NRG DS    0H                                                       03220000
+         L     R14,APRINTLN                                             03230000
+         SR    R10,R14                                                  03240000
+         STH   R10,0(,R14)         SAVE DATA LENGTH                     03250000
+         JOLPRINT                                                       03260000
+G00X8010 DS    0H                                                       03270000
+G00NX8   DS    0H                                                       03280000
+         IFNULL PGMNODDS,G00STEP   DO WE NEED A NEW OS STEP ? NO->75128 03290000
+         MVC STMT,PGMESTMT                                              03300000
+*        OC STMT,=C'0000'                                               03310000
+         DROP R1,R4                                                     03320000
+          $CALL UJG02PGM,DDDSNDET                                74303  03330000
+          B   G00STEP                                                   03340000
+G00TPARM DS    0H                                                       03350000
+          CLI DDDD1,C'I'    INSTRUCTION?                                03360000
+          BNE G00STEP                                                   03370000
+         CLC   =C'OPCNTL ',ICOMMAND-ILENGTH(R8)   OPCNTL NOW ?    75128 03380000
+         BE    G00OPCNT  YES                                      75128 03390000
+         CLC   =C'SUBSYS ',ICOMMAND-ILENGTH(R8)   SUBSYS NOW ?    87150 03391015
+         BE    G00STEP         SKIP IT, DONE IN G03DS GENERATE    87150 03392015
+         CLC   =C'PARM',ICOMMAND-ILENGTH(R8)                            03400015
+         BNE   G00STEP                                                  03410015
+         IFOS  =X8,G00STEP                                              03420000
+          MVC DBL(2),ITEXT-ILENGTH(R8)                                  03430000
+          LH  R14,DBL                                                   03440000
+          MVC WORK(80),BLANKS                                           03450000
+         MVI #WORK+1,80                                                 03460000
+          BCTR R14,0                                                    03470000
+          MVC WORK(10),=C'//* PARM='''                             DASD 03480000
+          EX  R14,G00PRMEX                                              03490000
+          LA R15,WORK+10   POINT TO START OF PARM FIELD IN #WORK   DASD 03500000
+          AR R15,R14       ADD PARM LENGTH TO GET END ADDRESS      DASD 03510000
+         MVI  1(R15),C'''' ADD ENDING QUOTE                        DASD 03520000
+         OPJCL #WORK                                             74303  03530000
+          MVC  DBL(2),ITEXT-ILENGTH(R8)                            DASD 03540000
+          LH   R14,DBL                                             DASD 03550000
+          SH   R14,=H'70'   IS PARM FIELD GREATER THAN 70 BYTES ?  DASD 03560000
+          BM   G00STEP      NOPE                                   DASD 03570000
+          MVC  WORK(80),BLANKS                                     DASD 03580000
+          MVI  #WORK+1,80     MAKE #WORK 80 BYTES LONG             DASD 03590000
+          MVC  WORK(3),=C'//* PARM=''' USE SAME LITERAL AS ABOVE   DASD 03600000
+          EX   R14,G00PRME2   MOVE THE REST                        DASD 03610000
+          OPJCL #WORK         OUTPUT THIS SUFF                     DASD 03620000
+         B   G00STEP                                                    03630000
+G00OPCNT MVC   DBL(2),ITEXT-ILENGTH(R8) SHIFT LENGTH SO NO 0C6    75128 03640000
+         LH    R14,DBL             LOAD LENGTH OF RECORD          75128 03650000
+         MVC   WORK(80),BLANKS     BLANK FILL WORK                75128 03660000
+         STH   R14,#WORK       SET LENGTH CORRECTLY               75311 03670000
+         BCTR  R14,0               -1 FOR EXECUTE                 75128 03680000
+         EX    R14,G00MVOP         SHIFT 'OPCNTL'                 75128 03690000
+         OPJCL #WORK               OUTPUT RECORD                  75128 03700000
+         MVI   DDDD1,C'%'          DELETE INSTRUCTION                   03710000
+         B     G00STEP             ON TO LOOP DOWN                75128 03720000
+         SPACE 3                                                        03730000
+G00MVOP  MVC   WORK(*-*),ITEXT+2-ILENGTH(R8)                      75128 03740000
+G00PRMEX  MVC WORK+10(*-*),ITEXT+2-ILENGTH(R8)                          03750000
+G00PRME2  MVC WORK+10(*-*),WORK+80                                 DASD 03760000
+G00STEP    EQU  *                                                       03770000
+G00OLDST   EQU  *                                                       03780000
+           AH  R8,0(R8)        STEP ON                                  03790015
+           CLC 0(2,R8),=H'0'                                            03800000
+           BNE G00TDD                                                   03810000
+           CLI NEST,0          PRODUCED ANY OS STEPS YET ?              03820000
+           BNE G00RETNO        YES,SO RETURN PLEASANTLY                 03830000
+           SR  R8,R8                                                    03840000
+          $CALL UJG02PGM,DDDSNDET                                74303  03850000
+G00RETNO  EQU *                                                         03860000
+          LA    R10,WORK                                                03870000
+          CONCAT '//* END OF JOB-END OF JOB-END OF JOB'                 03880000
+          LA    1,WORK                                                  03890000
+          SR    R10,R1                                                  03900000
+          STH   R10,#WORK                                               03910000
+          IFOS ^=X8,*+10                                                03920000
+          MVC  WORK(3),=C'$* '    CHANGE TO X8 COMMENT                  03930000
+          LA  R8,5                                                75311 03940000
+G00OPLST  DS  0H                                                        03950000
+          OPJCL #WORK                                             75311 03960000
+          BCT R8,G00OPLST                                         75311 03970000
+          IFOS =X8,G00X850                                              03980000
+          OPJCL '//'                                              75128 03990000
+          B     G00NX850                                                04000000
+G00X850   DS    0H                                                      04010000
+          OPJCL '$ FIN'                                                 04020000
+G00NX850  DS    0H                                                      04030000
+          CLI EOFSYSIN,C' '  IS THIS THE LAST JOB                 76200 04040000
+          BNE G00NOEOF       NOPE                                 76200 04050000
+          IFOS =X8,G00NOEOF                                             04060000
+           LA  R8,3                                               80290 04070000
+G00EOF     OPJCL '/*EOF'      THIS GUY IS FOR HASP                76200 04080000
+           BCT R8,G00EOF                                          80290 04090000
+G00NOEOF   EQU   *                                                      04100000
+           $LINK UJG26DEQ      DEQUEUE INTERNAL READER            75311 04110000
+           JOLRETN                                                      04120000
+         DC    40S(*)                                                   04130000
+         LTORG                                                          04140000
+         TITLE 'CREATE AND GENERATE EXEC MONITOR JCL'             75128 04150000
+           JOLSAVE CSECT=UJG02PGM                                       04160000
+           L  R3,0(R1)         LOAD PARM                          74303 04170000
+           USING JOLCOM,R2                                              04180000
+           L   R1,AJOLGEN                                               04190000
+           USING PGMDETS,R3                                             04200000
+           USING GENDETS,R1                                             04210000
+* THIS CSECT MERELY OUTPUTS INSTRUCTIONS SUFFICENT TO EXECUTE     75128 04220000
+*    OUR LITTLE JOL MONITOR PROGRAM.                                    04230000
+* BY THIS STAGE,THE 'JCL' HELD IN CORE WILL HAVE BEEN OPTIMISED         04240018
+*    HOPEFULLY TO A FAIRLY HIGH DEGREE AND LOW AND BEHOLD ALL WE        04250000
+*    HAVE TO TO HERE IS POP OUT A FEW JCL INSTRUCTIONS THAT             04260000
+*    ARE SUFFICIENT TO CAUSE THE MONITOR TO RUN                         04270000
+         SPACE                                                          04280000
+* OF COURSE, FOR OSIV/X8, THAT WOULD BE TOO MUCH, SO WE JUST GO BACK    04290000
+         SPACE                                                          04300000
+         IFOS  =X8,JRETN0                                         87150 04310038
+         IFTSO   JRETN0       IF RUNNING NOW, NO STEPS            87150 04310138
+         IFDYNAM MAKEBR14     IF DYNAMIC OR SVC 99, OP EXEC BR14  87150 04311024
+         TM    PARMPRNT,X'04' TOLD NOT TO PRINT COMMENTS ?        75128 04320000
+         BO    G02XC                                              75128 04330000
+         DROP R1                                                        04340000
+          OPJCL '//*'                                                   04350000
+          OPJCL '//***************'                                     04360000
+          OPJCL '//*'                                                   04370000
+G02XC      MVC WORK(80),BLANKS      CLEAR A BIT              75049      04380000
+           LA R10,WORK                                                  04390000
+         CONCAT '//$$         EXEC PGM='                          75128 04400000
+          L   R1,AJOLGEN                                                04410000
+          USING GENDETS,R1                                              04420000
+         MVC   0(8,R10),SCHED ** CONCAT MACRO DOESN'T WORK WHEN   75128 04430000
+         DROP  R1                                                       04440000
+         LA    R10,8(R10)     ** USING MACRO GENERATED NAMES      75128 04450000
+           SPACE                                                        04460000
+           CLI DDDD1,C'D'      UNCATLG ETC ??                           04470000
+           BNE G02ISPG                                                  04480000
+           MVC WORK+4(6),DDDDNAME+2                                     04490000
+         CONCAT ',REGION=40K DISPOSITION PROCESSING'        FIX-X 76200 04500000
+           B G02OPPGM                                                   04510000
+G02ISPG    MVC WORK+2(8),PGMSTEP PUT IN STEP NAME                 75311 04520000
+           LTR R8,R8            FIRST STEP ??                           04530000
+           BNZ G02TMESZ                                           74256 04540000
+           MVC WORK+2(8),BLANKS                                   75311 04550000
+           LA  R1,WORK                                                  04560000
+           SR  R10,R1                                                   04570000
+           STH R10,#WORK                                                04580000
+         OPJCL #WORK                                                    04590000
+         B     G02NCOM9                                                 04600000
+G02TMESZ   EQU *                                                  74256 04610000
+         L     R1,AGENDETS                                  FIX-X 76200 04620000
+         USING GENDETS,R1                                   FIX-X 76200 04630000
+         CLC   =C'MFT',DEFSYS                               FIX-X 76200 04640000
+         BE    G02NVS                                       FIX-X 76200 04650000
+         CLC   =C'MVT',DEFSYS                               FIX-X 76200 04660000
+         BNE   G02VS                                        FIX-X 76200 04670000
+G02NVS   CLEAR PGMPERFO,PGMNODYN,PGMADDR                    FIX-X 76200 04680000
+G02VS    EQU   *                                            FIX-X 76200 04690000
+         IFNULL PGMTIME1,PGMSIZE,PGMPERFO,PGMNODYN,         FIX-X 76200*04701018
+               PGMADDR,PGMACCT,G02NACCT                     FIX-X 76200 04710000
+           IFNULL  PGMTIME1,G02NTIME                       C-0036 74191 04720000
+           CONCAT ',TIME=('                                C-0036 74191 04730000
+           CLI PGMTIMEQ,C'S'   SECONDS                     C-0036 74191 04740000
+           BNE G02NSECS                                    C-0036 74191 04750000
+* CONVERT TO MINS, SECS IF SECONDS > 60                           75128 04760000
+         TNUM  PGMTIME1                                           75128 04770000
+         C   R1,=F'60'      TIME <60 ?                          75128   04780000
+         BNH   G02CONS        YES, NO CONVERSION NECESSARY        75128 04790000
+         SR    R0,R0          CLEAR BOTTOM REGISTER               75128 04800000
+         D     R0,=F'60'      DO THE DIVIDE                       75128 04810000
+         CVD   R0,DBL         CONVERT SECONDS TO CORRECT NUMBER   75128 04820000
+           CLEAR PGMTIME1                                         75311 04830000
+           UNPK PGMTIME1(2),DBL UNPACK 2 CHARACTERS               75311 04840000
+           OI  PGMTIME1+1,C'0' MAKE EBCIDIC                       75311 04850000
+         STH   R1,CARDCNT     STORE MINUTES IN A HALF-WORD LOCN   75128 04860000
+         CONCAT CARDCNT       CONCAT MINUTES OF CPU TIME          75128 04870000
+G02CONS  EQU   *                                                  75128 04880000
+           CONCAT ','                                      C-0036 74191 04890000
+G02NSECS   CONCAT PGMTIME1                                        74191 04900000
+           CLI 0(R10),C' '     DROP END BLANKS NOW         C-0036 74256 04910000
+           BNE *+8                                         C-0036 74256 04920000
+           BCT R10,*-8                                     C-0036 74256 04930000
+           LA  R10,1(R10)     SKIP OVER LAST DIGIT    75049             04940000
+            CONCAT ')'          THERE TIME DONE            C-0036 75049 04950000
+*                                                          C-0036 7419  04960000
+G02NTIME   IFNULL PGMSIZE,G02NSIZE SIZE ?                  C-0036 7419  04970000
+           CONCAT ',REGION='                               C-0036 74191 04980000
+           CONCAT PGMSIZE                                  C-0036 74191 04990000
+           CLI 0(R10),C' '     DROP END BLANKS NOW         C-0036 74256 05000000
+           BNE *+8                                         C-0036 74256 05010000
+           BCT R10,*-8                                     C-0036 74256 05020000
+           LA R10,1(R10)       RESET R10 PROPERLY FOR NEXT CONCAT75049  05030000
+           CONCAT PGMSIZEQ     CONCAT 'K'                  C-0036 75049 05040000
+G02NSIZE   EQU *                                           C-0036 74191 05050000
+         IFNULL PGMPERFO,G02NPERF                                 75128 05060000
+*        CONCAT ',PERFORM=',PGMPERFO                       C77263  DASD 05070000
+         MVC   0(9,R10),=CL9',PERFORM=' INSERT THE PERFORMANCE   C DASD 05080000
+         LH    R1,PGMPERFO              GROUP SUBPARAMETER ON    C DASD 05090000
+         CVD   R1,DBL                   THE EXEC JCL CARD FOR    C DASD 05100000
+         UNPK  9(3,R10),DBL             THE SCHEDULER            C DASD 05110000
+         OI    11(R10),C'0'                                      C DASD 05120000
+         LA    R10,12(R10)              INCR THE BASE REG        C DASD 05130000
+G02NPERF IFNULL PGMNODYN,G02NDYN                           C77263  DASD 05140000
+         MVC   0(10,R10),=CL10',DYNAMNBR=' INSERT THE DYNAMNBR   C DASD 05150000
+         LH    R1,PGMNODYN                 SUBPARAMETER ON       C DASD 05160000
+         CVD   R1,DBL                      THE EXEC JCL CARD FOR C DASD 05170000
+         UNPK  10(4,R10),DBL               SCHEDULER             C DASD 05180000
+         OI    13(R10),C'0'                                      C DASD 05190000
+         LA    R10,14(R10)                 INCR THE BASE REG     C DASD 05200000
+*        CONCAT ',DYNAMNBR=',PGMNODYN                              DASD 05210000
+G02NDYN  EQU   *                                                  75128 05220000
+           IFNULL PGMADDR,G02NADDR VIRT | REAL CODED ?            75311 05230000
+           CONCAT ',ADDRSPC=',PGMADDR                             75311 05240000
+G02NADDR   EQU *                                                  75311 05250000
+         IFNULL PGMACCT,G02NACCT                                  87150 05260018
+         CONCAT ',ACCT=(',PGMACCT                                 76200 05270021
+         BAL   R14,G02DROPB                                       87150 05271021
+         CONCAT ',''PGM=',PGM                                     87150 05272023
+         BAL   R14,G02DROPB                                       87150 05273021
+         CONCAT ''')'                                             87150 05274023
+         B     G02SKIPA                                           87150 05275021
+G02NACCT EQU   *                                                  76200 05280000
+         B     G02SKIPA                                           J40B  05280136
+         CONCAT ',ACCT=(''PGM=',PGM  PGM AS AN ACCOUNTING FIELD   87150 05281023
+         BAL   R14,G02DROPB                                       87150 05281121
+         CONCAT ''')'                                             87150 05281223
+G02SKIPA DS    0H                                                 87150 05282018
+           MVC 0(3,R10),BLANKS                                    74303 05290000
+           LA R1,WORK          SET                         C-0036 74191 05300000
+           SR R10,R1           *STRING                     C-0036 74191 05310000
+           STH R10,#WORK       **LENGTH                    C-0036 74191 05320000
+           OPJCL #WORK                               C-0036 74303 74191 05330000
+           MVC  WORK(80),BLANKS                            C-0036 74256 05340000
+           LA R10,WORK         RESET R10 FOR 'CONCAT' MACR C-0036 74191 05350000
+           CONCAT '//* '       CONCAT COMMENT STARTER      C-0036 74191 05360000
+         LA    R10,10(R10)    GIVE SOME MORE BLANKS               75128 05370000
+G02COMNT   EQU *                                           C-0036 74191 05380000
+G02LINE1  EQU  *                                                        05390000
+         CONCAT ' '           IF NO REGION,ETC JCL FLUSH-ER FIX-X 76200 05400000
+         CONCAT 'DECLARE STMT=',PGMSTMT,' PGMID=',PGMID,          75128*05410000
+               ' PROGRAM=',PGM,' RUN STMT=',PGMESTMT              75128 05420000
+           SPACE 2                                                      05430000
+G02OPPGM   EQU  *                                                       05440000
+           LA  R1,WORK                                                  05450000
+           SR  R10,R1                                                   05460000
+           STH R10,#WORK                                                05470000
+           L   R4,AGENDETS                                        75311 05480000
+           USING GENDETS,R4                                       75311 05490000
+           TM  PARMPRNT,X'04'  DO WE PRODUCE COMMENTS ?           75311 05500000
+           BO  G02NCOM9        NO                                 75311 05510000
+           DROP R4                                                75311 05520000
+           OPJCL #WORK                                            74303 05530000
+G02NCOM9   EQU *                                                  75311 05540000
+           OPJCL '//$$INST DD DSN=&&&&$$JOLIN,DISP=(MOD,PASS) INSTRUCTI*05550000
+               ONS'                                               74293 05560000
+         L     R4,AGENDETS                                        75128 05570000
+         USING GENDETS,R4                                         75128 05580000
+         CLI   SPOOL,C'H'     HASP IN SYSTEM ?           JOL30026 76200 05590000
+         BE    G02HASRS       YES, OUTPUT HASPFAIL       JOL30026 76200 05600000
+         CLI SPOOL,C'1'      VS1? IF YES, CAN MOD JOL MESSAGES    80290 05610000
+         BE   G02MODP        ONTO THE FIRST SYSOUT DATA SET       80290 05620000
+         CLI SPOOL,C' '      ANY SPOOLING SYSTEM? IF YES ->             05630000
+         BNE  G02TDUMP       TEST IF DUMP CARD TO GO OUTJOL30026 76200  05640000
+G02MODP    OPJCL '//$$PRNT DD DSN=*.INIT.$$PRINT,DISP=(MOD,PASS),VOL=RE*05650000
+               F=*.INIT.$$PRINT'                          75060         05660000
+           B   G02TDUMP        OUTPUT DUMP DATA SET               75311 05670000
+G02HASRS   OPJCL '//$$PRNT DD DSN=&&HASPFAIL,DISP=(MOD,PASS),VOL=REF=*.*05680000
+               INIT.HASPFAIL '                                    75311 05690000
+G02TDUMP    EQU *                                                       05700000
+         LA    R1,DUMPCARD                                        75128 05710000
+         $CALL UJG90OP                                            75128 05720000
+         OPJCL LGENCRD1       OP USER CARD IF CODED AT JOLGEN     75128 05730000
+         OPJCL LGENCRD2       OP USER CARD IF CODED AT JOLGEN     75128 05740000
+         OPJCL LGENCRD3       OP USER CARD IF CODED AT JOLGEN     75128 05750000
+           MVI NEST,1          LET US KNOW THAT AN OS STEP WAS PRODUCED 05760000
+           JOLRETN                                                      05770000
+MAKEBR14 DS    0H              MAKE A STEP FOR JES3 MAINLY        87150 05770124
+         MVI   NEST,1          LET US KNOW THAT AN OS STEP WAS PRODUCED 05770240
+         BE    JRETN0                                             J40B  05770340
+         CLI   NEST,1          LET US KNOW THAT AN OS STEP WAS PRODUCED 05770440
+*        OPJCL '//ENQSTEP  EXEC PGM=IEFBR14,COND=ONLY'            87150 05770540
+         OPJCL '//ENQSTEP  EXEC PGM=IEFBR14,COND=((0,EQ),(0,NE))' J40B .05770640
+                                 TRY AND GET BOTH OF THOSE TRUE   J40B  05770740
+         JOLRETN ,                                                87150 05770840
+* THIS ROUTINE IS BAL'D TO ON R14 AND REMOVES EXCESS COMMAS       75128 05771021
+*  AND BLANKS FROM THE STRING                                     75128 05772021
+* IT IS NOT A REPLACEMENT FOR 'UJCPACK'                           75128 05773021
+G02DROPB BCTR R10,0      BACK OFF ONE BYTE                              05774022
+G02DROPX CLI   0(R10),C' '    BLANK ?                             75128 05775021
+         BNE   G02TC1         NOPE -> TEST ','                    75128 05776021
+         BCT   R10,G02DROPX   REDUCE R10 BY 1, CHECK NXT CHAR     75128 05777021
+G02TC1   CLI   0(R10),C','    ',' ?                               75128 05778021
+         BNE   G02ADD1        NO, SO END ROUTINE                  75128 05779021
+         BCT   R10,G02DROPX   DROP ',',BACK TO NXT CHAR           75128 05779121
+G02ADD1  LA    R10,1(R10)                                         75128 05779221
+         BR    R14            BACK TO CALLER                      75128 05779321
+         DROP  R4                                                       05780000
+           CNOP 0,8                                                     05790000
+           DC   S(*),S(*),S(*),S(*)                                     05800000
+           DC   S(*),S(*),S(*),S(*)                                     05810000
+           DC   S(*),S(*),S(*),S(*)                                     05820000
+           DC   S(*),S(*),S(*),S(*)                                     05830000
+           DC   S(*),S(*),S(*),S(*)                                     05840000
+           DC   S(*),S(*),S(*),S(*)                                     05850000
+           DC   S(*),S(*),S(*),S(*)                                     05860000
+           DC   S(*),S(*),S(*),S(*)                                     05870000
+           DC   S(*),S(*),S(*),S(*)                                     05880000
+           DC   S(*),S(*),S(*),S(*)                                     05890000
+           DC   S(*),S(*),S(*),S(*)                                     05900000
+           DC   S(*),S(*),S(*),S(*)                                     05910000
+           DC   S(*),S(*),S(*),S(*)                                     05920000
+           DC   S(*),S(*),S(*),S(*)                                     05930000
+           DC   S(*),S(*),S(*),S(*)                                     05940000
+           DC   S(*),S(*),S(*),S(*)                                     05950000
+           DC   S(*),S(*),S(*),S(*)                                     05960000
+           DC   S(*),S(*),S(*),S(*)                                     05970000
+           DC   S(*),S(*),S(*),S(*)                                     05980000
+           DC   S(*),S(*),S(*),S(*)                                     05990000
+            LTORG                                                       06000000
+           TITLE 'CREATE AND OUTPUT A DD-CARD'                          06010000
+G03DSECT DSECT                                                          06011015
+         DS    18F                                                      06012015
+#SUBSYS  DS    H                                                        06013015
+SUBSYS   DS    CL150                                                    06014015
+#LONGVOL DS    H                                                        06015015
+LONGVOL  DS    CL150                                                    06016015
+LG03WORK EQU   *-G03DSECT                                               06017015
+         JOLSAVE CSECT=UJG03DS,BASE=(11,7),SIZE=LG03WORK                06020015
+         USING G03DSECT,R13                                       87150 06021015
+         L     R8,0(R1)        LOAD ADDRESS OF DDDSNDET           74303 06030015
+         USING DDDSNDET,R8                                              06030115
+         MVC   #SUBSYS,ZERO                                       87150 06030215
+         MVC   #LONGVOL,ZERO                                      87150 06030315
+* TEST IF SUBSYS OR LONG VOLUME LIST(IT'S IN THE NEXT RECORD)     87150 06031015
+         FIX   'ADD LONG VOLS'                                          06031115
+         LR    R1,R8                                                    06032015
+         AH    R1,0(R8)        STEP ON TO LOOK AT THE NEXT RECORD 87150 06033015
+         CLC   0(2,R1),=H'0'                                            06034015
+         BE    G03GETVL        NO 'RECORDS' FOLLOWING IN STORAGE  87150 06035015
+         CLC   =C'SUBSYS ',ICOMMAND-ILENGTH(R1) IS IT A SUBSYS    87150 06036015
+         BNE   G03GETVL        NO, LOAD R1 WITH JOLGEN DETAILS    87150 06037015
+         LH    R14,ITEXT-ILENGTH(R1) GET LENGTH OF SUBSYS PARM    87150 06038017
+         MVC   SUBSYS,BLANKS   BLANK FILL WORK                    87150 06039115
+         STH   R14,#SUBSYS     SET LENGTH CORRECTLY               87150 06039215
+         BCTR  R14,0           -1 FOR EXECUTE                     87150 06039315
+         EX    R14,G00MVSUB    SHIFT 'SUBSYS'                     87150 06039415
+         MVI   DDDD1-DDDSNDET(R1),C'%' DELETE INSTRUCTION         87150 06039616
+         B     G03GETVL        DO THE SAME WITH VOLUMES           87150 06039715
+         SPACE 3                                                  87150 06039815
+G00MVSUB MVC   SUBSYS(*-*),ITEXT+2-ILENGTH(R1)                    87150 06039915
+G03GETVL DS    0H                                                       06040015
+         L     R1,AJOLGEN                                               06040115
+         USING GENDETS,R1                                               06050015
+         IFTSO   JRETN0       IF RUNNING NOW, NO DDCARDS          87150 06060024
+         IFDYNAM G03DYNAM     IF DYNAMIC OR SVC 99, GOTO  ....    86100 06070010
+         IFOS  ^=X8,G03NX8         ELSE GOTO                            06080039
+G03DYNAM TM    PARMPRNT,X'10'      Q... PRINT JCL                       06090010
+         BZ    G03X8010            A... NO                              06100000
+         L     R10,APRINTLN                                             06110000
+         XC    0(4,R10),0(R10)                                          06120000
+         MVC   4(11,R10),=CL11' '                                       06130000
+         LA    R10,15(,R10)                                             06140000
+         CONCAT DDDSID,': DD ',DDDDNAME                                 06150000
+         CLI   DDTYPE,DDSYSIN                                           06160000
+         BNE   G03X8NSY                                                 06170000
+         CONCAT ' CARDS'                                                06180000
+         B     G03X8MSG                                                 06190000
+G03X8NSY DS    0H            IT'S NOT SYSIN                             06200000
+         CLI   DDTYPE,DDSPECOU                                          06210000
+         BH    G03X8NSO                                                 06220000
+         CONCAT ' SYSOUT=',DDSYSCLS                                     06230000
+         B     G03X8MSG                                                 06240000
+G03X8NSO DS    0H                                                       06250000
+         CLI   DDTYPE,DDREALDS                                          06260000
+         BL    G03X8TMP                                                 06270000
+         LA    R0,3                                                     06280000
+         MVC   0(3,R10),=C'OLD'                                         06290000
+         TM    DDUSE,X'C0'                                              06300000
+         BZ    G03X8DS                                                  06310000
+         MVC   0(9,R10),=C'RECREATES'                                   06320000
+         LA    R0,10                                                    06330000
+         BO    G03X8DS                                                  06340000
+         LA    R0,3                                                     06350000
+         TM    DDUSE,X'80'                                              06360000
+         MVC   0(3,R10),=C'MOD'                                         06370000
+         BO    G03X8DS                                                  06380000
+         MVC   0(3,R10),=C'NEW'                                         06390000
+G03X8DS  DS    0H                                                       06400000
+         AR    R10,R0                                                   06410000
+         CONCAT ' DATA SET ',DDDSNAME                                   06420000
+         B     G03X8MSG                                                 06430000
+G03X8TMP DS    0H                                                       06440000
+         CONCAT ' TEMPORARY DATA SET'                                   06450000
+G03X8MSG DS    0H            ISSUE THE MESSAGE                          06460000
+         L     R14,APRINTLN                                             06470000
+         SR    R10,R14                                                  06480000
+         STH   R10,0(,R14)         SAVE DATA LENGTH                     06490000
+         JOLPRINT                                                       06500000
+G03X8010 DS    0H                                                       06510000
+         JOLRETN RC=0          USED TO BE HERE AND GOT LOST       J40B  06510140
+         CLI   DDTYPE,DDREALDS CHECK IF REAL DSNAME                     06511024
+         BL    JRETN0          NOT A REAL DSNAME, SO EXIT         87150 06512026
+         CLC   =C'*DUMMY',DDDSNAME                                87150 06522027
+         BE    JRETN0          DUMMY, IGNORE TOO                  87150 06524027
+         CLC   =C'NULLFILE',DDDSNAME                              87150 06525027
+         BE    JRETN0          DUMMY, IGNORE TOO                  87150 06526027
+G03NX8   DS    0H                                                       06530000
+           USING JOLCOM,R2                                              06540000
+         TM    PARMPRNT,X'04' TOLD NOT TO PRINT COMMENTS ?        75128 06550000
+         DROP   R1                                                      06560000
+         BO    G03XC                                              75128 06570000
+           MVC WORK(80),BLANKS                                          06580000
+          MVI #WORK+1,80                                                06590000
+           MVC WORK(3),=C'//*'                                          06600000
+           MVC WORK+49(13),=CL13'DECLARE STMT='                         06610000
+           MVC WORK+62(4),DDSTMT                                        06620000
+           MVC WORK+67(5),=C'DSID='                                     06630000
+           MVC WORK+72(8),DDDSID                                        06640000
+           OPJCL #WORK                                            74303 06650000
+* NOTE ***********************************************************      06660000
+* THERE USED TO BE A USING ON R8 HERE BUT NOW THE DDRECORD              06670000
+*IS MUCH MORE COMPLEX, AND WE SEEM TO BE TESTING FOR A SHORT            06680000
+* RECORD EVERY SECOND STEP, SO AS AT SEPT 10,75, THE                    06690000
+*DDRECORD IS NOW MOVED TO 'TRANS' AND GENERATED FROM THERE.             06700000
+        SPACE 2                                                         06710000
+G03XC    CLEAR TRANS   (TOUGH, CLEARING IS NECESSARY SORRY ALL)   75128 06720000
+          LR    R0,R8    ADDRESS OF DDDSNDETS                     75128 06730000
+         LA   R8,TRANS                                            75128 06740000
+         XC  DDSPECTP(2),DDSPECTP                                 75128 06750000
+         LA    R1,TRANS                                           75128 06760000
+         BAL  R14,MOVEDATA   SHIFT RECORD THERE                   75128 06770000
+         SPACE 3                                                        06780000
+*********************************************************************** 06790000
+*                                                                     * 06800000
+*   NEW CODE JULY 18,1976                                             * 06810000
+*                                                                       06820000
+*   IF NOT GENERATING FOR VS SYSTEM, DON'T GENERATE VS ONLY JCL         06830000
+*                                                                       06840000
+*                                                                       06850000
+         L     R1,AGENDETS                                  FIX-X 76200 06860000
+         USING GENDETS,R1                                   FIX-X 76200 06870000
+         CLC   =C'MFT',DEFSYS                               FIX-X 76200 06880000
+         BE    G03NVSSY       NOT A VS SYSTEM               FIX-X 76200 06890000
+         CLC   =C'MVT',DEFSYS                               FIX-X 76200 06900000
+         BE    G03NVSSY       NOT A VS SYSTEM               FIX-X 76200 06910000
+         SPACE 2                                            FIX-X 76200 06920000
+         B   G03LEAVE                                       FIX-X 76200 06930000
+* HERE WE HAVE ^ VS SYSTEM, SO CANCEL OUT VS ONLY JCL       FIX-X 76200 06940000
+G03NVSSY EQU   *                                            FIX-X 76200 06950000
+         CLI   DDTYPE,DDSYSIN SYSIN                         FIX-X 76200 06960000
+         BE    G03LEAVE       YES, FORGET THIS PROCESSING   FIX-X 76200 06970000
+         CLI   DDTYPE,DDPUNCH                               FIX-X 76200 06980000
+         BH    G03TVSDS       NORMAL DATA SET, CANCEL VS    FIX-X 76200 06990000
+* SYSOUT DATA SET TVPUNCH                                   FIX-X 76200 07000000
+         CLEAR DDCOPIES,DDROUTE                             FIX-X 76200 07010000
+G03TVSDS EQU   *                                            FIX-X 76200 07020000
+         NI    DDSPECT2,X'FF'-B'00001101' TURN OFF          FIX-X 76200 07030000
+*                             VSAM,HOLD,FREE                FIX-X 76200 07040000
+         B     *+4                                          FIX-X 76200 07050000
+         B     *+4                                          FIX-X 76200 07060000
+         B     *+4                                          FIX-X 76200 07070000
+G03LEAVE EQU   *                                            FIX-X 76200 07080000
+         SPACE 2                                            FIX-X 76200 07090000
+*********************************************************************** 07100000
+         SPACE 2                                                        07110000
+           XC  #WORK(18),#WORK                                          07120000
+           LA R10,WORK+15                                               07130000
+         IFDYNAM G03TDSN      IF DYNAMIC OR SVC 99, GOTO  ....    86100 07131024
+           CLC =C'*&&',DDVOLUME REF TO VOL=&& DSNAME       C-0033 74191 07140000
+           BNE G03TDSN         NO,SO GO THROUGH NORMAL PROCC-0033 74191 07150000
+* NOW HERE WE HAVE A VOLREF TO A TEMPORARY DSNAME.         C-0033 74191 07160000
+*** THATS NOT ALLOWED,SO WE'LL PUMP OUT A CARD,AND THE NEXTC-0033 74191 07170000
+*   DDCARD GENERATED CAN REFER BACK TO THE DSNAME          C-0033 74191 07180000
+           CONCAT 'DSN='                                   C-0033 74191 07190000
+           MVI DDVOLUME,C' '   BLANK TEMPORARILY SO WE CAN:C-0033 74191 07200000
+           CONCAT DDVOLUME     *DO THIS                    C-0033 74191 07210000
+*                                                          C-0033 74191 07220000
+           CONCAT ',DISP=(SHR'                             C-0033 74191 07230000
+           CLI DDDISP+1,C'P'                               C-0033 74191 07240000
+           BNE G03VTNP                                     C-0033 74191 07250000
+           CONCAT ',PASS'                                  C-0033 74191 07260000
+G03VTNP    CONCAT ') '                                     C-0033 74191 07270000
+           LA R9,WORK                                      C-0033 74191 07280000
+           SR R10,R9                                       C-0033 74191 07290000
+           STH R10,#WORK                                   C-0033 74191 07300000
+          $CALL UJCPACK,#WORK                             C-0033 74191  07310000
+           MVC  WORK(15),=CL15'//$$VT     DD'              C-0033 74191 07320000
+*          OC  DDSTMT,=C'0000' PUT LEADING ZEROES IN              74303 07330000
+           MVC  WORK+6(4),DDSTMT                           C-0033 74191 07340000
+           OPJCL #WORK                                      C-003374303 07350000
+           CLEAR DDVOLUME                                  C-0033 74191 07360000
+           MVC DDVOLUME(07),=C'**.$$VT'                    C-0033 74191 07370000
+           MVC DDVOLUME+7(4),DDSTMT                        C-0033 74191 07380000
+         LA    R10,WORK+15    RESET R10 FOR CONCAT MACRO   C-0033 75128 07390000
+           SPACE 3                                                      07400000
+G03TDSN    EQU *                                           C-0033 74191 07410000
+* CHECK FOR PATH - HPS FOR JOL 6.0 NOV 27 2010                    J60   07411045
+           CLI  DDTYPE,DDPATH                                     J60   07412045
+           BNE  G03NOTPT                                          J60   07413046
+           $CALL UJG93PTH                                         J60   07414045
+           JOLRETN  RC=0                                          J60   07415045
+G03NOTPT   DS  0H                                                 J60   07416046
+           CLI DDDSNAME,C' '                                            07420000
+           BE NODSN                                                     07430000
+           CLI DDDSNAME,C'%'                                            07440000
+           BE NODSN                                                     07450000
+           CLC =C'*DUMMY',DDDSNAME                                      07460000
+           BNE TRYSYS                          SEE IF A PRINTER REQD    07470000
+           CONCAT 'DUMMY'                                               07480000
+           B  G03TDISP                                                  07490000
+           SPACE 3                                                      07500000
+TRYSYS   EQU   *                                                  75128 07510000
+           CLI DDTYPE,DDPUNCH                                     75311 07520000
+           BE  G03NORMS                                           75311 07530000
+           CLI  DDTYPE,DDSPECOU   SPECIAL SYSOUT???               75128 07540000
+         BNE   G03NSPCS       NOPE ->                             75128 07550000
+G03DOSYS   EQU *                                                  75311 07560000
+         CONCAT 'SYSOUT=',DDDSNAME+2                                    07570000
+         MVC DBL(2),DDDSNAME                                            07580000
+         SH  R10,=AL2(L'DDDSNAME)                                       07590000
+         AH   R10,DBL                                                   07600000
+         B     G03TDCB                                            75128 07610000
+G03NSPCS CLI   DDTYPE,5       IS THIS NORMAL SYSOUT PROCESSING ?  75128 07620000
+         BNE   ISDSN                                              75128 07630000
+         SPACE 2                                                  75128 07640000
+* HERE WE HAVE NORMAL SYSOUT PROCESSING                           75128 07650000
+G03NORMS CONCAT 'SYSOUT=(',DDSYSCLS,',',DDSYSPGM,',',DDSYSFRM    75128  07660000
+         BAL   R14,G03DROPC   DROP EXTRA BLANKS AND COMMAS        75128 07670000
+         CONCAT ')'                                               75128 07680000
+* NOW TEST OTHER SYSOUT PARAMETERS                                75128 07690000
+         IFNULL DDCOPIES,G03NCOPY                                 75128 07700000
+         CONCAT ',COPIES=',DDCOPIES                               80290 07710000
+G03NCOPY EQU  *                                                   75311 07720000
+         IFNULL DDFLASH,G03NFLSH        FLASH CODED ?             75128 07730002
+         CONCAT ',FLASH=(',DDFLASH                                80290 07740002
+         CONCAT ')'                                               80290 07750002
+G03NFLSH EQU  *                                                   75311 07760001
+         IFNULL DDCHARS,G03NCHRS        CHARS CODED ?             75128 07770002
+         CONCAT ',CHARS=(',DDCHARS                                80290 07780002
+         CONCAT ')'                                               80290 07790002
+G03NCHRS EQU  *                                                   75311 07800001
+         IFNULL DDMODIFY,G03NMODF       MODIFY CODED ?            75128 07810002
+         CONCAT ',MODIFY=(',DDMODIFY                              80290 07820002
+         CONCAT ')'                                               80290 07830002
+G03NMODF EQU  *                                                   75311 07840001
+         IFNULL DDBURST,G03NBRST        BURST CODED ?             75128 07850002
+         CONCAT ',BURST=Y'                                        80290 07860005
+G03NBRST EQU  *                                                   75311 07870001
+           CLC DDOUTLIM,ZERO   ANY OUTLIM ?                       75311 07880000
+           BE   G03NOUTL       NOPE                               75311 07890000
+         CONCAT ',OUTLIM=',DDOUTLIM                               75128 07900000
+G03NOUTL IFNULL DDUCS,DDFOLD,DDVERIFY,G03NUCS                     75311 07910000
+         CONCAT ',UCS=(',DDUCS                                    75128 07920000
+         IFNULL DDVERIFY,DDFOLD,NG03VERI                          75311 07930000
+         IFNULL DDFOLD,G03NFOLD                                         07940000
+         CONCAT ',FOLD'                                                 07950000
+         B     G03EFOLD                                                 07960000
+G03NFOLD EQU   *                                                        07970000
+         CONCAT ','                                                     07980000
+G03EFOLD IFNULL DDVERIFY,NG03VERI                                 75128 07990000
+         CONCAT  ',VERIFY'                                        75128 08000000
+           B   G03ENFCB      POP ')' ON NOW                       75311 08010000
+NG03VERI CONCAT ')'                                               75128 08020000
+G03NUCS  IFNULL DDFCB,DDVERIFY,DDALIGN,G03NFCB                    75128 08030000
+         CONCAT ',FCB=(',DDFCB                                    75128 08040000
+         IFNULL DDVERIFY,G03TAL                                   75128 08050000
+         CONCAT ',VERIFY'                                         75128 08060000
+         B     G03ENFCB                                           75128 08070000
+G03TAL   IFNULL DDALIGN,G03ENFCB                                  75128 08080000
+         CONCAT ',ALIGN'                                          75128 08090000
+G03ENFCB CONCAT ')'                                               75128 08100000
+         SPACE 3                                                  75128 08110000
+G03NFCB  IFNULL DDROUTE,G03NROUT                                  75128 08120000
+         CONCAT ',DEST=',DDROUTE                                  75128 08130000
+G03NROUT EQU   *                                                  75128 08140000
+          TM DDSPECT2,X'04'      HOLD SPECIFIED?                        08150000
+          BZ  G03TDCB            NOPE                                   08160000
+          CONCAT ',HOLD=YES'                                            08170000
+         B     G03TDCB                                            75128 08180000
+ISDSN      EQU *                                                        08190000
+* NEW CODE HERE TO SUPPORT QNAME PARAMETER.   NOVEMBER 5, 1982          08200000
+*                                                                       08210000
+* IF BIT 'DDUNITQ' IS TURNED ON IN THE 'DDUNITQU' FIELD, WE             08220000
+*   ARE GENERATING A QNAME.                                             08230000
+* COMPLICATION :- TO STOP JOL SEARCHING CATALOGS ETC, WE ALSO           08240000
+*   SET 'DDTYPE' TO 'DDSYSIN' AND THEREFORE WE MUST CHECK IT.           08250000
+* QNAMES DO NOT HAVE TO HAVE DSNAMES (I THINK).                         08260000
+           CLI DDTYPE,DDSYSIN  SYSIN CARD FILE?                         08270000
+           BNE G03SETDS        SET THE STRING TO 'DSN='                 08280000
+* HERE WE HAVE THE SYSIN TYPE. ONLY PUT DSNAME OUT IF THE FIELD         08290000
+*   ISN'T '* '.                                                         08300000
+           CLC     DDDSNAME(2),=C'* '        BYPASS DSN PROCESSING      08310000
+           BE      NODSN                                                08320000
+G03SETDS   CONCAT 'DSN='                                                08330000
+          CLI DDTYPE,DDSYSIN  SYSIN CARD FILE?                          08340000
+           BNE G03ORDSN                                                 08350000
+* SYSIN CARDS HERE                                                      08360000
+           MVC DDMBR,DDDSNAME+2 SHIFT MEMBER NAME TO MBR                08370000
+           MVC DDDSNAME(10),=C'&&&&$$JOLIN '                            08380000
+           MVC DDVOLUME(9),=C'**.$$INST'                                08390000
+* NOW MAKE THE TYPE LOOK LIKE A DISK SO THAT LABEL IN IS GENERATED      08400000
+           MVI DDUNITYP,B'10000000'   DISK                        75311 08410000
+           IFVALUE DDRECFM,G03LRECF                                     08420000
+           MVC DDRECFM(2),=C'FB'                                        08430000
+G03LRECF   IFVALUE DDLRECL,G03LRECL                                     08440000
+           MVC DDLRECL(2),=H'80'                                  80290 08450000
+G03LRECL   IFVALUE DDBLKSZE,G03LBLKS                                    08460000
+         L     R1,AJOLGEN                                         75128 08470000
+         USING GENDETS,R1                                         75128 08480000
+           MVC DDBLKSZE,PARMSYSB                                        08490000
+         DROP  R1                                                 75128 08500000
+G03LBLKS   EQU  *                                                       08510000
+G03ORDSN   EQU  *                                                       08520000
+           CONCAT DDDSNAME                                              08530000
+*                                                                 75311 08540000
+* SLIGHT CHANGE FOR GDG PROCESSING, 3.0, DEC 15 TH 75             75311 08550000
+*                                                                 75311 08560000
+*    PREVIOUS GDG PROCESSING USED TO HAVE THE DSNAME FULLY FORMED.75311 08570000
+*    NOW, THE GDG NUMBER IS IN THE DDMBR FIELD, AND NOW WE HAVE TO75311 08580000
+*    POP THE BRACKETS IN THERE.                                   75311 08590000
+           CLI DDMBR,C'('      GDG ?                              75311 08600000
+         BE    G03GDG0        YES                        JOL30061 76200 08610000
+           CLI DDMBR,C'+'      GDG ?                              75311 08620000
+           BE  G03GDG1         YES                                75311 08630000
+G03TMBR    IFNULL DDMBR,G03TPSW              MEMBER NAME ?        75311 08631020
+           CONCAT '(',DDMBR,')'                                   74303 08632020
+           B   G03TPSW         NO, TEST PASSWORD NOW              87150 08640020
+G03GDG0  CLI   DDMBR+1,C' '   =' '                       JOL30061 76200 08650000
+         BNE   G03GDG1        NOPE, MUST BE REL & NOCAT  JOL30061 76200 08660000
+         CLC   DDMBR+2(4),=C'0000' REL(0) ?              JOL30061 76200 08670000
+         BE    G03GDG1        YES, NORMAL PROCESSING.    JOL30061 76200 08680000
+         CLC   DDMBR+2(4),BLANKS                         JOL30061 76200 08690000
+         BE    G03GDG1                                   JOL30061 76200 08700000
+* HERE GDG ABSOLUTE .                                    JOL30061 76200 08710000
+         BAL   R14,G03DROPC   DROP BLANKS FROM END DSN   JOL30061 76200 08720000
+         MVC   0(9,R10),=C'.G0000V00'                                   08730000
+         MVC   2(4,R10),DDMBR+2                                         08740000
+         LA    R10,9(R10)     BUMP CONCAT POINTER                       08750000
+         B     G03TPSW        CONTINUE AS NORMAL(PASSWORD)        80290 08760000
+G03GDG1    MVI DDMBR,C' '      BLANK '+' | '('                    75311 08770000
+G03GDG2  DS    0H                                          C77280  DASD 08790000
+         MVI   DDMBR+6,C' '    BLANK AUTO GDG RESET INDICATOR     87150 08791018
+         CLI   DDMBR,C' '              IS IT A MEMBER ?            DASD 08800000
+         BNE   G03MEMB                 DO NOT DO ANYTHING          DASD 08810000
+         CLI   DDMBR+2,C'0'            BLANK IF ZERO              80290 08820000
+         BNE   G03MEMB                 NOT BLANK, GET OUT         80290 08830000
+         MVI   DDMBR+2,C' '            BLANK IT                   80290 08840000
+         CLI   DDMBR+3,C'0'            BLANK IF ZERO              80290 08850000
+         BNE   G03MEMB                 NOT BLANK, GET OUT         80290 08860000
+         MVI   DDMBR+3,C' '            BLANK IT                   80290 08870000
+         CLI   DDMBR+4,C'0'            BLANK IF ZERO              80290 08880000
+         BNE   G03MEMB                 NOT BLANK, GET OUT         80290 08890000
+         MVI   DDMBR+4,C' '            BLANK IT                   80290 08900000
+G03MEMB  DS    0H                      COME HERE IF A MEMBER       DASD 08910000
+           CONCAT '(',DDMBR,')'                                   74303 08920000
+G03TPSW  IFNULL DDPASSW,G03TRACF       PASSWORD CODED? NO -> OUT  80290 08930012
+         CONCAT ',PASSWORD=',DDPASSW   PUT PASSWORD ON JCL        80290 08940000
+NODSN    EQU *                                                          08950000
+* TEST IF PROTECT CODED, AND CHANGE TO RACF PROTECT=YES           87150 08951012
+G03TRACF DS    0H                                                       08951112
+         TM    DDSPECTP,X'20' 'PROTECT' ?                         87150 08952012
+         BZ    G03TDISP       -> NO, CHECK 'NOPWREAD'             87150 08953012
+         CONCAT ',PROTECT=YES'                                    87150 08954013
+         NI    DDSPECTP,X'FF'-X'20' TURN OFF PROTECT NOW          87150 08954112
+G03TDISP EQU *                                                          08960000
+         TM    DDUNITQU,DDUNITQ                                         08970000
+         BO    G03TDCB                                                  08980000
+         IFNULL DDDISP,G03TDCB          NO DISP FIELDS ?                08990000
+         CONCAT  ',DISP=('                                              09000000
+DODISP1  EQU *                                                          09010000
+         TM   DDUSE,B'11000000'  USES?                             SOCO 09020041
+         BO   C03SHR             YES, GO FIX IT UP                 SOCO 09030041
+         TM   DDUSE,B'01000000' NEW ?                                   09040041
+         BO   C03NEW                                                    09050041
+         TM   DDUSE,B'10000000'  MOD ?                                  09060041
+         BO   C03MOD                                                    09070041
+         TM   DDUSE,B'00010000'  OLD ?                                  09080041
+         BO   C03OLD                                                    09090041
+C03SHR   CONCAT 'SHR'                                              SOCO 09100037
+         B     C03DISP2                                                 09110037
+C03MOD   CONCAT 'MOD'                                                   09120037
+         B     C03DISP2                                                 09130037
+C03NEW   CONCAT 'NEW'                                                   09140037
+         B     C03DISP2                                                 09150037
+C03OLD   CONCAT 'OLD'                                                   09160037
+C03DISP2 EQU   *                                                        09170037
+         CLC   DDDISP+1(2),BLANKS                                       09180037
+         NOP   DODISP2A                                            DASD 09190041
+*******************************************************************DASD 09200000
+*                                                                 *DASD 09210000
+* CHECK FOR A ISAM FILE THAT HAS A MISSING 2ND DISP               *DASD 09220000
+* AND IF A NEW FILE PLUG IN PASS SO THE DUMB THING                *DASD 09230000
+* DOESNT GET DELETED FROM THE PDQ                                 *DASD 09240000
+*                                                                 *DASD 09250000
+*  SOMEDAY I WILL FIND WHERE THIS PROBLEM SHOULD BE FIXED         *DASD 09260000
+*  BUT FOR NOW WE WILL DO IT HERE    SORRY                        *DASD 09270000
+*                                                                 *DASD 09280000
+*******************************************************************DASD 09290000
+          TM    DDUSE,B'01000000'   IS THIS A NEW DATASET ?        DASD 09300041
+          BNO   DODISP2A             NOPE LETS RETURN              DASD 09310000
+          CLC   =C'IS',DDDSORG       IS IT ISAM  ?                 DASD 09320000
+          BNE   DODISP2A             NOPE LETS RETURN              DASD 09330000
+          MVI   DDDISP+1,C'P'        PLUG IS PASS                  DASD 09340000
+DODISP2A   LA R6,DDDISP+1                                          DASD 09350000
+           BAL R4,FIXDISP                                               09360000
+           SPACE 2                                                      09370000
+         CLI   DDDISP+2,C' '              3 RD DISP=''                  09380041
+           BE ENDDISP                                                   09390000
+           LA R6,DDDISP+2                                               09400000
+           BAL R4,FIXDISP                                               09410000
+           B ENDDISP                                                    09420000
+FIXDISP    CLI 0(R6),C' '                                               09430000
+           BNE DELETE                                                   09440000
+           CONCAT ','                                                   09450000
+           B   ELOOP                                                    09460000
+           SPACE 1                                                      09470000
+DELETE     CLI 0(R6),C'D'                                               09480000
+           BNE KEEP                                                     09490000
+           CONCAT ',DELETE'                                             09500000
+           B   ELOOP                                                    09510000
+KEEP       CLI 0(R6),C'K'                                               09520000
+           BNE PASS                                                     09530000
+           CONCAT ',KEEP'                                               09540000
+           B   ELOOP                                                    09550000
+PASS       CLI 0(R6),C'P'                                               09560000
+           BNE CATLG                                                    09570000
+* CHECK IF FREE IS CODED, IF SO DON'T GENERATE 'PASS'            87150  09570112
+           TM  DDSPECT2,X'18'     FREE AT CLOSE OR END?                 09571012
+           BM  ELOOP           IGNORE PASS THEN                   87150 09572012
+           CONCAT ',PASS'                                               09580000
+           B   ELOOP                                                    09590000
+CATLG      CLI 0(R6),C'C'                                               09600000
+           BNE UNCATLG                                                  09610000
+           CONCAT ',CATLG'                                              09620000
+           B   ELOOP                                                    09630000
+UNCATLG    EQU  *                                                       09640000
+           CLI 0(R6),C'L'      INDICATOR FOR LAST DDCARD ?              09650000
+          BE  TEMPDSNX                                                  09660000
+           CONCAT ',UNCATLG'                                            09670000
+ELOOP      BR R4                          RETURN                        09680000
+TEMPDSNX  EQU *                                                         09690000
+          CLC =C'&&&&',DDDSNAME   TEMPORARY DSN?                        09700000
+          BNE 0(R4)              -> NO                                  09710000
+          CONCAT ',DELETE'      DELETE DISPOSITION APPLIED              09720000
+          BR  R4          RETURN                                        09730000
+          SPACE                                                         09740000
+DISPERR    EQU *                                                        09750000
+           CONCAT 'INVAL_DISP' USED TO BE A JOLERR,BUT NOW WE CAN 74303 09760000
+*                              SHIFT JOLERR TO A DIFFERENT OVERLAY74303 09770000
+           SPACE 3                                                      09780000
+ENDDISP    EQU *                                                        09790000
+           BCTR R10,0         BACK UP ONE CHARACTER                     09800000
+           CLI  0(R10),C','   LAST ONE A COMMA?                         09810000
+           BE   G03EDISP      WAS A COMMA,SO DELETE IT BY LEAVING R10   09820000
+           LA   R10,1(R10)    ADD ONE SO THAT NEXT CONCAT WILL WORK     09830000
+G03EDISP   CONCAT ')'                                                   09840000
+         IFDYNAM TUNIT        IF DYNAMIC OR SVC 99, GOTO  ....    86100 09841024
+G03TDCB    EQU *                                                        09850000
+           CLC DDOSVB,=AL2(DDCATLGS-DDOSVB+2) SHORT RECORD ?            09860000
+           BNH NODCB                                                    09870000
+         TM    DDSPECT2,X'01' VSAM ? DONE MUCH,MUCH LATER         75128 09880000
+         BO    NODCB                                              75128 09890000
+           CLI DDRECFM,C'%'               IF SO,NODCB WAS SPECIFIED     09900000
+           BE NODCB                                                     09910000
+          TM    DDUSE,B'10000000'  MOD ?                           DASD 09920041
+          BNO   G03CKDCB            NOPE                           DASD 09930000
+          CLI   DDCATLGS,0          EXISTING MOD ?                 DASD 09940000
+          BNE   G03CKDCB            NOPE                           DASD 09950000
+          CLEAR DDRECFM,DDBLKSZE,DDLRECL                          80290 09960000
+*CLEAR MOVED HERE FROM MODULE (UJV00MN)                            DASD 09970000
+* SPACE CALCULATION COULDNT BE PERFORM--NEEDED BLOCKSIZE OR LRECL  DASD 09980000
+G03CKDCB IFVALUE DDRECFM,DDBLKSZE,DDLRECL,DDBUFNO,DDOPTCD,        75128*09990000
+               DDRKP,DDKEYLEN,DDOVERFL,DDDSORG,DDDENS,                 *10000000
+               DDBUFL,DDCODE,DDFUNC,                              75128*10010000
+               G03ISDCB                                           75128 10020000
+         TM    DDSPECTP,B'11000000' ACCEPT, OR SKIP ON?           75128 10030000
+         BNZ   G03ISDCB                                           75128 10040000
+         TM    DDSPECT2,X'40'      TRACE SPECIFIED?                     10050000
+         BO   G03ISDCB            YES, GENERATE TRACE                   10060000
+*                                                                 75128 10070000
+* NEW FEATURE VERSION 3.0. IF DCBEXTRA IS CODED, ANY              75128 10080000
+*  INFORMATION CODED IS ADDED TO THE DCB (OR DCB IS CREATED)      75128 10090000
+         CLC   DDOSVB,=AL2(DDLEN)                        JOL30047 76200 10100000
+         BH    G03ISDCB                                           75128 10110000
+*                                                                 75128 10120000
+         B     NODCB                                              75128 10130000
+* IF NO DCB,THEN GO TO NODCB                                            10140000
+G03ISDCB EQU   *                                                        10150000
+           CONCAT ',DCB=('                                              10160000
+* CHECK IF DCBEXTRA IS BEING USED. IF SO, CHECK THAT IT CONTAINS  84282 10170009
+*  A DATA SET NAME AS A MODEL DSCB. IF SO, SKIP AROUND THE SECTION      10180008
+*  THAT PUTS ON THE DEFAULT MODEL DSCB.                                 10190008
+         CLC   DDOSVB,=AL2(DDLEN)                        JOL30047 84282 10200009
+         BNH   G03DEFDS       PUT IN A DEFAULT DSCB IF REQUIRED   84282 10210009
+* CHECK IF THE DCBEXTRA FIELD IS A DATA SET NAME                  84282 10220009
+*  IN FACT, WE ARE CHECKING THAT BEFORE A COMMA OR  BLANK         84282 10230009
+*   THAT THERE IS A PERIOD OR AN EQUAL SIGN.                      84282 10240009
+*                                                                       10250008
+*  IF WE FIND AN "=" BEFORE A COMMA, THEN THERE IS NO DSNAME.     84282 10260009
+*                                                                       10270008
+         LA    R1,DDEXTRA                                         84282 10280009
+         LA    R14,1                                              84282 10290009
+         LA    R15,DDEXTRA+L'DDEXTRA                              84282 10300009
+         SR    R15,R14         SO WE DON'T GO TOO FAR             84282 10310009
+G03CHKDS EQU   *                                                        10320008
+         CLI   0(R1),C','     HAVE WE GOT THE COMMA YET?          84282 10330009
+         BE    G03NGDG9       YES, MUST BE DSNAME, SKIP DEFAULT   84282 10340009
+         CLI   0(R1),C'='     HAVE WE GOT AN = (KEYWORD=)         84282 10350009
+         BE    G03DEFDS       YES, PUT IN THE DEFAULT DSNAME      84282 10360009
+*                             BECAUSE WE DIDN'T FIND DSNAME       84282 10370009
+         BXLE  R1,R14,G03CHKDS                                    84282 10380009
+         B     G03NGDG9       NO = SIGN MUST BE DSNAME, SO OUT!   84282 10390009
+*                                                                       10400008
+G03DEFDS CLI   DDTYPE,DDGDG   IS THIS A GDG?                      84282 10410009
+         BL    G03NGDG9       NO                                        10420000
+         TM    DDUSE,X'C0'    NEW OR MOD?                               10430000
+         BZ    G03NGDG9       NO,SO DON'T PUT IN GDG DCB                10440000
+           CLI DDDSNAME,C'*'   DUMMY DATA SET ?                   75311 10450000
+           BE  G03NGDG9        YES, NO NO 'JOLDCB' EITHER         75311 10460000
+* TEST IF NAME IS + WITH NOCAT (IE +GDG ON DSNAME)                      10470000
+         CLI   DDMBR+1,C'+'                                       75311 10480000
+         BNE   G03NGDG9                                           75311 10490000
+           L   R1,AJOLGEN                                         75311 10500000
+           USING GENDETS,R1                                       75311 10510000
+*          CONCAT GDGDCB,','                                      75311 10520000
+********* CONCAT MACRO WONT WORK FOR MACRO GENERATED NAMES ***          10530000
+          MVC 0(L'GDGDCB,R10),GDGDCB                                    10540000
+          MVI L'GDGDCB(R10),C','                                        10550000
+          LA  R10,L'GDGDCB+1(R10)                                       10560000
+           DROP R1                                                75311 10570000
+G03NGDG9 EQU   *                                                        10580000
+         CLC   DDOSVB,=AL2(DDLEN) GOT 'DCBEXTRA' TO GO IN ?       82300 10590000
+         BNH   G03NEXTR       NOPE                                75128 10600000
+         CLI   DDEXTRA,C','   DID USER PUT ',' IN ?               75128 10610000
+         BNE   *+8                                                75128 10620000
+         MVI   DDEXTRA,C' '   BLANK IT                            75128 10630000
+         CONCAT DDEXTRA,','   CONCAT                              75128 10640000
+G03NEXTR   IFNULL DDRECFM,NORECFM                                       10650000
+           CONCAT 'RECFM=',DDRECFM,','                            74303 10660000
+NORECFM    IFNULL DDBLKSZE,NOBLKSZE                                     10670000
+           CONCAT 'BLKSIZE=',DDBLKSZE,','                         74303 10680000
+NOBLKSZE   IFNULL DDLRECL,NOLRECL                                       10690000
+           CONCAT 'LRECL=',DDLRECL,','                            74303 10700000
+NOLRECL    IFNULL DDBUFNO,NOBUFNO                                       10710000
+           CONCAT 'BUFNO=',DDBUFNO,','                            74303 10720000
+NOBUFNO    IFNULL DDOPTCD,NOOPTCD                                       10730000
+           CONCAT 'OPTCD=',DDOPTCD,','                            74303 10740000
+NOOPTCD    IFNULL DDRKP,NORKP                                           10750000
+           CONCAT 'RKP=',DDRKP,','                                74303 10760000
+NORKP      IFNULL DDKEYLEN,NOKEYLEN                                     10770000
+           CONCAT 'KEYLEN=',DDKEYLEN,','                          74303 10780000
+NOKEYLEN   IFNULL DDOVERFL,NOOVERFL                                     10790000
+           CONCAT 'CYLOFL=',DDOVERFL,','                          74303 10800000
+NOOVERFL   IFNULL  DDDENS,NODENS                                        10810000
+         CONCAT 'DEN=',DDDENS,','                                 75128 10820000
+NODENS     EQU *                                                        10830000
+           IFNULL DDDSORG,NODSORG                                       10840000
+           CONCAT 'DSORG=',DDDSORG,','                            74303 10850000
+NODSORG    EQU *                                                        10860000
+           IFNULL  DDCODE,G03NCODE                                      10870000
+           CONCAT  'CODE=',DDCODE,','                                   10880000
+G03NCODE   EQU  *                                                       10890000
+           IFNULL  DDBUFL,G03NBUFL                                      10900000
+           CONCAT  'BUFL=',DDBUFL,','                                   10910000
+G03NBUFL   EQU  *                                                       10920000
+           IFNULL  DDFUNC,G03NOFUN                                      10930000
+           CONCAT  'FUNC=',DDFUNC,','                                   10940000
+G03NOFUN   EQU  *                                                       10950000
+           TM   DDSPECT2,X'40'      TRACE?                              10960000
+           BZ   G03NTRAC                                                10970000
+           CONCAT  'DIAGNS=TRACE,'                                      10980000
+G03NTRAC   TM   DDSPECTP,X'C0'      ACCEPT OR SKIP ERRORS?              10990000
+           BZ   G03NOERR                                                11000000
+           TM   DDSPECTP,X'80' SKIP? GIVE IT PRECEDENCE...              11010000
+           BZ   G03ACC                                                  11020000
+           CONCAT 'EROPT=SKP,'                                    75311 11030000
+           B    G03NOERR                                                11040000
+G03ACC     CONCAT 'EROPT=ACC,'                                          11050000
+G03NOERR   EQU  *                                                       11060000
+ENDDCB     EQU *                                                        11070000
+           LR R1,R10                                                    11080000
+           BCTR R1,0                                                    11090000
+           MVI 0(R1),C')'                                               11100000
+           EJECT                                                        11110000
+NODCB      EQU *              BUG---FREE=CLOSE NOT GENED IF NO DCB DASD 11120000
+           TM  DDSPECT2,X'08'     FREE AT CLOSE??                       11130000
+           BNO G03TFEND                                                 11140000
+           CONCAT ',FREE=CLOSE'                                         11150000
+           B   G03NOCLS                                                 11160000
+G03TFEND   TM  DDSPECT2,X'10'     FREE AT END  ??                       11170000
+           BZ  G03NOCLS                                                 11180000
+           CONCAT ',FREE=END'                                           11190000
+G03NOCLS   EQU  *                                                       11200000
+           CLC DDOSVB,=AL2(DDCATLGS-DDOSVB+2) SHORT RECORD ?            11210000
+           BNH NOSPACE                                                  11220000
+           IFNULL DDPRIM,DDSEC,DDDIRECT,NOSPACE                         11230000
+         CLI   DDCYLTRK,C'B'  BLOCK ALLOCATION ?         JOL30078 76200 11240000
+         BNE   G03SPCNM       NORMAL SPACE ALLOC (C | T) JOL30078 76200 11250000
+         IFNULL DDBLKSZE,NOSPACE IF NO BLK -> OUT        JOL30078 76200 11260000
+G03SPCNM EQU   *                                         JOL30078 76200 11270000
+         FIX   'USE SPECIAL NEW (3.1) BLK SIZE)'         JOL30078 76200 11280000
+           CONCAT ',SPACE=('                                            11290000
+           IFNULL DDCYLTRK,TRK                                          11300000
+           CLI DDCYLTRK,C'T'                                            11310000
+           BE  TRK                                                      11320000
+           CLI DDCYLTRK,C'C'              CYLS SPECIFIED ?              11330000
+           BE CYL                                                       11340000
+         CLI   DDCYLTRK,C'A'  ABSTRACK                            75128 11350000
+         BE    ABSTRACK                                           75128 11360000
+           CLI DDCYLTRK,C'B'                   BLOCKS SPECIFIED         11370000
+           BNE TRK                                                      11380000
+           CONCAT DDBLKSZE                                              11390000
+           B  TRYPRIM                                                   11400000
+ABSTRACK CONCAT 'ABSTR'                                           75128 11410000
+         B     TRYPRIM                                            75128 11420000
+CYL        EQU *                                                        11430000
+         CONCAT 'CYL'                                             75128 11440000
+           B   TRYPRIM                                                  11450000
+TRK      CONCAT 'TRK'                                             75128 11460000
+TRYPRIM    EQU *                                                        11470000
+         CONCAT ',(',DDPRIM,',',DDSEC,',',DDDIRECT                75128 11480000
+         BAL   R14,G03DROPC   DROP EXCESSIVE ','                  75128 11490000
+         CONCAT '),'                                              75128 11500000
+         TM    DDSPECT2,X'02' NORLSE CODED ?                      75128 11510000
+           BO G03TCONT         NORLSE CODED, TEST IF CONTIG             11520000
+           CLI DDCYLTRK,C'A'   ABSTR CANT HAVE RLSE                     11530000
+           BE  G03TCONT                                                 11540000
+******* VETS WILL DO THIS LATER ***** **************                    11550000
+           CLC =C'IS ',DDDSORG                                    80290 11560000
+           BE  G03TCONT        IS DATA SETS CANNOT HAVE RLSE      80290 11570000
+           IFVALUE DDDIRECT,G03TCONT NOR CAN PDS DATA SETS.       80290 11580000
+         CONCAT 'RLSE'                                            75128 11590000
+G03TCONT   EQU  *                                                       11600000
+         CONCAT ','                                               75128 11610000
+         TM    DDSPECT2,X'80' CONTIG CODED ?                      75128 11620000
+         BZ    G03TMXIG       TEST IF MXIG WAS                    75128 11630000
+         CONCAT 'CONTIG'                                          75128 11640000
+         B     G03TROUN       TEST ROUND NOW                      76200 11650000
+         SPACE 3                                                  75128 11660000
+G03TMXIG TM    DDSPECTP,X'04' MXIG ON ?                           75128 11670000
+         BZ    G03TALX                                            75128 11680000
+         CONCAT 'MXIG'                                            75128 11690000
+         B     G03TROUN                                           75128 11700000
+         SPACE 3                                                  75128 11710000
+G03TALX  TM    DDSPECTP,X'02' ALX ?                               75128 11720000
+         BZ    G03TROUN       NO PUT A COMMA IN,THEN TEST ROUND   76200 11730000
+         CONCAT 'ALX'                                             75128 11740000
+G03TROUN TM    DDSPECTP,X'01'                                     75128 11750000
+         BZ    G03NOTRN                                           75128 11760000
+         CONCAT ',ROUND'                                 JOL30043 76200 11770000
+G03NOTRN BAL   R14,G03DROPC   DROP EXCESSIVE ','                  75128 11780000
+NORLSE     CONCAT ')'                                                   11790000
+NOSPACE    EQU *                                                        11800000
+TUNIT      EQU *                                                        11810000
+           TM  DDUSE,X'02'     DEFER ON ?                         75311 11820000
+           BO  G03ISUST        YES,UNIT MUST BE OUTPUT THEN       75311 11830000
+         TM    DDSPECT2,X'01' VSAM ? DON'T PUT OUT A UNIT THEN    86229 11831011
+         BO    NOUNIT                                             86229 11832011
+           IFNULL DDUNIT,DDUNITNO,NOUNIT                          75311 11840000
+G03ISUST   EQU *                                                  75311 11850000
+           SPACE                                                        11860000
+* NOW LETS SEE IF UNIT=AFF HAS BEEN SUGGESTED BY THE OPTIMISING         11870000
+*     PORTION OF THE PROGRAM                                            11880000
+***************************                                             11890000
+* THIS CODE NEEDS TO BE REVISED LATER,IT PROVIDES THE 'UNITREF'         11900000
+*     FEATURE,BUT MUST BE CHANGED.                                      11910000
+           TM DDUSE,1          UNIT AFFINITY ?                          11920000
+           BZ NOTAFF                      NO,SO PROCESS REST OF UNIT    11930000
+G03AFF     EQU  *                                                       11940000
+           CONCAT ',UNIT=AFF=',DDUNIT                             74303 11950000
+           B  ENDUNIT                                                   11960000
+NOTAFF     EQU *                                                        11970000
+         L     R1,AGENDETS                                        75128 11980000
+         USING GENDETS,R1                                         75128 11990000
+         L     R1,ASWAPUNI                                        75128 12000000
+         DROP  R1                                                 75128 12010000
+           LM  R14,R15,4(R1)                                            12020000
+           L  R1,0(R1)                                                  12030000
+           CLC DDUNIT,0(R1)                                             12040000
+           BE  G03SWAP                                                  12050000
+           BXLE R1,R14,*-10                                             12060000
+           B  G03NOSWP                                                  12070000
+G03SWAP    MVC  DDUNIT,8(R1)                                            12080000
+G03NOSWP   EQU  *                                                       12090000
+           CONCAT ',UNIT=(',DDUNIT                                74303 12100000
+           SPACE                                                        12110000
+******* VETS WILL DO THIS LATER ***** **************                    12120000
+           CLC =C'IS ',DDDSORG                                          12130000
+           BNE G03NIS          NOT AN IS DATA SET                       12140000
+           MVI DDUNITNO,C'P'    SET UP PARRALLEL MOUNTING               12150000
+G03NIS     EQU  *                                                       12160000
+* NOW TEST THE UNIT COUNT                                               12170000
+           IFVALUE DDUNITNO,G03UNO UNIT NUMBER -> YES, PUT IT IN  75311 12180000
+           TM  DDUSE,X'02'         WELL, IS DEFER ON ?            75311 12190000
+           BZ  UNITLEFT            NO, SO PUT ')' ON UNIT THEN    75311 12200000
+           SPACE 1                                                75311 12210000
+G03UNO     EQU *                                                  75311 12220000
+           CLI  DDUNITNO,C'P'  PARALLEL MOUNT?                    75311 12230000
+           BNE  G03#UN UNIT NUMBER IS NOW NUMERIC                 80290 12240000
+           CONCAT ',P'                                            80290 12250000
+           B    NOUNITNO                                          80290 12260000
+G03#UN     CONCAT ',',DDUNITNO                                    74303 12270000
+NOUNITNO TM    DDUSE,X'02'    DEFER ?                             75128 12280000
+         BZ    UNITLEFT       NO,ADD ')'                          75128 12290000
+           CONCAT ',DEFER'                                              12300000
+UNITLEFT   CONCAT ')'                                                   12310000
+ENDUNIT    EQU *                                                        12320000
+NOUNIT     EQU *                                                        12330000
+         IFDYNAM NOLABEL      IF DYNAMIC OR SVC 99, GOTO  ....    87150 12331024
+* THIS NEXT SECTION OF CODE ADDS THE LABEL PARAMETER.             75128 12340000
+         SPACE 1                                                        12350000
+         TM    DDUNITQU,DDUNITQ                                         12360000
+         BO    NOLABEL                                                  12370000
+         CLI   DDTYPE,DDSYSIN SYSIN? ALWAYS PUT 'IN'     JOL30056 76200 12380000
+          BNE G03TPUN                                    JOL30056 76200 12390000
+         CONCAT ',LABEL=(,,,IN)'                                  76200 12400000
+         B     NOLABEL                                            76200 12410000
+G03TPUN  EQU   *                                                  76200 12420000
+         CLI   DDTYPE,DDPUNCH SYSOUT OR SOMESUCH ?                75128 12430000
+         BNH   NOLABEL        YES, DON'T PUT A LABEL IN           75128 12440000
+* IF ANY OF THE LABEL PARAMETERS ARE SPECIFIED, WE MUST OUTPUT    75128 12450000
+*  THE LABEL PARAMETER, BUT FURTHERMORE, WE MUST ADD 'IN' / 'OUT' 75128 12460000
+*  UNDER SPECIAL CIRCUMSTANCES, EG IF A TAPE ETC FOR FORTRAN      75128 12470000
+         IFVALUE DDLABEL,DDLABTYP,DDEXPDT,MAKELAB        JOL30056 76200 12480000
+         TM    DDSPECTP,B'00110000' PASSWORD | NOPREAD?  JOL30056 76200 12490000
+         BM    MAKELAB                                   JOL30056 76200 12500000
+* NOW IF INPUT, PUT LABEL IN, UNLESS IT IS '&&UT'; THIS  JOL30056 76200 12510000
+*  MAY BE A PASSED WORK DATA SET.                        JOL30056 76200 12520000
+         CLC   =C'&&UT',DDDSNAME                         JOL30056 76200 12530000
+         BE    NOLABEL                                   JOL30056 76200 12540000
+* FOR JOL 4.0, ONLY PUT LABEL 'IN' FOR FORTRAN FILES              87150 12541013
+         CLC   =C'FT',DDDDNAME                                    87150 12543012
+         BNE   NOLABEL                                            87150 12544014
+* NOW TEST INPUT                                         JOL30056 76200 12550000
+         TM   DDUSE,B'11010000' INPUT AND ONLY SHR?     JOL30056 76200  12560041
+         BZ    MAKELAB             YES                   JOL30056 76200 12570000
+* WE USED TO PUT LABEL OUT ESPECIALLY FOR TAPES.         JOL30056 76200 12580000
+* THERE APPEARS TO BE NO REASON TO DO THIS AT ALL,       JOL30056 76200 12590000
+*  BECAUSE QSAM WILL OPEN IT HOWEVER THE PROGRAMMER      JOL30056 76200 12600000
+*  SPECIFIES, AND BSAM (FORTRAN) WILL OPEN IT AS OUT/IN  JOL30056 76200 12610000
+*  WHICH WILL BE OK ANYWAY                               JOL30056 76200 12620000
+         B     NOLABEL                                   JOL30056 76200 12630000
+MAKELAB    EQU *                                                        12640000
+         CONCAT ',LABEL=(',DDLABEL,','                            75128 12650000
+         IFNULL DDLABTYP,G03TPROT  NO LABEL TYPE, GO TEST PROTECT 75128 12660000
+           SR  R1,R1           CLEAR R1                           75311 12670000
+           IC  R1,DDLABTYP     NOW LOAD                           75311 12680000
+           SLL R1,2            MULT BY 4                          75311 12690000
+           LA  R1,G03LBTBL(R1) LOOK AT CONSTANTS FOR LABEL TYPES  75311 12700000
+           MVC 0(L'G03LTBL,R10),0(R1) SHIFT INTO OUR STRING       75311 12710000
+           LA  R10,L'G03LTBL(R10)     RESET R10                   74303 12720000
+G03TPROT CONCAT ','                                               75128 12730000
+         TM    DDSPECTP,X'20' 'PASSWORD' ?                        75128 12740000
+         BZ    G03TREAD       -> NO, CHECK 'NOPWREAD'             75128 12750000
+         CONCAT 'PASSWORD'                                        75128 12760000
+         B     G03TINOU       NOW TEST IN,OUT REQD                75128 12770000
+G03TREAD TM    DDSPECTP,X'10' 'NOPWREAD'                          75128 12780000
+         BZ    G03TINOU       NOPE                                75128 12790000
+         CONCAT 'NOPWREAD'                                        75128 12800000
+G03TINOU CONCAT ','                                               75128 12810000
+         TM    DDUSE,B'11010000'      OLD OR NEW?                 76200 12820041
+         BNZ   G03OUT                                             75128 12830000
+* FOR JOL 4.0, ONLY PUT LABEL 'IN' FOR FORTRAN FILES              87150 12831014
+         CLC   =C'FT',DDDDNAME                                    87150 12832014
+         BNE   G03TRETP                                           87150 12833014
+         CONCAT 'IN'                                              75128 12840000
+         B     G03TRETP                                           75128 12850000
+G03OUT   B     G03TRETP       *********                  JOL30056 76200 12860000
+         TM    DDUNITYP,X'80' TEST IF TAPE               JOL30056 76200 12870000
+         BO    G03TRETP       NO, DON'T PUT OUT ON LABEL.JOL30056 76200 12880000
+         CONCAT 'OUT'                                    JOL30056 76200 12890000
+G03NOIN  EQU   *                                                  75128 12900000
+G03TRETP BAL   R14,G03DROPC   DROP ANY EXCESS ','                 75128 12910000
+          IFVALUE DDRETPD,G03RET                                  76200 12920000
+         IFVALUE DDEXPDT,G03EXPDT                                 75128 12930000
+         B   G03ENDLB                                             76200 12940000
+G03RET   CONCAT ',RETPD=',DDEXPDT                                 75128 12950000
+         B     G03ENDLB                                           75128 12960000
+G03EXPDT CONCAT ',EXPDT=',DDEXPDT                                 75128 12970000
+         B     G03ENDLB                                           75128 12980000
+G03ENDLB   EQU *                                                  74303 12990000
+           CONCAT ')'                                                   13000000
+* TEST FOR MASS STORAGE GROUPS HERE                                     13010000
+NOLABEL  TM    DDUNITQU,DDUNITM  IS IT MASS STORAGE?              80290 13020000
+         BNO   G03NMASS          NOPE                             80290 13030000
+         CONCAT ',MSVGP=',DDVOLUME                                80290 13040000
+G03FQNAM CLEAR DDVOLUME                                           80290 13050000
+         B     G03TVOLC                                                 13060000
+G03NMASS DS    0H                                                       13070000
+         IFDYNAM G03TVOLC     IF DYNAMIC OR SVC 99, GOTO  ....    87150 13071024
+* NEW CODE HERE TO SUPPORT QNAME PARAMETER.   NOVEMBER 5, 1982          13080000
+*                                                                       13090000
+* IF BIT 'DDUNITQ' IS TURNED ON IN THE 'DDUNITQU' FIELD, WE             13100000
+*   ARE GENERATING A QNAME. IN THIS CASE, THE VOL FIELD HAS             13110000
+*   THE QNAME TO GO OUT.                                                13120000
+           TM  DDUNITQU,DDUNITQ     QNAME ?                             13130000
+           BNO G03TVOLC             NOPE.... CONTINUE                   13140000
+           CONCAT 'QNAME=',DDVOLUME                                     13150000
+           CLI DDVOLUME+8,C' '     IS QNAME MORE THAN 8 CHAR            13160000
+           BNE QNERROR1             YES                                 13170000
+           CLI DDVOLUME,C'#'        CHECK FIRST CHAR                    13180000
+           BE  QNAMEOK                                                  13190000
+           CLI DDVOLUME,C'$'                                            13200000
+           BE  QNAMEOK                                                  13210000
+           CLI DDVOLUME,C'@'                                            13220000
+           BE  QNAMEOK                                                  13230000
+           CLI DDVOLUME,C'A'                                            13240000
+           BL  QNERROR                                                  13250000
+           CLI DDVOLUME,C'Z'                                            13260000
+           BNH QNAMEOK                                                  13270000
+QNERROR    JOLERR 301,'QNAME INVALID-INCORRECT FIRST CHARACTER'         13280000
+           B QNAMEOK                                                    13290000
+QNERROR1   JOLERR 302,'QNAME TOO LONG - MUST BE 8 CHAR OR LESS'         13300000
+QNAMEOK    CLEAR DDVOLUME                                         82300 13310000
+G03TVOLC EQU   *                                                  84282 13320009
+         TM    DDSPECT2,X'01' VSAM ?                              84282 13330009
+         BO    ENDVOL         +++++ DON'T PUT ANY VOL INFO ON THEN84282 13340009
+         IFVALUE DDVOLUME,DDVOLSEQ,DDMAXVOL,G03ISVOL              75128 13350008
+         CLC   DDOSVB,=AL2(DDCATLGS-DDOSVB+2) SHORT RECORD ?      75128 13360008
+         BNH   G03TPASS                                           75128 13370008
+         TM    DDSPECTP,X'08' PRIVATE ?                           75128 13380000
+         BO    G03ISVOL                                           75128 13390000
+G03TPASS CLI   DDDISP+1,C'P'  PASS ON ? -> MAKE RETAIN            75128 13400000
+           BNE   ENDVOL                                           75128 13410000
+G03ISVOL EQU   *                                                  75128 13420000
+         TM DDUNITQU,DD3800                                             13430005
+         BO ENDVOL                                                      13440006
+G03NQNAM   CONCAT ',VOL=('                                              13450000
+         TM    DDSPECTP,X'08' PRIVATE EXPLICITY CODED?            75128 13460000
+         BO    G03PRIV                                            75128 13470000
+           TM DDUNITYP,B'01100000' PERM OR PREFERRED TO STAY MOUNTED?   13480000
+         BNZ   G03PREF                                            75128 13490000
+         IFNULL DDVOLUME,G03PREF                                  75128 13500000
+         CLI DDDSNAME,C'&&'    TEMPORARY CAN HAVE PRIVATE ??            13510000
+         BE  G03PREF                                                    13520000
+* NOW CHECK IF THE VOLUME IS IN THE 'RETVOLS' CSECT                     13530000
+         L  R1,AGENDETS                                                 13540000
+          USING GENDETS,R1                                              13550000
+          L   R1,ARETVOLS                                               13560000
+           LM  R14,R15,4(R1)   LOAD BXLE CONSTANTS                      13570000
+           DROP  R1                                                     13580000
+           L   R1,0(R1)        LOAD START OF TABLE                      13590000
+         CLC   =C'ALL ',0(R1)                                     75128 13600000
+         BE    G03PREF                                            75128 13610000
+         CLC   =C'NONE ',0(R1)                                    75128 13620000
+         BE    G03PRIV                                            75128 13630000
+G03TRET    CLC DDVOLUME(6),0(R1) VOLUME IN TABLE ?                      13640000
+           BE  G03PREF         YES,DON'T PUT PRIVATE ON DDCARD          13650000
+           BXLE R1,R14,G03TRET                                          13660000
+G03PRIV  CONCAT 'PRIVATE'                                         75128 13670000
+G03PREF    CONCAT ','                                                   13680000
+         CLI  DDDISP+1,C'P'   PASS ON ?                           75128 13690000
+         BNE   NORETAIN                                           75128 13700000
+           CONCAT 'RETAIN,'                                             13710000
+         B     G03TSEQ                                            75128 13720000
+NORETAIN   CONCAT ','                                                   13730000
+G03TSEQ    CLC DDOSVB,=AL2(DDCATLGS-DDOSVB+2) SHORT RECORD ?      75128 13740000
+           BNH  G03NCXX                                           75128 13750000
+         CONCAT DDVOLSEQ,','                                      75128 13760000
+           CONCAT DDMAXVOL                                        75311 13770000
+         BAL   R14,G03DROPC   DROP EXCESS COMMAS                  75128 13780000
+         LR  R1,R10                                                     13790000
+         BCTR  R1,0                                                     13800000
+         CLI  0(R1),C'('                                                13810000
+         BE  G03NCXX                                              75128 13820000
+         CONCAT ','                                                     13830000
+G03NCXX  EQU  *                                                         13840000
+         CLI   DDVOLUME,C'*'  VOLREF ?                            75128 13850000
+           BE VOLREF                                                    13860000
+        IFNULL  DDVOLUME,G03VCLOS                                       13870000
+           CONCAT 'SER=('                                               13880000
+           LA  R1,DDVOLUME                                              13890000
+           LA  R14,6                                                    13900000
+           LA  R15,DDVOLUME+L'DDVOLUME                                  13910000
+           SR R15,R14          SO WE DON'T GO TOO FAR                   13920000
+VOLUP      EQU  *                                                       13930000
+           MVC 0(6,R10),0(R1)                                           13940000
+           LA  R10,6(R10)                                               13950000
+           CLI 6(R1),C' '                                               13960000
+           BE  VOLSERE                                                  13970000
+           CONCAT ','                                                   13980000
+           BXLE R1,R14,VOLUP                                            13990000
+           BCTR R10,0          DROP BACK TO LOSE ','                    14000000
+VOLSERE    EQU  *                                                       14010000
+           CONCAT '))'                                                  14020000
+           B  ENDVOL                                                    14030000
+VOLREF     CONCAT 'REF='                                                14040000
+*        CLI   DDVOLUME+1,C'$'                                    J40B  14041034
+*        BNE   *+8                                                J40B  14042034
+*        DC    F'0'                                               J40B  14043034
+         MVC   0(L'DDVOLUME-1,R10),DDVOLUME+1 SHIFT VOLREF DSN          14050034
+         LA R10,L'DDVOLUME-1(R10)                                       14060034
+G03VCLOS BAL   R14,G03DROPC   DROP ANY LAST COMMAS                75128 14070000
+         CONCAT ')'                                               75128 14080000
+ENDVOL   EQU   *                                                        14090034
+*    OK,THE DDCARD SHOULD BE ENTIRELY SET UP                            14100000
+* THERE IS STILL 'VSAM' AND 'SUBSYS' LEFT TO DO.                  75128 14110015
+*  THESE HAVE BEEN LEFT TOTHE END BECAUSE WE DON'T                75128 14111015
+*  WANT TO START THE 'AMP' OR 'SUBSYS' PARAMETERS ON A            75128 14120015
+*  NEW CARD BECAUSE THEY HAVE QUOTES WHICH WE DON'T WANT TO WORRY 75128 14130015
+*  ABOUT IF THERE IS A CONTINUATION CARD REQUIRED                 75128 14140000
+         IFDYNAM G03NOVS      IF DYNAMIC OR SVC 99, GOTO  ....    87150 14141024
+         CLC   DDOSVB,=AL2(DDCATLGS-DDOSVB+2) SHORT RECORD ?      75128 14150034
+         BNH     G03NOVS                                          75128 14160034
+         CLC   #SUBSYS,ZERO                                       87150 14161015
+         BNE   G03LASTC        ADD ANOTHER COMMA                  87150 14162015
+G03TVSG  TM    DDSPECT2,X'01' VSAM ?                              75128 14170015
+         BZ    G03NOVS        NOPE ->                             75128 14180015
+G03LASTC CONCAT ','                                               75128 14190015
+G03NOVS  EQU   *                                                  75128 14200000
+           LA  R9,WORK                                                  14210000
+           MVC 0(6,R10),BLANKS                                    74303 14220000
+           SR  R10,R9                                                   14230000
+           STH R10,#WORK                                                14240000
+* JUST CHECK THAT THE FIRST CHARACTER IS NOT A ',' AS COULD HAPPEN      14250000
+           CLI WORK+15,C','                                             14260000
+           BNE PACKIT                                                   14270000
+           MVI WORK+15,C' '                                             14280000
+PACKIT    $CALL UJCPACK,#WORK                                           14290000
+           SPACE 2                                                      14300000
+* NOW HAVING REMOVED ALL THE BLANKS,WE HAVE TO PUT IN THE'//',          14310000
+*     DDNAME AND THE'DD'                                                14320000
+           MVC WORK(15),=CL15'//         DD'                            14330000
+           CLI DDDDNAME,C'%'   DISPOSITION PROCESSING INSTRUCTION?      14340000
+           BNE G03ORDDD                                                 14350000
+           MVC WORK+2(7),DDDDNAME+1                                     14360000
+           B   G03OPOP                                                  14370000
+G03ORDDD   EQU  *                                                       14380000
+           MVC WORK+2(8),DDDDNAME                                       14390000
+G03OPOP    EQU  *                                                       14400000
+         OPJCL #WORK                                              74303 14410015
+         IFDYNAM G03RETN      IF DYNAMIC OR SVC 99, GOTO  ....    87150 14410124
+* TEST IF SUBSYS OR LONG VOLUME LIST                                    14411015
+         CLC   #SUBSYS,ZERO                                       87150 14412015
+         BNE   G03TVSM3        TEST IF VSAM TO BE DONE AS WELL    87150 14413015
+* MAYBE THERE IS NOTHING FOR US TO DO.  LAST CHECK BEFORE EXIT    87150 14423015
+         CLC   DDOSVB,=AL2(DDCATLGS-DDOSVB+2) SHORT RECORD ?      75128 14430015
+         BNH   G03RETN                                            75128 14440015
+G03TVSM3 TM    DDSPECT2,X'01' VSAM ?                              75128 14450015
+         BZ    G03TSUB8        NO, SO EXIT                        87150 14460017
+* THIS CODE ADDS THE VSAM 'AMP' PARAMETERS                        75128 14461015
+         LA    R10,STRING                                               14470000
+         IFNULL DDBUFNO,VSAMNBUF                                  87150 14480030
+         CONCAT ',BUFND=',DDBUFNO                                 87150 14490030
+VSAMNBUF IFNULL DDBUFNI,VSAMNBNI                                  82300 14500000
+         CONCAT ',BUFNI=',DDBUFNI                                 82300 14510000
+VSAMNBNI IFNULL DDBUFL,VSAMNBSP                                   82300 14520000
+         CONCAT ',BUFSP=',DDBUFL                                  75128 14530000
+VSAMNBSP IFNULL DDRECFM,VSAMNREC                                  75128 14540000
+         CONCAT ',RECFM=',DDRECFM                                 75128 14550000
+VSAMNREC IFNULL DDOPTCD,VSAMNOPT                                  75128 14560000
+         CONCAT ',OPTCD=',DDOPTCD                                 75128 14570000
+VSAMNOPT EQU   *                                                  75128 14580000
+* CHECK IF DCBEXTRA CODED, AND IF PUT IN AS VSAM EXTRA            76200 14590000
+         CLC   DDOSVB,=AL2(DDLEN)                                 76200 14600000
+         BH    G03VSEXT                                           76200 14610000
+         B     G03VSEND                                           76200 14620000
+G03VSEXT CLI   DDEXTRA,C','                                       76200 14630000
+         BNE   *+8                                                76200 14640000
+         MVI   DDEXTRA,C' '                                       76200 14650000
+         CONCAT DDEXTRA                                           76200 14660000
+G03VSEND EQU   *                                                  76200 14670000
+         LA    R15,STRING                                         75128 14680015
+         SR    R10,R15                                            75128 14690000
+         STH   R10,#STRING                                        75128 14700000
+         $CALL UJCPACK,#STRING                                          14710000
+         XC    WORK(3),WORK   SET FIRST 3 BYTES                   75128 14720000
+         LA    R10,WORK+3     SET R10 FOR 'CONCAT' MACRO          75128 14730000
+         CONCAT 'AMP=(''AMORG'                                    75128 14740000
+         MVC   0(100,R10),STRING                                        14750000
+         AH    R10,#STRING    SET R10 GREATER BY LENGTH OF VSAM OPTS    14760000
+         CONCAT ''')'                                             75128 14770000
+* TEST IF SUBSYS OR LONG VOLUME LIST                              87150 14771015
+         CLC   #SUBSYS,ZERO                                       87150 14772017
+         BE    G03EVSAM        TERMINATE NEARLY.                  87150 14773015
+         CONCAT ','                                               87150 14773115
+G03EVSAM LA    R15,WORK                                           75128 14780015
+         SR    R10,R15                                            75128 14790000
+         STH   R10,#WORK                                          75128 14800000
+         MVC   WORK(3),=C'// '                                    75128 14810000
+         OPJCL #WORK                                              75128 14820000
+* TEST IF SUBSYS OR LONG VOLUME LIST                              87150 14820115
+G03TSUB8 CLC   #SUBSYS,ZERO                                       87150 14820217
+         BE    G03RETN         TERMINATE.                         87150 14820315
+         LA    R10,WORK        SET R10 FOR 'CONCAT' MACRO         75128 14820415
+         CONCAT '//             SUBSYS=('                         87150 14820517
+         MVC   0(L'SUBSYS,R10),SUBSYS                             87150 14820616
+         LH    R15,#SUBSYS                                        87150 14820715
+         AR    R10,R15                                            87150 14820815
+         CONCAT ')'                                               87150 14820915
+         LA    R15,WORK                                           75128 14821915
+         SR    R10,R15                                            75128 14822915
+         STH   R10,#WORK                                          75128 14823915
+         OPJCL #WORK                                              75128 14825915
+G03RETN   EQU  *                                                        14830000
+         SPACE 1                                                        14840000
+         JOLRETN RC=0         NO, FINISHED, SO RETURN NOW         75128 14850000
+G03LBTBL   EQU *                                                  75311 14860000
+G03LTBL    DC  CL4'SL'         0                                  75311 14870000
+           DC  CL4'NL'         1                                  75311 14880000
+           DC  CL4'BLP'        2                                  75311 14890000
+           DC  CL4'SUL'        3                                  75311 14900000
+           DC  CL4'NSL'        4                                  75311 14910000
+           DC  CL4'AL'         5                                  75311 14920000
+           DC  CL4'LTM'        6                                  75311 14930000
+           DC  CL4'AUL'        7                                  75311 14940000
+           DC  CL4'NUL'        8                                  75311 14950000
+           DC  CL4'NUL'        9                                  75311 14960000
+           DC  CL4'NUL'        10                                 75311 14970000
+           DC  CL4'NUL'        11                                 75311 14980000
+           DC  CL4'NUL'        11                                 75311 14990000
+* THIS ROUTINE IS BAL'D TO ON R14 AND REMOVES EXCESS COMMAS       75128 15000000
+*  AND BLANKS FROM THE STRING                                     75128 15010000
+* IT IS NOT A REPLACEMENT FOR 'UJCPACK'                           75128 15020000
+G03DROPC BCTR R10,0      BACK OFF ONE BYTE                              15030000
+G03DROPX CLI   0(R10),C' '    BLANK ?                             75128 15040000
+         BNE   G03TC1         NOPE -> TEST ','                    75128 15050000
+         BCT   R10,G03DROPX   REDUCE R10 BY 1, CHECK NXT CHAR     75128 15060000
+G03TC1   CLI   0(R10),C','    ',' ?                               75128 15070000
+         BNE   G03ADD1        NO, SO END ROUTINE                  75128 15080000
+         BCT   R10,G03DROPX   DROP ',',BACK TO NXT CHAR           75128 15090000
+G03ADD1  LA    R10,1(R10)                                         75128 15100000
+         BR    R14            BACK TO CALLER                      75128 15110000
+         DC    60S(*)                                                   15120000
+           DROP R8                                                      15130000
+          LTORG                                                         15140000
+         DROP  R7,R11,R13     PLAY SAFE                           J60   15150043
+         USING DDDSNDET,R8                                              15151043
+         JOLSAVE CSECT=UJG93PTH                                         15160044
+* SUPPORT FOR PATH - HPS FOR JOL 6.0 NOV 27 2010                  J60   17760043
+*                                                                       17761043
+* THIS ENTIRE MODULE IS NEW - I WON'T PUT "J60" ON EACH LINE...         17762043
+*                                                                       17763043
+         IFDYNAM G93ERROR     IF DYNAMIC OR SVC 99, ERROR         J60   17764044
+         B     G93OK                                                    17765044
+G93ERROR JOLERR 301,'PATH NOT YET SUPPORTED WHEN USING DYNAMIC ',    ***17766046
+               'ALLOCATION. YOU NEED TO USE THE JCL OPTION FOR NOW.'    17767044
+         JOLRETN RC=16                                                  17768044
+G93OK    DS    0H                                                       17769044
+         XC    #WORK(18),#WORK                                    J60   17770043
+         LA    R10,WORK+15                                        J60   17780043
+         CLI DDDSNAME,C'*'     DUMMY DATA SET ?                   75311 17781043
+         BNE G93NDUMM          YES, NO NO 'JOLDCB' EITHER         75311 17782043
+         CONCAT 'DUMMY,'                                                17783043
+G93NDUMM DS    0H                                                       17784043
+         CONCAT 'PATH='        START PATH                               17790043
+         L     R15,DDAEXTRA                                             17800045
+         LH    R1,0(R15)       LOAD LENGTH OF ACTUAL FIELD        J60   17850045
+         EX    R1,MUVPATH      SHIFT PATH NAME IN                 J60   17860043
+MUVPATH  MVC   0(*-*,R10),2(R15)     THE PATH IS STORED HERE      J60   17881045
+         AR    R10,R1          POINT TO NEXT SPOT IN STRING       J60   17882043
+         CONCAT ','                                               J60   18550043
+         IFNULL DDDISP,G93TDCBP NO DISP FIELDS ?                        18630043
+         CONCAT  'PATHOPTS=('                                           18640047
+DODISPZ  EQU *                                                          18650043
+         TM   DDUSE,B'11000000'  USES?                             SOCO 18660043
+         BO   G93SHR             YES, GO FIX IT UP                 SOCO 18670043
+         TM   DDUSE,B'01000000'  NEW ?                                  18680043
+         BO   G93NEW                                                    18690043
+         TM   DDUSE,B'10000000'  MOD ?                                  18700043
+         BO   G93MOD                                                    18710043
+         TM   DDUSE,B'00010000'  OLD ?                                  18720043
+         BO   G93OLD                                                    18730043
+G93SHR   CONCAT 'ORDONLY'                                               18740043
+         B     G93DISP2                                                 18750043
+G93MOD   CONCAT 'OAPPEND'                                               18760043
+         B     G93DISP2                                                 18770043
+G93NEW   CONCAT 'OWRONLY,OCREAT'                                        18780043
+         B     G93DISP2                                                 18790043
+G93OLD   CONCAT 'OWRONLY'                                               18800043
+G93DISP2 EQU   *                                                        18810043
+         CONCAT '),'                                                    18811043
+*        CLC   DDDISP+1(2),BLANKS                                       18820044
+*        NOP   DODISP2A                                                 18830043
+         CONCAT 'PATHDISP=(KEEP,KEEP)'                                  18990047
+           SPACE 2                                                      19010043
+         B     G93SDISP          SKIP DISP                              19020043
+* JUST LEAVE THIS CODE HERE IN CASE IT IS USEFUL...                J60  19021043
+         LA  R6,DDDISP+1                                                19030043
+PDELETE  CLI 0(R6),C'D'                                                 19120043
+         BNE PKEEP                                                      19130043
+         CONCAT ',DELETE'                                               19140043
+         B   PELOOP                                                     19150043
+PKEEP    CLI 0(R6),C'K'                                                 19160043
+         BNE PPASS                                                      19170043
+         CONCAT ',KEEP'                                                 19180043
+         B   PELOOP                                                     19190043
+PPASS    CLI 0(R6),C'P'                                                 19200043
+         BNE PCATLG                                                     19210043
+PCATLG   CLI 0(R6),C'C'                                                 19270043
+         BNE PNCATLG                                                    19280043
+         CONCAT ',CATLG'                                                19290043
+         B   PELOOP                                                     19300043
+PNCATLG  EQU  *                                                         19310043
+         CLI 0(R6),C'L'      INDICATOR FOR LAST DDCARD ?                19320043
+         BE  PELOOP                                                     19330043
+         CONCAT ',UNCATLG'                                              19340043
+PELOOP   BR R4                          RETURN                          19350043
+           SPACE 3                                                      19450043
+PENDDISP EQU *                                                          19460043
+G93TDCBP EQU *                                                          19461043
+G93SDISP EQU *                                                          19462043
+         BCTR R10,0         BACK UP ONE CHARACTER                       19470043
+         CLI  0(R10),C','   LAST ONE A COMMA?                           19480043
+         BE   G93EDISP      WAS A COMMA,SO DELETE IT BY LEAVING R10     19490043
+         LA   R10,1(R10)    ADD ONE SO THAT NEXT CONCAT WILL WORK       19500043
+G93EDISP DS   0H                                                        19510043
+G93TDCB  EQU *                                                          19530043
+         CLC DDOSVB,=AL2(DDCATLGS-DDOSVB+2) SHORT RECORD ?              19540043
+         BNH G93NDCB                                                    19550043
+         CLI DDRECFM,C'%'               IF SO,NODCB WAS SPECIFIED       19580043
+         BE  G93NDCB                                                    19590043
+         TM    DDUSE,B'10000000'  MOD ?                                 19600043
+         BNO   G93CKDCB            NOPE                                 19610043
+         CLI   DDCATLGS,0          EXISTING MOD ?                       19620043
+         BNE   G93CKDCB            NOPE                                 19630043
+         CLEAR DDRECFM,DDBLKSZE,DDLRECL                                 19640043
+G93CKDCB IFVALUE DDRECFM,DDBLKSZE,DDLRECL,DDBUFNO,DDOPTCD,        75128*19670043
+               DDRKP,DDKEYLEN,DDOVERFL,DDDSORG,DDDENS,                 *19680043
+               DDBUFL,DDCODE,DDFUNC,                              75128*19690043
+               G93PSDCB                                           75128 19700043
+* NEW FEATURE VERSION 3.0. IF DCBEXTRA IS CODED, ANY              75128 19760043
+*  INFORMATION CODED IS ADDED TO THE DCB (OR DCB IS CREATED)      75128 19770043
+         CLC   DDOSVB,=AL2(DDLEN)                        JOL30047 76200 19780043
+         BH    G93PSDCB                                           75128 19790043
+*                                                                 75128 19800043
+         B     G93NDCB                                            75128 19810043
+* IF NO DCB,THEN GO TO NODCB                                            19820043
+G93PSDCB EQU   *                                                        19830043
+           CONCAT ',DCB=('                                              19840043
+         AGO .NODCBD                                                    19841046
+* CHECK IF DCBEXTRA IS BEING USED. IF SO, CHECK THAT IT CONTAINS  84282 19850043
+*  A DATA SET NAME AS A MODEL DSCB. IF SO, SKIP AROUND THE SECTION      19860043
+*  THAT PUTS ON THE DEFAULT MODEL DSCB.                                 19870043
+         CLC   DDOSVB,=AL2(DDLEN)                        JOL30047 84282 19880043
+         BNH   G93DEFDS       PUT IN A DEFAULT DSCB IF REQUIRED   84282 19890043
+* CHECK IF THE DCBEXTRA FIELD IS A DATA SET NAME                  84282 19900043
+*  IN FACT, WE ARE CHECKING THAT BEFORE A COMMA OR  BLANK         84282 19910043
+*   THAT THERE IS A PERIOD OR AN EQUAL SIGN.                      84282 19920043
+*                                                                       19930043
+*  IF WE FIND AN "=" BEFORE A COMMA, THEN THERE IS NO DSNAME.     84282 19940043
+*                                                                       19950043
+         LA    R1,DDEXTRA                                         84282 19960043
+         LA    R14,1                                              84282 19970043
+         LA    R15,DDEXTRA+L'DDEXTRA                              84282 19980043
+         SR    R15,R14         SO WE DON'T GO TOO FAR             84282 19990043
+G93CHKDS EQU   *                                                        20000043
+         CLI   0(R1),C','     HAVE WE GOT THE COMMA YET?          84282 20010043
+         BE    G93NGDG9       YES, MUST BE DSNAME, SKIP DEFAULT   84282 20020043
+         CLI   0(R1),C'='     HAVE WE GOT AN = (KEYWORD=)         84282 20030043
+         BE    G93DEFDS       YES, PUT IN THE DEFAULT DSNAME      84282 20040043
+*                             BECAUSE WE DIDN'T FIND DSNAME       84282 20050043
+         BXLE  R1,R14,G93CHKDS                                    84282 20060043
+         B     G93NGDG9       NO = SIGN MUST BE DSNAME, SO OUT!   84282 20070043
+*                                                                       20080043
+G93DEFDS DS    0H                                                       20090044
+         CLC   DDOSVB,=AL2(DDLEN) GOT 'DCBEXTRA' TO GO IN ?       82300 20270043
+         BNH   G93NEXTR       NOPE                                75128 20280043
+         CLI   DDEXTRA,C','   DID USER PUT ',' IN ?               75128 20290043
+         BNE   *+8                                                75128 20300043
+         MVI   DDEXTRA,C' '   BLANK IT                            75128 20310043
+         CONCAT DDEXTRA,','   CONCAT                              75128 20320043
+.NODCBD  ANOP                                                           20321046
+G93NEXTR   IFNULL DDRECFM,G93NRCFM                                      20330043
+           CONCAT 'RECFM=',DDRECFM,','                            74303 20340043
+G93NRCFM   IFNULL DDBLKSZE,G93NKSZE                                     20350043
+           CONCAT 'BLKSIZE=',DDBLKSZE,','                         74303 20360043
+G93NKSZE   IFNULL DDLRECL,G93NRECL                                      20370043
+           CONCAT 'LRECL=',DDLRECL,','                            74303 20380043
+G93NRECL   IFNULL DDBUFNO,G93NBUF                                       20390043
+           CONCAT 'BUFNO=',DDBUFNO,','                            74303 20400043
+G93NBUF    DS   0H                                                      20410043
+           LR R1,R10                                                    20760043
+           BCTR R1,0                                                    20770043
+           MVI 0(R1),C')'                                               20780043
+           EJECT                                                        20790043
+         BAL   R14,G93DROPC   DROP ANY LAST COMMAS                75128 23880043
+         CONCAT ')'                                               75128 23890043
+G93NDCB    DS   0H                                                      23900047
+* TEST IF FILEDATA                                                      23910048
+           IFNULL DDFLTYPE,G93NFILE                                     23920048
+           CONCAT ',FILEDATA=',DDFLTYPE                                 23930049
+G93NFILE   DS  0H                                                       23940048
+           LA  R9,WORK                                                  24060043
+           MVC 0(6,R10),BLANKS                                    74303 24070043
+           SR  R10,R9                                                   24080043
+           STH R10,#WORK                                                24090043
+* JUST CHECK THAT THE FIRST CHARACTER IS NOT A ',' AS COULD HAPPEN      24100043
+           CLI WORK+15,C','                                             24110043
+           BNE PACKIT9                                                  24120043
+           MVI WORK+15,C' '                                             24130043
+PACKIT9   $CALL UJCPACK,#WORK                                           24140043
+           SPACE 2                                                      24150043
+* NOW HAVING REMOVED ALL THE BLANKS,WE HAVE TO PUT IN THE'//',          24160043
+*     DDNAME AND THE'DD'                                                24170043
+           MVC WORK(15),=CL15'//         DD'                            24180043
+           MVC WORK+2(8),DDDDNAME                                       24240043
+         OPJCL #WORK                                              74303 24260043
+         SPACE 1                                                        24910043
+         JOLRETN RC=0         NO, FINISHED, SO RETURN NOW         75128 24920043
+* THIS ROUTINE IS BAL'D TO ON R14 AND REMOVES EXCESS COMMAS       75128 24930043
+*  AND BLANKS FROM THE STRING                                     75128 24940043
+* IT IS NOT A REPLACEMENT FOR 'UJCPACK'                           75128 24950043
+G93DROPC BCTR R10,0      BACK OFF ONE BYTE                              24960043
+G93DROPX CLI   0(R10),C' '    BLANK ?                             75128 24970043
+         BNE   G93TC1         NOPE -> TEST ','                    75128 24980043
+         BCT   R10,G93DROPX   REDUCE R10 BY 1, CHECK NXT CHAR     75128 24990043
+G93TC1   CLI   0(R10),C','    ',' ?                               75128 25000043
+         BNE   G93ADD1        NO, SO END ROUTINE                  75128 25010043
+         BCT   R10,G93DROPX   DROP ',',BACK TO NXT CHAR           75128 25020043
+G93ADD1  LA    R10,1(R10)                                         75128 25030043
+         BR    R14            BACK TO CALLER                      75128 25040043
+         DC    60S(*)                                                   25050043
+         DC    20S(*)                                                   25190043
+           DROP R8                                                      25200043
+          LTORG                                                         25210043
+          END                                                           25220043

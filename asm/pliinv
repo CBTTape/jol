@@ -1,0 +1,57 @@
+PLIINV:PROC (PARM);                                                     00000100
+   /* THIS PL/1 PROGRAM IS DESIGNED TO BE ENTERED BY THE JOL            00000200
+      COMPILER, THEN TRANSMIT DATA BACK TO JOL */                       00000300
+   /***** IT IS DYNAMICALLY LOADED */                                   00000400
+         DCL 1 PARM,                                                    00000500
+               2 ADDRESS_INPUT_STRING POINTER,                          00000600
+               2 ADDRESS_TKNX_WORK_AREA POINTER,                        00000700
+               2 ADDRESS_JOLCOM POINTER,                                00000800
+               2 ADDRESS_UJP90OP POINTER,                               00000900
+               2 ADDRESS_UJP85ASN POINTER,   /* ASSIGNMENT ROUTINE */   00001000
+               2 ADDRESS_UJP02DCL POINTER,   /* DECLARE ROUTINE    */   00001100
+               2 ADDRESS_AMACBUF  POINTER,   /* WORK AREA,RESERVED */   00001200
+               2 ADDRESS_WORK     POINTER,   /* WORK AREA FOR USE  */   00001300
+               2 ADDRESS_DBL      POINTER,   /* NAME OF MODULE     */   00001400
+               2 ADDRESS_SYMBOLIC POINTER,   /* SYMBOLIC NAMES     */   00001500
+    /* NOW WE HAD BETTER DEFINE THE ABOVE ITEMS */                      00001600
+         DCL INPUTSTRING CHAR(100) VAR BASED(ADDRESS_INPUT_STRING);     00001700
+         DCL 1 TKNX           BASED(ADDRESS_TKNX_WORK_AREA),            00001800
+               2 NUMBER_OF_TOKENS  BIN(15),                             00001900
+               2 CURRENT_TOKEN_WORK_POINTER BIN(15),                    00002000
+               2 TOKEN_DESCRIPTORS(150),                                00002100
+                3 TOKEN_LENGTH    BIT(4), /* LENGTH OF TOKEN */         00002200
+                3 TOKEN_TYPE      BIT(4), /* 0=NUMERIC                  00002300
+                                             1=SPECIAL CHARACTER        00002400
+                                             2=IDENTIFIER               00002500
+                                             3=LITERAL QUOTED STRING    00002600
+                                            16=ERROR TOKEN              00002700
+                                          */                            00002800
+                3 TOKEN_OFFSET BIT(8),  /* OFFSET INTO MAIN             00002900
+                                           TOKEN STRING DESCRIBED       00003000
+                                           BELOW */                     00003100
+               2 MAIN_TOKEN_STRING_LENGTH                               00003200
+                                          BIN(15),                      00003300
+               2 MAIN_TOKEN_STRING CHAR(1000),                          00003400
+               2 CURRENT_TOKEN_LENGTH  BIN(15),                         00003500
+               2 CURRENT_TOKEN     CHAR(120),                           00003600
+             1 RE_DEFINE_TKN  BASED(ADDRESS_TKNX_WORK_AREA),            00003700
+               2 TKNNO             BIN(15)                              00003800
+               2 TKNCURR           BIN(15)                              00003900
+               2 TKNDESC(150)     BIN(31),                              00004000
+               2 #TKNSTRG          CHAR(1000) VAR,                      00004100
+               2 #TKN              CHAR(120) VAR;                       00004200
+         DCL   UJP97OP ENTRY (CHAR(*) VAR);                             00004300
+    /*                                                                  00004400
+         NOW LETS CALL THE ASSEMBLER INTERFACE TO OUPUT A RECORD        00004500
+         TO JOL FOR US */                                               00004600
+         CALL  UJP970P('STOP '' PLI SUBROUTINE INVOKED');               00004700
+         DCL   1 SYMBOLIC  BASED(ADDRESS_SYMBOLIC),                     00004800
+                2 SYMBOLIC_VARIABLE_NAME CHAR(8),                       00004900
+                2 SYMBOLIC_VARIABLE_CONTENTS CHAR(120) VAR;             00005000
+         SYMBOLIC_VARIABLE_NAME='X';                                    00005100
+         SYMBOLIC_VARIABLE_CONTENTS='12345';                            00005200
+         CALL  UJP96INT(ADDRESS_UJP02DCL,SYMBOLIC);                     00005300
+         CALL  UJP96INT(ADDRESS_UJP02DCL,SYMBOLIC);                     00005400
+         CALL  UJP96INT(ADDRESS_UJP85ASN,SYMBOLIC);                     00005500
+         CALL  UJP97OP('STOP ''%X''');  /* SHOULD STOP 12345 */         00005600
+         END;                                                           00005700

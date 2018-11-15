@@ -1,0 +1,155 @@
+UJV00RD TITLE 'READ DATA FROM WORK FILE INTO STORAGE'                   00010001
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973                 00020001
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00030001
+* COPYRIGHT CCS 1974,1975,1976                                          00040001
+* COPYRIGHT CCS 1980                                                    00050001
+* COPYRIGHT CCS-JOL 1984                                                00060001
+*                                                                       00070001
+           SPACE 3                                                      00080001
+*                   J             000000            L                   00090001
+*                   J            0      0           L                   00100001
+*                   J           0        0          L                   00110001
+*                   J          0          0         L                   00120001
+*                   J         0            0        L                   00130001
+*                   J         0            0        L                   00140001
+*                   J         0            0        L                   00150001
+*                   J         0            0        L                   00160001
+*                   J         0            0        L                   00170001
+*                   J         0            0        L                   00180001
+*                   J         0            0        L                   00190001
+*        J          J         0            0        L                   00200001
+*         J        J           0          0         L                   00210001
+*          J      J             0        0          L                   00220001
+*           J    J               0      0           L                   00230001
+*            JJJJ                 000000            LLLLLLLLLLL         00240001
+           EJECT                                                        00250001
+*                                                                       00260001
+******************************************************************      00270001
+*                                                                       00280001
+           EJECT                                                        00290002
+         COPY JOLCOM                                                    00300002
+         SPACE 3                                                        00310002
+           PRINT DATA                                             75311 00320002
+V00SAVE  DSECT                                                          00330001
+         DS    18F                                                      00340001
+V00SIZEM DS    A              MIN CORE REQUIRED                         00350001
+V00SIZEX DS    A              MAX CORE REQUIRED                         00360001
+           PRINT DATA                                             75311 00370001
+V00SAVEL EQU   *-V00SAVE                                                00380001
+           JOLSAVE CSECT=UJV00RD,SIZE=V00SAVEL,BASE=10            84100 00390001
+* READ ALL THE INSTRUCTIONS IN TO CORE STORAGE                          00400001
+***** MAJOR CHANGE APPROX 18 MAY,1975                                   00410001
+*                                                                       00420001
+* PREVIOUSLY, ALL THE INSTRUCTIONS WERE WRITTEN ONTO FILE               00430001
+*    'INSTRUCT' WHICH WAS A QSAM FILE. NOW,THEY ARE WRITTEN             00440001
+*    TO 'WORKFILE' AS A BSAMDATA SET.                                   00450001
+* THEREFORE, WE CAN NOW READ THE BLOCKS DIRECTLY INTO CORE              00460001
+*    AND PLACE THEM WHERE WE WANT THEM.                                 00470001
+* THE IDEA IS TO SET UP A LARGE CONTIGUOUS AREA OF CORE STORAGE         00480001
+*    AS A TABLE, AND USE THE 2ND 2 BYTES OF THE VB RECORDS AS           00490001
+*    THE LENGTH OF THE NEXT RECORD,SO THAT OTHER ROUTINES               00500001
+*    CAN DASH UP AND DOWN THE STACK EASILY.                             00510001
+*                                                                       00520001
+           USING JOLCOM,R2                                              00530001
+         USING V00SAVE,R13                                              00540001
+         CLEAR   AGOTTEN,LGOTTEN                                        00550001
+* THE ABOVE TWO AREAS ARE CLEARED SO THAT THE MAIN MODULE (UJM00MN)     00560001
+* CAN DETERMINE WHETHER THIS MODULE WAS SUCCESSFUL IN GAINING CORE      00570001
+* SO THAT IT CAN FREE THE OBTAINED AREA WITHOUT ABENDING S30A           00580001
+        SPACE 3                                                         00590001
+* NOW CHECK IF THERE ARE ANY BLOCKS TO READ AT ALL.                     00600001
+          L   R11,AINSCNTL                                        76200 00610001
+          USING AINSTBUF,R11                                      76200 00620001
+        IFNULL  INSTBLKN,V00NOTXT   NO RETURN WITH ERROR MESSAGE        00630001
+           LH  R9,INSTLAST     SAVE LENGTH OF LAST BLOCK          75311 00640001
+*                              SO WE CAN CALCULATE HOW MUCH EXTRA 75311 00650001
+*                              CORE IS REQUIRED TO HOLD THE TABLE 75311 00660001
+*                              IN CORE                            75311 00670001
+        SPACE 2                                                         00680001
+           LH  R1,INSTBLKN     LOAD NUMBER OF BLOCKS              CHC   00690001
+           A   R1,ONE                                             CHC   00700001
+           FIX 'WHY DO I DO THIS ????'                                  00710001
+           MH  R1,LINSTBUF     * BY LENGTH OF BUFFER              CHC   00720001
+           AR  R1,R9           + LENGTH OF LAST BLOCK             CHC   00730001
+           AH  R1,=H'50'       + A LITTLE BIT IN CASE      CHC          00740001
+           ST  R1,V00SIZEM     SAVE IT FOR MIN GETMAIN     CHC          00750001
+           AH  R1,=H'5000'     + A LITTLE BIT IN CASE      CHC          00760001
+           FIX 'WHY ADD 5000??????'                                     00770001
+           ST  R1,V00SIZEX     SAVE IT FOR MAX GETMAIN     CHC          00780001
+* R1 CONTAINS TOTAL NO OF BYTES NEEDED FOR TABLE                  75311 00790001
+         GETMAIN VC,LA=V00SIZEM,A=AVTBLE,MF=(E,CALLAREA),SP=0     75128 00800001
+         LTR   R15,R15                                            75128 00810001
+         BNZ   V00TOOMH                                    CHC          00820001
+         SPACE                                                    75128 00830001
+V00GOTC1 EQU   *                                           CHC          00840001
+         MVC   AGOTTEN(8),AVTBLE  SAVE THESE FOR FREEMAIN LATER   75128 00850001
+         L     R1,AVTBLE                                          75128 00860001
+         LA    R1,4(R1)                                           75128 00870001
+         ST    R1,AVTBLE                                          75128 00880001
+         A     R1,LVTBLE                                          75128 00890001
+         SH    R1,=H'16'                                          75128 00900001
+         ST    R1,AVTBLEND                                        75128 00910001
+           L   R4,AVTBLE       LOAD ADDRESS OF TABLE INTO WHICH   75128 00920001
+*                              ALL THE INSTRUCTIONS ARE TO GO     75128 00930001
+* NOTE: AVTBLE ACTUALLY POINTS TO 4 BYTES HIGHER THAN THE ACTUAL  75128 00940001
+*    TABLE ADDRESS. THIS IS BECAUSE ALL THE OTHER ROUTINES THAT   75128 00950001
+*    USE THE TABLE EXPECT'AVTBLE' TO POINT TO THE FIRST RECORD    75128 00960001
+*    IN THE BLOCK,AND SO.....                                           00970001
+           LA  R5,1            SET R5=1 (FIRST BLOCK)             75128 00980001
+V00LUP1    LR  R1,R4           SAVE R4                            75128 00990001
+           CH  R5,INSTBLKN     IS THIS THE LAST BLOCK WE ARE READ 75128 01000001
+           BE  V00LAST         YES                                75128 01010001
+           AH  R1,LINSTBUF     ADD MAX LENGTH OF BLOCK THEN       75128 01020001
+           B   V00LASTN                                           CHC   01030001
+V00LAST    AH  R1,INSTLAST     ADD LENGTH OF LAST BLOCK           75128 01040001
+V00LASTN   C   R1,AVTBLEND     WILL TABLE OVERFLOW ?              CHC   01050001
+           BH  V00TOOMH        YES,GIVE ERROR AND RETURN          75128 01060001
+* OK,WE CAN READ THE BLOCK (NEARLY).                                    01070001
+* NOW,WE DON'T WANT THE BLOCK SIZE 4 BYTES,SO WE MUST READ INTO   75128 01080001
+*    THE AREA -4 BYTES                                            75128 01090001
+           SH  R4,=H'4'                                           75128 01100001
+           MVC CALLAREA(4),0(R4)                                  75128 01110001
+           LR  R15,R5           LOAD R15 WITH CURRENT BLOCK NUMBER75128 01120001
+           SLL R15,2            MULT BY 4                         75128 01130001
+         L    R7,ADCBS                                                  01140001
+         USING DCBS,R7                                                  01150001
+           POINT WORKFILE,INSTTTR1-4(R15) POINT TO TTR OF BLOCK   75128 01160001
+           READ WORKINDB,SF,WORKFILE,(R4),MF=(E,WORKINDB)         75128 01170001
+           CHECK WORKINDB                                         75128 01180001
+         DROP  R7                                                       01190001
+           MVC DBL(4),0(R4)    SHIFT BLOCK DESCRIPTOR             75128 01200001
+           MVC 0(4,R4),CALLAREA RESET PREVIOUS 4 BYTES            75128 01210001
+         LA  R5,1(R5)    SET NUMBER OF BLOCKS READ UP 1           75128 01220001
+           AH  R4,DBL          ADD THIS BLOCK LENGTH.             75128 01230001
+           CH  R5,INSTBLKN     WAS THIS THE LAST BLOCK?           75128 01240001
+           BNH V00LUP1         NOPE,GET NEXT BLOCK                75128 01250001
+           XC  0(8,R4),0(R4)      CLEAR NEXT 8 BYTES              75128 01260001
+           B   V00EOF                                             75128 01270001
+V00TOOMH   EQU *                                  CHC                   01280001
+           L   R1,V00SIZEM                        CHC                   01290001
+* R1 CONTAINS TOTAL NO OF BYTES NEEDED FOR TABLE                  75311 01300001
+           CVD R1,DBL          CONVERT PACKED DEC                 75311 01310001
+           UNPK OP(5),DBL      NOW ZONED                          75311 01320001
+           OI  OP+4,C'0'                                          75311 01330001
+           MVC #OP,=H'5'                                          75311 01340001
+         JOLERR 401,'TOO MUCH DATA IN GENERATE PHASE:-RERUN IN LARGER R*01350001
+               EGION: EXTRA REQD APPROX ',#OP,' BYTES'            75311 01360001
+V00RETNF   XC  0(8,R4),0(R4)      CLEAR NEXT 8 BYTES              75128 01370001
+           JOLRETN RC=16                                                01380001
+V00EOF     EQU *                                                  75128 01390001
+           ST  R4,TOTAVREC     SAVE LAST ADDRESS USED             75128 01400001
+* NOW WE MUST SCAN DOWN THE TABLE PUTTING THE CURRENT RECORD      75128 01410001
+*    LENGTH INTO THE NEXT 2 SPARE BYTES OF THE NEXT RECORD        75128 01420001
+           L   R1,AVTBLE       A 1ST RECORD                       75128 01430001
+V00LUP2    LH  R14,0(R1)       LOAD LENGTH OF CURRENT RECORD      75128 01440001
+           LTR R14,R14         IS IT 0 (END OF TABLE)             75128 01450001
+           BZ  V00END2         REACHED END                        75128 01460001
+           AR  R1,R14          POINT TO START OF NEXT RECORD      75128 01470001
+           STH R14,2(R1)       STORE THIS LRECL IN NEXT RECORD    75128 01480001
+           B   V00LUP2         AND ROUND AGAIN                    75128 01490001
+           SPACE 3                                                75128 01500001
+V00END2    JOLRETN                                                      01510001
+V00NOTXT   JOLRETN  RC=16                                               01520003
+           LTORG                                                        01530004
+           DC    40S(*)                                                 01531004
+           END                                                          01540004

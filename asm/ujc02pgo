@@ -1,0 +1,896 @@
+           TITLE 'UJC02PGM:DECODE PROGRAM DECLARE'                      00001000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1975,1976,1980  00002000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00003000
+           SPACE 3                                                      00004000
+*                   J             000000            L                   00005000
+*                   J            0      0           L                   00006000
+*                   J           0        0          L                   00007000
+*                   J          0          0         L                   00008000
+*                   J         0            0        L                   00009000
+*                   J         0            0        L                   00010000
+*                   J         0            0        L                   00011000
+*                   J         0            0        L                   00012000
+*                   J         0            0        L                   00013000
+*                   J         0            0        L                   00014000
+*                   J         0            0        L                   00015000
+*        J          J         0            0        L                   00016000
+*         J        J           0          0         L                   00017000
+*          J      J             0        0          L                   00018000
+*           J    J               0      0           L                   00019000
+*            JJJJ                 000000            LLLLLLLLLLL         00020000
+           SPACE 3                                                      00021000
+         COPY  JOLCOM                                                   00022000
+         TITLE 'DECODE PROGRAM DECLARE'                           75128 00023000
+         PRINT DATA                                               75128 00024000
+C02SAVE  DSECT                                                    75128 00025000
+         DS    18F                                                75128 00026000
+C02OVRDE DS    F              ADDRESS IN TABLE OF OLD PGM DECLARE 75311 00027000
+*                             IF AN OVERRIDE IS BEING PERFORMED   75311 00028000
+*                             (ALL WE HAVE TO DO IS SHIFT THE     75311 00029000
+*                             ADDRESS OF THE OUTPUT RECORD TO IT) 75311 00030000
+C02LEVEL DS    AL1            LEVEL STORED HERE                   75128 00031000
+C02NEST  DS    AL1            NEST ON INPUT                       75128 00032000
+         SPACE 1                                                  75128 00033000
+C02EXTIN DS    CL1                                                75128 00034000
+C02LIKE  DS    CL8                                                      00035000
+C02ERRIN DS    CL1            SET WHEN DUPLICATE DONAMES FOUND -  75128 00036000
+C02DDNM  DS    CL8            DDNAME (OR BLANK IF CONCATENATED)   75128 00037000
+C02USE   DS    CL1            SEE DDUSE IN DDDSNDET DSECT         75128 00038000
+*                             NOTE,BIT 5 ON IF DSNAME SPECIFIED   75128 00039000
+C02DSID  DS    CL8            DSID                                75128 00040000
+C02DSN   DS    CL44           DSNAME IF SPECIFIED                 75128 00041000
+C02MEMBR DS    CL8            MEMBER NAME | GENERATION            75128 00042000
+C02AFFNM DS    CL8             UNITAFF NAME GOES HERE             75311 00043000
+C02PASSW DS    CL8            PASSWORD FOR FACOM SYSTEMS          80289 00044000
+C02S15   DS    A               SAVE R15 TEMPORARILY               75311 00045000
+            ORG                                                         00046000
+*                             NO DUPLICATES WILL BE STORED        75128 00047000
+C02SSIZE EQU   *-C02SAVE                                                00048000
+         JOLSAVE CSECT=UJC02PGM,SIZE=C02SSIZE,BASE=(11,12)        80290 00049000
+* THIS CSECT IS RESPONSIBLE FOR DECODING A PROGRAM DECLARATION          00050000
+           SPACE                                                        00051000
+* SET UP SOME  ADDRESSABILITY.                                          00052000
+           USING JOLCOM,R2                                              00053000
+           USING TKNX,R3                                                00054000
+         USING C02SAVE,R13                                        75128 00055000
+         CLEAR C02EXTIN,C02LIKE,C02ERRIN,C02PASSW                 80290 00056000
+         CLEAR C02OVRDE       CLEAR IT TOO.                       75311 00057000
+         L     R5,APROGWRK    GET AREA FOR DECODED PROG DETAILS   75178 00058000
+         USING PGMDETS,R5                                               00059000
+         LA    R6,PGMDD1      SET R6 -> FIRST DDNAME FIELD        75128 00060000
+         USING PGMDDOV,R6                                               00061000
+           SPACE 3                                                      00062000
+         CLEAR PGMSIZE,PGMSIZEQ,PGMTIME1,PGMTIME2,PGMTIMEQ,PGMESTMT,   *00063000
+               PGMSTEP,PGMADDR,PGMACCT,                                *00064000
+               PGMNODD,PGMPERFO,PGMNODYN                          75128 00065000
+         SPACE 1                                                  75128 00066000
+         MVC   C02LEVEL,LEVEL+1 SAVE CURRENT                      75128 00067000
+         MVC   C02NEST,NEST+1   -LEVEL AND NEST                   75128 00068000
+         SPACE 1                                                  75128 00069000
+* NOW WE SHALL START ON THE PGM DCL                                     00070000
+           GETTKN NO=2                                                  00071000
+           CLC =C'$$',LABEL                                             00072000
+           BE  C02USETK                                                 00073000
+           CLC LABEL,BLANKS                                             00074000
+           BNE NOPGMLAB       LABEL INACCURATE ******                   00075000
+C02USETK   EQU *                                                        00076000
+           MVC LABEL,TKN                                                00077000
+NOPGMLAB   MVC PGMID,LABEL                                              00078000
+           MVC PGM,TKN                                                  00079000
+           MVC PGMSTMT,STMT                                             00080000
+           MVC PGMLEVEL,LEVEL+1                                         00081000
+           MVC PGMNEST,NEST+1                                           00082000
+           MVC #PGMDETS,=AL2(PGMLEN)                                    00083000
+           MVI PGMTYPEI,C'E'                                            00084000
+           MVC TKNCURR,=H'4'                                            00085000
+           SPACE 3                                                      00086000
+* NOW FIND THE OLD ONE AND COPY IT TO THE OUTPUT AREA IF WE ARE   75311 00087000
+*  DOING AN OVER-RIDE (WE WILL SIMPLY BUILD ONTO THE OLD DECLARE  75311 00088000
+*  ONLY WE WONT FLAG DUPLICATE DDNAMES-OF COURSE).                75311 00089000
+* THIS SEEMS TO BE THE EASIEST WAY OF HANDLING OVER-RIDES ESPECIA-75311 00090000
+*  LLY AS IT MEANS WE DON'T NEED YET ANOTHER 3K AREA FOR PROGRAM  75311 00091000
+*  DECLARES.                                                      75311 00092000
+         SPACE 2                                                  75311 00093000
+         $CALL UJS16PID,LABEL ARE WE DOING AN OVER-RIDE (MERGE    75311 00094000
+*                             REALLY)                             75311 00095000
+         LTR   R15,R15        DID WE FIND OLD ONE ?               75311 00096000
+         BNZ   Y              NO, SO START PROCESSING AS USUAL    75311 00097000
+* HERE THE NAME IS ALREADY DEFINED AND ENTERED IN THE STACK.      75311 00098000
+*  R1-> TABLE POSN WITH DETAILS.                                  75311 00099000
+*                                                                 75311 00100000
+* WE MUST DO SOME FIDDLING.                                       75311 00101000
+         LR    R9,R1          SWAP R1 TO R9 SO R1 CAN BE USED     75311 00102000
+         USING IDTABLE,R9     FOR MACROS ETC                      75311 00103000
+         LR    R10,R0         KEEP  R0 TOO(FROM UJS16PID)         75311 00104000
+         CLC   IDLEVEL,LEVEL+1 ARE THE LEVELS THE SAME?           75311 00105000
+         BNE   C02DIFFL       TEST EXTERNAL ETC NOW               75311 00106000
+* LEVELS THE SAME HERE.                                           75311 00107000
+C02TTYP2 TM    IDTYPE,X'02'   TEST TYPE OF NAME IN TABLE          75311 00108000
+         BO    C02BADOV       MACRO NAME OR DSID:- ERROR          75311 00109000
+         TM    IDTYPE,X'01'   PGM ID ?                            75311 00110000
+         BZ    C02BADOV       NOPE, ERROR                         75311 00111000
+* OK, HERE WE HAVE A PGM ID, AND IT IS TO BE 'OVER-RIDDEN'        75311 00112000
+         ST    R9,C02OVRDE    SAVE POINTER TO TABLE               75311 00113000
+         MVI   OVERRIDE,C'1'  TURN ON OVER-RIDE INDICATOR SO      75311 00114000
+*                             THAT NO ERROR MESSAGES WILL BE      75311 00115000
+*                             PRODUCED BY THE 'JOLSTOR' MACRO.    75311 00116000
+* NOW SHIFT THE OLD (REALLY THE FIRST) DECLARE TO WHERE           75311 00117000
+*  WE WILL BUILD ON IT                                            75311 00118000
+         LR    R0,R10         CORE ADDRESS OF FIRST (OLD)         75311 00119000
+*                             DECLARE                             75311 00120000
+         LR    R1,R5          R1= WORK AREA                       75311 00121000
+         BAL   R14,MOVEDATA   SHIFT OLD DECLARE                   75311 00122000
+           JOLERR 010,'OVER-RIDING(MERGING) PROGRAM DETAILS FROM STMT '*00123000
+               ,PGMSTMT                                           75311 00124000
+         B     Y              NOW TO DECODING LOOP                75311 00125000
+         SPACE 2                                                  75311 00126000
+C02DIFFL EQU   *                                                  75311 00127000
+*  HERE WE HAVE DIFFERENT LEVELS.                                 75311 00128000
+*        LETS SEE IF THE CURRENT DECLARE HAS EXT | EXTERNAL CODED 75311 00129000
+*        AND IF THE LEVEL OF THE OLD DECLARE IS 0 (EXT BY DEFAULT)75311 00130000
+         FINDTKN 'EXT '                                           75311 00131000
+         LTR   R15,R15                                            75311 00132000
+         BZ    C02EXTFD       GOT 'EXT'                           75311 00133000
+         FINDTKN 'EXTERNAL '                                      75311 00134000
+         LTR   R15,R15                                            75311 00135000
+         BNZ   Y              NO 'EXT' | 'EXTERNAL',GO PROCESS    75311 00136000
+*                             AT A DIFFERENT LEVEL.               75311 00137000
+* NOW WE HAVE TO SEE IF THIS IS 'EXT' ON ITS OWN, OR SOMETHING    75311 00138000
+*  LIKE LIB=EXT OR SYSUT1 READS EXT.                              75311 00139000
+C02EXTFD   SH  R1,=H'2'                                           75311 00140000
+         GETTKN (R1)                                              75311 00141000
+         CLI   TKN,C'='                                           75311 00142000
+         BE    Y              NOT EXTERNAL BY ITSELF              75311 00143000
+* NOW 'TKN' CONTAINS THE TOKEN BEFORE THE'EXT'.                   75311 00144000
+         L     R1,=V(UJCEXKEY) GET ADDRESS OF TABLE               75311 00145000
+         LM    R14,R15,4(R1)  GET TABLE CONSTANTS NOW             75311 00146000
+         L     R1,0(R1)                                           75311 00147000
+         CLC   TKN(8),0(R1)   KEYWORD ?                           75311 00148000
+         BE    Y              YES, SO IGNORE THIS 'EXTERNAL'      75311 00149000
+         BXLE  R1,R14,*-10    ROUND LOOP AGAIN                    75311 00150000
+         SPACE 1                                                  75311 00151000
+         L     R1,=V(UJCEXDD)                                     75311 00152000
+         LM    R14,R15,4(R1)                                      75311 00153000
+         L     R1,0(R1)                                           75311 00154000
+         CLC   TKN(8),0(R1)   'READS' ETC ?                       75311 00155000
+         BE    Y              YES, SKIP EXTERNAL                  75311 00156000
+         BXLE  R1,R14,*-10    ROUND LOOP                          75311 00157000
+         SPACE 2                                                  75311 00158000
+* HERE WE HAVE A REAL 'EXTERNAL', AND A DIFFERENT LEVEL           75311 00159000
+         CLC   IDLEVEL,ZERO                                       75311 00160000
+         BNE   C02EXTER                                           75311 00161000
+         MVI   LEVEL+1,0      SET LEVEL TO 0 SO WE KEEP NAME      75311 00162000
+           MVI PGMLEVEL,0      SET LEVELS TO 0                    75311 00163000
+           MVI C02LEVEL,0      AND THIS LEVEL INDICATOR           75311 00164000
+         B     C02TTYP2       - AFTER AND 'END',THEN TEST TYPE    75311 00165000
+C02EXTER JOLERR 307,'PROGRAM DECLARE AT STMT ',IDSTMT,            75311*00166000
+               'NOT LEVEL 0 OR EXTERNAL AND CURRENT OVERRIDE ',   75311*00167000
+               'IS EXTERNAL:- EXTERNAL IGNORED'                   75311 00168000
+         B     Y                                                  75311 00169000
+C02BADOV   JOLERR 308,'ATTEMPTING TO OVER-RIDE STATEMENT ',IDSTMT,     *00170000
+               ' WHICH IS NOT A PROGRAM DECLARE'                  75311 00171000
+         B     Y                                                  75311 00172000
+Y          EQU *                                                        00173000
+           SPACE 3                                                      00174000
+           CLC TKNCURR,TKNNO                                            00175000
+*          BL  TLIB                                                DASD 00176000
+*** NOT DOING PROG OVERRIDE WITH 1 PARAM OF 'NOTIME'***            DASD 00177000
+*** DUMMY DCL CREATED HAS SAME TOKEN COUNT AS ABOVE ***            DASD 00178000
+           BNH TLIB                                                DASD 00179000
+         SPACE 3                                                        00180000
+*                                                                       00181000
+* WE HAVE FINISHED DECODING THE PROGRAM DECLARE STATEMENT         75128 00182000
+*  AND ARE NEARY READY TO STORE THE INFORMATION AWAY FOR LATER    75128 00183000
+*  USE.                                                           75128 00184000
+*                                                                 75128 00185000
+* THE NEXT PIECE OF CODE GOES                                     75128 00186000
+*                                                                 75311 00187000
+* 1. IF 'LIKE' WAS CODED, THEN FIND THE 'LIKE' ITEM AND MERGE     75311 00188000
+*    DETAILS                                                      75311 00189000
+* 2. IF AN OVERRIDE, WRITE THE BLOCK OUT, AND RESET THE ADDRESS   75311 00190000
+*    IN THE NAME TABLE TO POINT TO THE NEW INFORMATION            75311 00191000
+*                                                                 75311 00192000
+* DO 'LIKE'                                                       75311 00193000
+           IFNULL C02LIKE,C02STOR LIKE ? NO, FORGET THIS BIT      75311 00194000
+         $CALL UJS16PID,C02LIKE    GET 'LIKE' DECLARE THEN.       75311 00195000
+         MVC   TKN,C02LIKE         (FOR ERROR MESSAGES)           75311 00196000
+         MVI   #TKN+1,8       SET LENGTH TO 8                     75311 00197000
+         LTR   R15,R15        DID WE FIND 'LIKE' DECLARE ?        75311 00198000
+         BNZ   C02NLIK2            NOPE, ERROR MESSAGE THEN       75311 00199000
+* NOW R0 CONTAINS THE CORE ADDRESS OF THE LIKE DECLARE, AND       75311 00200000
+* R1 THE ADDRESS OF THE NAME IN THE NAME STACK.                   75311 00201000
+         LR    R9,R1                                              75311 00202000
+         LR    R10,R0                                             75311 00203000
+         USING IDTABLE,R9                                         75311 00204000
+         TM    IDTYPE,X'02'                                       75311 00205000
+         BO    C02LIKE3       ERROR, NOT A PROGRAM DECLARE        75311 00206000
+         TM    IDTYPE,X'01'                                       75311 00207000
+         BO    C02LIKO2       OK, IS A PGM DECLARE                75311 00208000
+C02LIKE3 JOLERR 309,'LIKE PROCESSING IMPOSSIBLE BECAUSE ''',      75311*00209000
+               #TKN,''' DECLARED AT ',IDSTMT,' IS NOT A PROGRAM', 75311*00210000
+               ' DECLARE'                                         75311 00211000
+         B     C02STOR        GO STORE IT ANYWAY...               75311 00212000
+C02NLIK2   JOLERR 312,'CANNOT FIND LIKE PROGRAM DEFINITION ''',        *00213000
+               #TKN,''''                                          75311 00214000
+           B   C02STOR                                            75311 00215000
+C02LIKO2 EQU   *                                                  75311 00216000
+* NOW WE HAVE TO HANDLE THE LIKE PROCESSING,WHICH IS A LENGTHY    75311 00217000
+*  PROCESS BUT FAIRLY SIMPLE.                                     75311 00218000
+* THE ITEMS SUCH AS REGION SIZE ETC ARE SIMPLE, BUT THE ADDITION  75311 00219000
+*  OF EXTRA DDNAMES IS A BIT OF A BORE, TO SAY THE LEAST.         75311 00220000
+* LETS GO                                                         75311 00221000
+         IFVALUE PGMSIZE,C02LSIZE                                 75311 00222000
+           MVC PGMSIZE(PGMSIZEQ-PGMSIZE+L'PGMSIZEQ),PGMSIZE-PGMDETS(R10*00223000
+               )                                                  75311 00224000
+C02LSIZE IFVALUE PGMTIME1,PGMTIME2,C02LTIME                       75311 00225000
+           MVC PGMTIME1(PGMTIMEQ-PGMTIME1+L'PGMTIMEQ),PGMTIME1-PGMDETS(*00226000
+               R10)                                               75311 00227000
+C02LTIME IFVALUE PGMPERFO,C02LPERF                                      00228000
+         MVC   PGMPERFO,PGMPERFO-PGMDETS(R10)                           00229000
+C02LPERF IFVALUE PGMNODYN,C02LDYN                                       00230000
+         MVC   PGMNODYN,PGMNODYN-PGMDETS(R10)                           00231000
+C02LDYN  EQU   *                                                        00232000
+* NOW WE HAVE TO COPY THE DDNAMES ETC, BUT WE DON'T COPY          75311 00233000
+*  ANY DUPLICATES.  OK ?                                          75311 00234000
+         SPACE 1                                                  75311 00235000
+         SR    R14,R14        BIT TIGHT ON REGISTERS - NO PROB    75311 00236000
+         LA    R15,PGMDD1-PGMDETS(R10) GET A(FIRST OLD DDNAME)    75311 00237000
+C02LKAD1 LA    R14,1(R14)     ADD 1 TO CURRENT DD NUMBER          75311 00238000
+         CH    R14,PGMNODDS-PGMDETS(R10) REACHED END ? (LAST OLD  75311 00239000
+*                                        DD-CARD?)                75311 00240000
+         BH    C02STOR        YES, WE HAVE FINISHED               75311 00241000
+* NOW SHIFT THE DDNAME ETC FROM (R15) TO C02 WORK AREAS,          75311 00242000
+*  AND SIMPLY BAL TO THE ROUTINE THAT STORES THE DD-NAMES (AFTER  75311 00243000
+*  CHECKING IF IT ALREADY EXISTS, OF COURSE)                      75311 00244000
+         MVC   C02DDNM,PGMDDNAM-PGMDDOV(R15) DDNAME DONE          75311 00245000
+         MVC   C02USE,PGMUSE-PGMDDOV(R15) USE (READS FTC)         75311 00246000
+         TM    C02USE,B'00000100'  WAS DSNAME FORM SPECIFIED ?    75311 00247000
+         BO    C02LKELN       YES                                 75311 00248000
+         MVC   C02DSID,PGMDSID-PGMDDOV(R15)  DSID                 75311 00249000
+         MVC   C02MEMBR,PGMMBR-PGMDDOV(R15)  MEMBER (IF SPEC)     75311 00250000
+         MVC  C02AFFNM,PGMMBR+8-PGMDDOV(R15)                            00251000
+         LA   R15,25+8(R15)                                             00252000
+         B     C02LKEBA       GO BAL TO STORE RTN                 75311 00253000
+         SPACE 1                                                  65311 00254000
+C02LKELN MVC   C02DSN,PGMDSN-PGMDDOV(R15)    DSNAME               75311 00255000
+         MVC   C02MEMBR,PGMDSN+L'PGMDSN-8-PGMDDOV(R15)                  00256000
+         MVC   C02AFFNM,PGMDSN+L'PGMDSN-PGMDDOV(R15)                    00257000
+         MVC   C02PASSW,PGMPASSW-PGMDDOV(R15) SHIFT PASSWORD.     80290 00258000
+         LA    R15,9+44+8+8+8(R15)    STEP TO NEXT ENTRY         80290  00259000
+C02LKEBA EQU   *                                                  75311 00260000
+* NOW WE ARE AT THE STAGE OF BALING TO THE STORE ROUTINE.         75311 00261000
+*  HOWEVER, THE STORE ROUTINE SETS 'C02ERRIN' NON-BLANK WHEN IT   75311 00262000
+*  FINDS A DUPLICATE DDNAME, SO WE MUST RESET IT IF THE CURRENT   75311 00263000
+*  DDNAME IS NOT A CONCATENATION. (WE DONT WANT TO STORE CONCATEN-75311 00264000
+*  ATED DDNAMES EITHER - DO WE ?).                                75311 00265000
+         CLI   C02DDNM,C' '                                       75311 00266000
+         BE    C02STBAL                                           75311 00267000
+         CLEAR C02ERRIN       CLEAR THE ERROR INDICATOR           75311 00268000
+C02STBAL STM   R14,R15,CALLAREA                                   75311 00269000
+         BAL   R15,C02FIXDD                                       75311 00270000
+         LM    R14,R15,CALLAREA                                   75311 00271000
+         B     C02LKAD1                                           75311 00272000
+         SPACE 3                                                  75311 00273000
+C02STOR  EQU   *                                                  75311 00274000
+* NOW WE ARE READY TO WRITE THE INFORMATION OUT.                  75311 00275000
+*                                                                 75311 00276000
+* CHECK IF WE WERE DOING AN OVER-RIDE, BECAUSE IF SO WE THE       75311 00277000
+*  'C02OVRDE' AREA CONTAINS THE ADDRESS IN THE TABLE WHICH        75311 00278000
+*  CONTAINS THE DECLARE NAME, AND SO WE MUST RESET THE ADDRESS    75311 00279000
+*  IN THE TABLE TO REFLECT THE NEW TTR OR CORE ADDRESS OF THE     75311 00280000
+*  DECLARE                                                        75311 00281000
+         L     R9,C02OVRDE    LOAD C02OVRDE                       75311 00282000
+         LTR   R9,R9          =0 ?                                75311 00283000
+         BNZ   C02OPOK        NOPE, WE WERE DOING AN OVER-RIDE    75311 00284000
+          $CALL UJS17FID,LABEL                                          00285000
+           LTR R15,R15         IS NAME ALREADY THERE ?                  00286000
+           BZ   C02DUP         DUPLICATE ERROR (AT MOMENT)              00287000
+C02STDUP   LR R9,R1            SAVE ID ADDR                       76200 00288000
+* OK,NAME WASN'T HERE IN THE TABLE,SO STORE IT,(AND THE DETAILS)        00289000
+*    IN THE TABLE                                                       00290000
+C02OPOK  EQU   *                                                  75311 00291000
+          $CALL UJS15OP,PGMDETS                                         00292000
+           USING IDTABLE,R9                                             00293000
+           MVC IDNAME,LABEL                                             00294000
+           ST  R1,IDADDR                                                00295000
+         C     R9,C02OVRDE    OVER-RIDE?                 JOL30090 76200 00296000
+         BE    *+10           YES, LEAVE STMT NUMBER ALONE        76200 00297000
+           MVC IDSTMT,STMT                                              00298000
+         MVC   IDLEVEL,C02LEVEL SHIFT LEVEL AWAY                  75128 00299000
+         MVC   IDNEST,C02NEST AND THE NEST                        75128 00300000
+         MVI   IDTYPE,X'01'   PROGRAM DECLARE                     75128 00301000
+           IFVALUE C02OVRDE,RETNO                                 75311 00302000
+           LH  R1,NOIDS                                                 00303000
+           LA  R1,1(R1)                                                 00304000
+           STH R1,NOIDS                                                 00305000
+RETNO      SR  R15,R15                                                  00306000
+RETN       EQU  *                                                       00307000
+           JOLRETN RC=(15)                                              00308000
+C02DUP     EQU  *                                                       00309000
+* TEST IF LEVELS THE SAME, IF NOT, ALL IS WELL.                   76200 00310000
+         CLC IDLEVEL,C02LEVEL                                     76200 00311000
+         BNE   C02STDUP                                           76200 00312000
+         JOLERR 504                                               75311 00313000
+         JOLRETN RC=16                                            75128 00314000
+         TITLE 'TEST  2,1MINS AND LIB WITH NO KEYWORD'            75128 00315000
+TLIB       EQU *                                                        00316000
+           LH  R1,TKNCURR                                               00317000
+C02COML    GETTKN (R1)                                                  00318000
+           CLI TKN,C','                                                 00319000
+           BNE C02NOTCM        NOT A COMMA                              00320000
+C02SKPBR EQU   *                                                  75128 00321000
+           STH R1,TKNCURR      IGNORE IT                                00322000
+           B   C02COML         JOIN DROP COMMA LOOP                     00323000
+C02NOTCM   EQU *                                                        00324000
+         CLI   TKN,C')'       BRACKET AFTER KEYWOORD ?            75128 00325000
+         BE    C02SKPBR       YES,IGNORE IT                       75128 00326000
+         STH   R1,TKNCURR     RESET TOKEN POINTER TO ITEM AFTER   75128 00327000
+*                             THE ONE WE HAVE JUST GOT            75128 00328000
+         LR    R6,R1          LOAD R1 INTO R6 TO SAVE IT          75128 00329000
+         BCTR  R6,0           BACK-TRACK 1 TOKEN NUMBER SO WE     75128 00330000
+*                             CAN GET THIS TOKEN AGAIN            75128 00331000
+         SPACE 1                                                  75128 00332000
+         MVC   #WORK(L'TKN+2),#TKN SAVE TOKEN COS IT MAY WELL BE  75128 00333000
+*                             USEFUL LATER (IT IS OBVIOUSLY)      75128 00334000
+         SPACE 1                                                  75128 00335000
+           CLI TKNTYPE,0       <NUMBER> ?                               00336000
+           BE C02TSIZE         TEST IF NEXT TOKEN IS SIZE               00337000
+           GETTKN (R1)         GET NEXT TOKEN                           00338000
+           CLI TKN,C'.'                                                 00339000
+           BE  LIB                                                      00340000
+           B C02TKEY           NOT A LIBRARY,TEST IF KEYWORD            00341000
+C02TSIZE   GETTKN (R1)                                                  00342000
+           CLC =C'K ',TKN                                               00343000
+           BE  SIZE                                                     00344000
+           CLC =C'BYTES ',TKN                                           00345000
+           BE  SIZE                                                     00346000
+         L     R7,=V(UJCTM)   LOAD TIME KEYWORD TABLE             75128 00347000
+         LM    R7,R9,0(R7)                                        75128 00348000
+         CLC   TKN(8),0(R7)                                       75128 00349000
+         BE    TIME1                                              75128 00350000
+         BXLE  R7,R8,*-10                                         75128 00351000
+* NOW THE ONLY THING IT COULD BE IS(TIME) 5,50 MINS SO LETS TRY THAT    00352000
+           LA  R1,1(R1)                                                 00353000
+           GETTKN REG=1                                                 00354000
+         L     R7,=V(UJCTM)   GET 'SECOND' ETC TABLE              75128 00355000
+         LM    R7,R9,0(R7)                                        75128 00356000
+         CLC   TKN(8),0(R7)                                       75128 00357000
+         BE    TIME1                                              75128 00358000
+         BXLE  R7,R8,*-10                                         75128 00359000
+           TITLE 'UJCDLPROGRAM DECODE:TEST FOR KEYWORDS'                00360000
+C02TKEY   EQU *                                                         00361000
+         SPACE 2                                                        00362000
+* NOW WE SHALL CHECK IF WE ARE DEALING WITH 'A READS B' TYPE      75128 00363000
+*  INFORMATION.                                                   75128 00364000
+         GETTKN TKNCURR       GET THE NEXT TOKEN (#WORK HAS       75128 00365000
+*                             THE PREVIOUS ONE)                   75128 00366000
+         L     R1,=V(UJCEXDD) GET 'READS,WRITES' TABLE            75128 00367000
+         LM    R7,R9,0(R1)    GET BXLE CONSTANTS                  75128 00368000
+         CLC   TKN(8),0(R7)   CHECK KEYWORD                       75128 00369000
+         BE    GOTDDKEY       OK, READS,WRITES ETC                75128 00370000
+         BXLE  R7,R8,*-10     NO, GO CHECK NEXT                   75128 00371000
+* IF WE FELL THROUGH HERE, IT WASN'T A DDNAME THING               75128 00372000
+         GETTKN (R6)    GET ORIGINAL TOKEN AGAIN                  75128 00373000
+           L   R1,=V(UJCEXKEY)                 KEYWORDS APPLICABLE      00374000
+*                                              TO THE PROGRAM DECLARE   00375000
+         LM    R7,R9,0(R1)    LOAD TABLE BXLE CONSTANTS           75128 00376000
+         CLC   WORK(8),0(R7)  IS THIS ONE OF OUR KEYWORDS ?       75128 00377000
+         BE    C02TKEYX       YES ->                              75128 00378000
+         BXLE  R7,R8,*-10                                         75128 00379000
+* NOT A KEYWORK SO WE'LL HAVE TO EXAMINE THIS A LITTLE MORE CAREFULLY   00380000
+         B     THINK                                              75128 00381000
+C02TKEYX   EQU  *                                                 74303 00382000
+         LH    R1,TKNCURR     GET NEXT TOKEN AFTER KEYWORD        75128 00383000
+C02SKPKY GETTKN (R1)          GET NEXT TOKEN                      75128 00384000
+         STH   R1,TKNCURR     SAVE NEXT POINTER                   75128 00385000
+           CLI TKN,C'='                                                 00386000
+         BE    C02SKPKY       SKIP IT                             75128 00387000
+         CLI   TKN,C'('       '('AFTER KEYWORD ?                  75128 00388000
+         BE    C02SKPKY       YES,IGNORE IT                       75128 00389000
+         STH   R1,TKNCURR                                         75128 00390000
+C02USER   EQU   *                                                       00391000
+KEYOKNOW   EQU *                                                        00392000
+        MVC  DBL(2),C02LAR15     PART OF AN LA INSTRUCTION              00393000
+        MVC  DBL+2(2),8(R7)     SHIFT S CONSTANT                        00394000
+        EX   R0,DBL              GET ADDRESS OF ROUTINE                 00395000
+           LTR R15,R15                                                  00396000
+           BZ  C02ERR03     NOT YET IMPLEMENTED MESSAGE                 00397000
+         MVC   #WORK(L'TKN),#TKN SAVE THIS TOKEN IN WORK          75128 00398000
+         BALR  R14,R15                                            75128 00399000
+           B   Y                                                        00400000
+C02ERR03 JOLERR 303,'''',#WORK,''' IS NOT YET IMPLEMENTED'        75128 00401000
+         B     Y                                                  75128 00402000
+         EJECT                                                          00403000
+GOTDDKEY   EQU *                                                        00404000
+* NOW HERE WE HAVE GOT 'READS' | 'WRITES' ETC.                          00405000
+* NOW 'TKNCURR' IS SET TO POINT AT THE 'READS' ETC, SO WE               00406000
+* MUST LOAD IT AND SET R1 TO 1 HIGHER,COS WE WANT THE TOKEN             00407000
+* AFTER.                                                                00408000
+         LH    R1,TKNCURR                                               00409000
+         LA    R1,1(R1)       POINT TO NEXT                             00410000
+         STH  R1,TKNCURR                                                00411000
+         MVI   C02USE,0       CLEAR 'USE' FOR NOW                 75128 00412000
+         MVI   C02ERRIN,C' '  CLEAR ERROR INDICATOR               75128 00413000
+C02MAYOK MVC  DBL(2),C02LAR15                                           00414000
+         MVC  DBL+2(2),8(R7)    SHIFT S CONSTANT                        00415000
+         EX  R0,DBL             R15=ADDRESS NOW                         00416000
+         BR    R15            BRANCH TO PROCESSING ROUTINE        75128 00417000
+         SPACE 3                                                        00418000
+THINK      EQU  *                                                       00419000
+             CLC =C'EXT ',TKN                                     75128 00420000
+            BE   C02EXT                                           75128 00421000
+            CLC =C'EXTERNAL ',TKN                                 75128 00422000
+            BE   C02EXT                                           75128 00423000
+              CLC =C'NOTIME ',TKN                                 75128 00424000
+             BE  EXNOTIME                                               00425000
+             CLC =C'NOTIMING ',TKN                                75128 00426000
+             BE  EXNOTIME                                         75128 00427000
+              CLC =C'NOTIMEING ',TKN                              75128 00428000
+             BE EXNOTIME                                          75128 00429000
+           CLC =C'VIRT ',TKN                                      75311 00430000
+           BE  C02VIRT                                            75311 00431000
+           CLC =C'VIRTUAL ',TKN                                   75311 00432000
+           BE  C02VIRT                                            75311 00433000
+           CLC =C'REAL ',TKN                                      75311 00434000
+           BE  C02REAL                                            75311 00435000
+           CLC =C'REALCORE ',TKN                                  75311 00436000
+           BE  C02REAL                                            75311 00437000
+           GETTKN TKNCURR                                               00438000
+* NOW WE SHALL CALL THE USER ROUTINE TO DEAL WITH IT IT                 00439000
+         L     R15,ACOMPEXI   GET ADDRESS OF USER EXIT ROUTINES   75128 00440000
+         L     R15,4(R15)     GET ADDRESS OF PROGRAM EXIT ROUTINE 75128 00441000
+           LTR R15,R15                                                  00442000
+         BNZ   DONTKNOW                                           75128 00443000
+* NOW TKN CONTAINS THE KEYWORD THE USER SPECIFIED                 75128 00444000
+         L     R1,=V(UJCEXKEY)                                    75128 00445000
+         LM    R7,R9,0(R1)                                        75128 00446000
+           CLC DBL,0(R7)                                          75311 00447000
+         BE    C02USER                                            75128 00448000
+         BXLE  R7,R8,*-10                                         75128 00449000
+* NOW WE ARE IN TROUBLE BECAUSE WE HAVEN'T A CLUE WHAT IT WAS           00450000
+DONTKNOW   EQU  *                                                       00451000
+         JOLERR 401,'''',#TKN,''' IS NOT A VALID KEYWORD-IGNORED' 75128 00452000
+         B     Y                                                  75128 00453000
+            SPACE 3                                                     00454000
+           TITLE 'STORE VIRTUAL | REAL'                                 00455000
+C02REAL    EQU *                                                        00456000
+C02VIRT    EQU *                                                        00457000
+           MVI #TKN+1,4        SET LENGTH = 4                           00458000
+           JOLSTOR 'STORAGE TYPE',PGMADDR,#TKN                          00459000
+           B   Y                                                        00460000
+           TITLE 'C02PGM: FIX SIZE KEYWORD'                             00461000
+EXSIZE     EQU  *                                                       00462000
+SIZE     EQU   *                                                  75128 00463000
+         MVI  PGMSIZEQ,C'K'   PREPARE FOR NNNK                    75128 00464000
+           ENTRY EXSIZE                                                 00465000
+         JOLSTOR 'PROGRAM SIZE',PGMSIZE,#WORK,NUM                 75128 00466000
+         GETTKN TKNCURR                                           75128 00467000
+           CLC =C'BYTES ',TKN                                           00468000
+         BE    EXBYTES        CONVERT TO K                        75128 00469000
+           CLC =C'K ',TKN                                               00470000
+           BE  EXSIZEQ                                                  00471000
+         B     C02CONVB       CONVERT TO K                        75128 00472000
+EXSIZEQ    STH R1,TKNCURR                                               00473000
+           B  Y                                                         00474000
+EXBYTES  STH   R1,TKNCURR     SKIP 'BYTES' NOW                    75128 00475000
+C02CONVB TNUM  #WORK          CONVERT TO BINARY                   75128 00476000
+         LTR   R15,R15        DID IT ?                            75128 00477000
+         BNZ   Y              NO -> 'JOLSTOR' WOULD ALREADY HAVE  75128 00478000
+*                             GIVEN AN ERROR MESSAGE              75128 00479000
+         SR    R0,R0                                              75128 00480000
+         D     R0,=F'1024'    CONVERT TO K                        75128 00481000
+         LTR   R0,R0          ANY REMAINDER ?                     75128 00482000
+         BZ    *+8            NOPE                                75128 00483000
+         LA    R1,1(R1)       ADD 1 TO K THEN                     75128 00484000
+         CVD   R1,DBL         CONVERT TO PACKED                   75128 00485000
+         UNPK  PGMSIZE,DBL    CONVERT TO ZONED                    75128 00486000
+         OI    PGMSIZE+L'PGMSIZE-1,C'0' ZONED FIXED PROPERLY      75128 00487000
+         B     Y                                                  75128 00488000
+           TITLE 'UJCPRG: HANDLE LIBRARY'                               00489000
+LIB      EQU   *                                                  75128 00490000
+EXLIB      EQU *                                                        00491000
+           ENTRY EXLIB                                                  00492000
+         MVC   C02DDNM,=CL8'STEPLIB'                              75128 00493000
+         MVI   C02USE,B'00000100'  TELL US IT IS A DSNAME,AND READ,5128 00494000
+*                                  SHR                            75128 00495000
+TLIBTYP  EQU   *                                                        00496000
+         CLI   TKN,C''''                                                00497000
+         BNE   TMORELIB                                                 00498000
+         BAL   R14,DROPQUOT                                             00499000
+         MVC   #WORK(50),#TKN     SHIFT TO WORK (STORED FROM THERE)     00500000
+         B     STRLIBX                                                  00501000
+TMORELIB   GETTKN TKNCURR      GET NEXT SYMBOL                          00502000
+           CLI TKN,C'.'                                                 00503000
+           BNE STRLIBX                                                  00504000
+         BAL R14,CONCAT       CONCAT '.'                          75128 00505000
+           GETTKN (R1)                                                  00506000
+           STH R1,TKNCURR                                               00507000
+         BAL R14,CONCAT       CONCAT '.'                          75128 00508000
+           B  TMORELIB                                                  00509000
+STRLIBX    EQU  *                                                       00510000
+           CLEAR C02DSN,C02MEMBR,C02AFFNM,C02PASSW                80290 00511000
+         MVC   C02DSN,WORK   SHIFT DSNAME TO WORK AREA            75128 00512000
+         BAL   R15,C02FIXDD   STORE DETAILS AWAY FOR US IN TABLE  75128 00513000
+         GETTKN TKNCURR       GET NEXT TOKEN TO SEE IF '||'       75128 00514000
+         CLEAR C02DDNM        CLEAR DDNAME IN CASE OF CONCATEWATE 75128 00515000
+         CLC   =C'||',TKN     CONCATENATING STEPLIB                     00516000
+         BNE   Y              FINISHED 'LIB'                      75128 00517000
+         GETTKN (R1)        SKIP  '||'                                  00518000
+         CLEAR    C02DDNM   TELL US WE ARE CONCATENATING                00519000
+         STH   R1,TKNCURR     SAVE POINTER TO NEXT TOKEN          75128 00520000
+         MVC   #WORK(50),#TKN SHIFT FIRST PART OF NAME            75128 00521000
+         B     TLIBTYP        GO FIX REST OF IT UP                75128 00522000
+           TITLE 'UJCPROG: DECODE TIME PARAMETER'                       00523000
+EXNOTIME MVC   WORK(4),=CL4'1440'                                 75128 00524000
+         MVI   #WORK+1,4                                          75128 00525000
+         JOLSTOR 'NOTIMING',PGMTIME1,#WORK                        75128 00526000
+         B  Y                                                     75128 00527000
+TIME1    EQU   *                                                  75128 00528000
+EXTIME     EQU *                                                        00529000
+           ENTRY EXTIME                                                 00530000
+***************************************************************    DASD 00531000
+*                ERROR ON TIME OVERRIDES                      *    DASD 00532000
+* JOL NOT CHECKING THE OVERRIDE SWITCH (MERGING PGM DETAILS)  *    DASD 00533000
+* AND THE CONTENTS OF PGMTIME FIELDS BEFORE MOVING IN         *    DASD 00534000
+* THE NEW TIME PARAMS WHICH OVERLAY THE OLD (USE JOLSTOR ??)  *    DASD 00535000
+***************************************************************    DASD 00536000
+* ON ENTRY #WORK CONTAINS THE FIRST ITEM AFTER THE 'TIME='        75128 00537000
+           SPACE 3                                                      00538000
+*    TEST IF IT IS NUMERIC                                              00539000
+         TNUM  #WORK                                              75128 00540000
+           LTR R15,R15                                                  00541000
+         BNZ   CONVERR                                            75128 00542000
+           SPACE 3                                                      00543000
+* R1 CONTAINS THE TIME IN BINARY                                        00544000
+         LR    R9,R1                                              75128 00545000
+* NOW WE HAVE TO GET THE NEXT BIT OF THE TIME AND COMPARE THE TWO VALS  00546000
+* AND PLACE THE LARGEST IN THE ELAPSED TIME BIT.                        00547000
+          CLI   OVERRIDE,C'1' ARE WE MERGING ?                     DASD 00548000
+          BNE   TIMEMV1       NOPE KEEP GOING                      DASD 00549000
+          CLC   PGMTIME1(9),BLANKS   ANYTHING IN HERE YET ?        DASD 00550000
+          BE    TIMEMV1       NOPE                                 DASD 00551000
+          MVI   WORK,X'FF'    SET NOMERGE TIME SWITCH ON           DASD 00552000
+          B     TIMEBY1       JUMP AROUND THE MOVE                 DASD 00553000
+TIMEMV1    MVC PGMTIME1,WORK                                       DASD 00554000
+TIMEBY1    GETTKN LOCN=TKNCURR                                     DASD 00555000
+           CLI TKN,C','                        IS THERE ANOTHER BIT OF  00556000
+*                                              'TIME'                   00557000
+           BE  TIME2ND                                                  00558000
+           B   TRYTIMEQ                                                 00559000
+TIME2ND    EQU *                                                        00560000
+         GETTKN (R1)                                              75128 00561000
+           STH R1,TKNCURR                                               00562000
+         TNUM  #TKN                                               75128 00563000
+           LTR R15,R15                                                  00564000
+         BNZ   CONVERR                                            75128 00565000
+         CR    R1,R9          COMPARE WITH PREVIOUS TIME          75128 00566000
+*                                              TIME.                    00567000
+           BL  TIMESWAP                                                 00568000
+          CLI   WORK,X'FF'    ARE WE MERGING ?                     DASD 00569000
+          BE    TRYTIMEQ      YEP  DON"T OVERLAY ANYTHING          DASD 00570000
+TIMEMV2    MVC PGMTIME2,TKN                                        DASD 00571000
+           B   TRYTIMEQ                                                 00572000
+           SPACE                                                        00573000
+TIMESWAP   EQU *                                                        00574000
+          CLI   WORK,X'FF'    ARE WE MERGING ?                     DASD 00575000
+          BE    TRYTIMEQ      YEP  DON"T OVERLAY ANYTHING          DASD 00576000
+           MVC PGMTIME2,PGMTIME1                                        00577000
+           MVC PGMTIME1,TKN                                             00578000
+TRYTIMEQ   GETTKN LOCN=TKNCURR                                          00579000
+         L     R7,=V(UJCTM)   GET TIME KEYWORD TABLE              75128 00580000
+         LM    R7,R9,0(R7)    GET TABLE CONSTANTS                 75128 00581000
+         CLC   TKN(8),0(R7)                                       75128 00582000
+         BE    TIMEQ                                              75128 00583000
+         BXLE  R7,R8,*-10                                         75128 00584000
+           B   Y                                                        00585000
+TIMEQ      STH R1,TKNCURR                                               00586000
+          CLI   WORK,X'FF'    ARE WE MERGING ?                     DASD 00587000
+          BE    Y             YEP  DON"T OVERLAY ANYTHING          DASD 00588000
+           MVC PGMTIMEQ,TKN                                             00589000
+           B   Y                                                        00590000
+* END TIME                                                              00591000
+CONVERR  EQU  *                                                   75128 00592000
+         JOLERR 302,'ERROR CONVERTING ''',#TKN,''' TO NUMERIC'    75128 00593000
+           B  Y                                                         00594000
+         TITLE 'PERFORM LIKE,EXTERNAL,HODYNAMS,PERFORM'           75128 00595000
+C02EXT    MVI C02LEVEL,0 FORCE TO LEVEL ZERO                      76200 00596000
+          B   Y                                                   76200 00597000
+         JOLERR 311,'''',#TKN,''' MUST BE PLACED AFTER ''PROG'''  75311 00598000
+         B     Y                                                  75128 00599000
+         SPACE 3                                                  75128 00600000
+EXNODYNA JOLSTOR 'NUMBER OF DD-CARDS',PGMNODYN,#TKN,NUM          75128  00601000
+         B     Y                                                  75128 00602000
+         SPACE 3                                                  75128 00603000
+EXLIKE   MVC   C02LIKE,TKN    ***JOLSTOR WONT WORK,BASE 13*       75128 00604000
+         B     Y                                                  75128 00605000
+         SPACE 3                                                  75128 00606000
+EXPERFOR JOLSTOR 'PERFORMANCE GROUP',PGMPERFO,#TKN,NUM            75128 00607000
+         B     Y                                                  75128 00608000
+         SPACE 2                                                        00609000
+EXACCT   JOLSTOR 'ACCOUNT',PGMACCT,#TKN                           76200 00610000
+         B    Y                                                   76200 00611000
+     TITLE 'UJCPRGDCL:HANDLE DDNAMES'                                   00612000
+EXMAY    OI    C02USE,2       TURN ON MAY BIT (DEFER)             75128 00613000
+         GETTKN TKNCURR                                           75128 00614000
+         STH   R1,TKNCURR                                         75128 00615000
+         L     R1,=V(UJCEXDD)                                     75128 00616000
+         LM    R7,R9,0(R1)                                        75128 00617000
+         CLC   TKN(8),0(R7)                                       75128 00618000
+         BE    C02MAYOK                                           75128 00619000
+         BXLE  R7,R8,*-10                                         75128 00620000
+         B     DONTKNOW                                           75128 00621000
+C02TROOM   EQU  *                                                       00622000
+EXUPDATE OI    C02USE,X'10'                                       75128 00623000
+         B     EXDD                                               75128 00624000
+EXREWRIT OI    C02USE,X'D0'                                       75128 00625000
+         B     EXDD                                               75128 00626000
+EXWRITES OI    C02USE,X'50'                                       75128 00627000
+         B     EXDD                                               75128 00628000
+EXMODS   OI    C02USE,X'90'                                       75128 00629000
+         B     EXDD                                               75128 00630000
+EXUSES   OI    C02USE,X'C0'                                       75128 00631000
+EXREADS  EQU   *                                                  75128 00632000
+EXDD     EQU   *                                                  75128 00633000
+         MVC   C02DDNM,WORK   SHIFT DDNAME TO WORK AREA           75128 00634000
+* NOW GET THE NEXT POSITION IN THE TABLE FOR DDNAMES.                   00635000
+C02GETID EQU   *                                                        00636000
+         CLEAR C02MEMBR    IN CASE SET UP EARLIER                       00637000
+           CLEAR C02AFFNM,C02PASSW                                75311 00638000
+           GETTKN TKNCURR      GET THE DSID                       75128 00639000
+         STH   R1,TKNCURR     SAVE POINTER TO NEXT TOKEN          75128 00640000
+           SPACE 1                                                      00641000
+* PREVIOUSLY, WE USED TO JOIN AND EXAMINE THE DSNAME OURSELVES    75311 00642000
+*                                                                 75311 00643000
+* NOW, UJS60DSN DOES THIS FOR US                                  75311 00644000
+* ON RETURN FROM UJS60DD, WORK CONTAINS THE DSNAME AND            75311 00645000
+*    WORK+100 THE MEMBER | GDG                                    75311 00646000
+*                                                                 75311 00647000
+         SPACE 2                                                  75128 00648000
+* NOW TEST IF USER SAID DSID | DSNAME                             75128 00649000
+         CLI   TKN,C''''      DSNAME ?                            75128 00650000
+         BE    C02DSNTP                                           75128 00651000
+*                                                                       00652000
+* HERE, WE COULD HAVE : A READS X, OR A READS X.Y (DATA SET)      75311 00653000
+           MVI CALLAREA,0                                         75311 00654000
+           $CALL UJS60DSN                                         75311 00655000
+* NOW CHECK IF IT HAS A '.'                                       75311 00656000
+           LA  R1,WORK                                            75311 00657000
+           LA  R14,1                                              75311 00658000
+           LA  R15,WORK+L'DDDSNAME-1                              75311 00659000
+           CLI 0(R1),C'.'      '.'                                75311 00660000
+           BE  C02DSNT2        YES, DSN                           75311 00661000
+           BXLE R1,R14,*-8     ROUND AGAIN                        75311 00662000
+           SPACE 2                                                75311 00663000
+* HERE IT IS A DSID  ENTRY                                        75311 00664000
+           MVC C02DSID,WORK                                       75311 00665000
+           MVC C02MEMBR,WORK+100                                  75311 00666000
+           MVC C02PASSW,WORK+120  COPY PASSWORD IN IF SPECIFIED   80290 00667000
+           NI  C02USE,X'F2'   SHUT OFF ANY TRASH FROM THE LAST GUY DASD 00668000
+           B   C02TAFF         TEST IF AFFINITY NOW               75311 00669000
+C02DSNTP   MVI CALLAREA,0                                         75311 00670000
+           $CALL UJS60DSN                                         75311 00671000
+C02DSNT2   MVC C02DSN,WORK     COPY DSNAME                        75311 00672000
+           MVC C02MEMBR,WORK+100 COPY MEMBER | GDG                75311 00673000
+           MVC C02PASSW,WORK+120  COPY PASSWORD IN IF SPECIFIED   80290 00674000
+         OI    C02USE,B'00000100'  TELL US A DSN TYPE             75128 00675000
+C02TAFF  EQU   *                                                  75128 00676000
+         GETTKN TKNCURR       SEE IF MEMBER OR CONCATENATION      75128 00677000
+*                              SPECIFIED.                               00678000
+           CLC =C'||',TKN      CONCATENATION.                           00679000
+           BE  C02CONC                                                  00680000
+           CLC =C'UNITREF ',TKN                                         00681000
+           BE C02AFF                                                    00682000
+           CLC =C'UNITAFF ',TKN                                         00683000
+           BE C02AFF                                                    00684000
+         B     C02STRID       GO STORE DSNAME,DSID DETAILS        75128 00685000
+C02AFF  EQU  *                                                          00686000
+           GETTKN (R1)                                                  00687000
+           CLI TKN,C'='        UNITAFF = CODED ?                        00688000
+           BE     C02AFF       YES, SO SKIP =                           00689000
+           STH R1,TKNCURR                                               00690000
+           MVC C02AFFNM,TKN    SHIFT IN UNIAFF NAME               75311 00691000
+         OI    C02USE,X'01'   TURN ON UNIT AFF BIT                75128 00692000
+         B     C02TAFF        SEE IF MORE                         75128 00693000
+C02CONC  STH   R1,TKNCURR                                         75128 00694000
+         BAL   R15,C02FIXDD   STORE WHAT WE'VE GOT UP TILL NOW    75128 00695000
+         NI    C02USE,X'FF'-1 TURN OFF 'UNITAFF'                  75128 00696000
+         CLEAR C02DDNM        CLEAR DDNAME FIELD                  75128 00697000
+         B     C02GETID       GET THE NEXT DSID ETC               75128 00698000
+           SPACE 3                                                      00699000
+C02STRID BAL   R15,C02FIXDD   STORE FILE DETAILS                        00700000
+         B     Y              GO TO Y                                   00701000
+         SPACE  3                                                       00702000
+C02FIXDD EQU   *                                                  75128 00703000
+*                                                                 75311 00704000
+* NOW WE WILL CLEAR R0 SO THAT WE CAN TEST IF WE FOUND A DDNAME   75311 00705000
+*  FOR A UNIT-AFF (OR UNITREF) IF CODED                           75311 00706000
+         SR    R0,R0          UNITAFF INDICATOR                   75311 00707000
+*                                                                 75311 00708000
+* THIS ROUTINE IS BAL'D TO ON R15 AND STORES THE DDNAME IN        75128 00709000
+*  THE MAIN PROGRAM DECLARE AREA                                  75128 00710000
+         CLI   C02ERRIN,C' '  ERROR ON ?                          75128 00711000
+         BNE   0(R15)         YES, BACK TO CALLER WITHOUT DOING   75128 00712000
+*                             ANY WORK                            75128 00713000
+         SPACE 2                                                  75128 00714000
+* NOW SEE IF DDNAME ALREADY THERE (WE WON'T STORE DUPLICATES)     75128 00715000
+         LA    R6,PGMDD1      GET A(FIRST)                        75128 00716000
+         SR    R7,R7          COUNTER OF NUMBER OF DDS            75128 00717000
+* NOW I ALWAYS SEEM TO GET CATCH UP WITH THE FIRST ENTRY INTO A         00718000
+* TABLE, AND THIS IS NO EXCEPTION (I FORGOT WHEN I WAS CODING)          00719000
+*SO......                                                               00720000
+         CLC   PGMNODDS,ZERO                                            00721000
+         BNE   C02STRCK       NO,TAFF THEN               JOL30107 76200 00722000
+* HERE FIRST ENTRY, BUT MUST LOOK FOR UNITAFF            JOL30107 76200 00723000
+* WHICH IS OBVIOSLY INVALID THEN..)                      JOL30107 76200 00724000
+         TM    C02USE,1       UNITAFF?                   JOL30107 76200 00725000
+         BO    C02AFFF        YES, SO FAILURE            JOL30107 76200 00726000
+         B     C02STDDX                                  JOL30107 76200 00727000
+* NOW TEST IF THIS IS UNIT-AFF AND THIS DDNAME CORRESPONDS        75311 00728000
+C02STRCK TM    C02USE,1       UNIT-AFF ?                          75311 00729000
+           BZ  C02FXOK1        NOPE                               75311 00730000
+           CLC C02AFFNM,PGMDDNAM UNITAFF = THIS DDNAME ?          75311 00731000
+           BNE C02FXOK1        NOPE                               75311 00732000
+         LA    R0,1           SET R0^=0 SO WE CAN TEST IT LATER   75311 00733000
+* NOW WE MUST STEP ON TO THE NEXT SPOT IN THE TABLE.              75128 00734000
+*  IF THE BIT IS ON THE LENGTH OF THE ENTRY IS > THAN THE NORMAL  75128 00735000
+*  25 BYTES.                                                      75128 00736000
+C02FXOK1 CLC   C02DDNM,BLANKS IS THIS A CONCATENATION ?           75128 00737000
+         BE    C02FXOK2                                           75128 00738000
+         CLC   C02DDNM,PGMDDNAM                                   75128 00739000
+         BE    C02STERR       DUPLICATE                           75128 00740000
+C02FXOK2 TM    PGMUSE,B'00000100'  DSNAME SPECIFIED ?             75128 00741000
+         BO    C02STRLG       YES, LONG ONE                       75128 00742000
+           LA  R6,25+8(R6)     STEP OVER DSID TYPE ENTRY          75311 00743000
+         B     C02ADD1C       ADD 1 TO COUNTER OF DDS             75128 00744000
+C02STRLG LA    R6,8+1+52+8+8(R6) LONG ENTRY, ADD LOTS             80290 00745000
+C02ADD1C LA    R7,1(R7)       ADD 1 TO COUNTER OF DDS             75128 00746000
+         CH    R7,PGMNODDS    DONE THEM ALL ?                     75128 00747000
+         BL    C02STRCK       NO,SO CHECK NEXT ONE NOW            75128 00748000
+* NOW WE HAVE REACHED THE END, SO WE CAN STORE THE INFO IF        75128 00749000
+* THERE IS ENOUGH ROOM, AFTER CHECKING THAT WE FOUND THE UNITREF  75311 00750000
+         SPACE 1                                                  75311 00751000
+         TM    C02USE,1       WAS UNIT-AFF CODED ?                75311 00752000
+         BZ    C02TRM         NO, TEST IF ROOM NOW.               75311 00753000
+         LTR   R0,R0          DID WE FIND UNIT-AFF ?              75311 00754000
+         BNZ   C02TRM         YES, TEST IF ROOM.                  75311 00755000
+         MVC   ERRNUM4,C02AFFNM                                   80290 00756100
+         CLEAR ERRNUM5                                            80290 00756200
+         MVC   ERRNUM5,C02AFFNM+5                                 80290 00756300
+C02AFFF  ST   R15,C02S15                                          75311 00757000
+         JOLERR 313,'UNITAFF FAILED BECAUSE DDNAME ''',           75311*00758000
+               ERRNUM4,ERRNUM5,                                   80290*00759000
+               ''' COULD NOT BE FOUND,OR WAS CODED AFTER ',       75311*00759100
+               'THE UNITAFF FILE NAME'                            75311 00760000
+         L    R15,C02S15    RELOAD R15                            75311 00761000
+           NI  C02USE,X'FF'-1  TURN OFF UNIT-AFF                  75311 00762000
+C02TRM     EQU *                                                  75311 00763000
+         LA    R1,PGMDETS     GET PGM DETS ADDRESS                75128 00764000
+         SR    R1,R6          SUBTRACT CURRENT POINTER            75128 00765000
+         LCR   R1,R1          REVERSE SIGN                        75128 00766000
+         LA    R0,25          GET SET FOR SMALL ENTRY             75128 00767000
+         TM    C02USE,B'00000100'  THIS ENTRY A LONG ONE ?        75128 00768000
+         BZ    *+8            NOPE                                75128 00769000
+         LA    R0,8+1+52+8+8   SET UP LONG ENTRY                  80290 00770000
+         AR    R1,R0                                              75128 00771000
+         CH    R1,LPROGWRK                                        80290 00772000
+         BH    C02STRE2       ERROR, TOO MUCH INFO                75128 00773000
+C02STDDX LA    R7,1(R7)       ADD 1 TO COUNTER OF DDS             75128 00774000
+         STH   R7,PGMNODDS    STORE NEW NO.                       75128 00775000
+         MVC   PGMDDNAM,C02DDNM                                         00776000
+         MVC   PGMUSE,C02USE                                            00777000
+         TM    C02USE,B'00000100'                                       00778000
+         BO    C02SLONG                                                 00779000
+         MVC   PGMDSID,C02DSID                                          00780000
+         MVC   PGMMBR,C02MEMBR                                          00781000
+           MVC PGMMBR+8(8),C02AFFNM                               75311 00782000
+         LH  R6,#PGMDETS                                                00783000
+           LA  R6,25+8(R6)     STEP OVER DSID TYPE ENTRY          75311 00784000
+         STH R6,#PGMDETS                                                00785000
+         BR    R15                                                      00786000
+         SPACE 2                                                        00787000
+C02SLONG MVC   PGMDSN,C02DSN                                            00788000
+           MVC PGMDSN+L'PGMDSN-8(8),C02MEMBR                      75311 00789000
+           MVC PGMAFF2,C02AFFNM                                   80290 00790000
+           MVC PGMPASSW,C02PASSW                                  80290 00791000
+         LH  R6,#PGMDETS                                                00793000
+           LA  R6,52+1+8+8+8(R6)                                  80290 00794000
+         STH  R6,#PGMDETS                                               00795000
+         BR    R15                                                      00796000
+         SPACE 3                                                  75128 00797000
+C02STERR LR    R6,R15         SAVE RETURN ADDRESS                 75128 00798000
+         MVI   C02ERRIN,1     ^' '                                75128 00799000
+           MVC  DBL,C02DDNM                                       75128 00800000
+           CLC C02OVRDE,ZERO   ARE WE DOING AN OVER-RIDE ?        75311 00801000
+           BNE 0(R6)           YES, NO MESSAGES                   75311 00802000
+         CLI   C02LIKE,C' ' DOING A LIKE TYPE PROCESS?   JOL30050 76200 00803000
+         BNE   0(R6)          YES, OUT                   JOL30050 76200 00804000
+         JOLERR 205,'DUPLICATE DDNAME ''',PGMDDNAM,''' IGNORED'   80290 00805000
+         BR    R6                                                 75128 00806000
+         SPACE 3                                                  75128 00807000
+C02STRE2 LR    R6,R15         SAVE RETURN ADDRESS                 75128 00808000
+         MVC   ERRNUM4,C02DDNM                                    80290 00809000
+         CLEAR ERRNUM5                                            80290 00809003
+         MVC   ERRNUM5,C02DDNM+5                                  80290 00809005
+         JOLERR 406,'CANNOT STORE DDNAME ''',ERRNUM4,ERRNUM5,          *00810000
+               ''':-INSUFFICENT ROOM IN TABLE'                          00810100
+         MVI   C02ERRIN,1                                         75128 00812000
+         BR    R6                                                 75128 00813000
+C02LAR15   LA  R15,0                                                    00814000
+           LTORG                                                        00815000
+           DC S(*),S(*),S(*),S(*)                                       00816000
+           DC S(*),S(*),S(*),S(*)                                       00817000
+           DC S(*),S(*),S(*),S(*)                                       00818000
+           DC S(*),S(*),S(*),S(*)                                       00819000
+           DC S(*),S(*),S(*),S(*)                                       00820000
+         DC    S(*,*,*,*)                                         75128 00821000
+         DC    S(*,*,*,*)                                         75128 00822000
+         DC    S(*,*,*,*)                                         75128 00823000
+         DC    S(*,*,*,*)                                         75128 00824000
+         DC    S(*,*,*,*)                                         75128 00825000
+         DC    S(*,*,*,*)                                         75128 00826000
+         DC    S(*,*,*,*)                                         75128 00827000
+         DC    S(*,*,*,*)                                         75128 00828000
+         DC    S(*,*,*,*)                                         75128 00829000
+         DC    S(*,*,*,*)                                         75128 00830000
+         DC    S(*,*,*,*)                                         75128 00831000
+         DC    S(*,*,*,*)                                         75128 00832000
+           DC S(*),S(*),S(*),S(*)                                       00833000
+           DC S(*),S(*),S(*),S(*)                                       00834000
+           DC S(*),S(*),S(*),S(*)                                       00835000
+           DC S(*),S(*),S(*),S(*)                                       00836000
+           DC S(*),S(*),S(*),S(*)                                       00837000
+           DC S(*),S(*),S(*),S(*)                                       00838000
+           DC S(*),S(*),S(*),S(*)                                       00839000
+           DC S(*),S(*),S(*),S(*)                                       00840000
+           DC S(*),S(*),S(*),S(*)                                       00841000
+           DC S(*),S(*),S(*),S(*)                                       00842000
+           DC S(*),S(*),S(*),S(*)                                       00843000
+           DC S(*),S(*),S(*),S(*)                                       00844000
+           DC S(*),S(*),S(*),S(*)                                       00845000
+           DC S(*),S(*),S(*),S(*)                                       00846000
+           DC S(*),S(*),S(*),S(*)                                       00847000
+           DC S(*),S(*),S(*),S(*)                                       00848000
+           DC S(*),S(*),S(*),S(*)                                       00849000
+           DC S(*),S(*),S(*),S(*)                                       00850000
+*          DC S(*),S(*),S(*),S(*)          NO ADDRESSABILITY       SOCO 00851000
+*          DC S(*),S(*),S(*),S(*)          IS LEFT TO THIS SPOT    SOCO 00852000
+UJCEXKEY  CSECT                                                         00853000
+          DC  A(*+12,10,EXKEYEN-10)                                     00854000
+          DC  CL8'TIME',S(EXTIME)                                       00855000
+            DC  CL8'LIKE',S(EXLIKE)                                     00856000
+           DC  CL8'SIZE',S(EXSIZE)                                      00857000
+           DC  CL8'NODYNAMS',S(EXNODYNA)                                00858000
+           DC CL8'PERFORM',S(EXPERFOR)                                  00859000
+           DC  CL8'REGION',S(EXSIZE)                                    00860000
+          DC  CL8'LIB',S(EXLIB)                                         00861000
+         DC    CL8'ACCT',S(EXACCT)                                76200 00862000
+         DC    CL8'ACCOUNT',S(EXACCT)                             76200 00863000
+          DC  CL8' ZAP',S(0)                                            00864000
+          DC  CL8' ZAP',S(0)                                            00865000
+          DC  CL8' ZAP',S(0)                                            00866000
+          DC  CL8' ZAP',S(0)                                            00867000
+          DC  CL8' ZAP',S(0)                                            00868000
+EXKEYEN      EQU  *                                                     00869000
+UJCEXDD   CSECT                                                         00870000
+         DC  A(*+12,10,UJCEXDEN-10)                                     00871000
+         DC  CL8'READS',S(EXREADS)                                      00872000
+         DC  CL8'UPDATE',S(EXUPDATE)                                    00873000
+         DC  CL8'REWRITES',S(EXREWRIT)                                  00874000
+         DC  CL8'WRITES',S(EXWRITES)                                    00875000
+         DC  CL8'MODS',S(EXMODS)                                        00876000
+         DC  CL8'USES',S(EXUSES)                                        00877000
+         DC  CL8'ADDS',S(EXMODS)                                        00878000
+         DC  CL8'MAY',S(EXMAY)                                          00879000
+         DC  CL8'READ',S(EXREADS)                                       00880000
+         DC  CL8'UPDATES',S(EXUPDATE)                                   00881000
+         DC  CL8'REWRITE',S(EXREWRIT)                                   00882000
+         DC  CL8'WRITE',S(EXWRITES)                                     00883000
+         DC  CL8'MOD',S(EXMODS)                                         00884000
+         DC  CL8'USE',S(EXUSES)                                         00885000
+         DC  CL8'ADD',S(EXMODS)                                         00886000
+         DC    CL8' ZAP',S(EXMODS)                                75311 00887000
+         DC    CL8' ZAP',S(EXMODS)                                75311 00888000
+         DC    CL8' ZAP',S(EXMODS)                                75311 00889000
+         DC    CL8' ZAP',S(EXMODS)                                75311 00890000
+UJCEXDEN   EQU  *                                                       00891000
+         END                                                            00892000

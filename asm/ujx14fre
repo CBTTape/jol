@@ -1,0 +1,92 @@
+         TITLE 'UJE14FRE:FREE (MARK NOT IN USE) DATASETS'               03173000
+         JOLSAVE CSECT=UJE14FRE                                         03174000
+         CLI   DDTYPE,DDPUNCH   Q... SYSIN, SYSOUT OF SOME KIND?        03175000
+         BNH   E14FREE          A... YES, FREE IT NOW                   03176000
+         TM    DDUNITYP,X'80'  IF IT'S A TAPE, FREE FILE ALWAYS         03176100
+         BO    E14TDISP                                                 03176200
+* PROPOGATE THE TAPE VOLUME NOW, AS IT MAY BE USED LATER                03176400
+*  IN VOLUME REFERENECES OR CATALOGUE STATEMENTS.                       03176500
+         CALL  UJE30VOL       PROPOGATE VOLS DOWN JOL 'JOBQ'            03176600
+         B     E14FREE                    FREE IT NOW                   03176700
+*        CLI   DDDISP+1,C'L'  LAST USE?                                 03177000
+E14TDISP CLI   DDDISP+1,C'P'  LAST USE?                                 03178000
+         BE    E14DISUS        NO, JUST MAKE MARKS                      03179000
+E14FREE  DS    0H                                                       03181000
+         XC    CALLAREA(12),CALLAREA   CLEAR PARAMETER AREA             03182000
+         MVI   CALLAREA,C'F'   INDICATE FREEFILE                        03183000
+         MVI   CALLAREA+1,12   TABLE SIZE                               03184000
+         MVC   CALLAREA+4(8),DDDDNAME  DDNAME TO THE AREA               03185000
+         FREEFL MF=(E,CALLAREA)                                         03186000
+         LTR   R1,R15                                                   03187000
+         BZ    E14FREED                                                 03188000
+         CVD   R15,DBL                                                  03189000
+         CALL  UJS46FER                                                 03190000
+         MVC   TASKSSI(4),=X'40202120'                                  03191000
+         ED    TASKSSI,DBL+6                                            03192000
+         JOLERR 102,'DSID ',DDDSID,''',DDNAME ',                       .03193000
+               DDDDNAME,' NOT UNALLOCATED DUE TO RETURN CODE ',        .03194000
+               TASKSSI                                                  03195000
+         B     E14RETN                                                  03196000
+E14FREED DS    0H                                                       03197000
+         JOLERR 003,'DSID ',DDDSID,' DDNAME ',                         .03198000
+               DDDDNAME,' UNALLOCATED'                                  03199000
+E14RETN  DS    0H                                                       03200000
+         B     RETN0                                                    03201000
+E14DISUS DS    0H    MARK DATASET NOT IN USE                            03202000
+         L     R4,ATCB              ADDRESS MY TCB                      03203000
+         L     R4,TCBJSCB-TCB(,R4)          MY JSCB                     03204000
+         ICM   R4,7,JSCBFCTA-JSCB(R4)         FIRST FCT                 03205000
+         BZ    E14NOFCT              EXIT IF NONE ?!! & SSSSSSSSS       03206000
+         CLC   =CL8' ',DDDDNAME      Q... CONCATENATED FILE?            03207000
+         BE    E14NXFCT              A... YES                           03208000
+         MVC   SAVEDD,DDDDNAME       COPY THE DDNAME                    03209000
+         SPACE                                                          03210000
+*   FOUND THE FCT CHAIN. NOW FIND THE DATASET ENTRY                     03211000
+         SPACE                                                          03212000
+         USING FCT,R4                                                   03213000
+E14NXFCT DS    0H                                                       03214000
+         CLC   FCTACSN,SAVEDD        Q... IS THIS IT?                   03215000
+         BE    E14FFCT               A... YES, GO AND FIX IT            03216000
+         ICM   R4,7,FCTNFCTA         NEXT FCT                           03217000
+         BNZ   E14NXFCT              BR IF THERE IS ONE                 03218000
+E14NOFCT JOLERR 104,                                                   .03219000
+               'DSID ',DDDSID,                                         .03220000
+               ' DDNAME ',DDDDNAME,                                    .03221000
+               ' NOT MARKED NOT IN USE: NO FCT FOUND'                   03222000
+         B     RETN0                                                    03223000
+E14FFCT  DS    0H    FOUND AN FCT TO "FIX"                              03224000
+         AP    DDCTR,=P'1'          ADD TO MY COUNTER                   03225000
+         $TELL (R4)                                                     03226000
+         MODESET  KEY=ZERO                                              03227000
+*        NI    FCTACSN,X'BF'        MAKE MY MARK FOR "NOT IN USE"       03228000
+         MVC   FCTACSN(4),=C'$JOL'  MAKE MY MARK FOR "NOT IN USE"       03229000
+         UNPK  FCTACSN+4(4),DDCTR                                       03230000
+         SPACE                                                          03231000
+* WHILE I AM HERE, LET'S HAVE A LOOK AT SOME OTHER BITS                 03232000
+         SPACE                                                          03233000
+         LR    R2,R4                 SAVE THIS ADDRESS                  03234000
+         TM    FCTFLG6,FCTF6CF       Q... CONCATENATED?                 03235000
+         BZ    E14NOCAT              A... NO                            03236000
+         NI    FCTFLG6,X'FF'-FCTF6CF TURN THAT OFF                      03237000
+E14NXTCF DS    0H                                                       03238000
+         L     R1,FCTCFNO            ADDRESS NEXT IN THIS CHAIN         03239000
+         XC    FCTCFNO(4),FCTCFNO    CLEAR THIS FIELD                   03240000
+         LA    R4,0(,R1)             CLEAR THE HIGH ORDER BYTE          03241000
+         LTR   R4,R4                 Q... ANYTHING THERE?               03242000
+         BZ    E14NOCAT              A... NO                            03243000
+         CLC   FCTACSN,DDDDNAME      CHECK THIS, JUST IN CASE           03244000
+         BNE   E14NOCAT              UM, ER, I'LL SEE YOU LATER         03245000
+         NI    FCTFLG6,X'FF'-FCTF6CF TURN OFF CONCAT FLAG               03246000
+         B     E14NXTCF              LET'S PLAY WITH THE NEXT ONE TOO   03247000
+E14NOCAT DS    0H                                                       03248000
+         LR    R4,R2                 ADDRESS OF THE ORIGINAL            03249000
+         SPACE 2                                                        03250000
+*  WELL, THAT SHOULD BE ALL                                             03251000
+         SPACE                                                          03252000
+         MODESET KEY=NZERO    BACK TO MY USUAL PROTECT KEY              03253000
+         SPACE 3                                                        03254000
+         JOLERR 005,                                                   .03255000
+               'DSID ',DDDSID,                                         .03256000
+               ' DDNAME ',DDDDNAME,                                    .03257000
+               ' MARKED NOT IN USE'                                     03258000
+         B     RETN0                                                    03259000

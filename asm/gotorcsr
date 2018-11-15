@@ -1,0 +1,66 @@
+VARSTR   DSECT                                                          00010000
+#STR     DS   H                                                         00020000
+STR      DS   CL1000                                                    00030000
+SCRNADDR DSECT                                                          00040000
+SETBA    DS   CL1                                                       00050000
+MSGADDR1 DS   CL1                                                       00060000
+MSGADDR2 DS   CL1                                                       00070000
+         REGEQU                                                         00080000
+GOTORCSR CSECT                                                          00090000
+         USING *,R15                                                    00100000
+ TOMASM  'SRCNCONS DATASECT'                                            00110000
+         B     DOSTM                                              J51   00120000
+SDATA    DC    X'40C1C2C3C4C5C6C7C8C94A4B4C4D4E4F'                      00130000
+         DC    X'50D1D2D3D4D5D6D7D8D95A5B5C5D5E5F'                      00140000
+         DC    X'6061E2E3E4E5E6E7E8E96A6B6C6D6E6F'                      00150000
+         DC    X'F0F1F2F3F4F5F6F7F8F97A7B7C7D7E7F'                      00160000
+LOWMASK  DC    X'0000FFFF'                                              00170000
+EIGHTY   DC    F'80'                                                    00180000
+SIXTY4   DC    F'64'                                                    00190000
+*                                                                       00200000
+* R1 points at a VARYING string (ie a HALFWORD containing               00210000
+* the length of a string to go to the terminal).                        00220000
+*                                                                       00230000
+* R0 contains the ROW and COLUMN number                                 00240000
+*                                                                       00250000
+* R0 (Hi side) has the ROW and the least significant part has           00260000
+*    the column.                                                        00270000
+DOSTM    STM   R3,R5,20(R13)  Save some registers                       00280000
+         LR    R3,R14         Save Return Addr                          00290000
+*                                                                       00300000
+         LR    R4,R1          Load address of string                    00310000
+         USING VARSTR,R4                                                00320000
+         LH    R1,#STR        Get current length of string              00330000
+         LA    R5,STR(R1)     Point to the actual string END            00340000
+         TOMASM ' add word ptr r5,2'  sim bug                           00350000
+         USING SCRNADDR,R5                                              00360000
+         LA    R1,3(R1)       Add 3 for SBA, address                    00370000
+         STH   R1,#STR        SAve it back in string                    00380000
+         DROP  R4                                                       00390000
+*                                                                       00400000
+* Now fix up the ROWS and COLUMNS                                       00410000
+         LR    R1,R0          LOAD LINE NUMBER                          00420000
+         SRL   R1,16          Drop the column                           00430000
+         N     R0,LOWMASK     Get the column                            00440000
+         LR    R14,R0         Put Column in R14                         00450000
+         BCTR  R14,0          BUFFER POSITION STARTS AT ZERO            00460000
+         BCTR  R1,0           SUBTRACT 1                                00470000
+         M     R0,EIGHTY      MULTIPLY BY NUMBER IF COLUMNS             00480000
+         AR    R1,R14         R1 NOW HAS BUFFER ADDRESS                 00490000
+*        AIF   (T'&STO EQ 'O').NSTO                                     00500000
+*        LA    R15,1(,R1)                                               00510000
+*        STH   R15,&STO                                                 00520000
+*        LA    R7,2(,R7)                                                00530000
+         D     R0,SIXTY4      R1 NOW HAS 1ST ADDR R14 NOW HAS 2ND ADDR  00540000
+         MVI   SETBA,X'11'    Set Buffer Address                        00550000
+         STC   R1,MSGADDR1    STORE HIGH BYTE                 (JCS)     00560000
+         STC   R0,MSGADDR2      AND LOW BYTE                  (JCS)     00570000
+         TR    MSGADDR1(2),SDATA TRANSLATE PROPERLY           (JCS)     00580000
+*        LA    R11,3(,R11)                                              00590000
+         LR    R14,R3         Restore return address                    00600000
+         LM    R3,R5,20(R13)                                            00610000
+         TOMASM ' retf'                                                 00620000
+         SR    R15,R15        Set 0 return code                         00630000
+         BR    R14            Return to caller                          00640000
+         LTORG                                                          00650000
+         END                                                            00660000

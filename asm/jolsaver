@@ -1,0 +1,121 @@
+JOLSAVER TITLE 'JOL EXECUTION  MONITOR SAVE AREA CONTROL'               00010001
+         LCLA  &A                                                       00020003
+* THIS ROUTINE SETS UP THE NEXT SAVE AREA IN THE JOL SCHEDULER. R15     00030000
+* POINTS TO THE NEXT AMOUNT REQUIRED FOR A SAVE AREA,AND THIS IS        00040000
+* OBTAINED FROM A BLOCK OBTAINED DURING ASSEMBLY OF THE PROGRAM.        00050000
+         SPACE  1                                                       00060000
+* NOTE: THE FIRST WORD OF THE SAVE AREA CONTAINS THE LENGTH OF THE      00070000
+*    THE OLD SAVE AREA (MORE THAN 72 BYTES MAY HAVE BEEN ALLOCATED,     00080000
+*    SOME AS A WORK AREA).                                              00090000
+         SPACE  1                                                       00100000
+SAPHDR   DSECT                                                    J40B  00110008
+SAPNEXT  DS    A               ADDRESS OF NEXT AREA AVAILABLE     J40B  00120008
+SAPTOP   DS    A               SATOP ADDRESS OF END OF SAVE AREA  POOL  00130008
+         SPACE 2                                                  J40B  00140008
+SA       DSECT                 SAVE AREA FORMAT                   J40B  00150008
+SASAP    DS    A               ADDRESS OF POOL                    J40B  00160008
+SASIZE   DS    F               SIZE OF THIS SAVE AREA             J40B  00170008
+SARETN   DS    A               ADDRESS OF RETURN POINT            J40B  00180008
+SASA     DS    A               THE NEXT TWO POINTERS POINT HERE   J40B  00190008
+SABACK   DS    A               PREVIOUS SAVE AREA                 J40B  00200008
+SAFWD    DS    A               NEXT SAVE AREA                     J40B  00210008
+SAR14    DS    0A                                                 J40B  00211009
+SAUNSAV  DS    A               ADDRESS OF ROUTINE TO UNLINK       J40B  00220008
+SAR15    DS    A                                                  J40B  00221009
+SAR0     DS    A                                                  J40B  00222009
+SAR1     DS    A                                                  J40B  00223009
+SAR2     DS    A                                                  J40B  00224009
+SAR3     DS    A                                                  J40B  00225009
+SAR4     DS    A                                                  J40B  00226009
+SAR5     DS    A                                                  J40B  00227009
+SAR6     DS    A                                                  J40B  00228009
+SAR7     DS    A                                                  J40B  00229009
+SAR8     DS    A                                                  J40B  00229109
+SAR9     DS    A                                                  J40B  00229209
+SAR10    DS    A                                                  J40B  00229309
+SAR11    DS    A                                                  J40B  00229409
+SAR12    DS    A                                                  J40B  00229509
+         SPACE 2                                                  J40B  00230008
+JOLSAVER CSECT                                                          00240001
+.L       AIF   (&A GT 15).E                                             00250003
+R&A      EQU   &A                                                       00260003
+&A       SETA  1+&A                                                     00270003
+         AGO   .L                                                       00280003
+.E       ANOP                                                           00290003
+         USING JOLSAVER,R1                                              00300003
+         USING SASA,R13                                           J40B  00301009
+         B     JS010                                              J40B  00302012
+         DC    C'JOLSAVER'                                        J40B  00303012
+JS010    DS    0H                                                 J40B  00304012
+*        CLC   =F'0',X'090'(R3)  DEBUGGING                        J40B  00305019
+*        BNE   JS020                                              J40B  00306019
+*        D     R0,=F'0'                                           J40B  00307019
+JS020    DS    0H                                                 J40B  00308018
+         L     R14,0(,R13)     ADDRESS SAVE AREA ADDRESS PREFIX         00310000
+         USING SA,R14          OLD SAVE AREA                      J40B  00311013
+         L     R13,SASAP       ADDRESS SA POOL                          00320009
+         USING SAPHDR,R13      SA POOL HEADER                     J40B  00321013
+         L     R0,0(,R13)      ADDRESS NEW SAVE AREA                    00330003
+         LA    R2,16           SPACE FOR HEADER                         00340003
+         AL    R2,0(,R15)      LENGTH REQUIRED FOR NEW ONE              00350003
+         ALR   R2,R0           ADDRESS OF NEXT SA                       00360003
+         C     R2,SAPTOP       WILL IT FIT ?                            00371009
+         BH    JOLSAVEX        NOPE,ABEND FOR NOW                       00380000
+         ST    R2,SAPNEXT      UPDATE SA POOL HEADER                    00391009
+         LR    R2,R0           WE NEED TO STORE IN THE NEW SAVE AREA    00400009
+         ST    R13,SA-SA(,R2)  UPDATE SA HEADER                         00410009
+         LR    R13,R2          ADDRESS OF NEW AREA                      00420003
+         MVC   SARETN,SAUNSAV  ACTUAL RETURN ADDRESS IN OLD SA          00420113
+         LA    R0,JOLUNSAV                                              00420213
+         ST    R0,SAUNSAV      POINT TO MY ROUTINE                      00420313
+         DROP  R13,R14                                            J40B  00421013
+         USING SA,R13                                             J40B  00422013
+         MVC   SASIZE,0(R15) STORE ITS LENGTH                           00431013
+         ST    R13,SASA        POINTER TO HEADER                        00440009
+         LA    R0,SASA-SA      HEADER LENGTH                            00480010
+         ALR   R13,R0          ADDRESS SAVE AREA                        00490003
+         ALR   R14,R0          ADDRESS SAVE AREA                        00500003
+         ST    R14,4(,R13)     SET UP                                   00510000
+         ST    R13,8(,R14)     *   CHAIN                                00520000
+         LM    R0,R2,20(R14)   SOMEONE PUT THESE THERE, I HOPE          00530003
+         B     4(R15)          AND BACK TO CALLING ROUTINE              00540000
+         DROP  R1                                                       00550003
+JOLSAVEX ABEND 23,DUMP                                                  00560000
+         DC    C'OUT OF SAVEAREA SPACE'                           J40B  00570005
+         DC    0F'0',C'USAV'                                            00580003
+JOLUNSAV DS    0H                                                       00590003
+         AGO   .Z                                                       00600003
+         ST    R13,ZAQW-*(,R14)                                         00610003
+         L     R13,0(,R13)     POINT TO THE HEADER                      00620003
+         L     R14,0(,R13)     ADDRESS SA POOL                          00630003
+         ST    R13,0(,R14)     UPDATE POINTER IN SA POOL                00640003
+         L     R13,16(,R13)    ADDRESS PREVIOUS AREA                    00650003
+         L     R14,0(,R13)     ADDRESS THIS HEADER                      00660003
+         ICM   R14,15,8(R14)   CALLER'S RETURN ADDRESS                  00670003
+         BNZR  R14                                                      00680003
+         L     R14,12(,R13)    CALLER'S RETURN ADDRESS                  00690003
+         BR    R14                                                      00700003
+ZAQW     DS    F                                                        00710003
+.Z       ANOP                                                           00720003
+         USING SASA,R13                                           J40B  00721009
+         L     R13,SASA        POINT TO THE HEADER                      00730009
+         USING SA,R13                                             J40B  00731009
+         L     R14,SASAP       ADDRESS SA POOL                          00740009
+         USING SAPHDR,R14                                         J40B  00741009
+*        MVC   0(4,R14),X'014'(R13) UPDATE POINTER IN SA POOL    88036  00750006
+*        ST    R13,0(,R14)     UPDATE POINTER IN SA POOL                00760006
+         ST    R2,SAR2         SAVE THE CONTENTS                  J40B  00770017
+*        LA    R0,12                                              J40B  00780017
+*        LCR   R0,R0           -12                                J40B  00790017
+*        AL    R0,SAFWD                                           J40B  00800017
+         L     R2,SASA                                            J40B  00801017
+         USING SA,R2                                              J40B  00802017
+         AL    R2,SASIZE                                          J40B  00803017
+         LA    R2,SASA-SA(,R2)                                    J40B  00804017
+         ST    R2,SAPNEXT                                         J40B  00810017
+         L     R2,SAR2                                            J40B  00820017
+         L     R14,SARETN      CALLER'S RETURN ADDRESS                  00830009
+         LA    R13,SASA        POINT BACK TO THE SAVE AREA              00840009
+         BR    R14             GO THERE                                 00850006
+         DS    0D                                                 J40B  00860006
+         END                                                            00870001

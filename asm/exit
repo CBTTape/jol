@@ -1,0 +1,77 @@
+EXIT     TITLE 'JOL EXIT INSTRUCTION'                                   00010000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1981.                          00020000
+* JOL COPYRIGHT CCS-JOL 1987.                                           00030000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00040000
+           SPACE 3                                                      00050000
+*                   J             000000            L                   00060000
+*                   J            0      0           L                   00070000
+*                   J           0        0          L                   00080000
+*                   J          0          0         L                   00090000
+*                   J         0            0        L                   00100000
+*                   J         0            0        L                   00110000
+*                   J         0            0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0            0        L                   00160000
+*        J          J         0            0        L                   00170000
+*         J        J           0          0         L                   00180000
+*          J      J             0        0          L                   00190000
+*           J    J               0      0           L                   00200000
+*            JJJJ                 000000            LLLLLLLLLLL         00210000
+           SPACE 3                                                      00220000
+         COPY  JOLCOM                                                   00230000
+* THE FOLLOWING SOURCE CODE  CONTAINS THE ADD_ONS:-                     00240000
+*                                                                       00250000
+*  1. EXIT     QUIT, OR EXIT AT LEVEL 0 - RETURN TO OS IMMEDIATELY      00260000
+*  2. EXIT     NUMBER - SET %LASTCC, EXIT FROM MACRO                    00270000
+*  3. EXIT     TEXT   - DISPLAY TEXT, EXIT FROM MACRO                   00280000
+*                                                                       00290000
+*                                                                       00300000
+*                                                                       00310000
+UJP47EXI JOLSAVE                                                        00320000
+         ORG    UJP47EXI                                                00330000
+EXIT     EQU    *                                                       00340000
+         ENTRY  EXIT                                                    00350000
+         ORG                                                            00360000
+         MVC    ICOMMAND,=CL8'\' SET TO SPECIAL EXIT CODE               00361003
+         GETTKN 3              GET LABEL NAME                           00370000
+         CLI    TKN,C' '       TOO MANY TOKENS?                         00380000
+         BE     P47TJOB        NO, PRESS ON                             00390000
+         JOLERR 401,'TOO MANY PARAMETERS ON EXIT. CHECK SEMI-COLONS'    00400000
+P47TJOB  GETTKN 2              GET LABEL NAME                           00410000
+         CLI    TKNTYPE,3      LITERAL STRING (A MESSAGE ?)             00420001
+         BNE    P47NLIT        NO, SO TRY NEXT                          00430001
+         BAL    R14,DROPQUOT   DROP QUOTES FROM THE MESSAGE             00440001
+         LA     R1,TKN         GET MESSAGE AREA ADDRESS.                00450001
+         LH     R0,#TKN        GET LENGTH TO GO TO SCREEN.              00460001
+         SVC    93             GET VALUE FROM THE SCREEN.               00470001
+         B      P47TLEVL       TEST HOW WE EXIT                         00480001
+P47NLIT  CLI    TKNTYPE,0      IS THIS A NUMBER ? IE SET %LASTCC ?      00490001
+         BNE    P47NNUM        NO, SO TRY NEXT                          00500001
+         MVC    ICOMMAND,=CL8'MACRO' MAKE ASSIGN BETTER.                00510001
+         MVC    SYMBOLIC,=CL8'LASTCC'                                   00520001
+         MVC    #WORK(15),#TKN SET LASTCC TO VALUE SPECIFIED            00530001
+         $CALL  UJP85ASN       STORE IN %LASTCC                         00540001
+         MVC    ICOMMAND,=CL8'\' SET TO SPECIAL EXIT CODE               00550003
+         B      P47TLEVL       TEST HOW WE EXIT                         00560001
+P47NNUM  CLC    =C'JOB ',TKN   IS THIS EXIT THIS JOB ONLY?              00570001
+         BE     P47JOB         YES                                      00580005
+         CLC    =C'QUIT ',TKN  IS IT QUIT TOTALLY?                      00590000
+         BE     P47QUIT        YES, SO TERMINATE JOB TOTALLY.           00600000
+         CLI    TKN,C' '       JUST QUIT BY ITSELF ?                    00601004
+         BE     P47TLEVL                                                00602004
+         JOLERR 402,'INVALID PARAMETER IN EXIT:''',             ********00610000
+               #TKN,''''                                                00620000
+P47QUIT  MVC    ICOMMAND,=CL8'\\' SET TO SPECIAL EXIT CODE              00621003
+         JOLRETN ,             ON RETURN, MAIN-LINE CHECKS FOR EXIT     00630003
+*                              IN 'ICOMMAND' AND IF STILL THERE, IT     00640001
+*                              REALLY DOES EXIT FOR US.                 00650001
+*                              THIS IS THE BEST WAY TO DO IT BECAUSE    00660001
+*                              ALL THE SAVE AREAS ETC ARE THEN CORRECT. 00670001
+P47TLEVL DS     0H             HERE, WE MUST EXIT OUT OF A MACRO        00680001
+         JOLRETN                                                        00721003
+P47JOB   MVC    ICOMMAND,=CL8'\/' SET TO SPECIAL EXIT CODE              00731005
+         JOLRETN ,             ON RETURN, MAIN-LINE CHECKS FOR EXIT     00741005
+         LTORG                                                          00760000
+         END                                                            00770000

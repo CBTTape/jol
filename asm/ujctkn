@@ -1,0 +1,436 @@
+UJCTKN   TITLE 'TOKENISE - SPLIT TOKENS FOR STATEMENT'                  00010023
+UJCTKN   CSECT                                                          00020023
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973                 00030022
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1976                           00040022
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1980                           00050022
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1982                           00060022
+* JOL COPYRIGHT CCS-JOL 1986.  1987,  1988 1990                         00070023
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00080022
+         SPACE 3                                                        00090023
+*                   J             000000            L                   00100022
+*                   J            0      0           L                   00110022
+*                   J           0        0          L                   00120022
+*                   J          0          0         L                   00130022
+*                   J         0            0        L                   00140022
+*                   J         0            0        L                   00150022
+*                   J         0            0        L                   00160022
+*                   J         0            0        L                   00170022
+*                   J         0            0        L                   00180022
+*                   J         0            0        L                   00190022
+*                   J         0            0        L                   00200022
+*        J          J         0            0        L                   00210022
+*         J        J           0          0         L                   00220022
+*          J      J             0        0          L                   00230022
+*           J    J               0      0           L                   00240022
+*            JJJJ                 000000            LLLLLLLLLLL         00250022
+         SPACE 3                                                        00260022
+* THIS MODULE SETS UP THE TOKEN ADDR START AND LENGTH VALUES ON ENTRY   00270023
+* TO THE ROUTINE R1 CONTAINS THE ADDRESS OF A PARAMETER LIST POINTING   00280023
+* TO SOME INFORMATION                                                   00290023
+         SAVE  (14,12),,UJCTKN.&SYSDATE..&SYSTIME                       00300023
+R0       EQU   0   GENERAL WORK REGISTER                                00310023
+R1       EQU   1   GENERAL WORK REGISTER                                00320023
+R2       EQU   2   TRT REGISTER                                         00330023
+R3       EQU   3   POINTS TO 'TKNX'                                     00340023
+R4       EQU   4   ALWAYS POINTS TO CURRENT CHARACTER                   00350023
+R5       EQU   5                                                        00360023
+R6       EQU   6   ALWAYS CONTAINS 1 FOR BXLE INCREMENT                 00370023
+R7       EQU   7   POINTS TO LAST CHARACTER TO BE EXAMINED              00380023
+R8       EQU   8   MODIFIER TO STORE INTO TKNDESC                       00390023
+R9       EQU   9   ALWAYS= A(TKNSTRG) TO CALCULATE OFFSETS QUICKLY      00400023
+R10      EQU   10  INDICATORS                                           00410023
+R11      EQU   11  BASE REGISTER                                        00420023
+R12      EQU   12  CONTAINS R4 VALUE FOR CALCULATING LENGTH OF STRING   00430023
+R13      EQU   13  POINTS TO CALLERS ** SAVE AREA                       00440023
+R14      EQU   14  GENERAL WORK REGISTER                                00450023
+R15      EQU   15  GENERAL WORK REGISTER                                00460023
+         LR    R11,R15                                                  00470023
+         USING UJCTKN,R11                                               00480022
+         L     R3,0(R1)        GET ADDR OF THE TOKEN AREA               00490022
+         USING TKNX,R3                                                  00500022
+         CLC   #TKNSTRG,=Y(L'TKNSTRG-1)    STRING TOO LONG?             00510023
+         BH    RETN4                                                    00520022
+         SLR   R15,R15                                            J50   00521058
+         LA    R0,TKNNO                                           J50   00522058
+         LA    R1,600                                             J50   00523058
+         MVCL  R0,R14                                             J50   00524058
+*        XC    TKNNO(256),TKNNO                                   74303 00530057
+*        XC    TKNNO+256(256),TKNNO+256                           74303 00540057
+*        XC    TKNNO+512(092),TKNNO+512                           74303 00550057
+         FIX   'MAKE MORE, OR ALL ZEROES'                               00560023
+         LA    R6,1            SET UP AN INCREMENT FOR BXLE IN R6 74303 00570022
+         STH   R6,TKNCURR        SET TKNCURR TO 1 FOR OUR CALLER  74303 00580023
+         SPACE 2                                                        00590022
+         LA    R4,TKNSTRG                                               00600022
+         LH    R15,#TKNSTRG                                       74303 00620056
+         LA    R15,TKNSTRG(R15) ADDRESS NEXT BYTE AFTER END       74303 00621056
+         ICM   R10,15,0(R15)                                      J50   00622056
+         MVI   0(R15),C' '       CLEAR NEXT BYTE TO MAKE          74303 00630056
+         MVI   0(R15),X'FF'       AND NEXT BYTE TO MAKE           J50   00640056
+*                                       LIFE EASIER LATER ON            00650022
+*        BCTR  R7,0             -1 COS WE WERE POINTING           74303 00660051
+*                                            AT THE NEXT POSN AFTER     00670022
+*                                             THE END OF THE STRING     00680022
+         LA    R8,TKNDESC                                         J50   00691026
+         LR    R9,R4           SAVE START TO CALCULATE OFFSETS    74303 00700022
+SKIPBLNK LR    R1,R4                                              J50   00710023
+         SLR   R2,R2                                              J50   00720023
+         TRT   0(256,R1),ENDBLANK SKIP TO FIRST NONBLANK          J50   00730024
+         CH    R2,=H'4'                                           J50   00740024
+         BE    RETN0             END OF STRING                    J50   00750024
+* NOW CALCULATE THE OFFSET OF THE STRING IN TKNSTRG               74303 00760000
+*  R4-> START TKN AREA                                            74303 00770023
+*  R1-> CURRENT CHARACTER                                         74303 00780023
+*  R8 IS INDEX TO TKNDESC TABLE                                   74303 00790023
+         LR    R15,R1          LOAD CURRENT POINTER               74303 00800023
+         SR    R15,R9          15=OFFSET NOW                      74303 00810035
+         STH   R15,2(R8)         GOOD,OFFSET STORED               74303 00820026
+* NOW,R8 IS INCREMENTED BY 4 AT LABEL 'ENDTOKEN' AND CHECKED      74303 00830024
+*  TO BE < 600 (OR 150 TOKENS IN TOTAL)                           74303 00840022
+* NOW WE CAN START OUR EXAMINATION OF THE STRING TO FIND THE            00850000
+*  END OF THE CURRENT TOKEN.                                            00860022
+         LR    R12,R1          SAVE START ADDR FOR CALCULATING    74303 00870024
+*                                    LENGTH OF TOKEN LATER              00880024
+         B     *-4(R2)           FIND OUT WHAT THE STRING MIGHT BEJ40   00890024
+         B     IDENT             08 ANYTHING EXCEPT FOLLOWING     J50   00900030
+         B     NUM               0C NUMERIC                       J50   00910030
+         B     SPEC              10 SPECIAL                       J50   00920030
+         B     SPEC              14 SPECIAL, MAY BE COMPOUND      J50   00930030
+         B     LIT               QUOTE: BEGINS CHAR LITERAL       J50   00940030
+* R1 POINTS TO THE CURRENT BYTE IN THE STRING WE ARE EXAMINING.         00950024
+         SPACE 1                                                        00960022
+* LETS HAVE A LOOK AND SEE IF IT IS A NUMBER,IF SO ANY ALPHABETIC       00970024
+*  CHARACTER WILL STOP THE SCAN.                                        00980024
+*                                                                 J50   00990024
+*        CLI   0(R4),C'0'                                         J50   01000024
+*        BL    NOTNUM                                             J50   01010024
+*        CLI   0(R4),C'9'                                         J50   01020024
+*        BH    NOTNUM                                             J50   01030024
+* THE TOKEN WE ARE EXAMINING IS A NUMERIC FIELD                         01040000
+NUM      DS    0H                                                       01050024
+         MVI   1(R8),0           IT'S NUMERIC                     J50   01060026
+         SLR   R2,R2                                              J50   01061062
+         TRT   0(256,R1),ENDNUM   SKIP TO FIRST NON-NUMERIC       J50   01070024
+*        CH    R2,=H'4'                                           J50   01080024
+*        BE    FINNUM            END OF STRING                    J50   01090024
+         B     STORLEN                                                  01110023
+IDENT    DS    0H                                                       01120024
+         MVI   1(R8),2           IT'S AN IDENTIFIER               J50   01130026
+         LA    R1,1(,R1)         SKIP                             J50   01131044
+         SLR   R2,R2                                              J50   01132062
+         TRT   0(256,R1),ENDIDENT SKIP TO FIRST NON-IDENTIFIER    J50   01140024
+         B     STORLEN                                                  01150024
+LIT      DS    0H                                                       01160024
+         MVI   1(R8),3           I THINK IT'S A QUOTED STRING     J50   01170026
+         SLR   R2,R2                                              J50   01171062
+         TRT   1(256,R1),ENDLIT   SKIP TO FIRST NON-IDENTIFIER    J50   01180037
+         LA    R1,1(,R1)         SKIP                             J50   01181039
+         CLI   0(R1),C''''       DOUBLE QUOTE?                    J50   01190039
+         BE    LIT               YES, TRY AGAIN                   J50   01220061
+CHECKLIT DS    0H                                                       01230024
+         CH    R2,=Y(X'18')                                       J50   01240060
+         BE    STORLIT           END OF STRING                    J50   01250063
+         MVI   1(R8),16          I THINK IT'S RUBBISH             J50   01260026
+         B     RETN16                                                   01270024
+SPEC     DS    0H                SPECIALS CAN ONLY BE 1 OR TWO BYTES    01280024
+*                                  LONG. THEREFORE WE DO THINGS         01290024
+*                                  DIFFERENTLY HERE                     01300024
+         MVI   1(R8),1           IT'S AN IDENTIFIER               J50   01310026
+         LM    R14,R15,COMPOUND+4                                 J50   01330046
+         L     R6,COMPOUND+0                                      J50   01340045
+SPECSRCH DS    0H                SPECIALS CAN ONLY BE 1 OR TWO BYTES    01350024
+         CLC   0(2,R1),0(R6)                                      J50   01360047
+         BE    COMPSPEC                                           J50   01370024
+         BXLE  R6,R14,SPECSRCH                                    J50   01380045
+         LA    R1,1(,R1)                                          J50   01390024
+         B     STORLEN                                                  01400024
+COMPSPEC DS    0H                COMPOUND SPECIAL                       01410033
+         LA    R1,2(,R1)                                          J50   01420024
+*        B     STORLEN                                                  01430063
+STORLEN  DS    0H                                                       01440022
+STORLIT  DS    0H                                                       01450051
+         LR    R4,R1                                                    01460024
+         SR    R1,R12          R1 NOW CONTAINS THE LENGTH         74303 01470022
+*                            THE TOKEN                                  01480022
+         CH    R1,=Y(L'TKN)                    TOKEN TOO LONG ?         01490023
+         BH    RETN12                                                   01500022
+         STC   R1,0(R8)          LENGTH STORED                          01510026
+         CLI   1(R8),3           IS IT A QUOTED STRING            J50   01520063
+         BE    ENDTOKEN          IT IS                                  01521063
+         BCTR  R1,0              TRANSLATE TO UPPER CASE          J50   01522063
+         EX    R1,UCASE                                           J50   01523063
+ENDTOKEN DS    0H                                                       01570022
+         LA    R8,4(,R8)        ADD TO MODIFIER                   74303 01580023
+         LA    R0,#TKN                                            J50   01591027
+         CR    R8,R0             TOO MANY TOKENS ?                J50   01600035
+         BNL   RETN8             YES,SO STOP PROCESSING           J50   01610035
+         CH    R2,=H'4'                                           74303 01620024
+         BNE   SKIPBLNK                                                 01630024
+RETN0    DS    0H                                                       01640024
+         SR    R15,R15                                                  01650022
+         B     RETN                                                     01660022
+UCASE    OC    0(0,R12),=CL256' '                                 J50   01661063
+RETN4    LA    R15,4                                                    01670022
+         B     RETN                                                     01680022
+RETN8    LA    R15,8                                                    01690022
+         B     RETN                                                     01700022
+RETN12   LA    R15,12                                                   01710022
+         B     RETN                                                     01720022
+RETN16   LA    R15,16                                                   01730022
+RETN     DS    0H                                                       01740022
+* HERE WE HAVE REACHED THE END OF THE STRING,SO WE MUST SET UP    74303 01750022
+*  THE NUMBER OF TOKENS WE HAVE DEALT WITH. R8=NUMBER X 4         74303 01760022
+         LA    R0,TKNDESC                                         J50   01760138
+         SR    R8,R0                                              J50   01761035
+         SRL   R8,2               4                               74303 01770022
+         STH   R8,TKNNO                                           74303 01780022
+         LH    R14,#TKNSTRG                                       74303 01780156
+         LA    R14,TKNSTRG(R14) ADDRESS NEXT BYTE AFTER END       74303 01780256
+         MVI   0(R14),C' '       CLEAR NEXT BYTE TO MAKE          74303 01780456
+         RETURN (14,12),T,RC=(15)                                       01790022
+*                                            START                      01800023
+COMPOUND DC    A(COMP1,2,COMPE)                                   J50   01810033
+COMP1    DC    C'||'                                              J50   01820024
+         DC    C'^='                                              J50   01830024
+         DC    C'¦¦'                                              J50   01840024
+         DC    C'<='                                              J50   01850024
+         DC    C'>='                                              J50   01860024
+         DC    C'^>'                                              J50   01870024
+         DC    C'^<'                                              J50   01880024
+COMPE    DC    X'0000'                                            J50   01890024
+TABLE1   DC    256XL1'00'         TABLE FOR TRT INSTRUCTION             01900023
+         ORG   TABLE1+C'='    THIS TABLE CONTAINS SPECIAL               01910023
+         DC    CL1'='             CHARACTERS.                           01920023
+         ORG   TABLE1+C':'                                              01930023
+         DC    CL1':'                                                   01940023
+         ORG   TABLE1+C'.'                                              01950023
+         DC    CL1'.'                                                   01960023
+         ORG   TABLE1+C'*'                                              01970023
+         DC    CL1'*'                                                   01980023
+         ORG   TABLE1+C'+'                                              01990023
+         DC    CL1'+'                                                   02000023
+         ORG   TABLE1+C'-'                                              02010023
+         DC    CL1'-'                                                   02020023
+         ORG   TABLE1+C','                                              02030023
+         DC    CL1','                                                   02040023
+         ORG   TABLE1+C';'                                              02050023
+         DC    CL1';'                                                   02060023
+         ORG   TABLE1+C'('                                              02070023
+         DC    CL1'('                                                   02080023
+         ORG   TABLE1+C')'                                              02090023
+         DC    CL1')'                                                   02100023
+         ORG   TABLE1+C'<'                                              02110023
+         DC    CL1'<'                                                   02120023
+         ORG   TABLE1+C'>'                                              02130023
+         DC    CL1'>'                                                   02140023
+         ORG   TABLE1+C'/'                                              02150023
+         DC    CL1'/'                                                   02160023
+         ORG   TABLE1+C'&&'                                             02170023
+         DC    CL1'&&'                                                  02180023
+         ORG                                                            02190023
+         SPACE 3                                                        02200023
+TABLE2   DC    256XL1'00'          TABLE FOR TRT INSTRUCTION            02210023
+INIT2    ORG   TABLE2+C' '         THIS TABLE CONTAINS THE              02220023
+         DC    CL1' '              SPECIAL CHARACTERS THAT CAN          02230023
+         ORG   TABLE2+C'='         END AN IDENTIFIER.                   02240023
+         DC    CL1'='                                                   02250023
+         ORG   TABLE2+C':'                                              02260023
+         DC    CL1':'                                                   02270023
+         ORG   TABLE2+C'.'                                              02280023
+         DC    CL1'.'                                                   02290023
+         ORG   TABLE2+C'*'                                              02300023
+         DC    CL1'*'                                                   02310023
+         ORG   TABLE2+C'+'                                              02320023
+         DC    CL1'+'                                                   02330023
+         ORG   TABLE2+C'-'                                              02340023
+         DC    CL1'-'                                                   02350023
+         ORG   TABLE2+C','                                              02360023
+         DC    CL1','                                                   02370023
+         ORG   TABLE2+C''''                                             02380023
+         DC    CL1''''                                                  02390023
+         ORG   TABLE2+C';'                                              02400023
+         DC    CL1';'                                                   02410023
+         ORG   TABLE2+C'('                                              02420023
+         DC    CL1'('                                                   02430023
+         ORG   TABLE2+C')'                                              02440023
+         DC    CL1')'                                                   02450023
+         ORG   TABLE2+C'<'                                              02460023
+         DC    CL1'<'                                                   02470023
+         ORG   TABLE2+C'>'                                              02480023
+         DC    CL1'>'                                                   02490023
+         ORG   TABLE2+C'/'                                              02500023
+         DC    CL1'/'                                                   02510023
+         ORG   TABLE2+C'^'                                              02520023
+         DC    CL1'^'                                                   02530023
+         ORG   TABLE2+C'|'                                              02540023
+         DC    CL1'|'                                                   02550023
+         ORG   TABLE2+C'&&'                                             02560023
+         DC    CL1'&&'                                                  02570023
+         ORG   TABLE2+X'FF'                                             02580023
+         DC    X'04'                                                    02590023
+         ORG                                                            02600023
+         SPACE 3                                                        02610023
+ENDBLANK DC    256X'08'          STOP SCAN ON EVERYTHING          J50   02620024
+         ORG   ENDBLANK+C' '     OFFSET TO A BLANK                J50   02630024
+         DC    01X'00'           EXCEPT THESE                     J50   02640024
+         ORG   ENDBLANK+X'FF'    OFFSET TO OUR SPECIAL STOPPER    J50   02650024
+         DC    01X'04'           IF WE GET THIS, IT'S ALL DONE    J50   02660024
+         ORG   ENDBLANK+C'0'     OFFSET TO A ZERO                 J50   02670024
+         DC    10X'0C'           THESE ARE NUMBERS                J50   02680024
+         ORG   ENDBLANK+C'='                                            02690024
+         DC    01X'10'           SPECIAL CHARACTERS                     02700024
+*        ORG   ENDBLANK+C'%'                                            02701041
+*        DC    01X'10'           SPECIAL CHARACTERS                     02702041
+         ORG   ENDBLANK+C':'                                            02710024
+         DC    01X'10'           SPECIAL CHARACTERS                     02720024
+         ORG   ENDBLANK+C'.'                                            02730024
+         DC    01X'10'           SPECIAL CHARACTERS                     02740024
+         ORG   ENDBLANK+C'*'                                            02750024
+         DC    01X'10'           SPECIAL CHARACTERS                     02760024
+         ORG   ENDBLANK+C'+'                                            02770024
+         DC    01X'10'           SPECIAL CHARACTERS                     02780024
+         ORG   ENDBLANK+C'-'                                            02790024
+         DC    01X'10'           SPECIAL CHARACTERS                     02800024
+         ORG   ENDBLANK+C','                                            02810024
+         DC    01X'10'           SPECIAL CHARACTERS                     02820024
+         ORG   ENDBLANK+C';'                                            02830024
+         DC    01X'10'           SPECIAL CHARACTERS                     02840024
+         ORG   ENDBLANK+C'('                                            02850024
+         DC    01X'10'           SPECIAL CHARACTERS                     02860024
+         ORG   ENDBLANK+C')'                                            02870024
+         DC    01X'10'           SPECIAL CHARACTERS                     02880024
+         ORG   ENDBLANK+C'<'                                            02890024
+         DC    01X'10'           SPECIAL CHARACTERS                     02900024
+         ORG   ENDBLANK+C'>'                                            02910024
+         DC    01X'10'           SPECIAL CHARACTERS                     02920024
+         ORG   ENDBLANK+C'/'                                            02930024
+         DC    01X'10'           SPECIAL CHARACTERS                     02940024
+         ORG   ENDBLANK+C'&&'                                           02950024
+         DC    01X'10'           SPECIAL CHARACTERS                     02960024
+         ORG   ENDBLANK+C'^'                                            02970024
+         DC    01X'14'           SPECIAL CHARACTERS, MAY BE COMPOUND    02980024
+         ORG   ENDBLANK+C'|'                                            02990024
+         DC    01X'14'           SPECIAL CHARACTERS, MAY BE COMPOUND    03000024
+         ORG   ENDBLANK+C'¦'                                            03010024
+         DC    01X'14'           SPECIAL CHARACTERS, MAY BE COMPOUND    03020024
+         ORG   ENDBLANK+C''''    QUOTE                                  03030024
+         DC    01X'18'                                                  03040024
+         ORG                                                            03041031
+ENDNUM   DC    256X'08'          STOP SCAN ON EVERYTHING          J50   03050024
+         ORG   ENDNUM+C'0'       OFFSET TO A BLANK                J50   03060024
+         DC    10X'00'           EXCEPT THESE                     J50   03070024
+         ORG   ENDNUM+X'FF'      OFFSET TO OUR SPECIAL STOPPER    J50   03080024
+         DC    01X'04'           IF WE GET THIS, IT'S ALL DONE    J50   03090024
+         ORG   ENDNUM+C'='                                              03100024
+         DC    01X'10'           SPECIAL CHARACTERS                     03110024
+         ORG   ENDNUM+C':'                                              03120024
+         DC    01X'10'           SPECIAL CHARACTERS                     03130024
+         ORG   ENDNUM+C'.'                                              03140024
+         DC    01X'10'           SPECIAL CHARACTERS                     03150024
+         ORG   ENDNUM+C'*'                                              03160024
+         DC    01X'10'           SPECIAL CHARACTERS                     03170024
+         ORG   ENDNUM+C'+'                                              03180024
+         DC    01X'10'           SPECIAL CHARACTERS                     03190024
+         ORG   ENDNUM+C'-'                                              03200024
+         DC    01X'10'           SPECIAL CHARACTERS                     03200164
+         ORG   ENDNUM+C','                                              03220024
+         DC    01X'10'           SPECIAL CHARACTERS                     03230024
+         ORG   ENDNUM+C';'                                              03240024
+         DC    01X'10'           SPECIAL CHARACTERS                     03250024
+         ORG   ENDNUM+C'('                                              03260024
+         DC    01X'10'           SPECIAL CHARACTERS                     03270024
+         ORG   ENDNUM+C')'                                              03280024
+         DC    01X'10'           SPECIAL CHARACTERS                     03290024
+         ORG   ENDNUM+C'<'                                              03300024
+         DC    01X'10'           SPECIAL CHARACTERS                     03310024
+         ORG   ENDNUM+C'>'                                              03320024
+         DC    01X'10'           SPECIAL CHARACTERS                     03330024
+         ORG   ENDNUM+C'/'                                              03340024
+         DC    01X'10'           SPECIAL CHARACTERS                     03350024
+         ORG   ENDNUM+C'&&'                                             03360024
+         DC    01X'10'           SPECIAL CHARACTERS                     03370024
+         ORG   ENDNUM+C'^'                                              03380024
+         DC    01X'14'           SPECIAL CHARACTERS, MAY BE COMPOUND    03390024
+         ORG   ENDNUM+C'|'                                              03400024
+         DC    01X'14'           SPECIAL CHARACTERS, MAY BE COMPOUND    03410024
+         ORG   ENDNUM+C'¦'                                              03420024
+         DC    01X'14'           SPECIAL CHARACTERS, MAY BE COMPOUND    03430024
+         ORG   ENDNUM+C''''      QUOTE                                  03440024
+         DC    01X'18'                                                  03450024
+         ORG                                                            03460024
+ENDIDENT DC    256X'08'          STOP SCAN ON EVERYTHING          J50   03470024
+         ORG   ENDIDENT+C'A'     OFFSET TO A                      J50   03480024
+         DC    09X'00'           EXCEPT THESE                     J50   03490024
+         ORG   ENDIDENT+C'J'     OFFSET TO J                      J50   03500064
+         DC    09X'00'           THESE                            J50   03510024
+         ORG   ENDIDENT+C'S'     OFFSET TO S                      J50   03520024
+         DC    08X'00'           AND THESE                        J50   03530024
+         ORG   ENDIDENT+C'A'-C' ' OFFSET TO A                     J50   03531065
+         DC    09X'00'           EXCEPT THESE                     J50   03532064
+         ORG   ENDIDENT+C'J'-C' ' OFFSET TO J                     J50   03533065
+         DC    09X'00'           THESE                            J50   03534064
+         ORG   ENDIDENT+C'S'-C' ' OFFSET TO S                     J50   03535065
+         DC    08X'00'           AND THESE                        J50   03536064
+         ORG   ENDIDENT+C'_'                                            03540024
+         DC    01X'00'           SPECIAL CHARACTERS                     03550024
+         ORG   ENDIDENT+C'@'                                            03560024
+         DC    01X'00'           SPECIAL CHARACTERS                     03570024
+         ORG   ENDIDENT+C'#'                                            03580024
+         DC    01X'00'           SPECIAL CHARACTERS                     03590024
+         ORG   ENDIDENT+C'$'                                            03600024
+         DC    01X'00'           SPECIAL CHARACTERS                     03610024
+         ORG   ENDIDENT+C'0'     OFFSET TO A ZERO                 J50   03611040
+         DC    10X'00'           THESE ARE NUMBERS                J50   03612040
+         ORG   ENDIDENT+X'FF'    OFFSET TO OUR SPECIAL STOPPER    J50   03620024
+         DC    01X'04'           IF WE GET THIS, IT'S ALL DONE    J50   03630024
+         ORG   ENDIDENT+C'='                                            03660024
+         DC    01X'10'           SPECIAL CHARACTERS                     03670024
+         ORG   ENDBLANK+C'%'                                            03671042
+         DC    01X'08'           SPECIAL CHARACTERS                     03672043
+         ORG   ENDIDENT+C':'                                            03680024
+         DC    01X'10'           SPECIAL CHARACTERS                     03690024
+         ORG   ENDIDENT+C'.'                                            03700024
+         DC    01X'10'           SPECIAL CHARACTERS                     03710024
+         ORG   ENDIDENT+C'*'                                            03720024
+         DC    01X'10'           SPECIAL CHARACTERS                     03730024
+         ORG   ENDIDENT+C'+'                                            03740024
+         DC    01X'10'           SPECIAL CHARACTERS                     03750024
+         ORG   ENDIDENT+C'-'                                            03760024
+         DC    01X'10'           SPECIAL CHARACTERS                     03770024
+         ORG   ENDIDENT+C','                                            03780024
+         DC    01X'10'           SPECIAL CHARACTERS                     03790024
+         ORG   ENDIDENT+C';'                                            03800024
+         DC    01X'10'           SPECIAL CHARACTERS                     03810024
+         ORG   ENDIDENT+C'('                                            03820024
+         DC    01X'10'           SPECIAL CHARACTERS                     03830024
+         ORG   ENDIDENT+C')'                                            03840024
+         DC    01X'10'           SPECIAL CHARACTERS                     03850024
+         ORG   ENDIDENT+C'<'                                            03860024
+         DC    01X'10'           SPECIAL CHARACTERS                     03870024
+         ORG   ENDIDENT+C'>'                                            03880024
+         DC    01X'10'           SPECIAL CHARACTERS                     03890024
+         ORG   ENDIDENT+C'/'                                            03900024
+         DC    01X'10'           SPECIAL CHARACTERS                     03910024
+         ORG   ENDIDENT+C'&&'                                           03920024
+         DC    01X'10'           SPECIAL CHARACTERS                     03930024
+         ORG   ENDIDENT+C'^'                                            03940024
+         DC    01X'14'           SPECIAL CHARACTERS, MAY BE COMPOUND    03950024
+         ORG   ENDIDENT+C'|'                                            03960024
+         DC    01X'14'           SPECIAL CHARACTERS, MAY BE COMPOUND    03970024
+         ORG   ENDIDENT+C'¦'                                            03980024
+         DC    01X'14'           SPECIAL CHARACTERS, MAY BE COMPOUND    03990024
+         ORG   ENDIDENT+C''''    QUOTE                                  04000024
+         DC    01X'18'                                                  04010024
+         ORG                                                            04020024
+         SPACE 3                                                        04030024
+ENDLIT   DC    256X'00'                                           J50   04040024
+         ORG   ENDLIT+X'FF'      OFFSET TO OUR SPECIAL STOPPER    J50   04050024
+         DC    01X'04'           IF WE GET THIS, IT'S ALL DONE    J50   04060024
+         ORG   ENDLIT+C''''      QUOTE                                  04070024
+         DC    01X'18'                                                  04080024
+         ORG                                                            04090024
+         PRINT DATA                                               J50   04100023
+TKNZAP01 DC    10S(*,*,*,*)                                       74303 04110023
+         COPY  JOLGLOBL                                                 04120022
+         COPY  TKNX                                                     04130022
+         END                                                            04140022

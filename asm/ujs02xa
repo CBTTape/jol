@@ -1,0 +1,314 @@
+UJS02XA TITLE 'SEARCH FOR UNITS AND SET DDUNITYP AND DDUNIT'            00010001
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00020001
+*                                                                       00030001
+* COPYRIGHT:- CLEM CLARKE 1983.                                         00040001
+*                                                                       00050000
+           SPACE 3                                                      00060001
+*                   J             000000            L                   00070000
+*                   J            0      0           L                   00080000
+*                   J           0        0          L                   00090000
+*                   J          0          0         L                   00100000
+*                   J         0            0        L                   00110000
+*                   J         0            0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0            0        L                   00160000
+*                   J         0            0        L                   00170000
+*        J          J         0            0        L                   00180000
+*         J        J           0          0         L                   00190000
+*          J      J             0        0          L                   00200000
+*           J    J               0      0           L                   00210000
+*            JJJJ                 000000            LLLLLLLLLLL         00220000
+           EJECT                                                        00230001
+* FIXES APPLIED JULY,1976                                               00240001
+*                                                                       00250001
+*                                                                       00260000
+******************************************************************      00270000
+*                                                                       00280000
+*                                                                       00290000
+* NEW MODULE BY C. V. CLARKE TO INCLUDE XA SUPPORT DEC, 1983.           00300001
+*                                                                       00310001
+*    THESE MODULES REPLACE CODE THAT CHECKED THE DEVNAMET IN:-          00320001
+*                                                                       00330001
+*     .  UJC03DS  (DS STATEMENT DECODER)                                00340001
+*     .  UJS01CAT (CATALOG LOOK UP ROUTINE)                             00350001
+*                                                                       00360000
+*    THESE MODULES ALSO REPLACE CODE THAT CHECKED THE UCB IN:-          00370002
+*                                                                       00380002
+*     .  UJG03DS  (GENERATE DD STATEMENT)                               00390005
+*                                                                       00400002
+*                                                                       00410000
+******************************************************************      00420000
+           EJECT                                                        00430001
+         PRINT OFF                                                      00440001
+         COPY JOLCOM                                                    00450000
+         PRINT ON                                                       00460001
+         SPACE 3                                                        00470000
+S01SAVE  DSECT                                                          00480005
+         DS    18F                                                      00490005
+* THE FOLLOWING AREAS ARE USED AS PARAMETERS TO IEFAB4UV                00500005
+S014UVP  DS    A               MUST POINT TO UNIT PARAMETER BLOCK       00510006
+AS01FLG  DS    A               MUST POINT TO FLAGS HALFWORD             00520006
+         SPACE 3                                                        00530005
+S01UNIT  DS    CL8             UNIT NAME MOVED HERE BY IEFEB4UV         00540008
+S01DEVT  DS    CL4             DEVTYPE COPIED HERE FROM CATLG           00550008
+AS01WORK DS    A               ADDRESS OF RETURN AREA (SET TO 0)        00560008
+S01SAVEL EQU   *-S01SAVE                                                00570005
+         JOLSAVE CSECT=UJS01DEV,SIZE=S01SAVEL                           00580005
+*                                                                       00590001
+         LM    R6,R7,0(R1)    LOAD THE PARAMETERS                       00600001
+         USING S01SAVE,R13    SET UP ADDRESSABILITY FOR WORK AREA       00610005
+         USING CATDEV,R6                                                00620005
+         USING DDDSNDET,R7                                              00630001
+         SPACE 3                                                        00640001
+*                                                                       00650001
+* TEST IF XA. IF NOT, USE THE DEVNAMET AND SEARCH FOR UNITS.            00660001
+*                                                                       00670001
+         L     R1,16          GET CVT ADDRESS                           00680001
+*        L     R1,0(R1)       ADDRESS CVT                               00690017
+         TM    116(R1),X'80'  IS IT XA?                                 00700001
+         BO    S01XA                                                    00710009
+* OK, MVS, VS1 OR SOMESUCH. SEE IF THE DEVNAMET IS LOADED               00720001
+         L     R1,AJOLGEN                                               00730001
+         USING GENDETS,R1                                               00740001
+         L     R1,ADEVNAME    LOAD ADDRESS OF THE TABLE                 00750001
+         DROP  R1                                                       00760001
+         LTR   R1,R1          IS IT LOADED? ?                           00770001
+         BNZ   S01TDEV        YES, SO LOOK IN DEVNAMET                  00780001
+* NO TABLE, AND NOT XA, ERROR.                                          00790004
+         JOLRETN RC=4                                                   00800004
+*                                                                       00810001
+* NOW SEARCH 'DEVNAMET' TABLE FOR THE UNIT.                             00820001
+* IF ITS NOT THERE, MERELY RETURN A 4.                                  00830001
+*                                                                       00840001
+S01TDEV  L     R15,0(R1)      LOAD NUMBER OF ENTRIES IN TABLE           00850001
+         MH    R15,=H'12'     MULT BY TABLE ENTRY SIZE                  00860001
+         LA    R1,4(R1)       ADD 4 TO START ADDRESS OF TABLE           00870001
+         AR    R15,R1         CALC END OF TABLE                         00880001
+         LA    R14,12         INCREMENT                                 00890001
+         CLC   CATDEV,8(R1)   FIND CATLG UNIT IN 'DEVNAMET'             00900001
+         BE    S01DEVUN                                                 00910001
+         BXLE  R1,R14,*-10    ROUND ROBIN                               00920001
+         JOLRETN RC=4                                                   00930001
+         SPACE 3                                                        00940001
+S01DEVUN EQU   *              WE HAVE FOUND THE DEVICE IN 'DEVNAMET'    00950001
+         MVC   DDUNIT,0(R1)   SHIFT IN UNIT NAME                        00960001
+         MVI   DDUNITYP,X'80' SET UP 'DISK' INDICATOR                   00970001
+         CLI   CATDEV+2,X'80' TAPE??                                    00980001
+         BNE   S01RETN0                                                 00990005
+         MVI   DDUNITYP,4     SET UP TAPE IN 'DDUNITYP'                 01000001
+*                             (NOT REALLY CHECKED ANYWHERE)             01010001
+S01RETN0 JOLRETN                                                        01020005
+         SPACE 3                                                        01030005
+**********************************************************              01040005
+*                                                        *              01050005
+*                                                        *              01060005
+*         X A   SUPPORT                                  *              01070005
+*                                                        *              01080005
+*                                                        *              01090005
+**********************************************************              01100005
+S01XA    EQU   *                                                        01110005
+         MVC   S01DEVT,CATDEV   COPY INTO GOTTEN STORAGE                01120008
+         MVC   AS01WORK,=A(0)   WE DON'T WANT ATTRIBUTES                01130008
+* PREPARE TO SET UP MAIN PARAMETER ADDRESSES                            01140005
+         LA    R14,S01UNIT                                              01150005
+         LA    R15,S01FLAGS                                             01160005
+         STM   R14,R15,S014UVP  STORE ADDRESSES FOR IEFAB4UV            01170005
+         LA    R1,S014UVP       GET ADDRESS OF PARAMETERS               01180005
+         LINK  EP=IEFEB4UV      LINK TO THE ROUTINE                     01190015
+*       $LINK  IEFEB4UV         LINK TO THE ROUTINE                     01200015
+         LTR   R15,R15          IS IT A UNIT NAME?                      01210005
+         BZ    S01RETN0         YES, RETURN A ZERO TO CALLER            01220005
+         JOLRETN RC=4           NO, RETURN AN ERROR CODE                01230005
+S01FLAGS DC    B'0010000000000000' FLAGS FOR IEFAB4UV (CONVERT          01240008
+*                               DEVTYPE TO UNIT, FUNCTION 2)            01250008
+         LTORG                                                          01260006
+CAT      DSECT                                                          01270001
+CATDEV   DS    XL4                                                      01280001
+         EJECT                                                          01290001
+C03SAVE  DSECT                                                          01300005
+         DS    18F                                                      01310005
+* THE FOLLOWING AREAS ARE USED AS PARAMETERS TO IEFAB4UV                01320005
+C034UVP  DS    A               MUST POINT TO UNIT PARAMETER BLOCK       01330006
+AC03FLG  DS    A               MUST POINT TO FLAGS HALFWORD             01340006
+         SPACE 3                                                        01350005
+C03UNIT  DS    CL8             UNIT NAME MOVED HERE                     01360005
+C03LOOKU DS    F               SET TO LOOKUP VALUE BY IEFEB4UV          01370009
+AC03ATTR DS    A               ADDRESS OF ATTRIB AREA (SET TO 0)        01380009
+C03SAVEL EQU   *-C03SAVE                                                01390005
+         JOLSAVE CSECT=UJC03DEV,SIZE=C03SAVEL                           01400005
+*                                                                       01410001
+         LM    R6,R7,0(R1)    LOAD THE PARAMETERS                       01420001
+         USING C03SAVE,R13    SET UP ADDRESSABILITY FOR WORK AREA       01430006
+         USING UNITNAME,R6                                              01440001
+         USING DDDSNDET,R7                                              01450001
+         SPACE 3                                                        01460001
+*                                                                       01470001
+* TEST IF XA. IF NOT, USE THE DEVNAMET AND SEARCH FOR UNITS.            01480001
+*                                                                       01490001
+         L     R1,16          GET CVT ADDRESS                           01500001
+*        L     R1,0(R1)       ADDRESS CVT                               01510017
+         TM    116(R1),X'80'  IS IT XA?                                 01520001
+         BO    C03XA                                                    01530009
+* OK, MVS, VS1 OR SOMESUCH. SEE IF THE DEVNAMET IS LOADED               01540001
+         L     R1,AJOLGEN                                               01550001
+         USING GENDETS,R1                                               01560001
+         L     R1,ADEVNAME    LOAD ADDRESS OF THE TABLE                 01570001
+         DROP  R1                                                       01580001
+         LTR   R1,R1          IS IT LOADED? ?                           01590001
+         BNZ   C03TDEV        YES, SO LOOK IN DEVNAMET                  01600001
+* NO TABLE, AND NOT XA, ERROR.                                          01610004
+         JOLRETN RC=4                                                   01620004
+*                                                                       01630001
+* NOW SEARCH 'DEVNAMET' TABLE FOR THE UNIT.                             01640001
+* IF ITS NOT THERE, MERELY RETURN A 4.                                  01650001
+*                                                                       01660001
+C03TDEV  L     R15,0(R1)      LOAD NUMBER OF ENTRIES IN TABLE           01670006
+         MH    R15,=H'12'     MULT BY L'TABLE                           01680001
+         LA    R1,4(R1)       SKIP TABLE START                          01690001
+         AR    R15,R1         AND SET TABLE END                         01700001
+         LA    R14,12         L'TABLE                                   01710001
+         CLC   UNITNAME,0(R1) IS IT A UNIT NAME??                       01720001
+         BE    C03DEVUN       YES                                       01730001
+         BXLE  R1,R14,*-10 CHECK FURTHER                                01740001
+*                                                                       01750001
+         JOLRETN RC=4         **** RETURN AN ERROR                      01760001
+         SPACE 3                                                        01770001
+C03DEVUN EQU   *              UNIT FOUND IN DEVNAMET                    01780001
+         MVI   DDUNITYP,X'80' PREPARE FOR DISK                          01790001
+         CLI   8+2(R1),X'80'  TAPE UNIT IN DEVNAMET?                    01800001
+         BNE   C03RETN0                                                 01810007
+         MVI   DDUNITYP,4     SET TO ANY TAPE UNIT                      01820001
+C03RETN0 JOLRETN                                                        01830006
+         SPACE 3                                                        01840001
+**********************************************************              01850005
+*                                                        *              01860005
+*                                                        *              01870005
+*         X A   SUPPORT                                  *              01880005
+*                                                        *              01890005
+*                                                        *              01900005
+**********************************************************              01910005
+         SPACE 3                                                        01920005
+C03XA    EQU   *                                                        01930005
+         MVC   C03UNIT,UNITNAME COPY INTO GOTTEN STORAGE                01940005
+         MVC   AC03ATTR,=A(0)   SET UP NO RETURN OF ATTRIBUTES          01950009
+* PREPARE TO SET UP MAIN PARAMETER ADDRESSES                            01960005
+         LA    R14,C03UNIT                                              01970005
+         LA    R15,C03FLAGS                                             01980005
+         STM   R14,R15,C034UVP  STORE ADDRESSES FOR IEFAB4UV            01990005
+         LA    R1,C034UVP       GET ADDRESS OF PARAMETERS               02000005
+         LINK  EP=IEFEB4UV      LINK TO THE ROUTINE                     02010015
+*       $LINK  IEFEB4UV         LINK TO THE ROUTINE                     02020015
+         LTR   R15,R15          IS IT A UNIT NAME?                      02030005
+         BZ    C03RETN0         YES, RETURN A ZERO TO CALLER            02040005
+         JOLRETN RC=4           NO, RETURN AN ERROR CODE                02050005
+C03FLAGS DC    B'0000001000000000' FLAGS FOR IEFAB4UV (FUNCTION 6)      02060009
+         LTORG                                                          02070006
+UNIT     DSECT                                                          02080001
+UNITNAME DS    CL8                                                      02090001
+         EJECT                                                          02100001
+G00SAVE  DSECT                                                          02110009
+         DS    18F                                                      02120009
+PARMLIST DS    3F                                                       02130009
+         ORG   PARMLIST                                                 02140009
+PARMWA   DS    A                   ADDRESS OF 100 BYTE WORK AREA        02150009
+PARMDEVT DS    A                   ADDRESS OF SEARCH SCAN               02160009
+PARMUCB  DS    A                   ADDRESS FOR RETURNED UCB             02170009
+DEVCLASS DS    CL1                                                      02180009
+ADDRUCB  DS    F                   UCB RETURNED ADDRESS                 02190009
+         DS    0D                                                       02200009
+WORKAREA DS    CL100                                                    02210009
+G00SAVEL EQU   *-G00SAVE                                                02220010
+         JOLSAVE CSECT=UJG00UCB,SIZE=G00SAVEL                           02230009
+*                                                                       02240002
+         L     R7,0(R1)            LOAD THE PARAMETER (DDDSNDET)        02250011
+         USING G00SAVE,R13         SET UP ADDRESSABILITY FOR WORK AREA  02260011
+         USING DDDSNDET,R7                                              02270002
+         SPACE 3                                                        02280002
+*                                                                       02290002
+* TEST IF XA. IF NOT, USE THE OLD UCB LOOKUP ROUTINE.                   02300002
+*                                                                       02310002
+         L     R1,16               GET CVT ADDRESS                      02320010
+         TM    116(R1),X'80'       IS IT XA?                            02340010
+         BO    G00XA                                                    02350009
+* OK, MVS, VS1 OR SOMESUCH. USE THE OLD METHOD.                         02360002
+         L     R15,16              GET CVT ADDRESS                      02370010
+         USING CVT,R15                                                  02380002
+         L     R14,CVTILK2         GET UCB LOOPUP TABLE ADDR            02390010
+         L     R14,40(R15)         GET UCB LOOPUP TABLE ADDR            02400010
+         CLC   0(2,R14),ZERO       SHOULD WE SKIP THIS ENTRY?           02410010
+         BE    G00BUMPU            YES.                                 02420010
+G00TUCB  CLC   0(2,R14),=X'FFFF'   LAST ENTRY?                          02430002
+         BE    G00RETN4            TELL CALLER NOT PERM MOUNTED.        02440010
+* NOW LOOK TO SEE IF THIS IS A DIRECT ACCESS DEVICE                     02450002
+         LH    R1,0(R14)           GET UCB ADDRESS ACTUAL               02460010
+         N     R1,=A(X'FFFF')      FOR 16 BIT UCB ADDRESSES ON MVS      02470010
+         USING UCBOB,R1            SET UP ADDRESSABILITY FOR UCB        02480013
+         CLI   UCBTBYT3,UCB3DACC   DIRECT ACCESS?                       02490002
+         BNE   G00BUMPU            BUMP TO NEXT ADDRESS                 02500010
+         TM    UCBSTAT,UCBPRES     PERMANENTLY MOUNTED?                 02510010
+         BNO   G00BUMPU            NO,SKIP TO NEXT ENTRY                02520010
+         CLC   UCBVOLI,DDVOLUME    VOLS EQUAL??                         02530010
+         BNE   G00BUMPU                                                 02540002
+* HERE WE HAVE A PERMANENTLY MOUNTED VOLUME                             02550002
+         JOLRETN RC=0              PERMANENTLY MOUNTED VOLUME.          02560010
+G00BUMPU LA    R14,2(R14)                                               02570002
+         B     G00TUCB                                                  02580002
+         DROP  R1                  DROP UCB ADDRESSABILITY              02590013
+         DROP  R15                 DROP CVT ADDRESSABILITY              02600014
+*                                                                       02610002
+G00RETN4 JOLRETN RC=4                                                   02620002
+*                                                                       02630002
+G00XA    DS    0H       XA UCB SCSN ROUTINE                             02640009
+         EJECT                                                          02650009
+XASCAN   TITLE 'TEST IOSVSUCB LOOKUP ROUTINE ON MVS/XA'                 02660009
+******************************************************************      02670009
+*                                                                       02680009
+*                                                                       02690009
+* MODIFIED BY C. V. CLARKE TO INCLUDE XA SUPPORT DEC, 1983              02700009
+*    THIS SUPPORT USES UCB LOOKUP SERVICES IF                           02710009
+*    WE ARE RUNNING ON AN XA SYSTEM.                                    02720009
+*                                                                       02730009
+* CODE FROM IBM MANUAL SYSTEM MACROS VOL 1                              02740009
+*                                                                       02750009
+******************************************************************      02760009
+         SPACE 3                                                        02770009
+         L     R3,CVTPTR           GET CVT ADDRESS                      02780009
+         USING CVTMAP,R3           SET UP ADDRESSABILITY TO CVT         02790009
+         XC    WORKAREA,WORKAREA   CLEAR THE WORK AREA                  02800009
+         LA    R1,WORKAREA         GET ADDRESS OF WORKAREA              02810009
+         ST    R1,PARMWA           STORE IT IN PARMLIST                 02820009
+         LA    R1,DEVCLASS         GET ADDRESS OF SEARCH PARMS          02830009
+         ST    R1,PARMDEVT         STORE IT IN PARMLIST                 02840009
+         MVI   DEVCLASS,UCB3DACC   SEARCH FOR DA DEVICES ONLY           02850009
+         LA    R1,ADDRUCB          ADDRESS OF RETURN FROM SCAN          02860009
+         ST    R1,PARMUCB          STORE ADDRESS                        02870009
+         OI    PARMUCB,X'80'       INDICATE END OF PARMLIST             02880009
+         LA    R1,PARMLIST                                              02890009
+         USING UCBOB,R9            SET UP ADDRESSABILITY FOR UCB        02900010
+G00SRCH  L     R15,CVTUCBSC        GET SCAN SERVICE ADDRESS             02910009
+         BALR  R14,R15             GO TO SCAN ROUTINE                   02920009
+         LTR   R15,R15             WAS A UCB RETURNED?                  02930009
+         BNZ   G00NMAT             NO, END OF SCAN                      02940009
+* HERE A UCB ADDRESS WAS RETURNED TO US.                                02950009
+         L     R9,ADDRUCB          GET UCB ADDR RETURNED                02960013
+         CLC   UCBVOLI,DDVOLUME    VOLS EQUAL??                         02970009
+         BNE   G00SRCH             CONTINUE                             02980009
+* THE VOLUME HAS BEEN FOUND, TEST IF PERM MOUNTED NOW                   02990009
+         TM    UCBSTAT,UCBPRES     PERMANENTLY MOUNTED?                 03000009
+         BNO   G00NMAT             RETURN A 4, NOT PERM MOUNTED         03010009
+         JOLRETN RC=0              IS PERM MOUNTED, RETURN              03020009
+G00NMAT  JOLRETN RC=4                                                   03030009
+         LTORG                                                          03040009
+         PRINT  OFF                                                     03050009
+         DSECT                                                          03060009
+         IEFUCBOB                                                       03070009
+         CVT   DSECT=YES                                                03080009
+         END                                                            03090009
+         DROP R15,R1                                                    03100009
+         LTORG                                                          03110002
+CVT      CVT   DSECT=YES,PREFIX=YES                                     03120003
+UCBS    DSECT                                                           03130003
+         IEFUCBOB    LIST=YES                                           03140003
+         END                                                            03150002

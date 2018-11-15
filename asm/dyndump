@@ -1,0 +1,238 @@
+         TITLE 'DYNAMIC ALLOCATION BLOCK FORMAT AND PRINT'              00000100
+DYNDUMP  START 0                                                        00000200
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *       00000300
+*                                                                       00000400
+*  THIS PROGRAM CALLED BY DYNPARM MACRO TO FORMAT AND PRINT             00000500
+*  DYNAMIC ALLOCATION REQUEST BLOCKS                                    00000600
+*                                                                       00000700
+*  SHOULD BE PUT INTO SYS1.LINKLIB OR A CONCATENATION.                  00000800
+*  LINK EDIT WITH THE REUS ATTRIBUTE.                                   00000900
+*                                                                       00001000
+*       A. J. LEGG, ELECTRONICS RESEARCH LABORATORY,                    00001100
+*                   SALISBURY, S.A.                                     00001200
+*                                                                       00001300
+*  LATEST MOD 19 OCT 79                                                 00001400
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *       00001500
+         PRINT NOGEN                                                    00001600
+         SAVE  (14,12),,*                                               00001700
+         BALR  12,0                                                     00001800
+         USING *,12                                                     00001900
+         LR    2,13                                                     00002000
+         LA    13,DMPSAV                                                00002100
+         ST    2,4(0,13)                                                00002200
+         ST    13,8(0,2)                                                00002300
+         LR    2,1                                                      00002400
+         L     11,24(2)           GET SVC99 RETURN CODE                 00002500
+         TM    DMPFIL,X'03'                                             00002600
+         BZ    DMP01               BRANCH IF FIRST TIME                 00002700
+         BO    DMP05               BRANCH IF WTO PREVIOSLY SELECTED     00002800
+         TM    DMPDCB+48,X'10'     TEST IF OPEN (ERMAN CLOSES IT)       00002900
+         BNZ   DMP05              BRANCH IF STILL OPEN                  00003000
+DMP01    OPEN  (DMPDCB,OUTPUT)                                          00003100
+         TM    DMPDCB+48,X'10'                                          00003200
+         BNZ   DMP02                                                    00003300
+* NO DUMP FILE ... ATTEMPT TO ALLOCATE ONE                              00003400
+         PRINT GEN                                                      00003500
+         DYNPARM DDNAME=DYNDUMP,SYSOUT=X,DEBUG=NO,MSG=NO,ID=DUMP        00003600
+         PRINT NOGEN                                                    00003700
+         LTR   15,15                 O.K.                               00003800
+         BZ    DMP01                 YES, NOW OPEN IT                   00003900
+         WTO   '**DUMP.  CANNOT ALLOCATE DYNDUMP FILE. USING WTO',     X00004000
+               ROUTCDE=11,DESC=7                                        00004100
+         MVI   DMPFIL,X'03'                                             00004200
+         B     DMP05                                                    00004300
+DMP02    TM    DMPFIL,X'03'        FIRST OPEN                           00004400
+         BNZ   DMP05               NO, BYPASS HEADING (OVERWRITTEN)     00004500
+         MVI   DMPFIL,X'01'                                             00004600
+         PUT   DMPDCB,DMPLN                                             00004700
+DMP05    MVI   DMPLN,X'40'                                              00004800
+         EX    0,DMPCLR                                                 00004900
+         MVC   DMPLN(DMPMSGSZ),DMPMSG                                   00005000
+         C     11,DMPF12                                                00005100
+         BNE   DMP06                                                    00005200
+         LH    11,DMPC12                                                00005300
+         B     *+8                                                      00005400
+DMP06    O     11,DMPCB0                                                00005500
+         STH   11,DMPLN+24                                              00005600
+         LR    3,2            ADDR OF REQUEST BLOCK                     00005700
+         LA    5,8                                                      00005800
+         BAL   7,DMPHEX                                                 00005900
+         LH    5,DMPTMP+2                                               00006000
+         STH   5,DMPLN+62     STORE VRB                                 00006100
+         L     5,DMPTMP+4                                               00006200
+         ST    5,DMPLN+72            STORE FLAGS1                       00006300
+         L     5,DMPTMP+8                                               00006400
+         ST    5,DMPLN+48            STORE ERROR CODE                   00006500
+         L     5,DMPTMP+12                                              00006600
+         ST    5,DMPLN+52           STORE INFO CODE                     00006700
+         LA    3,16(2)        ADDR OF FLAGS2                            00006800
+         LA    5,2                                                      00006900
+         BAL   7,DMPHEX                                                 00007000
+         L     5,DMPTMP                                                 00007100
+         ST    5,DMPLN+84     STORE FLAGS2                              00007200
+         L     5,20(2)                                                  00007300
+         ST    5,DMPLN+DMPMSGSZ    STORE ID                             00007400
+         TM    DMPFIL,X'03'        TEST FOR DYNDUMP FILE                00007500
+         BNO   DMP07               YES                                  00007600
+         MVI   DMPLN,C'+'          NO, WTO THIS LINE                    00007700
+         L     5,DMPRTC            GET ROUTING CODE                     00007800
+         ST    5,DMPLN+DMPMSGSZ+4  STORE                                00007900
+         LA    1,DMPWTO            ADDRESS OF MASSAGE                   00008000
+         SVC   35                  WTO WITH ROUTCDE=11                  00008100
+         B     DMP120              EXIT                                 00008200
+DMP07    TIME    ,             GET TIMESTAMP                            00008300
+         ST    1,TEMP                                                   00008400
+         UNPK  PDATE,TEMP(4)                                            00008500
+         ST    0,TEMP                                                   00008600
+         OI    TEMP+3,X'0F'        ZONE MARKER                          00008700
+         UNPK  PTIME,TEMP(4)                                            00008800
+         MVI   PTIME,X'4B'         ADD DECIMAL POINT                    00008900
+         MVC   DMPLN+DMPMSGSZ+8(12),PDATE+3  PUT TIMESTAMP IN           00009000
+         PUT   DMPDCB,DMPLN                                             00009100
+         MVI   DMPLN,X'40'                                              00009200
+         EX    0,DMPCLR                                                 00009300
+         MVC   DMPLN(DMPTLSZ),DMPTITL                                   00009400
+         PUT   DMPDCB,DMPLN                                             00009500
+         MVI   DMPLN,X'40'                                              00009600
+         EX    0,DMPCLR                                                 00009700
+         L     2,8(2)                                                   00009800
+DMP10    SR    3,3                                                      00009900
+         ICM   3,7,1(2)            TU ADDR IN 3                         00010000
+         LTR   3,3                                                      00010100
+         BZ    DMP100              ZERO ADDR,NOT TU POINTER             00010200
+         LA    5,4                                                      00010300
+         BAL   7,DMPHEX            CONVERT 4 BYTES TO HEX               00010400
+         L     5,DMPTMP                                                 00010500
+         ST    5,DMPLN+4           STORE KEY                            00010600
+         L     5,DMPTMP+4                                               00010700
+         ST    5,DMPLN+12          STORE NUM IN HEX                     00010800
+         LH    8,2(3)              GET NUM                              00010900
+         LTR   8,8                 TEST                                 00011000
+         BZ    DMP50               TU FINISHED                          00011100
+         BM    DMP49                                                    00011200
+         LA    3,4(3)              START OF LENGTH                      00011300
+DMP15    LH    9,0(3)                                                   00011400
+         LA    5,2                                                      00011500
+         LTR   9,9                                                      00011600
+         BP    DMP16                                                    00011700
+         MVI   DMPLN+18,C'*'            ERROR MARK                      00011800
+         B     DMP30               LENGTH NOT POSITIVE, PRINT ANYWAY    00011900
+DMP16    C     9,DMPF44                                                 00012000
+         BNH   DMP20                                                    00012100
+         L     9,DMPF44                                                 00012200
+         MVI   DMPLN+18,C'*'               ERROR MARK                   00012300
+DMP20    AR    5,9                                                      00012400
+DMP30    BAL   7,DMPHEX            CONVERT LENGTH AND UP TO 44 BYTES    00012500
+         L     5,DMPTMP            OF PARM FIELD                        00012600
+         ST    5,DMPLN+20          STORE LENGTH IN HEX                  00012700
+         LTR   9,9                                                      00012800
+         BNP   DMP50               THIS TU FINISHED                     00012900
+         LR    5,9                                                      00013000
+         SLL   5,1                TWICE NO OF BYTES=NUM OF HEX CHARS    00013100
+         BCTR  5,0                SUB 1 FOR MVC INSTR                   00013200
+         EX    5,DMPMVCH          MOVE HEX OF PARM                      00013300
+         LA    5,DMPLN+33(5)      ADDRESS FOR PARM IN CHARACTERS        00013400
+         C     9,DMPF32           IS ROOM                               00013500
+         BNH   DMP40              YES                                   00013600
+         PUT   DMPDCB,DMPLN                                             00013700
+         EX    0,DMPCLR                                                 00013800
+         LA    5,DMPLN+28                                               00013900
+DMP40    BCTR  9,0                                                      00014000
+         EX    9,DMPMVCC          STORE PARM BYTES                      00014100
+         EX    9,DMPTRSP          CONVERT UNPRINTABLE TO SPACE          00014200
+         AH    3,0(3)             ADD LENGTH TO ADDRESS                 00014300
+         LA    3,2(3)             3 NOW START ADDR OF NEXT LENGTH       00014400
+         PUT   DMPDCB,DMPLN                                             00014500
+         EX    0,DMPCLR                                                 00014600
+         BCT   8,DMP15            GO BACK FOR NEXT LENGTH               00014700
+         B     DMP100                                                   00014800
+         SPACE 2                                                        00014900
+DMP49    MVI   DMPLN+10,C'*'                                            00015000
+DMP50    PUT   DMPDCB,DMPLN                                             00015100
+         MVI   DMPLN,X'40'                                              00015200
+         EX    0,DMPCLR                                                 00015300
+DMP100   CLI   0(2),X'80'                                               00015400
+         BE    DMP120                                                   00015500
+DMP110   LA    2,4(2)             POINT TO NEXT TU ADDRESS              00015600
+         B     DMP10                                                    00015700
+         SPACE 2                                                        00015800
+DMP120   L     13,DMPSAV+4                                              00015900
+         RETURN (14,12)                                                 00016000
+         SPACE 2                                                        00016100
+DMPMVCH  MVC   DMPLN+28(1),DMPTMP+4                                     00016200
+DMPMVCC  MVC   0(1,5),2(3)                                              00016300
+DMPCLR   MVC   DMPLN+1(131),DMPLN    BLANK PRINT LINE                   00016400
+DMPTRSP  TR    0(1,5),DMPTBL         TRANSLATE UNPRINTABLE TO SP        00016500
+         SPACE 2                                                        00016600
+DMPHEX   LR    6,5                5 = NUM OF BYTES TO CONVERT TO HEX    00016700
+         SR    10,10                                                    00016800
+DMPHEX1  EX    0,DMPUNPK(10)                                            00016900
+         SH    6,DMPH7                                                  00017000
+         BNP   DMPHEX2                                                  00017100
+         LA    10,6(10)                                                 00017200
+         B     DMPHEX1                                                  00017300
+DMPHEX2  SLL   5,1                                                      00017400
+         BCTR  5,0                PUTS 2N-1 IN L FIELD OF NC AND TR     00017500
+         EX    5,DMPNC                                                  00017600
+         EX    5,DMPTR                                                  00017700
+DMPA     BR    7                  RETURN                                00017800
+DMPUNPK  UNPK  DMPTMP(15),0(8,3)   UNPACK INTO DMPTMP                   00017900
+         UNPK  DMPTMP+14(15),7(8,3)                                     00018000
+         UNPK  DMPTMP+28(15),14(8,3)                                    00018100
+         UNPK  DMPTMP+42(15),21(8,3)                                    00018200
+         UNPK  DMPTMP+56(15),28(8,3)                                    00018300
+         UNPK  DMPTMP+70(15),35(8,3)                                    00018400
+         UNPK  DMPTMP+84(15),42(8,3)                                    00018500
+DMPNC    NC    DMPTMP(1),DMPX0F   REMOVE ZONES                          00018600
+DMPTR    TR    DMPTMP(1),DMPEBCD  CONVERT TO HEX                        00018700
+DMPH7    DC    H'7'                                                     00018800
+DMPX0F   DC    92X'0F'                                                  00018900
+DMPEBCD  DC    C'0123456789ABCDEF'                                      00019000
+         SPACE 2                                                        00019100
+TEMP     DS    D,F                                                      00019200
+PDATE    DC    CL8' '                                                   00019300
+PTIME    DC    CL8' '                                                   00019400
+DMPTMP   DS    25F                                                      00019500
+DMPWTO   DC    AL2(DMPMSGSZ+8),X'8000'                                  00019600
+DMPLN    DC    C'1',16C' ',C'DYNDUMP OUTPUT',101C' '                    00019700
+DMPF44   DC    F'44'                                                    00019800
+DMPF32   DC    F'32'                                                    00019900
+DMPF12   DC    F'12'                                                    00020000
+DMPRTC   DC    XL4'20'                                                  00020100
+DMPC12   DC    C'12'                                                    00020200
+         DS    0F                                                       00020300
+DMPCB0   DC    XL4'40F0'                                                00020400
+DMPMSG   DC    C'0  DYNALLOC RETURN CODE   ,ERROR AND INFO CODES '      00020500
+         DC    C'        , VRB=   FLAGS1=     FLAGS2=     ID='          00020600
+DMPMSGSZ EQU   *-DMPMSG                                                 00020700
+DMPFIL   DC    X'00'                                                    00020800
+DMPTITL  DC    C'0   KEY     NUM     LNGTH   PARM'                      00020900
+DMPTLSZ  EQU   *-DMPTITL                                                00021000
+DMPSAV   DS    18F                                                      00021100
+         SPACE 2                                                        00021200
+*  TABLE TO CONVERT UNPRINTABLE HEX TO SP                               00021300
+DMPTBL   DC    75C' '                                                   00021400
+         DC    (79-75)AL1(*-DMPTBL)    . <  ( +                         00021500
+         DC    (80-79)C' '                                              00021600
+         DC    (81-80)AL1(*-DMPTBL)    &                                00021700
+         DC    (91-81)C' '                                              00021800
+         DC    (94-91)AL1(*-DMPTBL)    $ * )                            00021900
+         DC    (96-94)C' '                                              00022000
+         DC    (98-96)AL1(*-DMPTBL)    - /                              00022100
+         DC    (107-98)C' '                                             00022200
+         DC    (109-107)AL1(*-DMPTBL)  , %                              00022300
+         DC    (123-109)C' '                                            00022400
+         DC    (127-123)AL1(*-DMPTBL)  # @ ' =                          00022500
+         DC    (193-127)C' '                                            00022600
+         DC    (202-193)AL1(*-DMPTBL)  A THRU I                         00022700
+         DC    (209-202)C' '                                            00022800
+         DC    (218-209)AL1(*-DMPTBL)  J THRU R                         00022900
+         DC    (226-218)C' '                                            00023000
+         DC    (234-226)AL1(*-DMPTBL)  S THRU Z                         00023100
+         DC    (240-234)C' '                                            00023200
+         DC    (250-240)AL1(*-DMPTBL)  0 THRU 9                         00023300
+         DC    (256-250)C' '                                            00023400
+*  END OF TABLE                                                         00023500
+         SPACE 1                                                        00023600
+DMPDCB   DCB   DSORG=PS,MACRF=PM,RECFM=FA,DDNAME=DYNDUMP,BLKSIZE=132    00023700
+         END                                                            00023800

@@ -1,0 +1,369 @@
+* A NOTE TO THE UNSUSPECTING MAINTENANCE PROGRAMMER                     00110000
+* THE RULES FOR FINDING DATASET ALLOCATIONS ON MVS AND OSIV/F4          00120000
+*    TCBJSCB POINTS TO JSCB                                             00130000
+*    JSCDSABQ POINTS TO QDB                                             00140000
+*    QDBFELMP POINTS TO FIRST DSAB                                      00150000
+*    QDBLELMP POINTS TO LAST DSAB                                       00160000
+*    DSABFCHN POINTS TO THE NEXT DSAB                                   00170000
+*    DSABBCHN POINTS TO THE PREVIOUS DSAB                               00180000
+*    DSABTIOT POINTS TO THE TIOT ENTRY                                  00190000
+*    TIOT+C POINTS TO JFCB IN SWA (NOTE 3 BYTES FROM +C, NOT 4)         00200000
+*                                                                       00210000
+*    WHY ALL THIS BOTHER?                                               00220000
+*                                                                       00230000
+*     DSAB CONTAINS USEFUL FLAGS SUCH AS IN-USE ATTRIBUTE ETC           00240000
+*                                                                       00250000
+*   TO FIND THE JOB ACCOUNTING INFO                                     00260000
+*    1) FIND CURRENT TCB                                                00270000
+*    2) LOAD JSCB ADDRESS FROM TCBJSCB                                  00280000
+*    3) LOAD JCT ADDRESS FROM JSCBJCT                                   00290000
+*    4) LOAD ACT ADDRESS FROM JCT+X'38'                                 00300000
+*    5) ACT+X'1E' CONTAINS NUMBER OF ACCOUNTING FIELDS                  00310000
+*    6) ACCOUNTING FIELDS START AT ACT+X'20'                            00320000
+*       THESE HAVE THE FOLLOWING FORMAT:                                00330000
+*      A) FIRST BYTE IS THE LENGTH EXCLUSIVE OF THIS BYTE               00340000
+*      B) SECOND BYTE IS THE FIRST IN THE STRING                        00350000
+*                                                                       00360000
+*    7) ACT FOR STEP IS FOUND VIA TCBJSCB, JSCBSCT, SCT+X'30'           00370000
+*                                                                       00380000
+*                                                                       00390000
+          GENSAVE CSECT=PRINTQDB                                        00400000
+          USING  WKAREA,R10                                             00420000
+         L     R10,=V(WKAREA)                                           00430000
+         OPEN  (PRINTER,OUTPUT)                                         00440000
+         SPACE 1                                                        00450000
+         TITLE 'SUBROUTINE TO SEARCH THE DSAB QUEUE'                    00460000
+         L     R9,CVTPTR           LOAD CVT ADDRESS                     00470000
+         L     R9,0(0,R9)          TCB WORDS                            00480000
+         L     R9,4(0,R9)          MY TCB ADDRESS                       00490000
+         USING TCB,R9                                                   00500000
+         L     R9,TCBJSCB          MY JSCB ADDRESS                      00510000
+         DROP  R9                                                       00520000
+         USING KDJJSCB,R9                                               00530000
+         L     R9,JSCDSABQ         DSAB Q                               00540000
+         DROP  R9                                                       00550000
+         USING QDB,R9              DSAB Q DESCRIPTOR BLOCK              00560000
+         ICM   R8,15,QDBNELMS      ARE THERE ANY?                       00570000
+         BZ    QSR090              A... NO                              00580000
+         L     R8,QDBFELMP         LOAD DSAB ADDRESS                    00590000
+         USING DSAB,R8                                                  00600000
+QSR005   DS    0H                                                       00610000
+         L     R1,DSABTIOT         POINT TO TIOT ENTRY                  00620011
+*        CLC   =CL8' ',4(R1)       BLANK DDNAME?                        00630011
+*        BE    QSR020              IF SO, NOT A MATCH                   00640000
+         MVC   XDDNAME(8),4(R1)    MOVE DDNAME TO PRINT AREA            00650011
+         ICM   R1,7,12(R1)         POINT TO JFCB                        00660011
+         USING JFCB-16,R1                                               00670011
+         MVC   XDSNAME,JFCBDSNM                                         00680000
+         MVC   XVOLUME,JFCBVOLS                                         00681000
+         MVC   TUDSORG+6(2),DSABORG   COPY DSORG                        00690000
+* DISP FIELDS                                                           00691000
+         MVC   D20DISP1(8),=CL8' '                                      00692000
+         TM    JFCBIND2,B'11000000'        NEW?                         00693000
+         BO    E20NEWDS                    YES                          00694000
+         TM    JFCBIND2,B'01001000'        SHR?                         00695000
+         BO    E20SHRDS                    YES                          00696000
+         TM    JFCBIND2,B'01000000'        OLD?                         00697000
+         BO    E20OLDDS                    YES                          00698000
+         TM    JFCBIND2,B'10000000'        MOD?                         00699000
+         BO    E20MODDS                    YES                          00699100
+         B     E20TREST                    TEST DISP(2)                 00699200
+E20NEWDS MVC   D20DISP1,=C'NEW'                                         00699300
+         B     E20TREST                    TEST DISP(2)                 00699400
+E20SHRDS MVC   D20DISP1,=C'SHR'                                         00699500
+         B     E20TREST                    TEST DISP(2)                 00699600
+E20OLDDS MVC   D20DISP1,=C'OLD'                                         00699700
+         B     E20TREST                    TEST DISP(2)                 00699800
+E20MODDS MVC   D20DISP1,=C'MOD'                                         00699900
+E20TREST DS    0H                                                       00700000
+* DISP(2) FIELDS                                                        00700100
+         MVI   XINUSE,C'*'                                              00700203
+         TM    DSABFLG1,DSABNUSE                                        00700303
+         BO    WRITREC                                                  00700408
+         MVI   XINUSE,C' '                                              00700503
+WRITREC  PUT   PRINTER,OUTPUTR                                          00700603
+         DROP  R1                                                       00710011
+QSR020   DS    0H        THIS ONE DID NOT MATCH:                        00720000
+         CLM   R8,7,QDBLELMP+1     Q... WAS THAT THE LAST?              00730000
+         BE    QSR090              A... YES IT WAS: EXIT NOT FOUND      00740000
+         L     R8,DSABFCHN         POINT TO THE NEXT                    00750000
+         B     QSR005              AND TRY AGAIN                        00760000
+QSR080   GENRETN RC=0              RETURN: FOUND                        00770000
+QSR090   DS    0H                  RETURN: FOUND                        00780006
+         CLOSE PRINTER                                                  00781000
+         GENRETN RC=00             RETURN: FOUND                        00782011
+         PRINT NOGEN                                                    00790000
+PRINTER  DCB   DDNAME=SYSPRINT,RECFM=VA,LRECL=80,BLKSIZE=84,     +++++++00800003
+               MACRF=PM,DSORG=PS                                        00810000
+OUTPUTR  DC    AL2(RECEND-*,0)                                          00811005
+XSPASCI  DC    C' '                                                     00812003
+XINUSE   DC    C' '                                                     00813003
+XDDNAME  DC    CL8' '                                                   00820000
+XSP1     DC    C' '                                                     00830000
+XDSNAME  DC    CL44' '                                                  00840000
+XSP2     DC    C' '                                                     00850000
+D20DISP1 DC    CL3' '       DISPOSITION                                 00852000
+D20DISP2 DC    CL7' '       DISPOSITION                                 00853000
+         DC    C' '                                                     00854000
+XVOLUME  DC    CL6' '                                                   00862000
+RECEND   DS    0C                                                       00863003
+XSP3     DC    CL20' '                                                  00870000
+         DROP  R8                                                       00880000
+         DROP  R15                                                      01500000
+*        PRINT OFF                                                      01510003
+         TITLE 'COMMUNICATIONS VECTOR TABLE'                            01520000
+         CVT   DSECT=YES,SYS=BOTH                                       01530000
+         TITLE '  DATA CONTROL BLOCK'                                   01540000
+         DCBD  DSORG=PS,DEVD=DA                                         01550000
+         PRINT GEN                                                      01551003
+         TITLE '  USER PROFILE TABLE'                                   01560000
+         IKJUPT                                                         01570000
+         TITLE '  PROTECTED STEP CONTROL BLOCK'                         01580000
+         IKJPSCB                                                        01590000
+         TITLE '  ENVIRONMENT CONTROL TABLE'                            01600000
+         IKJECT                                                         01610000
+         TITLE '  PARSE PARAMETER LIST'                                 01620000
+         IKJPPL                                                         01630000
+LENMYPPL EQU   *-PPL                                                    01640000
+         AGO   .F4CB                                                    01650000
+         AIF   (&F4).F4CB                                               01660000
+         TITLE '  TASK CONTROL BLOCK'                                   01670000
+         IKJTCB                                                         01680000
+         TITLE '  JOB-STEP CONTROL BLOCK'                               01690000
+         IEZJSCB                                                        01700000
+         TITLE '  DATA-SET ASSOCIATION BLOCK'                           01710000
+         IHADSAB                                                        01720000
+         TITLE '  DSAB QUEUE DESCRIPTOR BLOCK'                          01730000
+         IHAQDB                                                         01740000
+         TITLE '  JOB FILE CONTROL BLOCK'                               01750000
+JFCB     DSECT                                                          01760000
+         IEFJFCBN                                                       01770000
+         AGO   .CBDUN                                                   01780000
+.F4CB    ANOP                                                           01790000
+         TITLE '  TASK CONTROL BLOCK'                                   01800000
+*        KAATCB                                                         01810010
+         XAMTCB                                                         01811010
+         TITLE '  COMMUNICATIONS VECTOR TABLE'                          01811110
+         XAMCVT                                                         01812010
+         TITLE '  JOB-STEP CONTROL BLOCK'                               01820000
+*        KDJJSCB                                                        01830010
+         XDDJSCB                                                        01831010
+         TITLE '  DATA-SET ASSOCIATION BLOCK'                           01840000
+         KDJDSAB                                                        01850000
+         TITLE '  DSAB QUEUE DESCRIPTOR BLOCK'                          01860000
+         KDJQDB                                                         01870000
+         TITLE '  JOB FILE CONTROL BLOCK'                               01880000
+JFCB     DSECT                                                          01890000
+         KDJJFCBN LIST=YES,DSECT=NO                                     01900000
+.CBDUN   ANOP                                                           01910000
+         AIF   ('&GENCB' EQ 'YES').GENCB2                               01920000
+         POP   PRINT                                                    01930000
+.GENCB2  ANOP                                                           01940000
+         PRINT ON                                                       01950000
+         TITLE '  WORK AREA'                                            01960000
+WKAREA   CSECT                                                          01970000
+         DS    18F                  SAVE AREA                           01980000
+DOUBLE   DS    D                                                        01990000
+LINKDCBE DS    XL(DCBLEN)                                               02000000
+JFCBPTR  DC    A(*+4+X'87000000')                                       02010000
+WRKJFCB  DS    XL176                                                    02020000
+OPENLIST DS    A                                                        02030000
+LINKSFE  DS    XL8                                                      02040000
+ALLCREGS DS    13A                                                      02050000
+QUALREGS DS    13F                                                      02060000
+CONCREGS DS    13F                                                      02070000
+DCONCRGS DS    13F                                                      02080000
+S99MRET  DS    A                                                        02090000
+STPRETN  DS    A                                                        02100000
+SDQRETN  DS    A                                                        02110000
+QSUBRET  DS    A                                                        02120000
+PARM     DS    1F                                                       02130000
+NBRDDN   DS    H                                                        02140000
+FLAG     DC    X'00'                                                    02150000
+QSUB     EQU   X'80'               ASK WHETHER TO SUBMIT                02160000
+TERMIN   EQU   X'40'               INPUT WAS FROM TERMINAL              02170000
+         DS    0F                                                       02180000
+TEMP     DS    XL5                                                      02190000
+HEXCONV  DS    XL19                                                     02200000
+PPLADDR  DS    F                                                        02210000
+MYECB    DS    F                                                        02220000
+         SPACE 4                                                        02230000
+         DS    0F                                                       02240000
+DFLIST   DS    A       -> FAILING SVC 99 RB                             02250000
+         DS    A       -> RETURN CODE                                   02260000
+         DS    A       -> IKJEFF02 PTR OR IS ZERO                       02270000
+         DS    A       -> DAIRFAIL FLAGS                                02280000
+DFCPPL   DS    A       -> CPPL OR IS ZERO                               02290000
+S99RC    DS    F       SVC 99 RETURN CODE                               02300000
+DFFLAGS  DC    X'0032' DAIRFAIL FLAGS                                   02310000
+DFEFF02  DS    A                                                        02320000
+DFMSG    DC    C'DAIRFAIL RETURN CODE NN'                               02330000
+S99RBPTR DS    A                                                        02340000
+S99RB    DS    0XL20                                                    02350000
+S99RBLN  DS    X                                                        02360000
+S99VERB  DS    X                                                        02370000
+S99FLAG1 DS    XL2                                                      02380000
+S99ERROR DS    XL2                                                      02390000
+S99INFO  DS    XL2                                                      02400000
+S99TXTPP DS    XL4                                                      02410000
+S99FLAG2 DS    XL4                                                      02420000
+S99RESVD DS    XL4                                                      02430000
+S99TUPL  DS    20XL4                                                    02440000
+         SPACE 4                                                        02450000
+TUAREA   DS    0D                                                       02460000
+TUDSN    DS    0XL50,XL2                                                02470000
+TUDSNNBR DS    XL2                                                      02480000
+TUDSNENT DS    XL46,CL8                                                 02490000
+TURETDSN DS    XL2                                                      02500000
+TURETDSK DS    XL2                                                      02510000
+TURETDS# DS    XL2                                                      02520000
+TURETDS  DS    CL46                                                     02530000
+TUUNIT   DS    XL14                                                     02540000
+TUDDN    DS    0XL14,2X                                                 02550000
+TUDDNNBR DS    XL2                                                      02560000
+TUDDNENT DS    CL10                                                     02570000
+TURETDDN DS    0XL14,2X                                                 02580000
+TURETDDK DS    XL2                                                      02590000
+TURETDD# DS    XL2                                                      02600000
+TURETDD  DS    CL8                                                      02610000
+TUPSD    DS    0XL14                                                    02620000
+         DS    XL2                                                      02630000
+TUPSDNBR DS    XL2                                                      02640000
+TUPSDLEN DS    XL2                                                      02650000
+TUPSDNM  DS    CL8                                                      02660000
+TUDSORG  DS    XL8                                                      02670000
+TUMBR    DS    0XL14                                                    02680000
+         DS    XL2                                                      02690000
+TUMBRNBR DS    XL2                                                      02700000
+TUMBRLEN DS    XL2                                                      02710000
+TUMBRNM  DS    CL8                                                      02720000
+TUDISP   DS    XL7                                                      02730000
+TUCATLG  DS    XL7                                                      02740000
+TUTERM   DC    X'00280000'                                              02750000
+TUDMY    DC    X'00240000'                                              02760000
+TUSOUT   DC    X'001800010001C1'                                        02770000
+TUBLKSI  DC    X'0030000100020000'                                      02780000
+TUVOL    DC    X'001000010006404040404040'                              02790000
+         DS    0F                                                       02800000
+TUAREAL  EQU   *-TUAREA                                                 02810000
+*                                                                       02820000
+* FOLLOWING CODE BY PETER FOLEY ABS APR 1983                            02830000
+*                                                                       02840000
+TUAREA2  DS    0D                                                       02850000
+TUROUND  DS    XL4                                                      02860000
+TUAVBLK  DS    XL9                                                      02870000
+TUPRIMS  DS    XL9                                                      02880000
+TUSECND  DS    XL9                                                      02890000
+         DS    0F                                                       02900000
+TUAREAL2 EQU   *-TUAREA2                                                02910000
+*                                                                       02920000
+* PREVIOUS CODE BY PETER FOLEY ABS APR 1983                             02930000
+*                                                                       02940000
+         SPACE 3                                                        02950000
+*  THIS AREA IS USED TO BUILD THE TEXT UNIT FOR CONCATENATION           02960000
+         SPACE                                                          02970000
+TUCONC   DC    X'0001'     TYPE                                         02980000
+         DC    X'0000'     NUMBER                                       02990000
+TUCONCDD DS    16CL10      SPACE FOR SIXTEEN ENTRIES                    03000000
+TUCONCL  EQU   *-TUCONC                                                 03010000
+CNDDTABP DS    A                                                        03020000
+CNDDTAB  DS    20CL8       SPACE FOR 20 CONCATENATED DDNAMES            03030000
+         SPACE 3                                                        03040000
+IOPB     DS    4F                                                       03050000
+IOPL     DS    4F                                                       03060000
+IOECB    DS    F                                                        03070000
+OLD1CHN  DS    XL4                                                      03080000
+OLD1     DS    XL4                                                      03090000
+OLD1#1   DS    XL4                                                      03100000
+OLD1#2   DS    XL4                                                      03110000
+OLD1#3   DS    XL4                                                      03120000
+OLD1#4   DS    XL4                                                      03130000
+OLD1#5   DS    XL4                                                      03140000
+MSGRC    DS    XL6                                                      03150000
+MSGDARC  DS    XL8                                                      03160000
+MSGDAFLG DS    XL8                                                      03170000
+MSGCAT   DS    XL8                                                      03180000
+PRMOPTNS DS    XL256                                                    03190000
+USERPLST DS    A                                                        03200000
+USERPRML DS    H                                                        03210000
+USERPRM  DS    CL256                                                    03220000
+MYPPL    DS    XL(LENMYPPL)                                             03230000
+PPLREPL  DS    A                  PTR TO REPLY                          03240000
+         SPACE 2                                                        03250000
+CFLAGS   DS    0XL2                                                     03260000
+CFLAG1   DS    X                                                        03270000
+CFLAG2   DS    X                                                        03280000
+         SPACE 4                                                        03290000
+APTAREA  DS    0X                  ALLOCATION PARAMETER TABLE           03300000
+APDE     DS    A                   ADDRESS OF PDE FOR FILE TO ALLOCATE  03310000
+ADSNAME  DS    CL44                DSNAME TO ALLOCATE                   03320000
+AMBRNAME DS    CL8                 MEMBER NAME TO ALLOCATE              03330000
+ADDNAME  DS    CL8                 DDNAME SUPPLIED TO USE               03340000
+AUNIT    DS    CL8                 UNIT NAME/ADDRESS TO USE             03350000
+AVOL     DS    CL6                 VOLUME CONTAINING DATASET            03360000
+*DEVT    DS    XL4                 UCB DEVICE TYPE OF DEVICE (NOT USED) 03370000
+ASUFFIXL DS    H                   SUFFIX LENGTH                        03380000
+ASUFFIX  DS    CL9                 SUFFIX IF DSN TO BE QUALIFIED        03390000
+AOUTLIM  DS    F                   OUTLIM                               03400000
+ABLKSIZ  DS    H                   BLOCK SIZE                           03410000
+ALRECL   DS    H                   RECORD LENGTH                        03420000
+APRIM    DS    H                   PRIMARY ALLOCATION                   03430000
+ASEC     DS    H                   SECONDARY ALLOCATION                 03440000
+ADIR     DS    H                   DIRECTORY BLOCKS                     03450000
+ADSORG   DS    H                   DSORG REQUIRED                       03460000
+AFLAGS   DS    0XL2                ALLOCATION FLAGS                     03470000
+AFLAG1   DC    X'00'               ALLOCATION FLAG BYTE 1               03480000
+FF       EQU   X'FF'                                                    03490000
+ASOUT    EQU   X'80'               ALLOCATE A SYSOUT DATASET            03500000
+AMOD     EQU   X'40'               ALLOCATE AS NEW IF NO DATASET        03510000
+ATEMP    EQU   X'20'               TEMPORARY DATASET                    03520000
+ANULL    EQU   X'10'               DUMMY DATASET REQUIRED               03530000
+APDS     EQU   X'08'               CONCATENATE REQUEST                  03540000
+ASHR     EQU   X'04'               A DATASET CAN BE SHARED              03550000
+ATERM    EQU   X'02'               ALLOCATE DATASET TO THE TERMINAL     03560000
+         SPACE                                                          03570000
+AFLAG2   DC    X'00'               SECOND BYTE OF ALLOCATION FLAGS      03580000
+APERMA   EQU   X'80'               MARK PERMANENTLY ALLOCATED           03590000
+APERMC   EQU   X'40'               MARK PERMANENTLY CONCATENATED        03600000
+ASOUTC   DS    C                   SYSOUT CLASS                         03610000
+APTL     EQU   *-APTAREA                                                03620000
+         ORG   APTAREA                                                  03630000
+APT      DS    XL(APTL)                                                 03640000
+CSUFFIX  DS    CL(L'ASUFFIXL+L'ASUFFIX)                                 03650000
+         SPACE 4                                                        03660000
+CATRC    DS    X                                                        03670000
+CATFLG   DS    X                                                        03680000
+         DS    0D                                                       03690000
+CATWORK  DS    XL265,0D                                                 03700000
+CATPARMS DS    4XL4                                                     03710000
+CATDSPT  DS    XL4                                                      03720000
+CATRET   DS    XL4                                                      03730000
+         DS    0D                                                       03740000
+WKALEN   EQU   *-WKAREA                                                 03750000
+         EJECT                                                          03760000
+DSPDE    DSECT                                                          03770000
+DSENT    DS    0CL28                                                    03780000
+DSNPT    DS    XL4                                                      03790000
+DSLEN    DS    Y                                                        03800000
+DSFLG    DS    2X                                                       03810000
+MBRPT    DS    XL4                                                      03820000
+MBRLEN   DS    Y                                                        03830000
+MBRFLG   DS    2X                                                       03840000
+PSDPT    DS    XL4                                                      03850000
+PSDLEN   DS    Y                                                        03860000
+PSDFLG   DS    2X                                                       03870000
+DSNEXT   DS    XL4                                                      03880000
+         DROP                                                           03890000
+         END   PRINTQDB                                                 03900009
+         TITLE 'CVT'                                                    03910010
+         TITLE 'FLC'                                                    03930010
+         XAMFLC                                                         03940010
+         TITLE 'RB '                                                    03950010
+         XAMRB                                                          03960010
+         TITLE 'CIB'                                                    04030010
+         XDDCIB                                                         04040010
+         TITLE 'FCT'                                                    04050010
+         XDDFCT                                                         04060010
+         TITLE 'MSCVT'                                                  04090010
+         XDDMSCVT                                                       04100010
+         END                                                            04110010

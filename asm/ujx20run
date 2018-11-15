@@ -1,0 +1,127 @@
+         TITLE 'UJ20RUN:PERFORM A RUN INSTRUCTION'                      03260000
+         JOLSAVE CSECT=UJE20RUN                                         03261000
+* HANDLE RUN STATEMENT                                                  03262000
+           MVI ISRUN,C'1'                                               03263000
+           MVC RUNNAME,PGM                                              03264000
+           MVC TASKNAME,PGM                                             03265000
+           MVC TASKLABL,PGMLABEL                                        03266000
+* NOW LETS SEE IF WE EXECUTE IN THIS STEP,OR IN THE NEXT,               03267000
+*     AND IF A PARM IS USED IN THIS RUN                                 03268000
+* NOW BEFORE XCTL TO THE USER PROGRAM,WE MUST DETERMINE WHETHER         03269000
+*     OR NOT THERE ARE ANY DD-CARDS REFERRING TO THIS PROGRAM           03270000
+*     OR IF THERE IS A PARM FIELD OR NOT.                               03271000
+* IF THERE ARE NO DD-CARDS,WE MAY XCTL NOW,OTHERWISE WE                 03272000
+*     MUST CHECK THAT THIS IS THE CORRECT OS STEP OR NOT                03273000
+*          L  R2,TTR$INST      SAVE TTR OF NEXT INSTRUCTION             03274000
+*                              BECAUSE IF WE DECIDE NOT TO DO           03275000
+*                              THE USERS PROGRAM HERE WE WILL           03276000
+*                              HAVE TO RESET THE TTR SO THE             03277000
+*                              NEXT OS STEP THAT IS EXECUTED            03278000
+*                              WILL START AT THE CORRECT STEP           03279000
+*          CLC PGMNODDS,=A(0)    ARE THERE ANY DDCARDS?           75128 03280000
+*        BNE   E20AREDD        YES                                      03281000
+         CALL  UJE50RD        READ NEXT STATEMENT                       03282000
+         LTR   R15,R15        EOF PERHAPS ?                             03283000
+         BZ    E20TPARM                                                 03284000
+* NO DD'S  AND NO PARM,RETURN A 0,SO WE WILL XCTL TO                    03285000
+*     PROBLEM PROGRAM.                                                  03286000
+         NOTE  INSTRUCT                                                 03287000
+         ST    R1,TTR$INST                                              03288000
+         MVI   TTR$INST+3,0    SO WE RE-READ THE LAST STATEMENT         03289000
+E20RETN0 DS    0H                                                       03290000
+         BLDL  0,RUNBLDL                                                03291000
+         B     RUNBLD(R15)                                              03292000
+RUNBLD   B     RUNBLD0                                                  03293000
+         B     RUNBLD4                                                  03294000
+         B     RUNBLD8                                                  03295000
+RUNBLD4  DS    0H                                                       03296000
+*        JOLERR 001,'PROGRAM ''',RUNNAME,''' ABSENT:- TRYING LPALIB'    03297000
+         MVC   TASKSSI,=X'00000000'         CLEAR THE SSI INFO          03298000
+         B     E20RETN                                                  03299000
+RUNBLD8  JOLERR 402,'PERM I/O ERR FINDING ',RUNNAME                     03300000
+E20806   DS    0H                                                       03301000
+         MVI   ISRUN,C' '                                               03302000
+         JOLRETN RC=&RSVDRC                                             03303000
+         SPACE 3                                                        03304000
+RUNBLD0  SR    R8,R8                                                    03305000
+         IC    R8,RUNC1                                                 03306000
+         LA    R9,X'1F'                                                 03307000
+         NR    R8,R9                                                    03308000
+         ALR   R8,R8                                                    03309000
+         LA    R9,RUNUSDTA-4                                            03310000
+         AR    R9,R8                                                    03311000
+         MVC   TASKSSI,0(R9)                                            03312000
+         AGO   .NTIOT                                                   03313000
+         B     E20NTIOT     *************************             75002 03314000
+*  NOW SET PROGRAM NAME UP IN TIOT.                                     03315000
+         LA    R1,TASKNAME       LOAD THE ADRESS OF PGM NAME      75002 03316000
+         ST    R1,INST           STORE IN WORK AREA               75002 03317000
+         MVI   INST,8       SET LENGTH OF PARM TO 8               75002 03318000
+         LA    R1,INST      LOAD A(PARM)                          75002 03319000
+         L     R0,ATIOT    -> TIOT                                75002 03320000
+         AH    R0,=H'16'    ->PGM NAME SPOT                       75002 03321000
+         SVC   255          POP PGM NAME IN TIOT                  75002 03322000
+E20NTIOT DS    0H                                                 75002 03323000
+.NTIOT   ANOP                                                           03324000
+E20RETN  JOLRETN RC=0                                                   03325000
+E20TPARM DS    0H                                                       03326000
+         NOTE  INSTRUCT      SAVE THIS ADDRESS, TO REPROCESS THE DDS    03327000
+         ST    R1,TTR$INST                                              03328000
+         MVI   TTR$INST+3,0       CONTINUE WITH THIS RECORD IF NOT PARM 03329000
+         CLC   =C'PARM ',ICOMMAND                                       03330000
+         BNE   E20TDD            NOT PARM, TRY DD                       03331000
+         MVI   TTR$INST+3,1       CONTINUE WITH THE NEXT RECORD         03332000
+* FIX UP USER'S PARM FIELD                                              03333000
+         L     R1,ATASKPRM                                              03334000
+         L    R15,=A(#TKNSTRG)                                          03335000
+         USING  #TKNSTRG,R15                                            03336000
+         MVC   0(256,R1),#TKNSTRG                                       03337000
+         CLC   =X'00027D7D',0(R1)  FIX FOR BUG IN COMPILER              03338000
+         BNE   E20T10                                                   03339000
+         XC    0(6,R1),0(R1)                                            03340000
+E20T10   DS    0H                                                       03341000
+         DROP  R15                                                      03342000
+         SPACE  3                                                       03343000
+E20AREDD DS    0H                                                       03344000
+* THE USER'S PROGRAM HAS DD-CARDS AND WE MUST DILIGENTLY                03345000
+         AIF   (&X8).X8340                                              03346000
+*     CHECK WHETHER OR NOT WE ARE IN THE CORRECT OS JOB-STEP            03347000
+*     (I.E DO WE HAVE THE DD-CARDS NECESSARY FOR THIS PROGRAM)          03348000
+           CLC  SCTSNAME(8),PGMSTEP RIGHT OS JOB STEP ?           75311 03349000
+           BE  E20TPM2         TEST IF THIS HAS A PARM NOW              03350000
+           BH  E20TOOHI        ERROR,GONE TOO FAR                       03351000
+* RIGHTO,MUST CHANGE OS STEPS OLD BOY.                                  03352000
+E20CHNG    ST R2,TTR$INST                                               03353000
+           MVI TTR$INST+3,0    RESET 'Z' IN TTR                         03354000
+           B  *+4                                                       03355000
+           B  *+4                                                       03356000
+           B  *+4                                                       03357000
+           JOLRETN RC=4        TELL US TO GO TO ANOTHER OS STEP         03358000
+E20TPM2  DS    0H                                                       03359000
+           CALL UJE50RD                                                 03360000
+           LTR R15,R15                                                  03361000
+           BNZ E20RETN0                                                 03362000
+           B   E20TPARM                                                 03363000
+E20TOOHI CLC   =C'$$',PGMSTEP                                     75311 03364000
+         B     E20CHNG  **********************LET MAIN FIX IT *** 75311 03365000
+         BNE   E20CHNG                                            75311 03366000
+         JOLERR 503,'CANNOT FIND STEP FOR ',PGMESTMT                    03367000
+         AGO   .NX8340                                                  03368000
+.X8340   ANOP                                                           03369000
+*   ALLOCATE THEM                                                       03370000
+         SPACE                                                          03371000
+E20READD DS    0H                                                       03372000
+         CALL  UJE50RD                                                  03373000
+         LTR   R15,R15                                                  03374000
+         BNZ   E20RETN0                                                 03375000
+E20TDD   DS    0H           TEST FOR DD                                 03376000
+         CLI   DDDD1,C'D'                                               03377000
+         BNE   E20NOTDD                                                 03378000
+         CALL  UJE21ALL     ALLOCATE THE DD                             03379000
+         B     E20READD                                                 03380000
+E20NOTDD DS    0H                                                       03381000
+         POINT INSTRUCT,TTR$INST                                        03382000
+         B     E20RETN0        TO XCTL                                  03383000
+         SPACE 3                                                        03384000
+.NX8340  ANOP                                                           03385000
+         DC    80S(*)                                                   03386000

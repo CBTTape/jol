@@ -1,0 +1,170 @@
+UJD14FRE TITLE 'FREE (MARK NOT IN USE) DATASETS'        '               00010001
+* JOL COPYRIGHT CCS-JOL PTY LTD 1988                                    00020001
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-E001.           00030001
+         SPACE 3                                                        00040001
+*                   J             000000            L                   00050001
+*                   J            0      0           L                   00060001
+*                   J           0        0          L                   00070001
+*                   J          0          0         L                   00080001
+*                   J         0            0        L                   00090001
+*                   J         0            0        L                   00100001
+*                   J         0            0        L                   00110001
+*                   J         0            0        L                   00120001
+*                   J         0            0        L                   00130001
+*                   J         0            0        L                   00140001
+*                   J         0            0        L                   00150001
+*        J          J         0            0        L                   00160001
+*         J        J           0          0         L                   00170001
+*          J      J             0        0          L                   00180001
+*           J    J               0      0           L                   00190001
+*            JJJJ                 000000            LLLLLLLLLLL         00200001
+           SPACE 3                                                      00210001
+* LAST SOURCE UPDATE                                                    00220001
+*   CHANGES:-                                                           00230001
+*     1.                                                                00240001
+         COPY  JOLGLOBL                                                 00250001
+         $UJEPARM                                                       00260001
+&TYPE    SETC  'SCHED'                                           88036  00270001
+         PRINT ON,DATA                                                  00280001
+UJECOMM  DSECT                                                          00290001
+         USING UJECOMM,R3,R5                                            00300001
+         COPY  UJECOMM                                                  00310001
+         EJECT                                                    J40B  00320001
+D14WORK  DSECT                                                    J40B  00330003
+         DS    18F                                                J40B  00340002
+#D14DDNM DC    H'8'                                                     00350015
+TEMPDDN2 DC    CL8' '                                                   00360002
+D14DEALL DC    2Y(0,0),C' '                                             00370002
+D14DETME DC    CL8' '                  TIME GOES HERE                   00380002
+         DC    C' '                                                     00390002
+D14DSID  DC    CL8' '                                                   00400002
+         DC    C'  '                                                    00410002
+D14DDNAM DC    CL8' '                                                   00420002
+         DC    C'    '                                                  00430002
+D14ACTN  DC    CL8' '                   PASSED ETC                      00440002
+D14PVOLS DC    CL30' '         VOLUMES                            J40B  00450011
+D14WORKS EQU   *-D14WORK                                          J40B  00460003
+         JOLSAVE CSECT=UJD14FRE,SIZE=D14WORKS                           00470027
+         USING D14WORK,R13                                        J40B  00480003
+         CLC   =C'$$VR',DDDDNAME     Q... VOLREF ?                J40B  00481026
+         BE    JRETN                 A... YES - IGNORE IT         J40B  00482026
+         MVC   #D14DDNM,=H'8'                                     J40B  00490015
+         MVC   D14DEALL(D14ALLSZ),DEALLMSG                        J40B  00500002
+         MVC   D14ACTN,=CL8'** ERROR'                                   00510000
+*        MVC   D14PVOLS,DDVOLUME                                  J40B  00511025
+         CALL  GETTIME                                                  00520000
+         CLC   =C'STEPLIB ',DDDDNAME Q... STEPLIB ?                     00530000
+         BNE   D14NSTEP              A... NO                            00540003
+         MVI   DDDDNAME+7,C'$' MAKE STEPLIB$                            00550000
+D14NSTEP MVC   D14DETME,CURRTIME                                        00560003
+         MVC   TEMPDDN2,DDDDNAME                                        00570000
+         MVC   D14DDNAM,DDDDNAME                                        00580000
+         MVC   D14DSID,DDDSID                                           00590000
+         CLI   DDTYPE,DDPUNCH   Q... SYSIN, SYSOUT OF SOME KIND?        00600000
+         BNH   D14FREE          A... YES, FREE IT NOW                   00610003
+         CLC   =C'JOBLIB  ',DDDDNAME Q... JOBLIB?                       00620000
+         BE    D14JOBL               A... YES                           00630003
+*        TM    DDUNITYP,X'80'  IF IT'S A TAPE, FREE FILE ALWAYS         00640000
+*        BO    D14TDISP                                                 00650003
+* PROPOGATE THE TAPE VOLUME NOW, AS IT MAY BE USED LATER                00660000
+*  IN VOLUME REFERENCES OR CATALOG STATEMENTS.                          00670000
+*        CALL  UJD30VOL       PROPOGATE VOLS DOWN JOL 'JOBQ'            00680027
+*        B     D14FREE                    FREE IT NOW                   00690003
+*        CLI   DDDISP+1,C'L'  LAST USE?                                 00700000
+D14TDISP CLI   DDDISP+1,C'P'  LAST USE?                                 00710003
+         BE    D14DISUS        NO, JUST MAKE MARKS                      00720003
+D14FREE  DS    0H                                                       00730003
+         CLI   TEMPDDN2,C' '                                            00740000
+         BE    D14DDBL1                                                 00750003
+         DBGMSG 0000,'FREEING ',DDDDNAME                           J40B 00751016
+         DYNPARM DDNAME=(8,#D14DDNM),VRB=UN,UNALLOC=YES                 00760023
+         B     D14TRC1                                                  00770003
+D14DDBL1 DS    0H                                                       00780003
+         DYNPARM DSN=(44,#DSN),VRB=UN,UNALLOC=YES                       00790023
+         DBGMSG 0001,'FREEING ',DDDSNAME                           J40B 00791016
+D14TRC1  LTR   R1,R15                                                   00800003
+         BZ    D14FREED                                                 00810003
+         CVD   R15,DBL                                                  00820000
+         MVC   TASKSSI(4),=X'40202120'                                  00830000
+         ED    TASKSSI,DBL+6                                            00840000
+         JOLERR 102,'DSID ',DDDSID,''',DDNAME ',                       .00850000
+               DDDDNAME,' NOT UNALLOCATED DUE TO RETURN CODE ',        .00860000
+               TASKSSI                                                  00870000
+         B     D14RETN                                                  00880003
+D14FREED DS    0H                                                       00890003
+         MVC   D14ACTN,=CL8'FREED'                                      00900000
+D14RETN  DS    0H                                                       00910003
+         PRPUT D14DEALL                                          88036  00920000
+         B     JRETN0                                                   00930000
+D14DISUS DS    0H                                                       00940003
+*    NOW LET'S PUT IT IN OUR OWN PASSED DATASET QUEUE            88036  00941009
+         CALL  UJD24PDQ                                          88036  00942027
+         CLI   TEMPDDN2,C' '                                            00950000
+         BE    D14DDBL2                                                 00960003
+         DBGMSG 0003,'FREEING DD ',DDDDNAME                        J40B 00961019
+         DYNPARM  DDNAME=(8,#D14DDNM),VRB=UN,UNALLOC=YES VE.IN.USE      00970020
+         B     D14JOBL                                                  01000003
+D14DDBL2 DS    0H                                                       01010003
+         DBGMSG 0004,'FREEING DS ',DDDSNAME                        J40B 01011019
+         DYNPARM DSN=(44,#DSN),VRB=UN,UNALLOC=REMOVE.IN.USE             01020022
+D14JOBL  DS    0H                    LEAVE JOBLIB, ISSUE 'PASSED' 87150 01030003
+         MVC   D14ACTN,=CL8'PASSED'                                     01040000
+         PRPUT D14DEALL                                          88036  01050000
+         B     JRETN0                                                   01060000
+         AGO   .NOTFRE                                                  01070000
+         B     FIXCONCAT                                                01080000
+         CLC   =CL8' ',DDDDNAME      Q... CONCATENATED FILE?            01090000
+         BE    D14NXFCT              A... YES                           01100003
+         MVC   SAVEDD,DDDDNAME       COPY THE DDNAME                    01110000
+         SPACE                                                          01120000
+D14FFCT  DS    0H    FOUND AN FCT TO "FIX"                              01130003
+         AP    DDCTR,=P'1'          ADD TO MY COUNTER                   01140000
+         $TELL (R4)                                                     01150000
+         MODESET  KEY=ZERO                                              01160000
+*        NI    FCTACSN,X'BF'        MAKE MY MARK FOR "NOT IN USE"       01170000
+**CVC    MVC   FCTACSN(4),=C'$JOL'  MAKE MY MARK FOR "NOT IN USE"       01180000
+**CVC    UNPK  FCTACSN+4(4),DDCTR                                       01190000
+         SPACE                                                          01200000
+* WHILE I AM HERE, LET'S HAVE A LOOK AT SOME OTHER BITS                 01210000
+         SPACE                                                          01220000
+         LR    R2,R4                 SAVE THIS ADDRESS                  01230000
+         TM    FCTFLG6,FCTF6CF       Q... CONCATENATED?                 01240000
+         BZ    D14NOCAT              A... NO                            01250003
+         NI    FCTFLG6,X'FF'-FCTF6CF TURN THAT OFF                      01260000
+D14NXTCF DS    0H                                                       01270003
+         L     R1,FCTCFNO            ADDRESS NEXT IN THIS CHAIN         01280000
+         XC    FCTCFNO(4),FCTCFNO    CLEAR THIS FIELD                   01290000
+         LA    R4,0(,R1)             CLEAR THE HIGH ORDER BYTE          01300000
+         LTR   R4,R4                 Q... ANYTHING THERE?               01310000
+         BZ    D14NOCAT              A... NO                            01320003
+         CLC   FCTACSN,DDDDNAME      CHECK THIS, JUST IN CASE           01330000
+         BNE   D14NOCAT              UM, ER, I'LL SEE YOU LATER         01340003
+         NI    FCTFLG6,X'FF'-FCTF6CF TURN OFF CONCAT FLAG               01350000
+         B     D14NXTCF              LET'S PLAY WITH THE NEXT ONE TOO   01360003
+D14NOCAT DS    0H                                                       01370003
+         LR    R4,R2                 ADDRESS OF THE ORIGINAL            01380000
+         SPACE 2                                                        01390000
+*  WELL, THAT SHOULD BE ALL                                             01400000
+         SPACE 3                                                        01410000
+         JOLERR 005,                                                   .01430000
+               'DSID ',DDDSID,                                         .01440000
+               ' DDNAME ',DDDDNAME,                                    .01450000
+               ' CALLED IN FREE'                                        01460000
+         B     JRETN0                                                   01470000
+.NOTFRE  ANOP                                                           01471023
+* THE FOLLOWING LINES ARE USED TO PRINT OUT DE-ALLOCATION MESSAGES      01480000
+*     FOR THE DYNAMIC ALLOCATION VERSION OF JOL.                        01490000
+DEALLMSG DC    2Y(D14END1-*,0),C' '                                     01500002
+         DC    CL8' '                  TIME GOES HERE                   01510002
+         DC    C' '                                                     01520000
+         DC    CL8' '                                                   01530002
+         DC    C'  '                                                    01540000
+         DC    CL8' '                                                   01550002
+         DC    C'    '                                                  01560000
+         DC    CL8' '                   PASSED ETC                      01570002
+         DC    CL30' '         VOLUMES                            J40B  01571026
+D14END1  DS    0C                                                       01580002
+D14ALLSZ EQU   *-DEALLMSG                                         J40B  01590004
+         SPACE                                                          01600000
+         LTORG                                                          01610000
+         END                                                            01620001

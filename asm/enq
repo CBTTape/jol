@@ -1,0 +1,305 @@
+***  ENQUE/DEQUE OR ENQ/DEQ JOL INSTRUCTION FOR ENQUING     *********** 00010001
+*          ON DATA SETS OR ANY RESOURCE                               * 00020001
+*                                                                     * 00030000
+*    MODIFIED FROM US26ENQ BY MIKE STRAHAN, SHELL OIL, MELBOURNE.     * 00040001
+*                                                                     * 00050001
+*                                                                     * 00060001
+*    FUNCTION:                                                        * 00070000
+*                                                                     * 00080000
+*         TO ISSUE AN ENQUE OR DEQUE ON MAJOR AND MINOR NAMES AS      * 00090001
+*         SPECIFIED BY THE USER.                                        00100001
+*                                                                     * 00110001
+*         THIS IS A COMPILER INSTRUCTION, NOT EXECUTION.              * 00120001
+*                                                                     * 00130001
+*         DESIGNED REALLY FOR SAVESYMS, MUCH GENERALLY APPLICABLE.    * 00140001
+*                                                                     * 00150000
+*    LINKAGE:                                                         * 00160000
+*                                                                     * 00170000
+*         INVOKED BY ENQUE MAJOR-NAME,MINOR-NAME {OPTIONS}            * 00180001
+*                                                                     * 00190001
+*           WHERE OPTIONS ARE:-                                       * 00200001
+*                                                                     * 00210001
+*              SYSTEM ¦ STEP                                          * 00220001
+*              -------                                                * 00230001
+*              TEST ¦ USE ¦ HAVE ¦ CHNG                               * 00240001
+*              WAIT ¦ NOTIFY                                            00250001
+*              ----                                                   * 00260001
+*                                                                     * 00270001
+*         ON ENTRY, REGISTERS CONTAIN STANDARD JOL REGISTER VALUES.   * 00280001
+*                                                                     * 00290000
+*         ON RETURN, %LASTCC IS SET TO :-                             * 00300001
+*         REGISTER 15 CONTAINS A RETURN CODE :                        * 00310000
+*         FOR ENTRY POINT US26ENQ                                     * 00320000
+*                                                                     * 00330000
+*         RC = 0   CONTROL OF RESOURCE HAS BEEN ASSIGNED OR NO        * 00340000
+*                  INTERNAL READER IS IDENTIFIED FOR THE DDNAME.      * 00350000
+*                                                                     * 00360000
+*         RC = 4   APPLICABLE ONLY FOR BACKGROUND TASKS.              * 00370000
+*                  CONTROL OF THE RESOURCE HAS BEEN ASSIGNED,         * 00380000
+*                  BUT THE TASK WAITED FOR THE RESOURCE TO            * 00390000
+*                  BECOME AVAILABLE.                                  * 00400000
+*                  THE OPERATOR WAS INFORMED THAT THE TASK WAITED     * 00410000
+*                  AND THAT PROCESSING SUBSEQUENTLY CONTINUED.        * 00420000
+*                                                                     * 00430000
+*         RC = 8   A PREVIOUS REQUEST FOR THE RESOURCE HAS BEEN       * 00440000
+*                  MADE. THIS REQUEST IS IGNORED.                     * 00450000
+*                                                                     * 00460000
+*         RC = 12  APPLICABLE ONLY TO FOREGROUND TASKS.               * 00470000
+*                  CONTROL OF THE RESOURCE WAS NOT ASSIGNED           * 00480000
+*                  BECAUSE THE TASK WOULD HAVE WAITED FOR CONTROL     * 00490000
+*                  OF THE RESOURCE.                                   * 00500000
+*                  THE FOREGROUND USER WAS INFORMED THAT THE          * 00510000
+*                  RESOURCE WAS NOT IMMEDIATELY AVAILABLE.            * 00520000
+* NOTE:            IT IS UP TO THE MODULE INVOKING US26ENQ TO         * 00530000
+* *****            DECIDE WHAT ACTION IS TO BE TAKEN.                 * 00540000
+*                                                                     * 00550000
+*         RC = 16  CATASTROPHIC ERROR HAS OCCURED.                    * 00560000
+*                  E.G. DDNAME WAS NOT FOUND IN TIOT.                 * 00570000
+*                                                                     * 00580000
+*         FOR ENTRY POINT US26DEQ                                     * 00590000
+*                                                                     * 00600000
+*         RC = 0   CONTROL OF THE RESOURCE HAS BEEN RELEASED OR NO    * 00610000
+*                  INTERNAL READER IS IDENTIFIED FOR THE DDNAME.      * 00620000
+*                                                                     * 00630000
+*         RC = 4   APPLICABLE ONLY TO BACKGROUND TASKS.               * 00640000
+*                  CONTROL OF THE RESOURCE IS NOT RELEASED AS THE     * 00650000
+*                  TASK IS CURRENTLY WAITING FOR CONTROL OF THE       * 00660000
+*                  RESOURCE.                                          * 00670000
+*                                                                     * 00680000
+*         RC = 8   TASK HAS NO REQUESTS FOR CONTROL OF THE RESOURCE.  * 00690000
+*                                                                     * 00700000
+*         RC = 16  A CATASTROPHIC ERROR HAS OCCURED.                  * 00710000
+*                  E.G. DDNAME WAS NOT FOUND IN THE TIOT.             * 00720000
+*                                                                     * 00730000
+*    MODULE ATTRIBUTES:                                               * 00740000
+*                                                                     * 00750000
+*         RE-ENTERABLE.                                               * 00760000
+*                                                                     * 00770000
+*********************************************************************** 00780000
+ENQDEQ   TITLE 'ENSURE SERIAL USE OF HASP INTERNAL READERS'             00790001
+*        WORK DSECT                                                     00800000
+         SPACE                                                          00810000
+WORK     DSECT                                                          00820000
+SAVE     DS    18F                 SAVE AREA                            00830000
+LTIMESUP EQU   X'14'               LENGTH OF STIMER EXIT ROUTINE        00840000
+*                                  SHOULD = EXITLNTH                    00850000
+TIMESUP  DS    0F                  STIMER EXIT ROUTINE                  00860000
+         ORG   *+LTIMESUP                                               00870000
+EXENQ    ENQ   (,,E,3,SYSTEM),RET=HAVE,MF=L                             00880000
+MAXLMSG  EQU   X'2D'               LENGTH OF LONGEST MESSAGE OUTPUT     00890000
+*                                  MAXIMUM LENGTH OF TSOMSG,WTO1,WTO2   00900000
+MSGAREA  DS    0F                  TPUT/WTO MESSAGE SPACE               00910000
+         DS    CL(MAXLMSG)                                              00920000
+JOBNAME  DS    CL8                 JOBNAME (FROM TIOT = TIOTNJOB)       00930000
+RNAME    DS    CL3                 EBCDIC UNIT NAME                     00940000
+OPNFRMD  DS    CL1                 FLAG SHOWING THAT STIMER EXIT        00950000
+*                                  WAS ENTERED                          00960000
+LNTHWRK  EQU   *-WORK              LENGTH OF WORK AREA                  00970000
+R0       EQU   0                                                        00980000
+R1       EQU   1                                                        00990000
+R2       EQU   2                                                        01000000
+R3       EQU   3                                                        01010000
+R4       EQU   4                                                        01020000
+R5       EQU   5                                                        01030000
+R6       EQU   6                                                        01040000
+R7       EQU   7                   PARAMETER ADDRESS -> DDNAME          01050000
+R8       EQU   8                   STORES RETURN CODE DURING EXECUTION  01060000
+R9       EQU   9                   IF 0 THEN THIS IS NOT A TSO TASK     01070000
+*                                  IF 1 THEN THIS IS A TSO TASK         01080000
+R10      EQU   10                  SVC NUMBER FOR ENQ/DEQ               01090000
+*                                  = 1 THEN ENTRY POINT IS US26ENQ      01100000
+*                                  = 0 THEN ENTRY POINT IS US26DEQ      01110000
+R11      EQU   11                  BASE REGISTER FOR BULK OF PROGRAM    01120000
+R12      EQU   12                                                       01130000
+R13      EQU   13                  DSA ADDRESS                          01140000
+R14      EQU   14                                                       01150000
+R15      EQU   15                                                       01160000
+         SPACE 3                                                        01170000
+US26ENQ  CSECT                                                          01180000
+         ENTRY US26DEQ                                                  01190000
+         USING WORK,R13                                                 01200000
+         USING *,R15                                                    01210000
+         SAVE  (14,12),,UUPD#XXX   SAVE CALLER'S REGISTERS              01220000
+         ORG   US26ENQ+5           REDEFINE PROGRAM EYEBALL             01230000
+         DC    C'US26'                                                  01240000
+         ORG                                                            01250000
+         LA    R10,1               SET ENQ ENTRY POINT INDICATOR        01260000
+         B     START                                                    01270000
+US26DEQ  STM   R14,R12,12(R13)     SAVE CALLER'S REGISTERS              01280000
+         SR    R10,R10             SET DEQ ENTRY POINT INDICATOR        01290000
+         SPACE 2                                                        01300000
+*    PROLOGUE                                                           01310000
+         SPACE 1                                                        01320000
+START    EQU   *                                                        01330000
+         DROP  R15                                                      01340000
+         LR    R7,R1               SAVE ADDRESS OF DDNAME               01350000
+         BALR  R11,0                                                    01360000
+         USING *,R11               CHANGE BASE TO REGISTER 11           01370000
+*    OBTAIN MAIN STORAGE WORK AREA                                      01380000
+         LA    R0,LNTHWRK          SET LENGTH IN REG 0                  01390000
+         GETMAIN R,LV=(0)                                               01400000
+         ST    R1,8(R13)           STORE FORWARD CHAIN ADDRESS          01410000
+         ST    R13,4(R1)           STORE BACK CHAIN ADDRESS             01420000
+         LR    R13,R1              INITIALISE DSA ADDRESS               01430000
+         SR    R0,R0                                                    01440000
+         SR    R9,R9               CLEAR TSO INDICATOR                  01450000
+         SR    R8,R8               CLEAR RETURN CODE                    01460000
+         L     R2,16                                                    01470000
+         L     R2,0(R2)                                                 01480000
+         L     R2,4(R2)            GET TCB ADDRESS VIA THE CVT          01490000
+*    IS THIS A TSO TASK?                                                01500000
+         TM    TCBTSFLG(R2),X'80'                                       01510000
+         BZ    NOTSO                                                    01520000
+         LA    R9,1                SET TSO TASK FLAG ON                 01530000
+NOTSO    EQU   *                                                        01540000
+         L     R2,12(R2)           GET TIOT ADDRESS FROM TCB            01550000
+         MVC   JOBNAME,TIOCNJOB(R2)  STORE TASK NAME                    01560000
+         SPACE 2                                                        01570000
+*    FIND DDNAME IN TIOT AND CHECK FOR INTERNAL READER                  01580000
+         SPACE 1                                                        01590000
+SEARCH   AR    R2,R0                                                    01600000
+         IC    R0,24(R2)           GET ENTRY LENGTH                     01610000
+         LTR   R0,R0               END OF TIOT?                         01620000
+         BZ    SETRC16             DDNAME NOT FOUND RETURN 16           01630000
+         CLC   TIOEDDNM(8,R2),0(R7)  RIGHT ENTRY YET?                   01640000
+         BNE   SEARCH              KEEP LOOKING                         01650000
+         LH    R1,42(R2)           POINT TO UCB                         01660000
+         LTR   R1,R1               DD DUMMY?                            01670000
+         BZ    RETURN              OKAY NOT AN INTERNAL READER          01680000
+         CLC   INTDEVT,18(R1)      INTERNAL READER DEVICE?              01690000
+         BNE   RETURN              OKAY NOT AN INTERNAL READER          01700000
+         SPACE 1                                                        01710000
+*   DDNAME POINTS TO AN INTERNAL READER DEVICE                          01720000
+         SPACE 1                                                        01730000
+         MVC   RNAME,UCBNAME(R1)   STORE UNIT ADDRESS                   01740000
+         LTR   R10,R10             ENQ OR DEQ ENTRY                     01750000
+         BZ    DEQUEUE             WAS US26DEQ                          01760000
+         SPACE 1                                                        01770000
+*    ENQUEUE ON INTERNAL READER                                         01780000
+         SPACE 1                                                        01790000
+         MVC   EXENQ(ENQLNTH),ENQ  SET UP LIST                          01800000
+         ENQ   (,RNAME),MF=(E,EXENQ)  TRY RET = USE                     01810000
+         LTR   R15,R15             ENQ'D OK?                            01820000
+         BZ    RETURN              YES ALL'S WELL                       01830000
+         IC    R8,3(R15)           PICK UP ENQ RETURN CODE              01840000
+         C     R8,=F'8'            WHAT HAPPENED?                       01850000
+         BE    RETURN              ALREADY HAD IT                       01860000
+         BH    SETRC16             DON'T KNOW WHAT HAPPENED             01870000
+         SPACE 1                                                        01880000
+*   MUST BE RETURN CODE = 4                                             01890000
+*   WE WOULD HAVE HAD TO WAIT FOR OUR ENQUEUE TO BE PROCESSED           01900000
+         SPACE 1                                                        01910000
+         LTR   R9,R9               ARE WE RUNNING UNDER TSO?            01920000
+         BNZ   PUTMSG              YES WRITE MESSAGE TO SCREEN & RETURN 01930000
+*                                  TO INVOKING PROGRAM.                 01940000
+         SPACE 1                                                        01950000
+*   FOR BACKGROUND TASKS WE WILL ENQUEUE WITH RET=HAVE BUT WITH THE     01960000
+*   INTERVAL TIMER RUNNING. IF WE WAIT FOR MORE THAN 2 MINUTES THE      01970000
+*   OPERATOR WILL BE INFORMED THAT WE ARE WAITING. WHEN WE KICK OFF     01980000
+*   THE OPERATOR WILL BE INFORMED THAT WE HAVE RESUMED PROCESSING.      01990000
+         SPACE 1                                                        02000000
+         MVC   TIMESUP(EXITLNTH),TIMERXIT  SET UP TIMER EXIT CODE IN    02010000
+*                                          WORKING STORAGE              02020000
+         MVC   MSGAREA(LNTHWTO1),WTO1  SET UP WTO TEXT AND CODE         02030000
+*                                      IN MESSAGE WORK LOCATION         02040000
+         MVC   MSGAREA+MJOBNME(L'JOBNAME),JOBNAME  SET UP JOB & UNIT    02050000
+         MVC   MSGAREA+MWTORDR(L'RNAME),RNAME      NAMES IN WTO MESSAGE 02060000
+         MVI   OPNFRMD,X'00'       CLEAR WTO1 ISSUED FLAG               02070000
+         STIMER REAL,TIMESUP,BINTVL=TWOMINS  START ELAPSED TIMER TO     02080000
+*              RUN FOR 2 MINUTES SO THAT WE CAN SEE HOW LONG WE HAVE    02090000
+*              BEEN WAITING FOR OUR ENQUEUE TO BE PROCESSED.            02100000
+         ENQ   ,RET=HAVE,MF=(E,EXENQ)  TRY ENQ WITH RET=HAVE            02110000
+         LR    R6,R15              SAVE ENQ RETURN CODE, IF ANY         02120000
+         TTIMER CANCEL             REMOVE STIMER IF STILL ACTIVE        02130000
+         TM    OPNFRMD,X'80'       WAS WTO1 ISSUED?                     02140000
+         BZ    NOTMADE             NO SET RETURN CDE AND RETURN TO USER 02150000
+         SPACE 1                                                        02160000
+*   TELL OPERATOR THAT WE ARE RUNNING AGAIN                             02170000
+         SPACE 1                                                        02180000
+         MVC   MSGAREA(LNTHWTO2),WTO2                                   02190000
+         MVC   MSGAREA+MJOBNME(L'JOBNAME),JOBNAME                       02200000
+         WTO   MF=(E,MSGAREA)                                           02210000
+         SPACE 1                                                        02220000
+*   ALL MESSAGES HAVE BEEN OUTPUT TO THE OPERATOR                       02230000
+*   INVESTIGATE RETURN CODE FROM ENQ                                    02240000
+         SPACE 1                                                        02250000
+NOTMADE  EQU   *                                                        02260000
+         LTR   R6,R6               ANY RETURN CODE FROM ENQ?            02270000
+         BZ    SETRC4              NO, SET RETCODE =4 'COS WE WAITED    02280000
+         IC    R8,3(R6)            WHAT HAPPENED?                       02290000
+         C     R8,=F'8'                                                 02300000
+         BE    RETURN              ALREADY HAD IT(?!)                   02310000
+         BH    SETRC16             DON'T KNOW WHAT HAPPENED             02320000
+SETRC4   LA    R8,4                SET RETURN CODE = 4                  02330000
+         B     RETURN                                                   02340000
+         SPACE 3                                                        02350000
+*   RETURN CODE FROM FIRST ENQ WAS = 4 AND WE ARE RUNNING UNDER TSO     02360000
+         SPACE 1                                                        02370000
+PUTMSG   EQU   *                                                        02380000
+         MVC   MSGAREA(L'TSOMSG),TSOMSG  SET UP TPUT MESSAGE            02390000
+         LA    R1,MSGAREA          PREPARE FOR TPUT                     02400000
+         MVC   TSORDR(L'RNAME,R1),RNAME  AND COMPLETE MESSAGE           02410000
+         LA    R0,L'TSOMSG                                              02420000
+         TPUT  (1),(0),R           TELL THE UNFORTUNATE USER            02430000
+*                                  WHAT HAPPENED                        02440000
+SETRC12  LA    R8,12               SET RETURN CODE = 12                 02450000
+         B     RETURN                                                   02460000
+         SPACE 3                                                        02470000
+*    DEQUEUE OFF PREVIOUSLY ASSIGNED INTRDR                             02480000
+         SPACE 1                                                        02490000
+DEQUEUE  EQU   *                                                        02500000
+         MVC   EXENQ(DEQLNTH),DEQ  SET UP DEQ PARAMETERS                02510000
+         DEQ   (,RNAME),MF=(E,EXENQ)                                    02520000
+         LTR   R15,R15             ANY RETURN CODE ISSUED?              02530000
+         BZ    RETURN              RETURN CODE = 0.                     02540000
+         IC    R8,3(R15)           PICK UP NON-ZERO RETURN CODE         02550000
+RETURN   EQU   *                                                        02560000
+         LR    R1,R13              PREPARE TO FREEMAIN                  02570000
+         L     R13,4(R13)          RESTORE REG 13                       02580000
+         ST    R8,16(R13)          SET RETURN CODE IN SAVED REG 15 SLOT 02590000
+         LA    R0,LNTHWRK          SET SIZE OF STORAGE TO BE FREED      02600000
+         FREEMAIN R,LV=(0),A=(1)                                        02610000
+         RETURN (14,12)                                                 02620000
+SETRC16  LA    R8,16               SET RETURN CODE 16                   02630000
+         B     RETURN                                                   02640000
+         SPACE  3                                                       02650000
+*    STIMER EXIT ROUTINE - HANDLES LONG ENQUEUE WAITS                   02660000
+         SPACE 1                                                        02670000
+         USING TIMESUP,R15                                              02680000
+TIMERXIT SAVE  (14,12)                                                  02690000
+         MVI   OPNFRMD,X'80'       SET STIMER EXIT ENTERED FLAG         02700000
+         WTO   MF=(E,MSGAREA)      TELL THE OPERATOR WE ARE WAITING     02710000
+         RETURN (14,12)                                                 02720000
+EXITLNTH EQU   *-TIMERXIT                                               02730000
+         DROP  R15                                                      02740000
+         SPACE 3                                                        02750000
+*    CONSTANTS                                                          02760000
+         SPACE 1                                                        02770000
+ENQ      ENQ   (QNAME,,E,3,SYSTEM),RET=USE,MF=L                         02780000
+         ORG   *-4                                                      02790000
+ENQLNTH  EQU   *-ENQ                                                    02800000
+DEQ      DEQ   (QNAME,,3,SYSTEM),RET=HAVE,MF=L                          02810000
+         ORG   *-4                                                      02820000
+DEQLNTH  EQU   *-DEQ               LENGTH OF DEQ LIST                   02830000
+TWOMINS  DC    F'12000'            TIMER INTERVAL OF 2 MINUTES          02840000
+INTDEVT  DC    X'0805'             INTRDR DEVICE TYPE                   02850000
+QNAME    DC    CL8'INTRDR'         MAJOR QUEUE NAME                     02860000
+TSOMSG   DC    C'US26: INTERNAL READER NNN IN USE'                      02870000
+TSORDR   EQU   22                  OFFSET TO RDR VALUE IN TSOMSG        02880000
+WTO1     WTO   'US26: XXXXXXXX WAITING FOR INTRDR NNN',                *02890000
+               ROUTCDE=(2),DESC=(7),MF=L                                02900000
+LNTHWTO1 EQU   *-WTO1                                                   02910000
+MJOBNME  EQU   10                  OFFSET FOR JOBNAME TEXT IN WTO MSGS  02920000
+MWTORDR  EQU   38                  OFFSET FOR RDR TEXT IN WTO1 MESSAGE  02930000
+WTO2     WTO   'US26: XXXXXXXX CONTINUES',                             *02940000
+               ROUTCDE=(2),DESC=(7),MF=L                                02950000
+LNTHWTO2 EQU   *-WTO2                                                   02960000
+         SPACE 1                                                        02970000
+*   EQUATES FOR FIELDS IN SYSTEM CONTROL BLOCKS                         02980000
+         SPACE 1                                                        02990000
+TCBTSFLG EQU   148                 OFFSET OF FLAGS INTO TCB             03000000
+TIOCNJOB EQU   0                   OFFSET OF JOBNAME INTO TIOT          03010000
+TIOEDDNM EQU   28                  OFFSET OF DDNAME IN TIOT(1ST ENTRY)  03020000
+UCBNAME  EQU   13                  OFFSET FOR UCBNAME WITHIN UCB        03030000
+         LTORG                                                          03040000
+         END                                                            03050000

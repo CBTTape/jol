@@ -1,0 +1,648 @@
+//CLARKE1 JOB (R777),'LONS 8TH',MSGCLASS=X,NOTIFY=CLARKE                00010000
+//ASM EXEC PGM=ASMBLR,PARM='NODECK,OBJ,TERM,XREF(SHORT),LIST,TEST'      00020001
+//SYSLIB   DD  DSN=SYS1.MACLIB,DISP=SHR,DCB=BLKSIZE=19040               00030000
+//*        DD  DSN=SYS1.AMODGEN,DISP=SHR                                00040000
+//         DD  DSN=CLARKE.JOL40.MACLIB,DISP=SHR                         00050000
+//SYSUT1   DD  DSN=&&SYSUT1,SPACE=(CYL,(2,2)),UNIT=SYSDA                00060000
+//SYSUT2   DD  DSN=&&SYSUT2,SPACE=(CYL,(2,2)),UNIT=SYSDA                00070024
+//SYSUT3   DD  DSN=&&SYSUT3,SPACE=(CYL,(2,2)),UNIT=SYSDA                00080000
+//SYSGO DD DSN=CLARKE.JOL40.OBJ($JOLPC40),DISP=OLD                      00090000
+//SYSTERM  DD  SYSOUT=*                                                 00100000
+//SYSPRINT DD  SYSOUT=*                                                 00110000
+         GBLC  &TYPE                                              J40B  00120007
+&TYPE    SETC  'SCHED'                                            J40B  00130007
+         GENSAVE CSECT=$JOLPC40                                         00140000
+* THIS PROGRAM CONVERTS DATA HELD IN CHARACTER FORM TO THE JOL          00150000
+*      MAINFRAME FORMAT.                                                00160000
+*                                                                       00170000
+* IT IS REQUIRED BECAUSE WE WISH TO TRANSMIT DATA FROM THE PC           00180000
+*      TO THE MAINFRAME IN THE MOST ECONOMICAL FORMAT, AND IN           00190000
+*      A FORMAT THAT MOST TRANSMISSION PROGRAMS CAN HANDLE.             00200000
+*                                                                       00210000
+*        L     R11,=A($JOLPC40)                                         00220000
+*        USING $JOLPC40,R11                                             00230000
+*        DROP  R13                                                      00240000
+         L     R5,=A(PGMDETS)                                           00250010
+         USING  PGMDETS,R5                                              00260000
+         L     R6,=A(DDDSNDET)                                          00270000
+         USING  DDDSNDET,R6                                             00280000
+         L     R7,=A(INST)                                              00290000
+         USING  INST,R7                                                 00300000
+         L     R8,=A(RECAREA)                                           00310000
+         USING  RECAREA,R8                                              00320000
+         #PRINT 'JOLCP40 STARTED'                                       00330029
+         OPEN  CARDSIN                                                  00340025
+         OPEN  SYSUT1                                                   00350025
+         OPEN  (SYSIN,OUTPUT)                                           00360025
+         PUT   SYSIN,DATAHD          OUTPUT THE HEADER RECORD           00370025
+         #PRINT 'FILES OPEN'                                            00380025
+         ZAP   TOTRECOP,=P'0'                                           00390025
+LOOPCRD  GET   CARDSIN,RECORD                                           00400025
+*        #PRINT 'READ A REC$'                                           00410025
+*        #PRINT RECORD                                                  00420025
+         CLC   =C'FF**FF**FF$$',RECORD   NEW CARD HEADER?         J40B  00430025
+         BE    NEWCARDM                  YES, SO MAKE NEW HEADER  J40B  00440025
+         PUT   SYSIN,RECORD              OUTPUT CARD IMAGE        J40B  00450025
+         B     LOOPCRD                   GO GET ANOTHER CARD      J40B  00460025
+NEWCARDM DS     0H                                                      00470025
+         MVC   DATAMEM,RECORD+10                                  J40B  00480026
+         MVC   DATAMEM5,=CL5'800 '                                J40B  00490025
+         MVC   DATAMEM6,=CL5'0080'                                J40B  00500025
+         PUT   SYSIN,DATAMEM1                                           00510025
+         B     LOOPCRD                   GO GET ANOTHER CARD      J40B  00520025
+*                                                                       00530025
+* END OF CARDS                                                          00540025
+*                                                                       00550025
+EOCARDS  DS    0H                                                       00560025
+         CLOSE CARDSIN                                                  00570025
+LOOP     GET   SYSUT1,RECORD                                            00580000
+*        #PRINT 'READ A REC'                                            00590029
+GOTREC   DS     0H                                                      00600012
+*        #PRINT RECORD                                                  00610012
+         CLC   RECORD(2),=C'EOF;'                                 J40B  00620012
+         BE    EOJ                                                J40B  00630011
+* TEST RECORD  TYPE                                                     00640000
+         CLC   =C'I=',RECORD  IS THIS A JOL INSTRUCTION?                00650000
+         BE    PC40INS                                                  00660000
+         CLC   =C'DD',RECORD  IS THIS A DDCARD TYPE RECORD ?            00670000
+         BE    PC40DD                                                   00680000
+         CLC   =C'ERUN',RECORD  IS THIS A EXEC TYPE RECORD ?            00690000
+         BE    PC40EXEC                                                 00700000
+         #PRINT 'JOLCP40:INVALID RECORD FOUND'                          00710000
+         B     LOOP                                                     00720000
+PC40INS  L     R15,=V(RTN40INS)                                         00730000
+         BALR  R14,R15                                                  00740000
+         B     GOTREC                                                   00750000
+PC40DD   L     R15,=V(RTN40DDS)                                         00760000
+         BALR  R14,R15                                                  00770000
+         B     GOTREC                                                   00780000
+PC40EXEC L     R15,=V(RTN40EXE)                                         00790000
+         BALR  R14,R15                                                  00800000
+         B     GOTREC                                                   00810000
+EOJ      CLOSE  SYSUT1                                                  00820000
+         CLOSE  SYSIN                                                   00830024
+         MP    TOTRECOP,=P'80'                                          00840000
+         UNPK  INSTSIZE,TOTRECOP                                        00850000
+         OI    INSTSIZE+L'INSTSIZE-1,C'0'                               00860000
+         #PRINT 'ENDED PC SETUP'                                        00870000
+         #PRINT 'JOL DYNAMIC SCHEDULER CALLED WITH:',#JOLPARM           00880029
+         #PRINT ' '              CLEAR BUFFER                           00881027
+         LINK  EP=$JOLDY40,PARAM=#JOLPARM,VL=1                     J40B 00890028
+         GENRETN RC=(15)                                                00900027
+         LTORG                                                          00910000
+         GENSAVE CSECT=RTN40INS                                         00920000
+*        #PRINT 'AT INS$'                                               00930012
+         MVC   ILENGTH,=AL2(IBODY)                                      00940000
+         CLEAR ITEXT                                                    00950004
+         CLEAR IDUMMY                                                   00960004
+         MVC   ILABEL,PCISTEP                                           00970000
+         MVC   ISTMT,PCISTMT                                            00980000
+         JOLCONV PCILEV                                                 00990000
+         STC   R1,ILEVEL                                                01000000
+*        JOLCONV PCINEST                                                01010000
+         STC   R1,INEST                                                 01020000
+         MVC   ICOMMAND,PCICMD                                          01030000
+*        #PRINT 'ICMD='                                                 01040000
+*        #PRINT PCICMD                                                  01050012
+*        #PRINT 'PCILEN=',PCILEN                                        01060012
+         LA    R1,0                                                     01070004
+         IFNULL PCILEN,SETILEN                                   J40B   01080004
+         TNUM  PCILEN         SEE IF ANY TEXT FOR COMMAND               01090004
+SETILEN  STH   R1,ITEXT       SET FIRST 2 BYTES TO LENGTH OF TEXT       01100004
+* MOVE THE TXT  FROM PCITXT TO ITEXT+2 (256 BYTES WILL DO)              01110000
+         MVC   ITEXT+2(255),PCITXT                                      01120000
+         AH    R1,ILENGTH                                               01130000
+         STH   R1,ILENGTH                                               01140000
+         GET   SYSUT1,RECORD                                            01150000
+         CLI   RECORD,C'*'   CONTINUED RECORD ?                         01160000
+         BNE   RT40INS0                                                 01170000
+RT40INS0 EQU   *                                                        01180000
+I40NOTXT EQU   *                                                        01190000
+*        #PRINT 'WRITING INS$'                                          01200012
+         LA    R1,INST        ADDRESS OF RECORD TO WRITE                01210000
+         L     R15,=V(OPJOLREC)                                         01220000
+         BALR  R14,R15                                                  01230000
+         GENRETN                                                        01240000
+         LTORG                                                          01250000
+         GENSAVE CSECT=RTN40DDS                                         01260000
+*        #PRINT 'AT DDS$'                                               01270012
+         MVI   DDOSVB,C' '                                        J40B  01280011
+         MVC   DDOSVB+1(DDLEN-1),DDOSVB                           J40B  01290011
+         CLEAR DDSPECTP,DDSPECT2,DDCANCEL,                        75128*01300011
+               DDCANCEL,DDLABEL,DDUNITNO,DDPRIM,DDSEC,DDDIRECT,   80290*01310011
+               DDBLKSZE,DDLRECL,DDSIZE,DDSIZE2,DDAVREC,DDBUFNO,   80290*01320010
+               DDBUFND,DDBUFNI,                                   82300*01330011
+               DDBUFL,DDRKP,DDKEYLEN,DDOVERFL,DDVOLSEQ,DDMAXVOL,  80290*01340010
+               DDUNITQU,DDAEXTRA                                        01350011
+         MVI   DDDD1,C'D'                      SET RECORD TYPE TO'D'    01360010
+         MVC   DDOSVB(4),=AL2(DDLEN,0)                                  01370011
+*        LA    R6,DDWORKAR                NOW WE WILL USE THE COPY      01380011
+         MVC   DDSTMT,PCDSTMT                                           01390000
+         MVC   DDDSID,PCDDSID                                           01400000
+         JOLCONV PCDLEV                                                 01410000
+         STC   R1,DDLEVEL                                               01420000
+         JOLCONV PCDNEST                                                01430000
+         STC   R1,DDNEST                                                01440000
+         JOLCONV PCDTYP                                                 01450000
+         STC   R1,DDTYPE                                                01460000
+         MVC   DDDDNAME,PCDDDNAM                                        01470000
+* START DISP(1)                                                         01480000
+         SR    R1,R1                                                    01490000
+         NC    PCDDISP1(8),=X'0101010101010101'                         01500000
+         IC    R15,PCDDISP1                                             01510000
+         AR    R1,R15                                                   01520000
+         SLL   R1,1                                                     01530000
+         IC    R15,PCDDISP1+1                                           01540000
+         AR    R1,R15                                                   01550000
+         SLL   R1,1                                                     01560000
+         IC    R15,PCDDISP1+2                                           01570000
+         AR    R1,R15                                                   01580000
+         SLL   R1,1                                                     01590000
+         IC    R15,PCDDISP1+3                                           01600000
+         AR    R1,R15                                                   01610000
+         SLL   R1,1                                                     01620000
+         IC    R15,PCDDISP1+4                                           01630000
+         AR    R1,R15                                                   01640000
+         SLL   R1,1                                                     01650000
+         IC    R15,PCDDISP1+5                                           01660000
+         AR    R1,R15                                                   01670000
+         SLL   R1,1                                                     01680000
+         IC    R15,PCDDISP1+6                                           01690000
+         AR    R1,R15                                                   01700000
+         SLL   R1,1                                                     01710000
+         IC    R15,PCDDISP1+7                                           01720000
+         AR    R1,R15                                                   01730000
+         STC   R1,DDUSE                                                 01740000
+* END DISP(1)                                                           01750000
+         MVC   DDDISP1(2),PCDDISP2                                      01760007
+* END DISP                                                              01770000
+DD40GETN GET   SYSUT1,RECORD                                            01780000
+         CLI   RECORD,C'*'   CONTINUED RECORD ?                         01790000
+         BNE   RT40DD0                                                  01800000
+         CLC   =C'*DSN=',RECORD                                         01810000
+         BNE   DD40NDSN                                                 01820000
+* HANDLE DSNAME FIELD                                                   01830000
+         MVC   DDDSNAME,PCDDSN         THATS 44 CHARACTERS!             01840000
+         CLI   PCDMEM1,C'('            MEMBER NAME?                     01850000
+         BNE   DD40NMEM                                                 01860000
+         MVC   DDMBR,PCDMEM            YES, MOVED                       01870000
+DD40NMEM CLI   PCDPASS1,C'/'            PASSWORD?                       01880000
+         BNE   DD40NPAS                                                 01890000
+         MVC   DDPASSW,PCDPASSW                                         01900000
+DD40NPAS EQU   *                                                        01910015
+         CLC   =C'SYSOUT=',DDDSNAME                               J40B  01920016
+         BNE   DD40GETN                GET NEXT RECORD                  01930015
+         MVC   DDSYSCLS,DDDSNAME+7     COPY SYSOUT CLASS          J40B  01940015
+         MVC   DDSYSPGM,BLANKS                                    J40B  01950017
+         MVC   DDSYSFRM,BLANKS                                    J40B  01960017
+         CLEAR DDCOPIES                                           J40B  01970017
+         CLEAR DDOUTLIM                                           J40B  01980015
+*        CLEAR DDALIGN                                            J40B  01990018
+*        CLEAR DDALIGN                                            J40B  02000018
+         CLI   DDDSNAME,C'*'                                      J40B  02010019
+         BNE   DD40GETN                GET NEXT RECORD                  02020019
+         MVI   DDDSNAME,C'X'                                      J40B  02030019
+         B     DD40GETN                GET NEXT RECORD                  02040019
+         SPACE 2                                                        02050000
+DD40NDSN CLC   =C'*DCB=',RECORD                                         02060000
+         BNE   DD40NDCB                NOT DCB                          02070000
+         MVC   DDRECFM,PCDRECFM                                         02080000
+         JOLCONV PCDBLKS                                                02090000
+         STH   R1,DDBLKSZE                                              02100000
+         JOLCONV PCDLRECL                                               02110000
+         STH   R1,DDLRECL                                               02120000
+         CLC   PCDDENSX,BLANKS                                    J40B  02130021
+         BE    DD40NDEN                                           J40B  02140020
+         JOLCONV PCDDENSX                                               02150000
+         STC   R1,DDDENS                                                02160000
+DD40NDEN DS    0H                                                       02170020
+         JOLCONV PCDBUFNO                                               02180020
+         STC   R1,DDBUFNO                                               02190000
+         MVC   DDOPTCD,PCDOPTCD                                         02200000
+         MVC   DDDSORG,PCDDSORG                                         02210000
+         B     DD40GETN                GET NEXT RECORD                  02220000
+DD40NDCB CLC   =C'*UNIT=',RECORD                                        02230000
+         BNE   DD40NUNI                NOT UNIT                         02240000
+         MVC   DDUNIT,PCDUNIT2                                          02250000
+         CLI   PCDUNDUM,C','                                            02260000
+         BNE   DD40NUCN                                                 02270000
+         MVC   DDUNITNO,PCDUNITC                                        02280000
+         CLI   DDUNITNO,C'P'                                            02290000
+         BNE   DD40NUCN                                                 02300000
+         JOLCONV PCDUNITC                                               02310000
+         STC   R1,DDUNITNO                                              02320000
+DD40NUCN EQU   *                                                        02330000
+         B     DD40GETN                GET NEXT RECORD                  02340000
+DD40NUNI CLC   =C'*SPACE=',RECORD                                       02350000
+         BNE   DD40NSPC                NOT SPACE                        02360000
+         MVC   DDCYLTRK,PCDSPCTY                                        02370000
+*        MVC   DDRLSE,PCDRLSE                                           02380000
+         JOLCONV PCDPRIM                                                02390000
+         STH   R1,DDPRIM                                                02400000
+         JOLCONV PCDSEC                                                 02410000
+         STH   R1,DDSEC                                                 02420000
+         JOLCONV PCDDIR                                                 02430000
+         STH   R1,DDDIRECT                                              02440000
+         B     DD40GETN                GET NEXT RECORD                  02450000
+DD40NSPC CLC   =C'*VOL=',RECORD                                         02460000
+         BNE   DD40NVOL                NOT VOL                          02470000
+         JOLCONV PCDFILE                                                02480000
+         STH   R1,DDLABEL                                               02490000
+*        JOLCONV PCDDENS                                                02500022
+*        STC   R1,DDDENS                                                02510022
+         MVC   DDVOLUME,PCDVOL                                          02520000
+         B     DD40GETN                GET NEXT RECORD                  02530000
+DD40NVOL #PRINT 'INVALID CONTINUATION RECORD'                           02540000
+         SPACE 2                                                        02550000
+RT40DD0  EQU    *                                                       02560000
+*        #PRINT 'WRITING DD$'                                           02570012
+         LA    R1,DDDSNDET    ADDRESS OF RECORD TO WRITE                02580000
+         L     R15,=V(OPJOLREC)                                         02590000
+         BALR  R14,R15                                                  02600000
+*        L     R6,=A(DDDSNDET)         RESET RECORD TO USE CSECT        02610011
+         GENRETN                                                        02620000
+         LTORG                                                          02630000
+         GENSAVE CSECT=RTN40EXE                                         02640000
+*        #PRINT 'AT EXE$'                                               02650007
+         MVI   PGMLABEL,C' '                                      J40B  02660006
+         MVC   PGMLABEL+1(PGMLEN-7),PGMLABEL                      J40B  02670011
+         MVC   #PGMDETS,=AL2(PGMLEN)                              J40B  02680006
+         MVI   PGMTYPEI,C'E'                                      J40B  02690011
+         MVC   PGMSTMT,PCESTMT                                    J40B  02700006
+         MVC   PGMSTEP,PCESTEP                                    J40B  02710006
+         MVC   PGM,PCEPGM                                         J40B  02720006
+         MVC   PGMSTEP,PCELABEL                                   J40B  02730006
+         GET   SYSUT1,RECORD                                            02740008
+*        CLI   RECORD,C'*'   CONTINUED RECORD ?                         02750006
+*        BNE   RT40EXE0                                                 02760006
+*T40EXE0 GENRETN                                                        02770006
+         LA    R1,PGMDETS     ADDRESS OF RECORD TO WRITE                02780000
+         L     R15,=V(OPJOLREC)                                         02790000
+         BALR  R14,R15                                                  02800000
+         GENRETN                                                        02810000
+         LTORG                                                          02820000
+         GENSAVE CSECT=OPJOLREC                                         02830000
+         LR    R10,R1                                                   02840000
+*        #PRINT 'AT OP$'                                                02850012
+         MVC   DATAMEM,=CL8'$$INST'                               J40B  02860005
+         MVC   DATAMEM5,=CL5'1000'                                J40B  02870005
+         MVC   DATAMEM6,=CL5'0080'                                J40B  02880005
+         PUT   SYSIN,DATAMEM1                                           02890024
+         PUT   SYSIN,(R10)                                              02900024
+         AP    TOTRECOP,=P'1'                                           02910000
+         LR    R9,R10                                                   02920000
+         CLC   0(2,R9),=H'80'                                           02930003
+         BNH   OPRET                                                    02940000
+         LA    R10,80(R10)                                              02950000
+         PUT   SYSIN,(R10)                                              02960024
+         AP    TOTRECOP,=P'1'                                           02970000
+         CLC   0(2,R9),=H'160'                                          02980003
+         BNH   OPRET                                                    02990000
+         LA    R10,80(R10)                                              03000000
+         PUT   SYSIN,(R10)                                              03010024
+         CLC   0(2,R9),=H'240'                                          03020003
+         BNH   OPRET                                                    03030000
+         LA    R10,80(R10)                                              03040000
+         PUT   SYSIN,(R10)                                              03050024
+         AP    TOTRECOP,=P'1'                                           03060000
+OPRET    GENRETN                                                        03070000
+         LTORG                                                          03080000
+RECAREA  CSECT                                                          03090000
+RECORD   DS    CL80                                                     03100000
+RECORDX  DS    CL100                                                    03110000
+         ORG   RECORD                                                   03120000
+PCITYP   DS    CL2            CONTAINS 'I='                             03130000
+PCISTEP  DS    CL8            STEP NAME                                 03140000
+PCISTMT  DS    CL4            STATEMENT NUMBER                          03150000
+PCILEV   DS    CL2            LEVEL NUMBER                              03160000
+PCINEST  DS    CL2            NEST                                      03170000
+PCICMD   DS    CL8            COMMAND EG 'TYPE', 'IF', 'DO', 'END'      03180000
+PCILEN   DS    CL4            LENGTH OF COMMAND OR BLANKS               03190000
+PCITXT   DS    CL150          COMMAND TEXT                              03200000
+         ORG   RECORD                                                   03210000
+PCETYP   DS    CL5            CONTAINS 'ERUN '                          03220000
+PCESTMT  DS    CL4            STATEMENT NUMBER                          03230010
+PCEDUM1  DS    CL6            ' STEP='                                  03240000
+PCESTEP  DS    CL8            STEP NAME                                 03250000
+PCEDUM2  DS    CL5            ' PGM='                                   03260011
+PCEPGM   DS    CL8            PROGRAM NAME                              03270000
+PCEDUM3  DS    CL10           ' PGMLABEL='                              03280000
+PCELABEL DS    CL8            LABEL                                     03290000
+         ORG   RECORD                                                   03300000
+PCDTYP1  DS    CL3            CONTAINS 'DD '                            03310000
+PCDSTMT  DS    CL4            STATEMENT NUMBER                          03320000
+PCDDSID  DS    CL8            DSID NAME                                 03330000
+PCDLEV   DS    CL2            LEVEL NUMBER                              03340000
+PCDNEST  DS    CL2            NEST                                      03350000
+PCDTYP   DS    CL2            DDTYP                                     03360000
+PCDDDNAM DS    CL8            DDNAME                                    03370000
+PCDDISP1 DS    CL8            BIT PATTERN OF DDDISP(1)                  03380000
+PCDDISP2 DS    CL1            DDDISP(2)                                 03390000
+PCDDISP3 DS    CL1            DDDISP(3)                                 03400000
+* END OF PART 1 OF DD RECORD                                            03410000
+         ORG   RECORD                                                   03420000
+PCDDSN1  DS    CL5            CONTAINS '*DSN='                          03430000
+PCDDSN   DS    CL44           CONTAINS DSNAME                           03440000
+PCDMEM1  DS    CL1            CONTAINS '(' MAYBE                        03450000
+PCDMEM   DS    CL8            CONTAINS MEMBER NAME                      03460000
+PCDMEM2  DS    CL1            CONTAINS ')' MAYBE                        03470000
+PCDPASS1 DS    CL1            CONTAINS '/' MAYBE                        03480000
+PCDPASSW DS    CL8            CONTAINS PASSWORD                         03490000
+* END OF PART 2 OF DD RECORD                                            03500000
+         ORG   RECORD                                                   03510000
+PCDDCB1  DS    CL5            CONTAINS '*DCB='                          03520000
+PCDRECFM DS    CL5            DDRECFM                                   03530000
+PCDBLKS  DS    CL8            DDBLKSZE                                  03540000
+PCDLRECL DS    CL8            DDLRECL                                   03550000
+PCDDENSX DS    CL2            DDDENS                                    03560025
+PCDBUFNO DS    CL8            DDBUFNO                                   03570000
+PCDOPTCD DS    CL4            DDOPTCD                                   03580000
+PCDDSORG DS    CL4            DDDSORG                                   03590000
+* END OF PART 3 OF DD RECORD                                            03600000
+         ORG   RECORD                                                   03610000
+PCDUNIT1 DS    CL6            CONTAINS '*UNIT='                         03620000
+PCDUNIT2 DS    CL8            DDUNIT                                    03630000
+PCDUNDUM DS    CL1            ',' IF UNIT NUMBER                        03640000
+PCDUNITC DS    CL2            DDUNITNO ('P' OR NUMBER)                  03650000
+* END OF PART 4 OF DD RECORD                                            03660000
+         ORG   RECORD                                                   03670000
+PCDSPC1  DS    CL7            CONTAINS '*SPACE='                        03680000
+PCDSPCTY DS    CL1            DDCYLTRK  'T' 'C' OR 'B'                  03690000
+PCDRLSE  DS    CL1            ' ' OR 'R'                                03700000
+PCDPRIM  DS    CL8            DDPRIM                                    03710000
+PCDSEC   DS    CL8            DDSEC                                     03720000
+PCDDIR   DS    CL4            DDDIR                                     03730000
+* END OF PART 5 OF DD RECORD                                            03740000
+         ORG   RECORD                                                   03750000
+PCDVOL1  DS    CL5            CONTAINS '*VOL='                          03760000
+PCDFILE  DS    CL4            DDFILENO                                  03770000
+*CDDENS  DS    CL2            DDDENS                                    03780022
+PCDLABTY DS    CL2            DDLABTYP                                  03790000
+PCDVOL   DS    CL44           DDVOL                                     03800000
+* END OF PART 6 OF DD RECORD                                            03810000
+         ORG                                                            03820000
+TOTRECOP DC    PL6'0'                                                   03830000
+#JOLPARM DC    AL2(ENDPARM-*)                                           03840020
+JOLPARMC DC    C'JOL,INSTSIZE='                                         03850000
+INSTSIZE DC    CL6'000000'                                              03860000
+ENDPARM  EQU   *                                                        03870000
+*DWORKAR DS    CL256          USED IN DD WORK SET UP CSECT              03880011
+BLANKS   DC    CL80' '                                                  03890000
+         PRINT NOGEN                                              J40B  03900001
+CARDSIN  DCB   MACRF=GM,EODAD=EOCARDS,DDNAME=$$CARDS,DSORG=PS           03910025
+SYSUT1   DCB   MACRF=GM,EODAD=EOJ,DDNAME=SYSUT1,DSORG=PS                03920025
+SYSIN    DCB   LRECL=80,BLKSIZE=80,RECFM=F,MACRF=PM,DDNAME=SYSIN,      +03930024
+               DSORG=PS                                           J40B  03940000
+DATAHD   DC    8X'FF'         THIS IS THE HEADER RECORD TO GO OUT       03950013
+DATAHD2  DC    3C'JOL'         ON THE SYSIN FILE TO UJEINIT             03960007
+DATAHD3  DC    8X'FF'                                                   03970007
+DATAHD4  DC    70X'00'                                                  03980007
+DATAHD5  DC    CL5' '                                                   03990007
+         SPACE                                                          04000007
+* THE 'DATAMEM' CARDS ARE CREATED FROM HERE AND ARE USED BY             04010007
+*        THE UJEINIT PROGRAM TO CREATE THE PDS CONTAINING THE           04020007
+*        USERS SYSIN CARD FILES AND THE JOL INSTRUCTIONS FOR            04030007
+*        THE 'JOL' TRANSIENT SCHEDULER/INITIATOR.                       04040007
+* THE CARD BELOW TELLS UJEINIT A NEW MEMBER IS ABOUT TO START.          04050007
+DATAMEM1 DC    8X'FF'         CHECKED BY 'UJEINIT' FOR VALIDITY         04060007
+DATAMEM2 DC    CL15'JOLMEMSTART$$##'                                    04070007
+DATAMEM  DC    CL8' '         MEMBER NAME TO BE USED IN THE 'STOW'      04080007
+         DC    CL4'##$$'                                                04090007
+DATAMEM4 DC    CL2'FB'        RECORD FORMAT FIELD FOR THE MEMBER        04100007
+DATAMEM5 DC    CL5' '         BLOCKSIZE                                 04110007
+DATAMEM6 DC    CL5' '         RECORD LENGTH                             04120007
+FILL0001 DC    C' '           FILLER ONLY                               04130007
+TOTCRDS  DC    F'0'           TOTAL NUMBER OF USER SYSIN CARDS          04140007
+*                             AND SET UP IN UJP95 AND UJP96             04150007
+           SPACE 2                                                      04160007
+* THIS IS A MINI VERSION OF THE DSECTS REQUIRED FOR MAINFRAME JOL.      04170007
+*                                                                       04180007
+* C. V. CLARKE, OCTOBER, 1988                                           04190007
+*                                                                       04200007
+* THERE ARE THREE DSECTS:                                               04210007
+*                                                                       04220007
+*     1. PGMDETS DESCRIBES THE INTERNAL MAINFRAME JOL REPRESENTATION    04230007
+*        OF PROGRAM DETAILS REQUIRED FOR THE SCHEDULER TO LOAD          04240007
+*        PROGRAMS.                                                      04250000
+*                                                                       04260000
+*                                                                       04270000
+*     2. DDDSNDETS DESCRIBES THE INTERNAL MAINFRAME JOL REPRESENTATION  04280000
+*        OF DATA SET DETAILS REQUIRED FOR THE SCHEDULER TO PERFORM      04290000
+*        WORK ON DATA SETS.                                             04300000
+*                                                                       04310000
+*        THE JOL MAINFRAME SCHEDULER CAN ALLOCATE DATA SETS DYNAMICALLY 04320000
+*        CATALOG THEM ETC ETC.                                          04330000
+*                                                                       04340000
+*                                                                       04350000
+*     3. INSTRUCTION DETAILS PRODIVE JOL WITH THE INFORMATION IT        04360000
+*        NEEDS TO DO IF STATEMENTS, TYPE, DISPLAY ETC.                  04370000
+*                                                                       04380000
+*                                                                       04390000
+* PGMDETS                                                               04400000
+         COPY  PGMDETS                                            J40B  04410010
+*                                                                       04420000
+*                                                                       04430000
+*                                                                       04440000
+*                                                                       04450000
+*$$$                                                                    04460007
+         DS    0D                                                 J40B  04470011
+         COPY  DDDSNDET                                           J40B  04480007
+*                                                                       04490000
+*                                                                       04500000
+*                                                                       04510000
+*                                                                       04520000
+*                                                                       04530000
+*                                                                       04540000
+INST     CSECT                                                          04550000
+ILENGTH  DS    H             LENGTH OF RECORD                           04560000
+         DC    H'0'                                                     04570000
+II       DC    CL1'I'        SET TO 'E' FOR PGM EXEC                    04580000
+ILABEL   DS    CL8           PGM DECLARE LABEL OR PGM NAME              04590000
+ISTMT    DS    CL4           STATEMENT NUMBER                           04600000
+ILEVEL   DS    CL1           LEVEL                                      04610000
+INEST    DS    CL1                                                      04620000
+ICOMMAND DS    CL8           EG 'TYPE'                                  04630000
+IBODY    EQU   *-ILENGTH     LENGTH OF BODY                             04640000
+ITEXT    DS    CL150         FIRST 2 BYTE ARE LENGTH                    04650000
+IDUMMY   DS    CL150                                                    04660000
+*                                                                       04670000
+ILEN     EQU   *-ILENGTH                                                04680000
+*                                                                       04690000
+         END                                                            04700000
+*        COPY DDDSNDETS                                                 04710000
+************************************************************************04720000
+*                                                                       04730000
+* IHADCB - I HAD A DCB DSECT FOR PC/370 RELEASE 2.0+ FILE DATA CONTROL B04740000
+*                                                                       04750000
+************************************************************************04760000
+IHADCB   DSECT                                                          04770000
+DCBDCB   DS    CL4 CONSTANT EBCDIC C'ADCB' DCB IDENTIFIER               04780000
+DCBDSN   DS    A   ADDRESS OF UP TO 64 BYTE PATH/FILE SPEC FOLLOWED BY Z04790000
+DCBFID   DS    H   FILE HANDLE ASSIGNED BY MS-DOS AT OPEN (X'FFFF'DEFAUL04800000
+DCBFLG   DS    X   DATA CONTROL BLOCK FLAGS (ONLY DFTRAN MAY BE SET BY U04810000
+DFOPEN   EQU   X'80' FILE OPEN                                          04820000
+DFUBUF   EQU   X'40' USER DEFINED BLOCK AREA (NO DYNAMIC ALLOC/DEALLOC) 04830000
+DFOUT    EQU   X'20' OPEN FOR OUTPUT                                    04840000
+DFGEOF   EQU   X'10' END OF FILE PENDING ON SHORT BLOCK                 04850000
+DFTRAN   EQU   X'08' TRANSLATE GET/PUT RECORDS FOR ASCII FILE           04860000
+DFADCB   EQU   X'01' ASSIST DCB - DO NOT TRANSLATE 370 ADDRESSES        04870000
+DSORG    DS    C   DATA SET ORGANIZATION (R=RANDOM, S=SEQUENTIAL)       04880000
+MACRF    DS    C   DATA SET ACCESS MODE (R=READ, W=WRITE, G=GET, P=PUT) 04890000
+RECFM    DS    C   DATA SET RECORD FORMAT (F=FIXED, V=VAR, T=TEXT)      04900000
+EOR      DS    X   END OF RECORD CODE (DEFAULT IS LINE FEED X'0A')      04910000
+EOF      DS    X   END OF FILE CODE   (DEFAULT IS CTL-Z X'1A')          04920000
+LRECL    DS    H   RECORD LENGTH (2<LRECL<64K-16)                       04930000
+BLKSZ    DS    H   BLOCK  LENGTH (2<BLKSZ<64K-16)                       04940000
+EODAD    DS    A   END OF DATA EXIT ADDRESS                             04950000
+SYNAD    DS    A   SYCHRONOUS ERROR EXIT ADDRESS                        04960000
+RCD      DS    A   RECORD AREA ADDRESS FOR GET/PUT                      04970000
+BLK      DS    A   BLOCK  AREA ADDRESS (0 FOR DYNAMICALLY ALLOCATED)    04980000
+RBA      DS    A   RELATIVE BYTE ADDRESS FOR RANDOM READ/WRITE          04990000
+REN      DS    A   RENAME ASCIIZ FILE (ONLY USED BY RENAME SVC)         05000000
+IOCNT    DS    F   BLOCK I/O COUNT SINCE OPEN                           05010000
+PRECL    DS    H   PHYSICAL BLOCK SIZE OF LAST READ/WRITE               05020000
+*                                                                       05030000
+* RESERVED AREA FOR USE BY PC/370 IOS SUPERVISOR WHILE FILE OPEN        05040000
+*                                                                       05050000
+DSNSG    DS    XL4 SEGMENT:OFFSET OF DCBDSN PATH/FILE NAME              05060000
+EODSG    DS    XL4 SEGMENT:OFFSET OF EODAD EXIT                         05070000
+SYNSG    DS    XL4 SEGMENT:OFFSET OF SYNAD EXIT                         05080000
+RCDSG    DS    XL4 SEGMENT:OFFSET OF RECORD AREA FOR GET/PUT            05090000
+RENSG    DS    XL4 SEGMENT:OFFSET OF RENAME FILE NAME                   05100000
+BLKSG    DS    XL4 SEGMENT:OFFSET OF BLOCK AREA                         05110000
+BLKPTR   DS    XL4 SEGMENT:OFFSET OF CURRENT RECORD IN BLOCK AREA       05120000
+BLKEOD   DS    XL2 OFFSET OF CURRENT END OF DATA IN BLOCK AREA          05130000
+BLKEND   DS    XL2 OFFSET OF END OF ALLOCATED BLOCK AREA                05140000
+WLRECL   DS    H   REVERSED LRECL                                       05150000
+WBLKSZ   DS    H   REVERSED BLKSZ                                       05160000
+LDCB     EQU   *-IHADCB                                                 05170000
+*                                                                       05180000
+************************************************************************05190000
+         END  $JOLPC40                                                  05200000
+* DDDSNDETS                                                             05210007
+DDDSNDET CSECT                                                          05220007
+DDOSVB   DS    H             LENGTH OF RECORD                           05230007
+         DC    H'0'                                                     05240007
+DDDD1    DC    CL1'D'        SET TO 'D' FOR 'DD' CARD                   05250007
+DDDSID   DC    CL8' '        THE DATA SET IDENTIFIER                    05260007
+DDSTMT   DC    CL4' '        STMT NUMBER OF DECLARE                     05270007
+DDLEVEL  DC    AL1(0)        LEVEL OF THIS DECLARED DSID                05280007
+DDNEST   DC    AL1(0)                                                   05290007
+DDTYPE   DC    AL1(0)        THIS FIELD CONTAINS INFO ABOUT THE DSID    05300007
+DDDDNAME DC    CL8' '        DDNAME                                     05310007
+DDDSNAME DC    CL44' '       DSNAME OR OTHER DETAILS                    05320007
+DDMBR    DC    CL8' '        MEMBER NAME ¦ GDG REL                      05330007
+DDPASSW  DC    CL8' '        PASSWORD FOR DATA SET                      05340007
+         ORG   DDDSNAME                                                 05350007
+DDSYSCLS DS    CL1           SYSOUT CLASS                               05360007
+DDSYSPGM DS    CL1           SYSOUT WRITER                              05370007
+DDSYSFRM DS    CL1           SYSOUT FORM NUMBER                         05380007
+DDCOPIES DS    AL1           COPIES                                     05390007
+DDOUTLIM DS    AL3                                                      05400007
+DDUCS    DS    CL8                                                      05410007
+DDFCB    DS    CL8                                                      05420007
+DDROUTE  DS    CL8                                                      05430007
+DDALIGN  DS    AL1                                                      05440007
+DDVERIFY DS    AL1                                                      05450007
+DDFOLD   DS    CL1                                                      05460007
+         ORG   DDDSNAME                                                 05470007
+DDDSIDR  DS    CL8' '        CURRENTLY NOT USED                         05480007
+         ORG                                                            05490007
+DDUSE    DS    0AL1          SPECIAL INDICATORS FOR READ, WRITE ETC     05500007
+DDDDISP  DC    CL3' '        SAME FIELD AS ABOVE                        05510007
+DDCANCEL DC    XL1'0'        SPECIAL BITS                               05520007
+DDADSID  DC    A(0)          ADDRESS (NOT CURRENTLY USED)               05530007
+DDLABTYP DC    FL1(0)        SL, SUL ETC                                05540007
+DDVOLUME DC    CL44' '                                                  05550007
+         ORG   DDVOLUME                                                 05560007
+DDCHAR   DS    CL8           FOR 3380                                   05570007
+DDFLASH  DS    CL8           FOR 3380                                   05580007
+DDCHARS  DS    CL19          FOR 3380                                   05590007
+DDMODIFY DS    CL8           FOR 3380                                   05600007
+DDBURST  DS    CL1           FOR 3380                                   05610007
+         ORG                                                            05620007
+DDLABEL  DC    H'0'          FOR TAPES                                  05630007
+DDUNIT   DC    CL8' '        SYSDA, 3380 ETC                            05640007
+DDUNITNO DC    FL1'0'        NUMBER OF UNIT (OR 'P')                    05650007
+DDUNITYP DC    X'0'          SPECIAL INTERNAL UNIT INDICATORS           05660007
+DDUNITQU DC    XL1'0'        SPECIAL INTERNAL UNIT INDICATORS           05670007
+DDCATLGS DC    FL1'0'        CATALOG RETURN CODES                       05680007
+DDSPACE  EQU   *             START OF SPACE FIELDS                      05690007
+DDPRIM   DC    H'0'          PRIMARY SPACE FIELD                        05700007
+DDSEC    DC    H'0'          SECONDARY SPACE FIELD                      05710007
+DDDIRECT DC    H'0'          DIRECTORY BLOCKS                           05720007
+DDCYLTRK DC    CL1' '        'C', 'T' ETC                               05730007
+DDSPECTP DC    XL1'0'        'PRIVATE' INDICATORS ETC                   05740007
+DDSPECT2 DC    XL1'0'        'VSAM' INDICATORS ETC                      05750007
+DDDCB    EQU   *             START OF DCB FIELDS                        05760007
+DDRECFM  DC    CL4' '        'VB' 'FB'                                  05770007
+DDBLKSZE DC    H'0'          BLOCKSIZE                                  05780007
+DDLRECL  DC    H'0'          LRECL                                      05790007
+DDSIZE   DC    H'0'                                                     05800007
+DDSIZE2  DC    H'0'                                                     05810007
+DDAVREC  DC    H'0'          AVERAGE RECORD SIZE                        05820007
+DDSIZEQ  DC    CL1' '        USED FOR DDAVREC BELOW                     05830007
+DDBUFNO  DC    FL1'0'                                                   05840007
+DDBUFL   DC    H'0'                                                     05850007
+DDBUFNI  DC    FL1'0'                                                   05860007
+DDBUFND  DC    FL1'0'                                                   05870007
+DDLIMCT  DC    CL1' '                                                   05880007
+DDOPTCD  DC    CL6' '                                                   05890007
+DDDENS   DC    AL1(0)                                                   05900007
+DDRKP    DC    FL1'0'                                                   05910007
+DDKEYLEN DC    FL1'0'                                                   05920007
+DDOVERFL DC    FL1'0'                                                   05930007
+DDDSORG  DC    CL3' '                                                   05940007
+DDRETPD  DC    CL1' '                                                   05950007
+DDEXPTD  DC    CL5' '                                                   05960007
+DDVOLSEQ DC    FL1'0'                                                   05970007
+DDMAXVOL DC    FL1'0'                                                   05980007
+DDCODE   DC    CL1' '                                                   05990007
+DDFUNC   DC    CL1' '                                                   06000007
+*                                                                       06010007
+DDLEN    EQU   *-DDOSVB                                                 06020007
+DDEXTRA  DC    CL29' '                                                  06030007
+PGMDETS  CSECT                                                          06040010
+#PGMDETS DS    H             LENGTH OF RECORD                           06050010
+         DC    H'0'                                                     06060010
+PGMTYPE1 DC    CL1'E'        SET TO 'E' FOR PGM EXEC                    06070010
+PGMLABEL DC    CL8' '        PGM DECLARE LABEL OR PGM NAME              06080010
+PGMSTEP  DC    CL8' '        STEP NAME OUTPUT (FROM RUN LABEL)          06090010
+PGMADDR  DC    CL4' '        'VIRT' OR 'REAL'                           06100010
+PGMSTMT  DC    CL4' '        PGM DECLARE STMT NUMBER                    06110010
+PGMLEVEL DC    CL1' '        PGM DECLARE LEVEL (MACROS)                 06120010
+PGMNEST  DC    CL1' '                                                   06130010
+PGMID    DC    CL8' '        DECLARE IDENTIFIER                         06140010
+PGM      DC    CL8' '        MODULE NAME TO BE EXECUTED                 06150010
+PGMSIZE  DC    CL5' '                                                   06160010
+PGMSIZEQ DC    CL1' '                                                   06170010
+PGMTIME1 DC    CL4' '                                                   06180010
+PGMTIME2 DC    CL4' '                                                   06190010
+PGMTIMEQ DC    CL1' '                                                   06200010
+PGMESTMT DC    CL4' '        EXEC STMT NUMBER                           06210010
+PGMACCT  DC    CL8' '                                                   06220010
+PGMPERFO DC    H'0'          PERFORMANCE GROUP                          06230010
+PGMNODYN DC    H'0'          DYNAMIC DD                                 06240010
+PGMNODDS DC    H'0'          NUMBER OF DD CARDS WITH THIS PROGRAM       06250010
+*                                                                       06260010
+PGMLEN   EQU   *-PGMDETS                                                06270010
+//LKED    EXEC PGM=IEWL,PARM='TEST,XREF,LIST,LET',REGION=512K           06280010
+//JOL40OBJ  DD DSN=CLARKE.JOL40.OBJ,DISP=OLD                            06290010
+//SYSLIB    DD DSN=CLARKE.JOL40.OBJ,DISP=SHR                            06300010
+//SYSLMOD   DD DSN=CLARKE.JOL40.LOAD,DISP=SHR                           06310010
+//SYSUT1    DD DSN=&&SYSUT1,UNIT=SYSDA,SPACE=(CYL,(2,2))                06320010
+//SYSPRINT  DD SYSOUT=*                                                 06330010
+//SYSLIN    DD *                                                        06340010
+  INCLUDE JOL40OBJ($JOLPC40)                                            06350010
+  NAME  $JOLPC40(R)                                                     06360010
+//E EXEC  PGM=XJOLPC40                                                  06370027
+//STEPLIB   DD DSN=CLARKE.JOL40.LOAD,DISP=SHR                           06380000
+* INCLUDE JOL35LOD(ALL3)                                                06390000
+//*YSUT2   DD  DSN=&&SYSUT2,SPACE=(CYL,(2,2)),UNIT=SYSDA                06400001
+//SYSIN    DD  SYSOUT=X,SPACE=(CYL,(2,2)),UNIT=SYSDA                    06410026
+//SYSPRINT DD  SYSOUT=*                                                 06420000
+//SYSUDUMP DD  SYSOUT=*                                                 06430000
+//JOLPRINT DD  SYSOUT=*,DCB=(RECFM=VBA,LRECL=200,BLKSIZE=1330),         06440000
+// OUTLIM=1000                                                   J40B   06450000
+//SYSUT1   DD  DSN=CLARKE.JOL40B.ASM(JOLPCTST),DISP=SHR                 06460002
+//$$CARDS  DD  DSN=CLARKE.JOL40B.ASM(JOLPCCRD),DISP=SHR                 06470026

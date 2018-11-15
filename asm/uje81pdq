@@ -1,0 +1,80 @@
+         AIF   (&X8).X8400                                              03807000
+           TITLE 'UJE81PDQ:READ PASSED DATA SET QUEUE'                  03808000
+           JOLSAVE CSECT=UJE81PDQ                                       03809000
+* THIS CSECT MUST FIND THE PDQ ENTRY THAT REFERS TO THE DSNAME          03810000
+*    IN THE DSNAME FIELD. A 4 IS RETURNED IF IT CAN'T                   03811000
+*                                                                       03812000
+******                                                                  03813000
+* CHECK IF JCTPDIP = 0 (MAY BE IF RUNNING UNDER                         03814000
+*                       TSO).                                           03815000
+******                                                                  03816000
+           MVI ISINPDQ,C' '                                        DASD 03817000
+         SPACE 1                                                  76200 03818000
+         CLC   JCTPDIP,=F'0'                                      76200 03819000
+         BNE   E81GO                                              76200 03820000
+         JOLRETN RC=4                                             76200 03821000
+E81GO    DS    0H                                                 76200 03822000
+           GETJOBQ PDQDECB2,JCTPDIP                                     03823000
+           B  E81GOTRD                                                  03824000
+E81READ1 GETJOBQ PDQDECB2,CALLAREA                                      03825000
+E81GOTRD DS   0H                                                        03826000
+         CLI  VS,C'2'   MVS?                                            03827000
+         BNE   E81NMVS1                                                 03828000
+E81MVDS1 CLC   DDDSNAME,PDIDSN1                                         03829000
+         BE    E81PASS1                                                 03830000
+         CLC   DDDSNAME,PDIDSN2                                         03831000
+         BE    E81PASS2                                                 03832000
+         CLC  DDDSNAME,PDIDSN3                                          03833000
+         BE    E81PASS3                                                 03834000
+* NOT IN PDI, GET NEXT                                                  03835000
+         CLC  =AL3(0),PDINPDIP  IS THIS THE LAST BLOCK?                 03836000
+         BE   E81RETN4    YES, NOT FOUND THEN                           03837000
+         GETJOBQ  PDQDECB2,PDINPDIP                                     03838000
+         B    E81MVDS1                                                  03839000
+E81NMVS1 DS    0H                                                       03840000
+         CLC DDDSNAME,PDQDSN1                                           03841000
+         BE  E81PASS1                                                   03842000
+         CLC DDDSNAME,PDQDSN2                                           03843000
+         BE  E81PASS2                                                   03844000
+         CLC DDDSNAME,PDQDSN3                                           03845000
+         BE  E81PASS3                                                   03846000
+* NOT IN THAT BLOCK,GET THE NEXT                                        03847000
+         CLC =AL3(0),PDQNPDQ LAST BLOCK IN PDQ ?                        03848000
+         BE  E81RETN4        YES,THERE-FORE COULDN'T FIND DSET          03849000
+         MVC CALLAREA,PDQNPDQ                                           03850000
+         MVI CALLAREA+3,0                                               03851000
+*                                                                       03852000
+         B   E81READ1                                                   03853000
+E81PASS1 MVC PDQDSNNO,=H'0'                                             03854000
+         B   E81PDQB                                                    03855000
+E81PASS2 MVC PDQDSNNO,=H'1'                                             03856000
+         B   E81PDQB                                                    03857000
+E81PASS3 MVC PDQDSNNO,=H'2'                                             03858000
+E81PDQB  DS   0H                                                        03859000
+* THERE USED TO BE A NOTE FOR JOBQ HERE, NOT NEC NOW              75128 03860000
+         ST R1,APDQDIR       AND SAVE IT                                03861000
+         CLI  VS,C'2'     MVS                                           03862000
+         BNE   E81NMVS2                                                 03863000
+* GET SIOT FOR MVS SYSTEMS                                              03864000
+         LH  R1,PDQDSNNO                                                03865000
+         MH  R1,=AL2(PDILEN)                                            03866000
+         LA  R14,PDISIOT1(R1)   GET SIOT ADDRESS LOCN                   03867000
+         MVC  CALLAREA,0(R14)                                           03868000
+         B   E81GETSI         GO GET THE SIOT                           03869000
+E81NMVS2 DS   0H                                                        03870000
+         MVC CALLAREA,PDQABLK                                           03871000
+         MVI CALLAREA+3,0                                               03872000
+         GETJOBQ PDQDECB,CALLAREA                                       03873000
+* NOW GET THE SIOT AS WELL                                              03874000
+         LH  R1,PDQDSNNO     DATA SET NUMBER                            03875000
+         MH  R1,=AL2(PDQBLKLN) LENGTH OF BLOCK                          03876000
+         LA  R1,PDQASIOT(R1)   ABSOLUTE ADDRESS                         03877000
+         MVC CALLAREA(3),0(R1) SIOT TTR                                 03878000
+         MVI CALLAREA+3,0                                               03879000
+E81GETSI DS    0H                                                       03880000
+         GETJOBQ SIOTDECB,CALLAREA                                      03881000
+         MVI ISINPDQ,C'1'                                               03882000
+         JOLRETN                                                        03883000
+E81RETN4 DS    0H                                                       03884000
+         JOLRETN RC=4                                                   03885000
+         DC   80S(*)                                                    03886000

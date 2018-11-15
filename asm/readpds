@@ -1,0 +1,109 @@
+//CLARKEP JOB (R777),CLARKE,MSGCLASS=X,NOTIFY=CLARKE                    00010000
+//ASM1 PROC                                                             00020000
+//ASM EXEC PGM=ASMBLR,PARM='NODECK,OBJ,XREF(SHORT),LIST,TERM,TEST'      00030000
+//SYSLIB   DD  DSN=SYS1.MACLIB,DISP=SHR,DCB=BLKSIZE=19040               00040000
+//*        DD  DSN=SYS1.AMODGEN,DISP=SHR                                00050000
+//         DD  DSN=CLARKE.JOL50.MACLIB,DISP=SHR                         00060000
+//         DD  DSN=CLARKE.JOL40.MACLIB,DISP=SHR                         00070000
+//         DD  DSN=CLARKE.JOL51.ASM,DISP=SHR                            00080000
+//         DD  DSN=CLARKE.JOL40.ASM,DISP=SHR                            00090000
+//         DD  DSN=CLARKE.VSAM.ASM,DISP=SHR                             00100000
+//SYSUT1   DD  DSN=&&SYSUT1,SPACE=(CYL,(5,5)),UNIT=SYSDA                00110000
+//SYSUT2   DD  DSN=&&SYSUT2,SPACE=(CYL,(5,5)),UNIT=SYSDA                00120000
+//SYSUT3   DD  DSN=&&SYSUT3,SPACE=(CYL,(5,5)),UNIT=SYSDA                00130000
+//SYSGO DD DSN=CLARKE.JOL40.OBJ(&MEM),DISP=OLD                          00140000
+//SYSTERM  DD  SYSOUT=*                                                 00150000
+//SYSPRINT DD  SYSOUT=*                                                 00160000
+//*YSIN DD DSN=CLARKE.JOL51.ASM(&MEM),DISP=SHR                          00170000
+//  PEND                                                                00180000
+//S1 EXEC ASM1,MEM=READPDS                                              00190000
+         GENSAVE CSECT=READPDS                                          00200005
+         L     R15,4(,R1)        RETURN ADDRESS POINTER           J52   00200208
+         ST    R15,MUSTRETN                                       J52   00200309
+*        L     R14,0(R1)         Point to Parameters              J52   00200510
+         L     R14,0(R1)         DDNAME POINTER                   J52   00200607
+         LA    R15,DIRECT                                               00201404
+         USING IHADCB,R15                                               00202404
+         MVC   DCBDDNAM,0(R14)   SHIFT DDNAME IN                  J52   00203404
+         LA    R4,MEMSCVC+8      Note +8                          J52   00204416
+         L     R1,MUSTRETN                                        J52   00204512
+         ST    R4,0(R1)          RETURNED INFORMATION ADDRESS     J52   00205412
+         OPEN  (DIRECT,INPUT)                                           00210000
+         LA    R15,DIRECT                                               00220013
+         TM    DCBOFLGS,DCBOFOPN                                        00240002
+         BNO   NOTPMESS          CANT OPEN                              00250001
+         DROP  R15                                                      00260001
+* GET STORAGE FOR TABLE                                                 00270001
+         L     R0,MEMDATL                                               00280010
+*        LA    R0,L'MEMSCVC                                             00290010
+*        LR    R9,R0                                                    00300001
+*        GETMAIN R,LV=(0)                                               00310001
+*        ST    R1,MEMTABLE                                              00320001
+         LR    R9,R0                                                    00321003
+         LA    R1,MEMSCVC                                               00330001
+         ST    R1,PRESENT                                               00340001
+         LA    R3,0(R9,R1)       GET END OF TABLE ADDRESS               00350001
+         ST    R3,ENDTABLE                                              00360001
+         SLR   R4,R4             ZERO FIRST MEM TABLE                   00370001
+         ST    R4,0(R1)                                                 00380001
+         LA    R4,8(R1)          POINT TO 1ST MEMBER                    00390001
+         USING MEMDSECT,R4                                              00400001
+         SLR   R5,R5             INIT MEM COUNT TO 0                    00410001
+* READ MEMBER NAMES                                                     00420001
+GETDIR   GET   DIRECT,DATA       READ MEMBER BLOCK INTO DATA            00430001
+         CLC   DATA,HALF12       SEE IF BLOCK IS UNUSED                 00440001
+         BL    EOMEMS            YES                                    00450001
+         LA    R9,DATA+2         -> 1ST MEMBER DIRECTORY                00460001
+         SLR   R7,R7             ZERO REGISTER 7 FOR INSERT             00470001
+         ICM   R7,3,DATA         INSERT LENGTH USED BY THIS BLOCK       00480001
+         LA    R7,DATA-1(R7)     LOAD LAST USED BYTE OF BLOCK           00490001
+UNBLOCK  DS    0H                                                       00500001
+         MVC   MEMNTTR,0(R9)     PUT NAME AND TTR IN TABLE              00510001
+         MVC   CFIELD,11(R9)     PUT C FIELD IN TABLE                   00520001
+         CLI   MEMBER,X'FF'      SEE IF LAST MEMBER                     00530002
+         BE    EOMEMS                                                   00540001
+         IC    R6,CFIELD                                                00550001
+         SLL   R6,27                                                    00560001
+         SRL   R6,26             GOT LENGTH OF USER DATA                00570001
+         LA    R6,12(R6)         ADD STANDARD ENTRY LENGTH              00580001
+         LA    R4,MEMSECTN       POINT TO NEXT ENTRY                    00590001
+         LA    R5,1(R5)          INC NUMBER OF MEMBERS IN TABLE         00600004
+         C     R4,ENDTABLE       TOO MANY MEMBERS?                      00610002
+         BL    NEXTENTR                                                 00620001
+         WTO   'TOO MANY MEMBERS '                                      00630001
+         B     EOMEMS                                             J52   00631016
+         FIX   'JOLERR'                                                 00640001
+NEXTENTR DS    0H                                                       00650001
+         BXLE  R9,R6,UNBLOCK     DO NEXT BLOCK                          00660001
+         B     GETDIR                                             J52   00661003
+MUSTRETN DS    A                 ADDRESS OF RETN AREA                   00662004
+EOMEMS   DS    0H                                                       00670001
+         CLOSE DIRECT                                                   00670118
+         L     R14,4(R13)     GET SAVE AREA ADDRESS                     00671004
+         ST    R0,20(,R14)    Set R0 for JOLRETN                        00672004
+         ST    R5,24(,R14)    AND R1 (COUNT OF MEMBERS)                 00673004
+         GENRETN RC=0                                             J52   00674004
+NOTPMESS WTO   'CANNOT OPEN FILE '                                J52   00675011
+         GENRETN RC=16                                            J52   00676011
+         DC    H'0'                                                     00680001
+HALF12   DC    H'12'                                                    00690001
+HEXFF    DC    X'FF'                                                    00700001
+MEMTABLE DS    A                                                        00710001
+ENDTABLE DS    A                                                        00720001
+PRESENT  DS    A                                                        00721002
+DATA     DS    CL256                                                    00722002
+         PRINT NOGEN                                                    00740004
+DIRECT   DCB   DDNAME=DIRECT,DSORG=PS,MACRF=(GM),RECFM=U,BLKSIZE=256,  *00750002
+               EODAD=EOMEMS                                             00760001
+MEMDATL  DC    A(MEMDATEN-MEMSCVC)                                      00760115
+MEMSCVC  DS    (400)CL12                                                00761004
+MEMDATEN DC    A(*)                                                     00762015
+MEMDSECT       DSECT                                                    00770001
+MEMNTTR  DS    CL11                                                     00780001
+         ORG   MEMNTTR                                                  00790001
+MEMBER   DS    CL8                                                      00800001
+MEMTTR   DS    CL3                                                      00810001
+CFIELD   DS    CL1                                                      00820001
+MEMSECTN EQU   *                                                        00830001
+         DCBD  DSORG=DS,DEVD=DA                                  J52    00831002
+         END                                                            00840001

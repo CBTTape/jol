@@ -1,0 +1,29 @@
+         LA    R0,READAREA                                              29800000
+         L     R1,=A(L'READAREA)                                        29810000
+         SLR   R15,R15        ZEROES TO ALL THE AREA                    29820000
+         MVCL  R0,R14                                                   29830000
+         MVI     COND,C' ' CLEAR COND TO BLANKS                    DASD 29840000
+         MVC     COND+1(L'COND-1),COND                             DASD 29850000
+         WRITE E98DEC9,SF,RETN,READAREA,'S'                             29860000
+         CHECK E98DEC9                                                  29870000
+         NOTE RETN                                                      29880000
+         ST    R1,TTR$RETN                                              29890000
+         STOW RETN,STOWBLK,A                                            29900000
+         LTR   R15,R15                                                  29910000
+         BZ    E98RDJCT                                                 29920000
+         JOLERR 502                                                     29930000
+         FIX ' THAT WAS JOLERR 503'                              88036  29940000
+E98GOTMB DS    0H                                                       29950000
+* WE HAVE NOW FOUND THE $$RETN MEMBER OF THE DATA SET                   29960000
+         LH R2,INSTRUCT+X'3E'                                           29970000
+         MVC   INSTRUCT+X'3E',=Y(&RETNSIZ)                         DASD 29980000
+         READ E98DECBX,SF,INSTRUCT,RETNAREA                             29990000
+         CHECK E98DECBX                                                 30000000
+         STH   R2,INSTRUCT+X'3E'                                        30010000
+         NOTE INSTRUCT                                                  30020000
+         ST    R1,TTR$RETN     FOR REWRITING                            30030000
+* FIND OUT HOW MUCH DATA WE READ (ALSO USED FOR REWRITING)              30040000
+         L  R1,E98DECBX+16     IOB ADDRESS                              30050000
+         LH R14,INSTRUCT+X'3E'  BLOCKSIZE                               30060000
+         SH R14,14(R1)  MINUS RESIDUAL COUNT                            30070000
+         STH   R14,RETNBLKS    LENGTH OF RETN BLOCK                     30080000

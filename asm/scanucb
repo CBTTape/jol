@@ -1,0 +1,150 @@
+         GENSAVE CSECT=SCANUCB                                          00001000
+         L     R5,16          LOAD CVT ADDRESS                          00002000
+         USING CVT,R5                                                   00003000
+         L     R6,CVTILK2     UCB LOOK UP TABLE                         00004000
+         LR    R15,R5                                                   00005000
+         SH    R15,=H'6'                                                00006000
+         USING CVTMDL,R15                                               00007000
+         LH    R1,CVTMDL                                                00008000
+         SLL   R1,4                                                     00009000
+         ST    R1,PCKMDL                                                00010000
+         OI    PCKMDL+3,X'0F' PUT SIGN IN                               00011000
+         UNPK  MODEL,PCKMDL                                             00012000
+         OI    MODEL+L'MODEL-1,C'0'                                     00013000
+         MVC   RELEASE,CVTRELNO                                         00014000
+         MVI   RELEASE+2,C'.'                                           00015000
+         MVC   RELEASE+3(1),CVTRELNO+2                                  00016000
+         DROP  R15                                                      00017000
+         CLEAR SYSTEM1,SYSTEM2                                          00018000
+         TM    CVTDCB,CVT1SSS                                           00019000
+         BO    PCP                                                      00020000
+         TM    CVTDCB,CVT2SPS                                           00021000
+         BO    MFTVS1                                                   00022000
+* MVT | VS2 HERE                                                        00023000
+         TM    CVTDCB,CVT6DAT                                           00024000
+         BO    VS2                                                      00025000
+         MVC   SYSTEM1,=C'MVT'                                          00026000
+         B     ENDSYS1                                                  00027000
+VS2      MVC   SYSTEM1,=C'VS2'                                          00028000
+         MVC   SYSTEM2,=C'SVS'                                          00029000
+         TM    CVTDCB,CVTMVS2                                           00030000
+         BZ    ENDSYS1                                                  00031000
+         MVC   SYSTEM2,=C'MVS'                                          00032000
+         B     ENDSYS1                                                  00033000
+         SPACE 2                                                        00034000
+PCP      MVC   SYSTEM1,=C'PCP'                                          00035000
+         B     ENDSYS1                                                  00036000
+         SPACE 2                                                        00037000
+MFTVS1   TM    CVTDCB,CVT6DAT                                           00038000
+         BO    VS1                                                      00039000
+         MVC   SYSTEM1,=C'MFT'                                          00040000
+         B     ENDSYS1                                                  00041000
+VS1      MVC   SYSTEM1,=C'VS1'                                          00042000
+ENDSYS1  EQU   *                                                        00043000
+         #PRINT 'SYSTEM IS ',MODEL,' RELEASE ',RELEASE,' OF ',SYSTEM1, *00044000
+               SYSTEM2                                                  00045000
+    #PRINT ' '                                                          00046000
+    #PRINT 'UNIT  TYPE     VOLUME'                                      00047000
+    #PRINT ' '                                                          00048000
+         L     R6,CVTILK2     LOOK AT VCB NOW.                          00049000
+UCBLOOP  CLC   =X'FFFF',0(R6) REACHED END ?                             00050000
+         BE    ENDUCB                                                   00051000
+         CLC   =X'0000',0(R6) DUMMY ENTRY ?                             00052000
+         BE    BUMPUCB                                                  00053000
+* UCB ADDRESS HERE                                                      00054000
+         LH    R7,0(R6)                                                 00055000
+         USING UCBS,R7                                                  00056000
+         MVC   UNITNAME,UCBNAME                                         00057000
+         CLI   UCBTYP+2,X'08'                                           00058000
+         BE    URECD          UNIT RECORD                               00059000
+         CLI   UCBTYP+2,X'80'                                           00060000
+         BE    MAGTAPE                                                  00061000
+         CLI   UCBTYP+2,X'20'                                           00062000
+         BE    DA                                                       00063000
+         CLI   UCBTYP+2,X'10'                                           00064000
+         BE    GRAF                                                     00065000
+         CLI   UCBTYP+2,X'40'                                           00066000
+         BE    COMM                                                     00067000
+BUMPUCB  LA    R6,2(R6)                                                 00068000
+         B     UCBLOOP                                                  00069000
+         SPACE 3                                                        00070000
+URECD    #PRINT UNITNAME,' UNIT-RECORD'                                 00071000
+         B     BUMPUCB                                                  00072000
+GRAF     #PRINT UNITNAME,' GRAPHIC'                                     00073000
+         B     BUMPUCB                                                  00074000
+COMM     #PRINT UNITNAME,' COMMUNICATIONS'                              00075000
+         B     BUMPUCB                                                  00076000
+MAGTAPE  MVC   VOLUME,UCBVOLI                                           00077000
+         #PRINT UNITNAME,' MAG TAPE ',VOLUME                            00078000
+         B     BUMPUCB                                                  00079000
+DA       CLEAR IBMGENM                                                  00080000
+      MVC  VOLUME,UCBVOLI                                               00081000
+         SR    R15,R15                                                  00082000
+         IC    R15,UCBTYP+3                                             00083000
+         CH    R15,=X'000D'                                             00084000
+         BH    DAUNER                                                   00085000
+         SLL   R15,3          *8                                        00086000
+         LA    R15,IBMGENDA(R15)                                        00087000
+         MVC   IBMGENM,0(R15)                                           00088000
+         B     DACONT                                                   00089000
+DAUNER   MVC   IBMGENM,=CL8'********'                                   00090000
+DACONT   #PRINT UNITNAME,' ',IBMGENM,' ',VOLUME,' '                     00091000
+      TM UCBSTAT,UCBBPRV                                                00092000
+         BNO   NPRIV                                                    00093000
+         #PRINT ' PRIVATE ',SKIP=0                                      00094000
+NPRIV    TM UCBSTAB,UCBBPUB                                             00095000
+         BNO   NPUB                                                     00096000
+         #PRINT ' PUBLIC ',SKIP=0                                       00097000
+NPUB     TM    UCBSTAB,UCBBSTR                                          00098000
+         BNO   NSTR                                                     00099000
+         #PRINT 'STORAGE ',SKIP=0                                       00100000
+NSTR     EQU   *                                                        00101000
+         TM    UCBTYP+1,X'20'                                           00102000
+         BO    DASHRD                                                   00103000
+         B     DAPRINT                                                  00104000
+DASHRD   #PRINT 'SHARED ',SKIP=0                                        00105000
+DAPRINT  EQU   *                                                        00106000
+    TM UCBSTAT,UCBRESV                                                  00107000
+    BNO  NORESV                                                         00108000
+    #PRINT ' RESERVED ',SKIP=0                                          00109000
+NORESV  TM UCBSTAT,UCBPRES                                              00110000
+    BNO  NOPRES2                                                        00111000
+    #PRINT ' PERM  MOUNTED ',SKIP=0                                     00112000
+NOPRES2   TM  UCBSTAT,UCBSYSR                                           00113000
+   BNO  NOSYSR                                                          00114000
+   #PRINT ' SYSTEM RES ',SKIP=0                                         00115000
+NOSYSR  EQU  *                                                          00116000
+         B     BUMPUCB                                                  00117000
+ENDUCB   #PRINT 'END'                                                   00118000
+         GENRETN                                                        00119000
+         LTORG                                                          00120000
+MODEL    DC    CL3' '                                                   00121000
+RELEASE  DC    CL4' '                                                   00122000
+SYSTEM1  DC    CL3' '                                                   00123000
+SYSTEM2  DC    CL3' '                                                   00124000
+UNITNAME DC    CL3' '                                                   00125000
+VOLUME   DC    CL6' '                                                   00126000
+IBMGENM  DC    CL8' '                                                   00127000
+MOUNTATT DC    CL8' '                                                   00128000
+IBMGENDA DC    CL8'2305(1)'        0                                    00129000
+         DC    CL8'*****'          1                                    00130000
+         DC    CL8'*****'          2                                    00131000
+         DC    CL8'*****'          3                                    00132000
+         DC    CL8'*****'          4                                    00133000
+         DC    CL8'*****'          5                                    00134000
+         DC    CL8'2305(1)'        6                                    00135000
+         DC    CL8'2305(2)'        7                                    00136000
+         DC    CL8'2314'           8                                    00137000
+         DC    CL8'3330'           9                                    00138000
+         DC    CL8'3340'           10                                   00139000
+         DC    CL8'*****'          11                                   00140000
+         DC    CL8'*****'          12                                   00141000
+         DC    CL8'3330-1'         13                                   00142000
+      DC   F'0'                                                         00143000
+SHARED    DC   CL8' '                                                   00144000
+PCKMDL    DC  PL4'0'                                                    00145000
+BLANKS    DC  CL40' '                                                   00146000
+CVT      CVT DSECT=YES,PREFIX=YES                                       00147000
+UCBS     EQU   *                                                        00148000
+         IEFUCBOB   LIST=YES                                            00149000
+         END                                                            00150000

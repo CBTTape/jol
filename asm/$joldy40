@@ -1,0 +1,346 @@
+$JOLDY40 TITLE 'JOL/TSO IMMEDIATE RUN-MODE INITIALISATION'       88036  00010044
+         MACRO                                                    J40B  00020056
+&L       TU    &WHERE,&NUM,&COUNT,&LEN,&WHAT                      J40B  00030056
+&L       LA    R0,&WHERE         PLACE THE ADDRESS                J40B  00031056
+         ST    R0,0(,R15)        INTO THE LIST                    J40B  00032056
+         LA    R15,4(,R15)       AND UPDATE THE POINTER           J40B  00033057
+         LCLA  &A,&B,&C                                           J40B  00040056
+&A       SETA  &NUM                                               J40B  00050056
+&B       SETA  &COUNT                                             J40B  00060056
+         AIF   (T'&COUNT EQ 'O').SHORT1                           J40B  00071056
+&C       SETA  &LEN                                               J40B  00072056
+         MVC   &WHERE.(6),=Y(&A,&B,&C)                            J40B  00080056
+         AGO   .LONG1                                             J40B  00081056
+.SHORT1  ANOP                                                     J40B  00082056
+         MVC   &WHERE.(4),=Y(&A,&B)                               J40B  00082156
+.LONG1   ANOP                                                     J40B  00083056
+         AIF   (T'&WHAT EQ 'O').SHORT2                            J40B  00084056
+         MVC   &WHERE+6(&C),&WHAT                                 J40B  00090056
+.SHORT2  ANOP                                                     J40B  00100056
+         MEND                                                     J40B  00130056
+         MACRO                                                    J40B  00140056
+&L       INITRB &VERB=                                                  00141064
+         BAL   R14,INITS99R      INITIALISE THE REQUEST BLOCK     J40B  00142056
+         LA    R15,S99TUPL       AND THE POINTER TO THE TU LIST   J40B  00143056
+         AIF   (T'&VERB EQ 'O').END                               J40B  00143164
+         MVI   S99VERB,&VERB                                      J40B  00143264
+.END     MEND                                                     J40B  00144065
+         MACRO                                                    J40B  00145056
+&L       S99   &PTR,&NRETURN=                                     J40B  00146056
+         GBLC  &ERR                                               J40B  00146156
+         LCLC  &C1,&C2,&C3                                        J40B  00146256
+&C1      SETC  'KCP'.'&SYSNDX'.'A'                                J40B  00146356
+&C2      SETC  'KCP'.'&SYSNDX'.'B'                                J40B  00146456
+         AIF   (T'&NRETURN EQ 'O').C010                           J40B  00146562
+&C1      SETC  '&NRETURN'                                         J40B  00146662
+.C010    ANOP                                                     J40B  00146763
+         LA    1,&PTR                                             J40B  00147060
+         SVC   99                                                 J40B  00148056
+         ST    R15,S99RC                                          J40B  00148156
+         LTR   R15,R15                                            J40B  00149156
+         BZ    &C1               IT WORKED!                       J40B  00149256
+         ICM   R15,15,=V(S99ERR)                                  J40B  00149360
+         BZ    &C2                                                J40B  00149456
+         BALR  R14,R15                                            J40B  00149556
+&C2      DS    0H                                                 J40B  00149656
+         L     R15,S99RC                                          J40B  00149756
+         AIF   (T'&NRETURN NE 'O').END                            J40B  00149863
+&C1      DS    0H                                                 J40B  00149963
+.END     MEND                                                     J40B  00150063
+* THIS MODULE DOES THE DYNAMIC ALLOCATION NECESSARY TO RUN A JOL        00150163
+*      JOB DYNAMICALLY, UNDER TSO.                                      00160044
+* IT ALSO CHECKS AND RUNS WORK FOR DYNAMIC ALLOCATION JOBS              00170031
+*      IN BATCH.                                                        00180024
+         PUNCH ' PAGE $JOLDY40'                                   J40B  00190073
+         GENSAVE CSECT=$JOLDY40,BASE=(10,11)                            00190456
+         ST    R1,SAVEPARM     SAVE OUR PARAMETER FIELD                 00200024
+         EXTRACT CALLAREA+12,'S',FIELDS=(TIOT),MF=(E,CALLAREA)    87150 00210036
+         L     R1,CALLAREA+12  GET RETURN FROM EXTRACT            87150 00220036
+         MVC   JBNAME,0(R1)    SHIFT JOBNAME IN FOR MESSAGES      87150 00230036
+* SET UP PROPER LENGTH FOR USE LATER.                                   00240036
+         LA    R15,L'JBNAME-1                                           00250036
+E20TJBNM DS    0H                                                       00260036
+         LA    R14,JBNAME(R15)                                          00270036
+         CLI   0(R14),C' '                                              00280036
+         BNE   E20JBNOK                                                 00290036
+         BCT   R15,E20TJBNM                                             00300036
+E20JBNOK DS    0H                                                       00310036
+         LA    R15,1(R15)                                               00320036
+         STH   R15,#JBNAME                                              00330036
+         EXTRACT CALLAREA+12,'S',FIELDS=(TSO),MF=(E,CALLAREA)           00340024
+         L     R1,CALLAREA+12  GET RETURN ADDRESS FROM EXTRACT          00350024
+         TM    0(R1),X'80'     IF BIT IS ON, WE ARE UNDER TSO/TSS       00360024
+         BNO   NOTTSO                                                   00370024
+         MVI   TSO,C'Y'                                                 00380024
+         B     TTSO2                                                    00390031
+NOTTSO   MVI   TSO,C' '                                                 00400024
+TTSO2    CLI   TSO,C'Y'        RUNNING UNDER TSO?                       00410031
+         BNE   NOTFREE1        NO, SO DON'T FREE THESE FILES            00420024
+         B     NOTFREE1            DON'T FREE THESE FILES ANYWAY        00421054
+* HERE IS TSO                                                           00430024
+         CALL  DSPREFIX        RETURNS PREFIX IN R0 AND R1 (ODD)        00440024
+         STCM  R0,8,#INSTDSN+1 SET UP LENGTH OF PREFIX                  00450027
+         SLDL  R0,8            MOVE DSNAME BACK                         00460024
+         ST    R0,INSTDSN                                               00470024
+         ST    R1,INSTDSN+4                                             00480024
+         LH    R14,#INSTDSN                                             00490024
+         LA    R15,INSTDSN(R14)                                         00500024
+         MVI   0(R15),C'.'                                              00510027
+         MVC   1(10,R15),=C'$$JOL.INST'                                 00520027
+         LA    R14,11(R14)                                              00530027
+         STH   R14,#INSTDSN                                             00540024
+* THE ABOVE CODE IS USELESS, BUT IT IS LEFT THERE SO IT CAN BE          00550043
+* 'ZAPPED' AFTER WE HAVE HAD SOME FEEDBACK FROM USERS IN A REAL         00560043
+* LIVE ENVIRONMENT.                                                     00570043
+         MVC   #INSTDSN(10),#JBNAME  MOVE IN THE 'SYSUID'               00580036
+         LH    R14,#INSTDSN                                             00590036
+         LA    R15,INSTDSN(R14)                                         00600036
+         MVI   0(R15),C'.'                                              00610036
+         MVC   1(10,R15),=C'$$JOL.INST'                                 00620036
+         LA    R14,11(R14)                                              00630036
+         STH   R14,#INSTDSN                                             00640036
+         DYNPARM DDNAME=$$INST,MSG=NO,VRB=UN,UNALLOC=YES                00650021
+         DYNPARM DDNAME=$$PRINT,MSG=NO,VRB=UN                           00660021
+         DYNPARM DDNAME=SYSUT2,MSG=NO,VRB=UN                            00670021
+* TEST IF JOBLIB$ ALLOCATED, IF SO LEAVE FREE IT                        00680042
+         FINDDD =CL8'JOBLIB$',ERRET=INST1                               00690049
+*        LTR   R15,R15                                                  00710049
+*        BNZ   INST1           NOT ALLOCATED, SO LEAVE HERE             00720049
+         DYNPARM DDNAME=JOBLIB$,ID=JOBL,UNALLOC=YES,VRB=UN MSG=NO       00730042
+         B     INST1           GO ALLOCATE                              00740024
+NOTFREE1 DS    0H                                                       00750024
+* HERE IS BATCH, SO GENERATE A DIFFERENT TYPE OF DSNAME                 00760024
+         MVC   INSTDSN,=C'&&INST'                                       00770027
+         LA    R14,5                                                    00780027
+         STH   R14,#INSTDSN                                             00790027
+         AGO   .INST1                                             J40B  00790164
+         B     INST1                                              J40B  00791054
+* X8     MVC   INSTDSN,=C'JOLYDDDH.HMMSSTHH.JOBNAMEX'             82047 00800036
+*        MVC   INSTDSN,=CL44'SYSYYDDD.THHMMSS.SVJOL.JOBNAMEX'     87150 00810037
+         MVC   INSTDSN,=CL44'SYSYYDDD.THHMMSS.SVJOL.        '     87150 00820037
+         TIME  DEC                                                      00830032
+         STM   R0,R1,DBL                                                00840032
+         UNPK  CALLAREA(16),DBL                                         00850032
+         LA    R14,INSTDSN         ADDRESS OF DSNAME                    00860032
+         MVC   3(05,R14),CALLAREA+11  YYDDD                             00870032
+         MVC   10(6,R14),CALLAREA+1   HHMMSS                            00880032
+         MVC   23(8,R14),JBNAME                                         00890037
+* SET UP PROPER LENGTH FOR USE LATER.                                   00900032
+         LA    R15,L'INSTDSN-1                                          00910032
+E20TEDSN DS    0H                                                       00920032
+         LA    R14,INSTDSN(R15)                                         00930032
+         CLI   0(R14),C' '                                              00940032
+         BNE   E20DSNOK                                                 00950032
+         BCT   R15,E20TEDSN                                             00960032
+E20DSNOK DS    0H                                                       00970032
+         LA    R15,1(R15)                                               00980032
+         STH   R15,#INSTDSN                                             00990032
+.INST1   ANOP                                                     J40B  00991064
+INST1    DS    0H                                                       01000056
+         INITRB                                                   J40B  01000156
+         TU    TUDDN,1,1,8,=C'JOLCATLG' DDNAME=                   J40B  01000277
+         TU    TUDSN,2,1,5,=C'&&INST'   DSNAME=                   J40B  01000376
+         TU    TUMBR,3,1,6,=C'$$INST' MEMBER=                     J40B  01000475
+         TU    TUSPACE,8,0,0     SPACE=(CYL                       J40B  01000575
+         TU    TUPRIMS,10,1,3,=AL3(2) (2                          J40B  01000675
+         TU    TUSECND,11,1,3,=AL3(5) ,5                          J40B  01000775
+         TU    TUDIR,12,1,3,=AL3(45) ,45)                         J40B  01000875
+*        TU    TUUNIT,21,1,8,=CL8'SYSDA ' UNIT=SYSDA              J40B  01000975
+         TU    TUBLKSI,48,1,2,=Y(800) BLKSIZE=                    J40B  01001075
+         TU    TUDSORG,60,1,2,=X'0200' DSORG=PO                   J40B  01001175
+         TU    TULRECL,66,1,2,=Y(80) LRECL=80                     J40B  01001275
+         TU    TURECFM,73,1,1,=AL1(144) RECFM=FB                  J40B  01001375
+         TU    TURETDSN,86,1,44 RETDSN RETURN DSNAME              J40B  01001475
+         TU    TURETVOL,93,1,6 RETVOL RETURN VOLUME               J40B  01001575
+         SH    R15,=H'4'                                          J40B  01001675
+         OI    0(R15),X'80'      END OF LIST                      J40B  01001775
+         S99   S99RBPTR,NRETURN=INST1OK                           J40B  01001875
+         EX    0,*                                                J40B  01001975
+         AGO   .INST1OK                                           J40B  01002075
+         DYNPARM DSN=(44,#INSTDSN),DDNAME=SYSUT2,ID=INST1,            ++01002478
+               DISP=(OLD,DELETE),                                     ++01010074
+               UNIT=SYSDA, PACE=(CYL,(2,5,45)),                        +01020074
+               DCB=(LRECL=80,BLKSIZE=800,RECFM=FB,DSORG=PO),           +01030024
+               ALLOC=(PERM,CONV),DEBUG=NO                               01040029
+.INST1OK ANOP                                                     J40B  01040164
+INST1OK  DS    0H                                                 J40B  01041061
+INST3    DYNPARM DSN=(44,TURETDSN+4),DDNAME=SYSUT2, EMB=$$INST,       ++01080078
+               DISP=OLD, ELETE)  ,                                     +01090079
+               DCB=(LRECL=80,BLKSIZE=800,RECFM=FB,DSORG=PO),           +01100024
+               MSG=YES,                                           J40B .01101061
+               VOL=SER=((8,TURETVOL+2)),                          J40B .01102072
+               ID=INST3 DEBUG=YES                                       01110080
+         CLI   TSO,C'Y'        RUNNING UNDER TSO?                       01120024
+         BNE   NOTTERM                                                  01130024
+TSOTERM  DYNPARM TERM=TS,DDNAME=PRTFILE,ID=PRT1                         01140021
+         DYNPARM TERM=TS,DDNAME=$$PRINT,ID=PRT2                         01150021
+         MVC   #LOGDSN(10),#JBNAME   MOVE IN THE 'SYSUID'               01160036
+         LH    R14,#LOGDSN                                              01170036
+         LA    R15,LOGDSN(R14)                                          01180036
+         MVI   0(R15),C'.'                                              01190036
+         MVC   1(9,R15),=C'$$JOL.LOG'                                   01200036
+         LA    R14,10(R14)                                              01210036
+         STH   R14,#LOGDSN                                              01220036
+* TEST IF ALREADY ALLOCATED, IF SO LEAVE IT ALONE                       01230036
+         FINDDD =CL8'$$PRNT',ERRET=ALLOCLOG                             01240054
+*        CALL  SRCHTIOT                                                 01250054
+*        LTR   R15,R15                                                  01260054
+*        BNZ   ALLOCLOG        NOT ALLOCATED, SO ALLOCATE IT            01270054
+         TM    3(R1),X'10'     ALLOCATED TO THE TERMINAL ?              01280037
+         BO    NORESET         YES, SO DON'T RESET IT                   01290037
+         BZ    LOGRESET        LOG IS ALREADY ALLOCATED, LEAVE IT       01300037
+*                              BUT RESET IT.                            01310036
+ALLOCLOG DS    0H                                                       01320054
+         AGO   .X1                                                J40B  01320155
+         DYNPARM DSN=(44,#LOGDSN),DDNAME=$$PRNT,ID=LOG1,              ++01321055
+               DISP=(MOD,CATLG),                                      ++01330036
+               UNIT=SYSDA,SPACE=(TRK,(20,5)),                          +01340038
+               DCB=(LRECL=135,BLKSIZE=140,RECFM=VB,DSORG=PS),          +01350036
+               ALLOC=(PERM,CONV),DEBUG=NO                               01360036
+.X1      ANOP                                                     J40B  01361055
+LOGRESET DS    0H                                                       01370054
+         AGO   .X2                                                J40B  01370155
+*        DYNPARM DSN=(44,#LOGDSN),DDNAME=$$PRNT2,ID=LOG2,             ++01371054
+               DISP=OLD,                                              ++01380036
+               DCB=(LRECL=135,BLKSIZE=140,RECFM=VB,DSORG=PS),          +01390036
+               DEBUG=NO                                                 01400037
+*        OPEN  (LOGDCB,OUTPUT)                                          01410054
+*        CLOSE (LOGDCB)                                                 01420054
+*        DYNPARM DDNAME=$$PRNT2,DEBUG=NO,VRB=UN,                       *01430054
+               UNALLOC=REMOVE.IN.USE,MSG=NO                             01440036
+.X2      ANOP                                                     J40B  01441055
+NORESET  DS    0H                                                       01450037
+*        DYNPARM DSN=&&JCL,DDNAME=SYSIN,ID=SYSIN,DISP=(OLD),          ++01460053
+               DEBUG=NO,MSG=NO                                          01470051
+*        LINK  EP=$JOLIN40,PARAM=(CATLG),VL=1                           01480050
+*        B     EXECUTE                                                  01490050
+NOTTERM  DS    0H                                                       01500024
+*        L     R1,SAVEPARM                                              01510050
+*        LINK  EP=$JOLIN40                                              01520047
+EXECUTE  DS    0H                                                       01530024
+*        DYNPARM DDNAME=PRTFILE,DEBUG=NO,VRB=UN,MSG=NO                  01540052
+*        DYNPARM DDNAME=$$PRINT,DEBUG=NO,VRB=UN,MSG=NO                  01550054
+*        DYNPARM DDNAME=SYSUT2,DEBUG=NO,VRB=UN,                        *01560054
+               UNALLOC=REMOVE.IN.USE                                    01570036
+*        LINK  EP=$DYNMN4A,PARAM=(NULL),VL=1                            01580048
+         LINK  EP=JOLDYN40,PARAM=(J40B),VL=1                            01581050
+         SPACE  2                                                       01590039
+         LR    R9,R15          SAVE RETURN CODE                         01600039
+         DYNPARM DSN=(44,#INSTDSN),ID=INSTXX,UNALLOC=YES,VRB=UN,MSG=NO  01610042
+* TEST IF JOBLIB$ ALLOCATED, IF SO LEAVE FREE IT                        01620042
+*        LA    R1,=CL8'JOBLIB$'                                         01630048
+*        CALL  SRCHTIOT                                                 01640048
+         FINDDD =CL8'JOBLIB$',ERRET=NOJOBLIB                      J40B  01641049
+*        LTR   R15,R15                                                  01650048
+*        BNZ   NOJOBLIB        NOT ALLOCATED, SO DO NOTHING             01660048
+         DYNPARM DDNAME=JOBLIB$,ID=JOBL,UNALLOC=YES,VRB=UN MSG=NO       01670040
+NOJOBLIB DS    0H                                                       01680042
+         LR    R15,R9          RESTORE RETURN CODE                      01690039
+         GENRETN RC=(15)                                                01700032
+INITS99R DS    0H                                                       01700156
+         XC    S99RB(20),S99RB                                          01701056
+         MVI   S99RBLN,20          SET RB LEN FIELD                     01702056
+         MVI   S99VERB,1         SVC 99 VERB                            01702164
+         LA    R15,S99TUPL                                              01703056
+         ST    R15,S99TXTPP        STORE TEXT UNIT LIST ADDRESS         01704056
+         LA    R15,S99RB                                                01705056
+         ST    R15,S99RBPTR        LOAD RB ADDRESS IN PARAM LIST        01706056
+         OI    S99RBPTR,X'80'      MARK END OF LIST                     01707056
+         LA    R0,TUAREA                                          J40B  01707158
+         LA    R1,TUAREAL                                         J40B  01707258
+         SLR   R15,R15                                            J40B  01707358
+         MVCL  R0,R14                                             J40B  01707458
+*        XC    TUAREA(TUAREAL),TUAREA CLEAR ALL TEXT UNITS              01708058
+         BR    R14                                                      01709156
+         LTORG                                                          01710024
+CALLAREA DS    10F                                                      01720024
+DBL      DS    D                                                        01730033
+TSO      DS    CL1                                                      01740024
+#JBNAME  DS    H                  LENGTH OF JOBNAME FIELD               01750036
+JBNAME   DS    CL8                                                      01760036
+SAVEPARM DC    F'0'            SAVE ORIGINAL REGISTER 1 HERE            01770024
+NULL     DC    H'0',C'      '                                           01780024
+J40B     DC    Y(J40BLEN),C'JOL,INSTSIZE=40000'                   J40B  01781081
+J40BLEN  EQU   *-J40B-2                                           J40B  01782047
+CATLG    DC    H'3',C'JOL'      TELL JOL TO LOOK UP CATLGS              01790024
+#INSTDSN DC    H'0'             GENERATED NAME FOR JOL.INST BECAUSE     01800024
+*                               OF SVC 99 PROBLEMS (!!!)                01810024
+INSTDSN  DC    CL44' '          SYSUID.JOL.INST OR JOL TEMP DSNAME      01820024
+#LOGDSN  DC    H'0'             NAME OF $$JOL.LOG FILE (SYSUID ON       01830036
+*                                 THE FRONT                             01840036
+LOGDSN   DC    CL44' '          SYSUID.$$JOL.LOG                        01850036
+         PRINT  NOGEN                                                   01860037
+LOGDCB   DCB   DDNAME=$$PRNT2,DSORG=PS,MACRF=PM                         01870037
+DFLIST   DS    A       -> FAILING SVC 99 RB                             01871056
+         DS    A       -> RETURN CODE                                   01872056
+         DS    A       -> IKJEFF02 PTR OR IS ZERO                       01873056
+         DS    A       -> DAIRFAIL FLAGS                                01874056
+DFCPPL   DS    A       -> CPPL OR IS ZERO                               01875056
+S99RC    DS    F       SVC 99 RETURN CODE                               01876056
+DFFLAGS  DC    X'0032' DAIRFAIL FLAGS                                   01877056
+DFEFF02  DS    A                                                        01878056
+DFMSG    DC    C'DAIRFAIL RETURN CODE NN'                               01879056
+S99RBPTR DS    A                                                        01879156
+S99RB    DS    0XL20                                                    01879256
+S99RBLN  DS    X                                                        01879356
+S99VERB  DS    X                                                        01879456
+S99FLAG1 DS    XL2                                                      01879556
+S99ERROR DS    XL2                                                      01879656
+S99INFO  DS    XL2                                                      01879756
+S99TXTPP DS    XL4                                                      01879856
+S99FLAG2 DS    XL4                                                      01879956
+S99RESVD DS    XL4                                                      01880056
+S99TUPL  DS    20XL4                                                    01880156
+         SPACE 4                                                        01880256
+TUAREA   DS    0D                                                       01880356
+TURETVOL DC    X'001000010006404040404040'                              01880566
+TUDSN    DS    0XL50,XL2                                                01880666
+TUDSNNBR DS    XL2                                                      01880766
+TUDSNENT DS    XL46,CL8                                                 01880866
+TUUNIT   DS    XL14                                                     01881156
+TUDDN    DS    0XL14,2X                                                 01881256
+TUDDNNBR DS    XL2                                                      01881356
+TUDDNENT DS    CL10                                                     01881456
+TURETDDN DS    0XL14,2X                                                 01881556
+TURETDDK DS    XL2                                                      01881656
+TURETDD# DS    XL2                                                      01881756
+TURETDD  DS    CL8                                                      01881856
+TURETDSN DS    0XL14,2X                                                 01881957
+TURETDSK DS    XL2                                                      01882057
+TURETDS# DS    XL2                                                      01882157
+TURETDS  DS    CL46                                                     01882258
+TUPSD    DS    0XL14                                                    01882357
+         DS    XL2                                                      01882457
+TUPSDNBR DS    XL2                                                      01882557
+TUPSDLEN DS    XL2                                                      01882657
+TUPSDNM  DS    CL8                                                      01882757
+TUDSORG  DS    XL8                                                      01882857
+TUMBR    DS    0XL14                                                    01882957
+         DS    XL2                                                      01883057
+TUMBRNBR DS    XL2                                                      01883157
+TUMBRLEN DS    XL2                                                      01883257
+TUMBRNM  DS    CL8                                                      01883357
+TUDISP   DS    XL7                                                      01883457
+TUCATLG  DS    XL7                                                      01883557
+TUTERM   DC    X'00280000'                                              01883657
+TUDMY    DC    X'00240000'                                              01883757
+TUSOUT   DC    X'001800010001C1'                                        01883857
+TULRECL  DC    X'003000010003000000'                                    01883969
+TUBLKSI  DC    X'003000010003000000'                                    01884069
+TUVOL    DC    X'001000010006404040404040'                              01884158
+TUROUND  DS    XL4                                                      01884757
+TURECFM  DS    XL9                                                      01884858
+TUSPACE  DS    XL9                                                      01884958
+TUPRIMS  DS    XL9                                                      01885058
+TUSECND  DS    XL9                                                      01885158
+TUDIR    DS    XL9                                                      01885258
+         DS    0F                                                       01885358
+TUAREAL  EQU   *-TUAREA                                                 01885458
+         SPACE 3                                                        01885757
+*  THIS AREA IS USED TO BUILD THE TEXT UNIT FOR CONCATENATION           01885857
+         SPACE                                                          01885957
+TUCONC   DC    X'0001'     TYPE                                         01886057
+         DC    X'0000'     NUMBER                                       01886157
+TUCONCDD DS    16CL10      SPACE FOR SIXTEEN ENTRIES                    01886257
+TUCONCL  EQU   *-TUCONC                                                 01886357
+         END                                                            01886457

@@ -1,0 +1,101 @@
+UJD49VOL TITLE 'GET VOLUME INFO FOR A DATASET'                          00010016
+* JOL COPYRIGHT CCS-JOL PTY LTD 1988                                    00020001
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-E001.           00030001
+         SPACE 3                                                        00040001
+*                   J             000000            L                   00050001
+*                   J            0      0           L                   00060001
+*                   J           0        0          L                   00070001
+*                   J          0          0         L                   00080001
+*                   J         0            0        L                   00090001
+*                   J         0            0        L                   00100001
+*                   J         0            0        L                   00110001
+*                   J         0            0        L                   00120001
+*                   J         0            0        L                   00130001
+*                   J         0            0        L                   00140001
+*                   J         0            0        L                   00150001
+*        J          J         0            0        L                   00160001
+*         J        J           0          0         L                   00170001
+*          J      J             0        0          L                   00180001
+*           J    J               0      0           L                   00190001
+*            JJJJ                 000000            LLLLLLLLLLL         00200001
+           SPACE 3                                                      00210001
+* LAST SOURCE UPDATE                                                    00220001
+*   CHANGES:-                                                           00230001
+*     1.                                                                00240001
+         COPY  JOLGLOBL                                                 00250001
+         $UJEPARM                                                       00260001
+&TYPE    SETC  'SCHED'                                           88036  00270001
+         PRINT ON,DATA                                                  00280001
+UJECOMM  DSECT                                                          00290001
+         USING UJECOMM,R3,R5                                            00300001
+         COPY  UJECOMM                                                  00310001
+         JOLSAVE CSECT=UJD49VOL                                         00320016
+         L     R4,AJFCB                                          88036  00330001
+         USING INFMJFCB,R4                                       88036  00340001
+         L     R1,AFEXCP                                                00360015
+         USING IHADCB,R1                                                00370001
+         MVC   DCBDDNAM,DDDDNAME                                        00380001
+         CLI   DCBDDNAM,C' '                                            00390001
+         BNE   E49RDJF                                                  00390113
+*        BE    JRETN0                                             J40B  00391012
+* IF THE DDNAME IS BLANK, I CAN 'T GET THE JFCB                   J40B  00392012
+*   AND  THERE'S NO TELLING WHAT'S IN EREVOL                     J40B   00392112
+         AGO   .Z                                                 J40B  00393012
+         BNE   E49RDJF                                                  00400001
+         CLI   DDVOLUME,C' '                                            00410001
+         BE    E49RDJF                                                  00420006
+         MVC   DDVOLUME,BLANKS                                          00430001
+         MVC   DDVOLUME(6),ERETVOL                                      00440001
+         MVC   #VOL(8),#ERETVOL                                         00450001
+.Z       ANOP                                                     J40B  00450112
+         DBGMSG 198,'I DIDN''T NEED THE JFCB FOR ',DDDDNAME,           .00451013
+               ' ',DDDSNAME                                       J40B  00452005
+         B     JRETN0                                             76200 00460001
+         DROP  R1                                                       00470001
+E49RDJF  DS    0H                                                       00480001
+         DBGMSG 199,'GETTING JFCB FOR ',DDDDNAME,' ',DDDSNAME           00481013
+         OI    AFEXCP,X'80'    MARK END OF LIST                  88036  00490015
+         RDJFCB MF=(E,AFEXCP) GET DSNAME                 JOL30116 76200 00500015
+*        CLI   JFCAVOLS,X'FF'    IT SEEMS                         J40B  00501018
+         CLI   JFCBVOLS,X'FF'    IT SEEMS                         J40B  00501118
+         BE    E49TAPE            WE SHOULD OPEN IT               J40B  00502007
+         CLC   JFCBFLSQ,=H'0' TEST IF TAPE                        87150 00510001
+         BE    E49DISK        YES, SKIP OPEN FOR NEW TAPE         87150 00520001
+         CLI   JFCBNVOL,0     ANY VOLUMES ?                       87150 00530001
+         BNE   E49DISK        YES, SKIP OPEN FOR NEW TAPE         87150 00540001
+* NEW TAPE, NO VOLSER                                                   00550001
+E49TAPE  DBGMSG 197,DDDDNAME,' ',DDDSNAME,' ',                         .00551013
+               'IS A TAPE'                                        J40B  00552005
+         OI    AFEXCP,X'80'    MARK END OF LIST                  88036  00560015
+         OPEN  (,OUTPUT),MF=(E,AFEXCP) FORCE A TAPE TO BE MOUNTED 87150 00570014
+         CLOSE MF=(E,AFEXCP)   CLOSE IT NOW                       87150 00580014
+         RDJFCB MF=(E,AFEXCP) GET DSNAME                 JOL30116 76200 00590015
+*        CLI   JFCBNVOL,0     ANY VOLUMES ?                       87150 00600010
+*        BNE   JRETN0         NO, (HELP? ) LEAVE NOW              87150 00610010
+         MVC   DDVOLUME(L'JFCBVOLS),JFCBVOLS                            00620009
+         DBGMSG 196,DDDDNAME,' ',DDDSNAME,' ',                         .00620113
+               'IS A TAPE ON',DDVOLUME                            J40B  00620209
+E49DISK  MVC   DDVOLUME(L'JFCBVOLS),JFCBVOLS                            00620309
+         DBGMSG 195,DDDDNAME,' ',DDDSNAME,' ',                         .00620413
+               'IS DEFINITELY ON ',DDVOLUME                       J40B  00620511
+         EXTRN E00FXVOL                                           J40B  00621002
+         L     R14,=V(E00FXVOL)                                   J40B  00622004
+*        BAL   R14,E00FXVOL    SET UP VOLUME LIST IN #VOL         74365 00630002
+         BALR  R14,R14         SET UP VOLUME LIST IN #VOL         74365 00631002
+         AIF   (&X8).NX8320                                      88036  00640001
+         FINDDD DDDDNAME,ERRET=E49RC0                             J50   00641017
+*        LA    R1,DDDDNAME                                        J50   00650017
+*        CALL  SRCHTIOT                                           J50   00660017
+*        LTR   R15,R15                                            J50   00670017
+*        BNZ   E49RC0                                             J50   00680017
+*        LA    R1,40(R1)       POINT TO UCB POINTER               J50   00690017
+         L     R1,16(,R1)        POINT TO UCB PROPER                    00700017
+         MVC   DDUNIT,BLANKS   CLEAR DDUNIT                             00710001
+         MVC   DDUNIT(3),13(R1) GET UNIT ADDRESS                        00720001
+         MVI   DDUNITYP,X'FF'  TELLS US THAT IT IS AN ACTUAL ADDRESS    00730001
+.NX8320  ANOP                                                    88036  00740001
+E49RC0   CALL  UJD30VOL        PROPOGATE VOLUMES, FIX VOLREFS           00750016
+         B     JRETN0                                             76200 00760001
+         EJECT                                                    J40B  00761003
+         DCBD  DSORG=PS,DEVD=DA                                   J40B  00762003
+         END                                                            00770001

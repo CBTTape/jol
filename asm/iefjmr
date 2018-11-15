@@ -1,0 +1,143 @@
+*        %GOTO JMRBSL;       /* BILINGUAL HEADER                     /* 00050001
+         MACRO                                                          00100001
+         IEFJMR                                                         00150001
+*        LEVEL=4    6/1/72                                              00170003
+JMR      DSECT                                                          00200001
+         SPACE 2                                                        00250001
+*********************************************************************** 00300001
+*                                                                     * 00350001
+*    JMR   -  JOB MANAGEMENT RECORD                                   * 00400001
+*                                                                     * 00450001
+*********************************************************************** 00500001
+         SPACE 2                                                        00550001
+JMRTTR   DS    XL4                     TTRL OF THIS JMR         XL03120 00600003
+JMRNXT   DS    XL4                     TTRL OF NEXT RECORD      XL03120 00700003
+*                                                                       00800001
+*  THE FOLLOWING 72 BYTES WILL BE IN PQA                                00850001
+JMRJOB   DS    8C            JOB NAME   EBCDIC                          00900001
+JMRENTRY DS    F             JOB ENTRY TIME IN 1/100 SEC                00950001
+JMREDATE DS    F             ENTRY DATE 00YYDDDF                        01000001
+JMRCPUID DS    4C            CPU-ID AND MDL FROM SMCA                   01050001
+JMRUSEID DS    8C            USER ID                                    01100001
+JMRSTEP  DS    C             STEP NUMBER                                01150001
+JMRLGEND EQU   *                                                        01200001
+JMRLOGSZ EQU   JMRLGEND-JMRJOB  SIZE OF JOB LOG COPIED TO DSB           01250001
+*                                                                       01300001
+JMROPT   DS    X             OPTION SWITCHES                            01350001
+JMRJOBSW EQU   X'80'         JOB FCTN REQUESTED                         01400001
+JMRSTPSW EQU   X'40'         STEP FCTN REQUESTED                        01450001
+JMREXITS EQU   X'20'         USER EXITS REQUESTED                       01500001
+JMRXONLY EQU   X'10'         EXITS ONLY SPECIFIED                       01550001
+*                                                                       01600001
+         DS    2C            RESERVED                                   01650001
+JMRUCOM  DS    F             USER COMMUNICATION INITIALIZED 0(NOT       01700001
+*                            USED BY THE SYSTEM)                        01750001
+JMRTNRDR DS    F             REAL TIME IN THE ISC                       01800001
+JMRNLRD  DS    F             NUMBER OF LINES READ                       01850001
+JMRJPR   DS    CL2           JOB PRIORIYTY                              01900001
+JMRJOBC  DS    CL2           JOB CLASSES                                01950001
+JMRTNPR  DS    F             REAL TIME FOR PRINT PROCESS                02000001
+JMRLPR   DS    F             NUMBER OF LINES PRINTED                    02050001
+JMRTNPU  DS    F             REAL TIME FOR PUNCH PROCESS                02100001
+JMRLNPU  DS    F             NUMBER OF LINES PUNCHED                    02150001
+JMRTNT   DS    F             REAL TIME FOR TAPE PROCESS                 02200001
+JMRLWT   DS    F             NUMBER OF LINES WRITTEN TO TAPE            02250001
+JMRUJVP  DS    F             ADDRESS OF IEFUJV/PTR TO SYS1.MAN RECORD   02300001
+JMRSIZE  EQU   *-JMRJOB      SIZE OF JMR IN PQA(72 BYTES)               02350001
+*                                                                       02400001
+*                                                                       02450001
+JMRDRSTP DS    2F            ISC STOP TIME AND DATE                     02500001
+JMRJOBIN DS    F             JOB SYSIN COUNT                            02550001
+JMRRDR   DS    2C            ISC DEVICE TYPE AND CLASS                  02600001
+         DS    2C            RESERVED                                   02650001
+JMRSYSOC DS    5C            SYSOUT CLASSES                             02700001
+*                                                                       02750001
+*   THE FOLLOWING INFORMATION WILL BE PASSED TO IEFUJV IN R/I           02800001
+*                                                                       02850001
+JMRJCLCD DS    C             JCL VERB CODE                              02900001
+         DS    2C             RESERVED                                  02950001
+JMRJOBP  DS    F             PTR TO JOB LOG                             03000001
+JMRJCLP  DS    F             PTR TO JCL CARD                            03050001
+JMRJCLCP DS    F             PTR TO JCL CODE                            03100001
+JMRPTRS  EQU   JMRJOBP                                                  03150001
+JMRPTOFS DS    F             PTR TO OPERAND OFFSET                      03200001
+JMRRESID DS    CL7                     RES USER ID                      03210002
+JMRRESRV DS    CL1                     RES RESERVED                     03220002
+         MEND  , */                                                     03250001
+*%JMRBSL  :  ;                                                          03300001
+*DECLARE                                                                03350001
+*  1 JMR      BASED(JMRPTR),                                            03400001
+*                                                                       03450001
+*                                                                       03500001
+*/* **************************************************************** */ 03550001
+*/*                                                                  */ 03600001
+*/*  JMR   -  JOB MANAGEMENT RECORD                                  */ 03650001
+*/*                                                                  */ 03700001
+*/* **************************************************************** */ 03750001
+*                                                                       03800001
+*                                                                       03850001
+*   2 JMRTTR      CHAR(4),             /* TTRL OF THIS JMR    XL03120*/ 03900003
+*   2 JMRNXT      CHAR(4),             /* TTRL OF NEXT RECORD XL03120*/ 04000003
+*                                                                       04100001
+*/* HE FOLLOWING 72 BYTES WILL BE IN PQA                             */ 04150001
+*   2 JMRSIZE,                           /* SIZE OF JMR IN PQA       */ 04200001
+*    3 JMRLOGSZ,                         /* SIZE OF JOB LOG COPIED   */ 04250001
+*/*                                         TO DSB                   */ 04300001
+*                                                                       04350001
+*     4 JMRJOB  (8) CHAR(1),             /* JOB NAME EBCDIC          */ 04400001
+*     4 JMRENTRY  FIXED(31),             /* JOB ENTRY TIME IN 1/100     04450001
+*                                            SEC                     */ 04500001
+*     4 JMREDATE  FIXED(31),             /* ENTRY DATE 00YYDDDF      */ 04550001
+*     4 JMRCPUID (4) CHAR(1),            /* CPU-ID AND MDL FROM SMCA */ 04600001
+*     4 JMRUSEID (8) CHAR(1),            /* USER ID                  */ 04650001
+*     4 JMRSTEP   CHAR(1),               /* STEP NUMBER              */ 04700001
+*                                                                       04750001
+*    3 JMROPT      CHAR(1),              /* OPTION SWITCHES          */ 04800001
+*     4 JMRJOBSW BIT(1),                 /* JOB FCTN REQUESTED       */ 04850001
+*     4 JMRSTPSW BIT(1),                 /* STEP FCTN REQUESTED      */ 04900001
+*     4 JMREXITS BIT(1),                 /* USER EXITS REQUESTED     */ 04950001
+*     4 JMRXONLY BIT(1),                 /* EXITS ONLY SPECIFIED     */ 05000001
+*                                                                       05050001
+*     4 *        BIT(1),                 /* RESERVED                 */ 05100001
+*     4 *        BIT(1),                 /* RESERVED                 */ 05150001
+*     4 *        BIT(1),                 /* RESERVED                 */ 05200001
+*     4 *        BIT(1),                 /* RESERVED                 */ 05250001
+*    3 *        (2) CHAR(1),             /* RESERVED                 */ 05300001
+*    3 JMRUCOM     FIXED(31),            /* USER COMMUNICATION          05350001
+*                                           INITIALIZED 0(NOT  USED     05400001
+*                                           BY THE SYSTEM)           */ 05450001
+*    3 JMRTNRDR    FIXED(31),            /* REAL TIME IN THE ISC     */ 05500001
+*    3 JMRNLRD     FIXED(31),            /* NUMBER OF LINES READ     */ 05550001
+*    3 JMRJPR      CHAR(2),              /* JOB PRIORIYTY            */ 05600001
+*    3 JMRJOBC     CHAR(2),              /* JOB CLASSES              */ 05650001
+*    3 JMRTNPR     FIXED(31),            /* REAL TIME FOR PRINT         05700001
+*                                           PROCESS                  */ 05750001
+*    3 JMRLPR      FIXED(31),            /* NUMBER OF LINES PRINTED  */ 05800001
+*    3 JMRTNPU     FIXED(31),            /* REAL TIME FOR PUNCH         05850001
+*                                           PROCESS                  */ 05900001
+*    3 JMRLNPU     FIXED(31),            /* NUMBER OF LINES PUNCHED  */ 05950001
+*    3 JMRTNT      FIXED(31),            /* REAL TIME FOR TAPE          06000001
+*                                           PROCESS                  */ 06050001
+*    3 JMRLWT      FIXED(31),            /* NUMBER OF LINES WRITTEN     06100001
+*                                           TO TAPE                  */ 06150001
+*                                                                       06200001
+*                                                                       06250001
+*    3 JMRUJVP     FIXED(31),             /* ADDRESS OF IEFUJV/PTR TO   06300001
+*                                           SYS1.MAN RECORD          */ 06350001
+*   2 JMRDRSTP (2) FIXED(31),            /* ISC STOP TIME AND DATE   */ 06400001
+*    2 JMRJOBIN    FIXED(31),             /* JOB SYSIN COUNT          */06450001
+*   2 JMRRDR   (2) CHAR(1),              /* ISC DEVICE TYPE AND CLASS*/ 06500001
+*    2 *        (2) CHAR(1),              /* RESERVED                 */06550001
+*   2 JMRSYSOC (5) CHAR(1),              /* SYSOUT CLASSES           */ 06600001
+*                                                                       06650001
+*/* THE FOLLOWING INFORMATION WILL BE PASSED TO IEFUJV IN R/I        */ 06700001
+*                                                                       06750001
+*   2 JMRJCLCD    CHAR(1),               /* JCL VERB CODE            */ 06800001
+*   2 *        (2) CHAR(1),              /* RESERVED                 */ 06850001
+*   2 JMRJOBP     FIXED(31),             /* PTR TO JOB LOG           */ 06900001
+*    3 JMRPTRS    FIXED(31),             /* JMRPTRS EQU JMRJOBP      */ 06950001
+*   2 JMRJCLP     FIXED(31),             /* PTR TO JCL CARD          */ 07000001
+*    2 JMRJCLCP    FIXED(31),             /* PTR TO JCL CODE          */07050001
+*   2 JMRPTOFS     FIXED(31),          /* PTR TO OPERAND OFFSET      */ 27050002
+*   2 JMRRESID     CHAR(7),            /* RES USER ID             RES*/ 47050002
+*   2 JMRRESRV     CHAR(1);            /* RES RESERVED            RES*/ 67050002

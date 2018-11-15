@@ -1,0 +1,41 @@
+//T92CVCX JOB (R777),'LONS 8TH',MSGCLASS=X,NOTIFY=T92CVC,               00010000
+// CLASS=A,USER=????????,PASSWORD=????????                              00020004
+//*MAIN LINES=999                                                       00030004
+//JOL      PROC  PROG=$JOLCP35,PRINTS=,SYMS=,JOB=X                      00040000
+//JOL  EXEC PGM=&PROG,PARM='LET &PRINTS/&SYMS',                         00050004
+// REGION=120K,TIME=1                                                   00060000
+//SYSUDUMP   DD   SYSOUT=*                                              00070002
+//$$JLOAD  DD  DSN=&&LOAD,DISP=(OLD,DELETE)                             00080006
+//         DD  DSN=SYS1.JOL35.LOAD,DISP=SHR                             00090008
+//$$JPRINT DD  SYSOUT=*,DCB=(RECFM=VBA,BLKSIZE=150,LRECL=139)           00100000
+//$$JCL    DD  SYSOUT=(*),                                              00110004
+//             DCB=(RECFM=FB,LRECL=80,BLKSIZE=80,BUFNO=1)               00120000
+//$$JINCL  DD  DSN=T92CVC.JOL.JOL,DISP=SHR                              00130000
+//$$JMACRO DD  DSN=T92CVC.JOL.JOL,DISP=SHR                              00140000
+//         DD  DSN=T41.JOLXA.CMDLIB,DISP=SHR                            00150000
+//$$JWORK1 DD  UNIT=SYSDA,SPACE=(CYL,(5,1)),DCB=BLKSIZE=800             00160000
+//$$JWORK2 DD  UNIT=SYSDA,SPACE=(CYL,(5,1)),DSN=&X,DISP=(,PASS),        00170005
+// DCB=BLKSIZE=10000                                                    00180005
+//SYSIN    DD  DSN=T92CVC.JOL.JOL(&JOB),DISP=SHR                        00190001
+// PEND                                                                 00200000
+// EXEC PGM=IEBCOPY                                                     00210006
+//SYSPRINT DD SYSOUT=*                                                  00220007
+//IN DD DSN=SYS1.JOL35.LOAD,DISP=SHR                                    00230008
+//OUT DD DSN=&&LOAD,DISP=(,PASS),UNIT=SYSDA,SPACE=(TRK,(10,1,1)),       00240007
+// DCB=T41.JOLXA.LOAD                                                   00250007
+  C I=IN,O=OUT                                                          00260006
+  S M=UJG01JOB                                                          00270006
+// EXEC PGM=IMASPZAP                                                    00280006
+//SYSPRINT DD SYSOUT=*                                                  00290008
+//SYSLIB DD DSN=&&LOAD,DISP=(OLD,PASS)                                  00300006
+  NAME UJG01JOB UJG01SPL                                                00310006
+  VER  00 47F0                                                          00320006
+  REP  00 07FE                                                          00330006
+// EXEC JOL                                                             00340000
+FS OFF;$JOB H;LIST  X.Y CHAR AND HEX;                                   00350004
+//JOL  EXEC PGM=IDCAMS,COND=EVEN                                        00360004
+//SYSPRINT DD  SYSOUT=*,OUTLIM=2000                                     00370004
+//SYSIN    DD  *                                                        00380004
+  PRINT INFILE(SYSUT1) OUTFILE(SYSUT2) DUMP                             00390004
+//SYSUT1   DD  DSN=&X,DISP=SHR                                          00400004
+//SYSUT2  DD  SYSOUT=*                                                  00410004

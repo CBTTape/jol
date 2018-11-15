@@ -1,0 +1,430 @@
+SRCHQDB   TITLE 'RETURN A DDNAME IF THE DSNAME IS FOUND'                00101012
+* ON ENTRY R1 POINTS TO TWO PARAMETERS:-                                00102012
+*    1. -> THE DSNAME                                                   00103012
+*    2. -> THE DDNAME FOR RETURNING INFORMATION.                        00104012
+*                                                                       00105012
+* A NOTE TO THE UNSUSPECTING MAINTENANCE PROGRAMMER                     00110004
+* THE RULES FOR FINDING DATASET ALLOCATIONS ON MVS AND OSIV/F4          00120004
+*    TCBJSCB POINTS TO JSCB                                             00130004
+*    JSCDSABQ POINTS TO QDB                                             00140004
+*    QDBFELMP POINTS TO FIRST DSAB                                      00150004
+*    QDBLELMP POINTS TO LAST DSAB                                       00160004
+*    DSABFCHN POINTS TO THE NEXT DSAB                                   00170004
+*    DSABBCHN POINTS TO THE PREVIOUS DSAB                               00180004
+*    DSABTIOT POINTS TO THE TIOT ENTRY                                  00190004
+*    TIOT+C POINTS TO JFCB IN SWA (NOTE 3 BYTES FROM +C, NOT 4)         00200004
+*                                                                       00210004
+*    WHY ALL THIS BOTHER?                                               00220004
+*                                                                       00230004
+*     DSAB CONTAINS USEFUL FLAGS SUCH AS IN-USE ATTRIBUTE ETC           00240004
+*                                                                       00250004
+*   TO FIND THE JOB ACCOUNTING INFO                                     00260004
+*    1) FIND CURRENT TCB                                                00270004
+*    2) LOAD JSCB ADDRESS FROM TCBJSCB                                  00280004
+*    3) LOAD JCT ADDRESS FROM JSCBJCT                                   00290004
+*    4) LOAD ACT ADDRESS FROM JCT+X'38'                                 00300004
+*    5) ACT+X'1E' CONTAINS NUMBER OF ACCOUNTING FIELDS                  00310004
+*    6) ACCOUNTING FIELDS START AT ACT+X'20'                            00320004
+*       THESE HAVE THE FOLLOWING FORMAT:                                00330004
+*      A) FIRST BYTE IS THE LENGTH EXCLUSIVE OF THIS BYTE               00340004
+*      B) SECOND BYTE IS THE FIRST IN THE STRING                        00350004
+*                                                                       00360004
+*    7) ACT FOR STEP IS FOUND VIA TCBJSCB, JSCBSCT, SCT+X'30'           00370004
+*                                                                       00380004
+*                                                                       00390004
+         COPY  JOLGLOBL                                           J40B  00390116
+         $UJEPARM                                                 J40B  00390216
+         LCLC  &C                                                 J40B  00390316
+         LCLA  &A                                                 J40B  00390416
+         TITLE 'SUBROUTINE TO SEARCH THE DSAB QUEUE'                    00391012
+         GENSAVE CSECT=SRCHQDB                                          00400015
+         LM     R3,R4,0(R1)                                             00412014
+         USING DSNPARM,R3                                               00413014
+         USING DDNPARM,R4                                               00414014
+*        USING  WKAREA,R10                                              00420015
+*        L     R10,=V(WKAREA)                                           00430015
+         NOP   0                                                  J40B  00440021
+         SPACE 1                                                        00450000
+         USING PSA,0                                              J40B  00460015
+         L     R9,PSATOLD                                         J40B  00461015
+*        L     R9,CVTPTR           LOAD CVT ADDRESS                     00470015
+*        L     R9,0(0,R9)          TCB WORDS                            00480015
+*        L     R9,4(0,R9)          MY TCB ADDRESS                       00490015
+         USING TCB,R9                                                   00500005
+         L     R9,TCBJSCB          MY JSCB ADDRESS                      00510005
+         DROP  R9                                                       00520005
+&C       SETC  (&X8)'JSCB'.(1-&X8)'KDJJSCB'                       J40B  00521019
+         USING &C,R9                                                    00530019
+&C       SETC  (&X8)'JSCBQDB'.(1-&X8)'JSCDSABQ'                   J40B  00531020
+         L     R9,&C     Q         DSAB Q                               00540020
+         DROP  R9                                                       00550005
+         USING QDB,R9              DSAB Q DESCRIPTOR BLOCK              00560005
+&C       SETC  (&X8)'3'.(1-&X8)'15'                               J40B  00561016
+         ICM   R8,&C,QDBNELMS      ARE THERE ANY?                       00570016
+         BZ    QSR090              A... NO                              00580004
+         AIF   (NOT &X8).NX8010                                   J40B  00581016
+         LA    R9,4(,R9)                                          J40B  00582016
+.NX8010  ANOP                                                     J40B  00583016
+         L     R8,QDBFELMP         LOAD DSAB ADDRESS                    00590005
+         USING DSAB,R8                                                  00600005
+QSR005   DS    0H                                                       00610004
+         AIF   (&X8).X8010                                        J40B  00611016
+         L     R1,DSABTIOT         POINT TO TIOT ENTRY                  00620014
+.X8010   ANOP                                                     J40B  00621016
+*        CLC   =CL8' ',4(R1)       BLANK DDNAME?                        00630014
+*        BE    QSR020              IF SO, NOT A MATCH                   00640004
+&C       SETC  (&X8)'20(R8)'.(1-&X8)'4(R1)'                       J40B  00641021
+         MVC   DDNAME(8),&C        MOVE DDNAME TO RETURN AREA           00650016
+         AIF   (&X8).X8020                                        J40B  00651016
+         ICM   R15,7,12(R1)        POINT TO JFCB                        00660014
+         USING JFCB-16,R15                                              00670014
+.X8020   ANOP                                                     J40B  00671016
+&C       SETC  (&X8)'32(R8)'.(1-&X8)'JFCBDSNM'                    J40B  00672021
+         CLC   DSNAME,&C                                                00680016
+         BE    QSR080              RETURN, WE HAVE THE DSNAME           00681012
+         AIF   (&X8).X8030                                        J40B  00691018
+         DROP  R15                                                      00710015
+.X8030   ANOP                                                     J40B  00711018
+QSR020   DS    0H        THIS ONE DID NOT MATCH:                        00720004
+         CLM   R8,7,QDBLELMP+1     Q... WAS THAT THE LAST?              00730005
+         BE    QSR090              A... YES IT WAS: EXIT NOT FOUND      00740004
+&C       SETC  (&X8)'00(R8)'.(1-&X8)'DSABFCHN'                    J40B  00741022
+         L     R8,&C               POINT TO THE NEXT                    00750023
+         B     QSR005              AND TRY AGAIN                        00760004
+QSR080   DS    0H                                                       00770014
+         L     R14,4(,R13)      ADDRESS PREVIOUS SAVE AREA        J40B  00770114
+         ST    R8,24(,R14)      STORE ADDRESS OF QDB              J40B  00770216
+         AIF   (&X8).X8040                                        J40B  00770424
+         ST    R15,20(,R14)     AND OF JFCB PREFIX                J40B  00770524
+.X8040   ANOP                                                     J40B  00770624
+         GENRETN RC=0              RETURN: FOUND                        00771014
+QSR090   GENRETN RC=4              RETURN: FOUND                        00780004
+DSNPARM  DSECT                                                          00800012
+DSNAME   DS    CL44                                                     00810012
+DDNPARM  DSECT                                                          00811012
+DDNAME   DS    CL8                                                      00812012
+         SPACE 4                                                        00813012
+         DROP  R8                                                       00880005
+         AGO   .XXX                                               J40B  00881015
+         GENSAVE CSECT=XXXXQDB                                          00890014
+         USING  WKAREA,R10                                              00900014
+         SPACE 1                                                        00910004
+         TITLE 'SUBROUTINE TO SEARCH THE DSAB QUEUE'                    00920004
+SCHDSABQ ST    R14,SDQRETN         SAVE THE RETURN ADDRESS              00930004
+         L     R14,CVTPTR          LOAD CVT ADDRESS                     00940004
+         L     R14,0(0,R14)        TCB WORDS                            00950004
+         L     R14,4(0,R14)        MY TCB ADDRESS                       00960004
+         USING TCB,R14                                                  00970004
+         L     R14,TCBJSCB         MY JSCB ADDRESS                      00980004
+         DROP  R14                                                      00990004
+         USING IEZJSCB,R14                                              01000004
+         L     R14,JSCDSABQ        DSAB Q                               01010004
+         DROP  R14                                                      01020004
+         USING QDB,R14             DSAB Q DESCRIPTOR BLOCK              01030004
+         ICM   R15,15,QDBNELMS     ARE THERE ANY?                       01040004
+         BZ    SDQ090              A... NO                              01050004
+         L     R15,QDBFELMP        LOAD DSAB ADDRESS                    01060004
+         USING DSAB,R15                                                 01070004
+SDQ005   DS    0H                                                       01080004
+         L     R1,DSABTIOT         POINT TO TIOT ENTRY                  01090014
+         CLC   =CL8' ',4(R1)       BLANK DDNAME?                        01100014
+         BE    SDQ020              IF SO, NOT A MATCH                   01110004
+         ICM   R1,7,12(R1)         POINT TO JFCB                        01120014
+         USING JFCB-16,R1                                               01130014
+         CLC   JFCBDSNM,ADSNAME    Q... SAME DSNAME?                    01140004
+         BNE   SDQ020              A... NO                              01150004
+         NI    AFLAG1,FF-AMOD      SAME DSN: CANNOT B NEW               01160004
+         CLC   JFCBELNM,AMBRNAME   Q... SAME MEMBER NAME?               01170004
+         BNE   SDQ020              A... NO                              01180004
+         MVC   TUDSORG+6(2),DSABORG   COPY DSORG                        01190004
+         DROP  R1                                                       01200014
+         L     R1,DSABTIOT         POINT TO TIOT ENTRY                  01210014
+         CLI   4(R1),C'$'          Q... JOL DDNAME?                     01220014
+         BE    SDQ010              A... YES: DO NOT RETURN IT FOR       01230004
+*                                   A GENERAL REQUEST                   01240004
+         TM    DSABFLG1,DSABDCAT+DSABPCAT+DSABCATM+DSABNUSE             01250004
+         BNZ   SDQ010              DO NOT RETURN IT IF:                 01260004
+*                                    DYNAMICALLY CONCATENATED           01270004
+*                                    PERMANENTLY CONCATENATED           01280004
+*                                    MEMBER OF CONCATENATED GROUP       01290004
+*                                    IN USE                             01300004
+         TM    DSABFLG2,DSABOPEN   DO NOT IT RETURN IF OPEN             01310004
+         BNZ   SDQ010                                                   01320004
+         MVC   TURETDDN+6(8),4(R1) OTHERWISE ANY WILL DO                01330014
+         MVC   TURETDDN+4(2),=H'8' SET DDNAME LENGTH                    01340004
+         B     SDQ080              OK TO LEAVE                          01350004
+SDQ010   DS    0H                                                       01360004
+         CLC   ADDNAME,4(R1)   Q... REQUESTED DDNAME?                   01370014
+         BE    SDQ080          A... YES: RETURN                         01380004
+SDQ020   DS    0H        THIS ONE DID NOT MATCH:                        01390004
+         CLM   R15,7,QDBLELMP+1    Q... WAS THAT THE LAST?              01400004
+         BE    SDQ090              A... YES IT WAS: EXIT NOT FOUND      01410004
+         L     R15,DSABFCHN        POINT TO THE NEXT                    01420004
+         B     SDQ005              AND TRY AGAIN                        01430004
+SDQ080   L     R14,SDQRETN         RETURN: FOUND                        01440004
+         SLR   R15,R15                                                  01450004
+         BR    R14                                                      01460004
+SDQ090   L     R14,SDQRETN         RETURN: FOUND                        01470004
+         SLR   R15,R15                                                  01480004
+         B     4(R14)                                                   01490004
+         DROP  R15                                                      01500004
+         PRINT ON                                                       01950004
+         TITLE '  WORK AREA'                                            01960001
+WKAREA   CSECT                                                          01970004
+         DS    18F                  SAVE AREA                           01980000
+DOUBLE   DS    D                                                        01990000
+LINKDCBE DS    XL(DCBLEN)                                               02000000
+JFCBPTR  DC    A(*+4+X'87000000')                                       02010000
+WRKJFCB  DS    XL176                                                    02020000
+OPENLIST DS    A                                                        02030000
+LINKSFE  DS    XL8                                                      02040000
+ALLCREGS DS    13A                                                      02050000
+QUALREGS DS    13F                                                      02060000
+CONCREGS DS    13F                                                      02070000
+DCONCRGS DS    13F                                                      02080000
+S99MRET  DS    A                                                        02090000
+STPRETN  DS    A                                                        02100000
+SDQRETN  DS    A                                                        02110000
+QSUBRET  DS    A                                                        02120000
+PARM     DS    1F                                                       02130000
+NBRDDN   DS    H                                                        02140000
+FLAG     DC    X'00'                                                    02150000
+QSUB     EQU   X'80'               ASK WHETHER TO SUBMIT                02160000
+TERMIN   EQU   X'40'               INPUT WAS FROM TERMINAL              02170000
+         DS    0F                                                       02180000
+TEMP     DS    XL5                                                      02190000
+HEXCONV  DS    XL19                                                     02200000
+PPLADDR  DS    F                                                        02210000
+MYECB    DS    F                                                        02220000
+         SPACE 4                                                        02230000
+         DS    0F                                                       02240000
+DFLIST   DS    A       -> FAILING SVC 99 RB                             02250000
+         DS    A       -> RETURN CODE                                   02260000
+         DS    A       -> IKJEFF02 PTR OR IS ZERO                       02270000
+         DS    A       -> DAIRFAIL FLAGS                                02280000
+DFCPPL   DS    A       -> CPPL OR IS ZERO                               02290000
+S99RC    DS    F       SVC 99 RETURN CODE                               02300000
+DFFLAGS  DC    X'0032' DAIRFAIL FLAGS                                   02310000
+DFEFF02  DS    A                                                        02320000
+DFMSG    DC    C'DAIRFAIL RETURN CODE NN'                               02330000
+S99RBPTR DS    A                                                        02340000
+S99RB    DS    0XL20                                                    02350000
+S99RBLN  DS    X                                                        02360000
+S99VERB  DS    X                                                        02370000
+S99FLAG1 DS    XL2                                                      02380000
+S99ERROR DS    XL2                                                      02390000
+S99INFO  DS    XL2                                                      02400000
+S99TXTPP DS    XL4                                                      02410000
+S99FLAG2 DS    XL4                                                      02420000
+S99RESVD DS    XL4                                                      02430000
+S99TUPL  DS    20XL4                                                    02440000
+         SPACE 4                                                        02450000
+TUAREA   DS    0D                                                       02460000
+TUDSN    DS    0XL50,XL2                                                02470000
+TUDSNNBR DS    XL2                                                      02480000
+TUDSNENT DS    XL46,CL8                                                 02490000
+TURETDSN DS    XL2                                                      02500000
+TURETDSK DS    XL2                                                      02510000
+TURETDS# DS    XL2                                                      02520000
+TURETDS  DS    CL46                                                     02530000
+TUUNIT   DS    XL14                                                     02540000
+TUDDN    DS    0XL14,2X                                                 02550000
+TUDDNNBR DS    XL2                                                      02560000
+TUDDNENT DS    CL10                                                     02570000
+TURETDDN DS    0XL14,2X                                                 02580000
+TURETDDK DS    XL2                                                      02590000
+TURETDD# DS    XL2                                                      02600000
+TURETDD  DS    CL8                                                      02610000
+TUPSD    DS    0XL14                                                    02620000
+         DS    XL2                                                      02630000
+TUPSDNBR DS    XL2                                                      02640000
+TUPSDLEN DS    XL2                                                      02650000
+TUPSDNM  DS    CL8                                                      02660000
+TUDSORG  DS    XL8                                                      02670000
+TUMBR    DS    0XL14                                                    02680000
+         DS    XL2                                                      02690000
+TUMBRNBR DS    XL2                                                      02700000
+TUMBRLEN DS    XL2                                                      02710000
+TUMBRNM  DS    CL8                                                      02720000
+TUDISP   DS    XL7                                                      02730000
+TUCATLG  DS    XL7                                                      02740000
+TUTERM   DC    X'00280000'                                              02750000
+TUDMY    DC    X'00240000'                                              02760000
+TUSOUT   DC    X'001800010001C1'                                        02770000
+TUBLKSI  DC    X'0030000100020000'                                      02780000
+TUVOL    DC    X'001000010006404040404040'                              02790000
+         DS    0F                                                       02800000
+TUAREAL  EQU   *-TUAREA                                                 02810000
+*                                                                       02820000
+* FOLLOWING CODE BY PETER FOLEY ABS APR 1983                            02830000
+*                                                                       02840000
+TUAREA2  DS    0D                                                       02850000
+TUROUND  DS    XL4                                                      02860000
+TUAVBLK  DS    XL9                                                      02870000
+TUPRIMS  DS    XL9                                                      02880000
+TUSECND  DS    XL9                                                      02890000
+         DS    0F                                                       02900000
+TUAREAL2 EQU   *-TUAREA2                                                02910000
+*                                                                       02920000
+* PREVIOUS CODE BY PETER FOLEY ABS APR 1983                             02930000
+*                                                                       02940000
+         SPACE 3                                                        02950000
+*  THIS AREA IS USED TO BUILD THE TEXT UNIT FOR CONCATENATION           02960000
+         SPACE                                                          02970000
+TUCONC   DC    X'0001'     TYPE                                         02980000
+         DC    X'0000'     NUMBER                                       02990000
+TUCONCDD DS    16CL10      SPACE FOR SIXTEEN ENTRIES                    03000000
+TUCONCL  EQU   *-TUCONC                                                 03010000
+CNDDTABP DS    A                                                        03020000
+CNDDTAB  DS    20CL8       SPACE FOR 20 CONCATENATED DDNAMES            03030000
+         SPACE 3                                                        03040000
+IOPB     DS    4F                                                       03050000
+IOPL     DS    4F                                                       03060000
+IOECB    DS    F                                                        03070000
+OLD1CHN  DS    XL4                                                      03080000
+OLD1     DS    XL4                                                      03090000
+OLD1#1   DS    XL4                                                      03100000
+OLD1#2   DS    XL4                                                      03110000
+OLD1#3   DS    XL4                                                      03120000
+OLD1#4   DS    XL4                                                      03130000
+OLD1#5   DS    XL4                                                      03140000
+MSGRC    DS    XL6                                                      03150000
+MSGDARC  DS    XL8                                                      03160000
+MSGDAFLG DS    XL8                                                      03170000
+MSGCAT   DS    XL8                                                      03180000
+PRMOPTNS DS    XL256                                                    03190000
+USERPLST DS    A                                                        03200000
+USERPRML DS    H                                                        03210000
+USERPRM  DS    CL256                                                    03220000
+MYPPL    DS    XL(LENMYPPL)                                             03230000
+PPLREPL  DS    A                  PTR TO REPLY                          03240000
+         SPACE 2                                                        03250000
+CFLAGS   DS    0XL2                                                     03260000
+CFLAG1   DS    X                                                        03270000
+CFLAG2   DS    X                                                        03280000
+         SPACE 4                                                        03290000
+APTAREA  DS    0X                  ALLOCATION PARAMETER TABLE           03300000
+APDE     DS    A                   ADDRESS OF PDE FOR FILE TO ALLOCATE  03310000
+ADSNAME  DS    CL44                DSNAME TO ALLOCATE                   03320000
+AMBRNAME DS    CL8                 MEMBER NAME TO ALLOCATE              03330000
+ADDNAME  DS    CL8                 DDNAME SUPPLIED TO USE               03340000
+AUNIT    DS    CL8                 UNIT NAME/ADDRESS TO USE             03350000
+AVOL     DS    CL6                 VOLUME CONTAINING DATASET            03360000
+*DEVT    DS    XL4                 UCB DEVICE TYPE OF DEVICE (NOT USED) 03370000
+ASUFFIXL DS    H                   SUFFIX LENGTH                        03380000
+ASUFFIX  DS    CL9                 SUFFIX IF DSN TO BE QUALIFIED        03390000
+AOUTLIM  DS    F                   OUTLIM                               03400000
+ABLKSIZ  DS    H                   BLOCK SIZE                           03410000
+ALRECL   DS    H                   RECORD LENGTH                        03420000
+APRIM    DS    H                   PRIMARY ALLOCATION                   03430000
+ASEC     DS    H                   SECONDARY ALLOCATION                 03440000
+ADIR     DS    H                   DIRECTORY BLOCKS                     03450000
+ADSORG   DS    H                   DSORG REQUIRED                       03460000
+AFLAGS   DS    0XL2                ALLOCATION FLAGS                     03470000
+AFLAG1   DC    X'00'               ALLOCATION FLAG BYTE 1               03480000
+FF       EQU   X'FF'                                                    03490000
+ASOUT    EQU   X'80'               ALLOCATE A SYSOUT DATASET            03500000
+AMOD     EQU   X'40'               ALLOCATE AS NEW IF NO DATASET        03510000
+ATEMP    EQU   X'20'               TEMPORARY DATASET                    03520000
+ANULL    EQU   X'10'               DUMMY DATASET REQUIRED               03530000
+APDS     EQU   X'08'               CONCATENATE REQUEST                  03540000
+ASHR     EQU   X'04'               A DATASET CAN BE SHARED              03550000
+ATERM    EQU   X'02'               ALLOCATE DATASET TO THE TERMINAL     03560000
+         SPACE                                                          03570000
+AFLAG2   DC    X'00'               SECOND BYTE OF ALLOCATION FLAGS      03580000
+APERMA   EQU   X'80'               MARK PERMANENTLY ALLOCATED           03590000
+APERMC   EQU   X'40'               MARK PERMANENTLY CONCATENATED        03600000
+ASOUTC   DS    C                   SYSOUT CLASS                         03610000
+APTL     EQU   *-APTAREA                                                03620000
+         ORG   APTAREA                                                  03630000
+APT      DS    XL(APTL)                                                 03640000
+CSUFFIX  DS    CL(L'ASUFFIXL+L'ASUFFIX)                                 03650000
+         SPACE 4                                                        03660000
+CATRC    DS    X                                                        03670000
+CATFLG   DS    X                                                        03680000
+         DS    0D                                                       03690000
+CATWORK  DS    XL265,0D                                                 03700000
+CATPARMS DS    4XL4                                                     03710000
+CATDSPT  DS    XL4                                                      03720000
+CATRET   DS    XL4                                                      03730000
+         DS    0D                                                       03740000
+WKALEN   EQU   *-WKAREA                                                 03750000
+         EJECT                                                          03760000
+DSPDE    DSECT                                                          03770000
+DSENT    DS    0CL28                                                    03780000
+DSNPT    DS    XL4                                                      03790000
+DSLEN    DS    Y                                                        03800000
+DSFLG    DS    2X                                                       03810000
+MBRPT    DS    XL4                                                      03820000
+MBRLEN   DS    Y                                                        03830000
+MBRFLG   DS    2X                                                       03840000
+PSDPT    DS    XL4                                                      03850000
+PSDLEN   DS    Y                                                        03860000
+PSDFLG   DS    2X                                                       03870000
+DSNEXT   DS    XL4                                                      03880000
+         DROP                                                           03890000
+.XXX     ANOP                                                     J40B  03891015
+*        PRINT OFF                                                      03892015
+         TITLE 'COMMUNICATIONS VECTOR TABLE'                            03893026
+         CVT   DSECT=YES,SYS=BOTH                                       03894026
+         TITLE '  DATA CONTROL BLOCK'                                   03895026
+         DCBD  DSORG=PS,DEVD=DA                                         03896026
+         TITLE '  USER PROFILE TABLE'                                   03897026
+         IKJUPT                                                         03898026
+         TITLE '  PROTECTED STEP CONTROL BLOCK'                         03899026
+         IKJPSCB                                                        03899126
+         TITLE '  ENVIRONMENT CONTROL TABLE'                            03899226
+         IKJECT                                                         03899326
+         TITLE '  PARSE PARAMETER LIST'                                 03899426
+         IKJPPL                                                         03899526
+ ENMYPPL EQU   *-PPL                                                    03899626
+         AIF   (&X8).X8CB                                               03899718
+*        AGO   .F4CB                                              J60   03899825
+         AIF   (&F4).F4CB                                               03899917
+         TITLE '  TASK CONTROL BLOCK'                                   03900017
+         IKJTCB                                                         03900117
+         TITLE '  JOB-STEP CONTROL BLOCK'                               03900217
+         IEZJSCB                                                        03900317
+         TITLE '  DATA-SET ASSOCIATION BLOCK'                           03900417
+         IHADSAB                                                        03900517
+         TITLE '  DSAB QUEUE DESCRIPTOR BLOCK'                          03900617
+         IHAQDB                                                         03900717
+         TITLE '  JOB FILE CONTROL BLOCK'                               03900817
+JFCB     DSECT                                                          03900917
+         IEFJFCBN                                                       03901017
+         AGO   .CBDUN                                                   03901117
+.F4CB    ANOP                                                           03901217
+         TITLE '  LOW STORAGE'                                          03901317
+         KAAFLC                                                         03901417
+PSA      EQU   FLC                                                J40B  03901517
+PSATOLD  EQU   FLCTOLD                                            J40B  03901617
+         TITLE '  TASK CONTROL BLOCK'                                   03901717
+         KAATCB                                                         03901817
+         TITLE '  JOB-STEP CONTROL BLOCK'                               03901917
+         KDJJSCB                                                        03902017
+         TITLE '  DATA-SET ASSOCIATION BLOCK'                           03902117
+         KDJDSAB                                                        03902217
+         TITLE '  DSAB QUEUE DESCRIPTOR BLOCK'                          03902317
+         KDJQDB                                                         03902417
+         TITLE '  JOB FILE CONTROL BLOCK'                               03902517
+JFCB     DSECT                                                          03902617
+         KDJJFCBN LIST=YES,DSECT=NO                                     03902717
+         AGO   .CBDUN                                             J40B  03902818
+.X8CB    ANOP                                                           03902918
+         TITLE '  LOW STORAGE'                                          03903018
+         XAMFLC                                                         03903118
+PSA      EQU   FLC                                                J40B  03903218
+PSATOLD  EQU   FLCTOLD                                            J40B  03903318
+         TITLE '  TASK CONTROL BLOCK'                                   03903418
+         XAMTCB PRINT=YES                                               03903519
+         TITLE '  JOB-STEP CONTROL BLOCK'                               03903618
+         XDDJSCB                                                        03903718
+         TITLE '  DATA-SET ASSOCIATION BLOCK'                           03903818
+         KDJDSAB                                                        03903918
+         TITLE '  DSAB QUEUE DESCRIPTOR BLOCK'                          03904018
+         KDJQDB                                                         03904118
+         TITLE '  JOB FILE CONTROL BLOCK'                               03904218
+JFCB     DSECT                                                          03904318
+         KDJJFCBN LIST=YES,DSECT=NO                                     03904418
+.CBDUN   ANOP                                                           03904518
+         END                                                            03904618

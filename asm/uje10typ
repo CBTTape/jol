@@ -1,0 +1,84 @@
+         TITLE 'UJE10TYP:TYPE A MESSAGE'                                03102000
+         JOLSAVE CSECT=UJE10TYP                                         03103000
+* THIS ROUTINE DOES THE TYPING                                          03104000
+           L   R7,=A(#TKN)                                              03105000
+           USING #TKN,R7                                                03106000
+           JOLERR 301,#TKN                                              03107000
+           JOLRETN                                                      03108000
+          TITLE 'UJE11DIS:DISPLAY A MESSAGE'                            03109000
+           JOLSAVE CSECT=UJE11DIS                                       03110000
+           L   R7,=A(#TKN)                                              03111000
+           USING #TKN,R7                                                03112000
+* DISPLAY HANDLER                                                       03113000
+           JOLERR 101,#TKN                                              03114000
+           JOLRETN                                                      03115000
+          TITLE 'UJE12SIG:SIGNAL AN ERROR MESSAGE'                      03116000
+           JOLSAVE CSECT=UJE12SIG                                       03117000
+* SIGNAL ERROR ROUTINE                                                  03118000
+           L   R7,=A(#TKN)                                              03119000
+           USING #TKN,R7                                                03120000
+           SR R2,R2                                                     03121000
+           NI TKN,X'0F'        DROP 'F' FROM SEVERITY NUMBER            03122000
+           IC R2,TKN           AND SAVE SEVERITY NUMBER                 03123000
+           GETTKN 3            GET MESSAGE TEXT                         03124000
+           CH R2,=H'3'                                                  03125000
+           BL  SIGONLY                         ONLY WARNINGS            03126000
+           BE  SIGWTOR                         WTOR                     03127000
+* HERE A TERMINAL ERROR TO BE RASIED                                    03128000
+           JOLERR 407,'TERMINAL ERROR ',#TKN,' SIGNALLED'               03129000
+SIG&RSVDRC MVC TASKRETN,=F'&RSVDRC'                                     03130000
+           MVI  GOBACK,C'1'                                             03131000
+         CALL  UJE94CLN            CLEAN UP OUTSTANDING ALLOCATIONS     03132000
+SIGTERM    JOLERR 406,'JOB TERMINATING'                                 03133000
+           JOLRETN RC=&RSVDRC                                           03134000
+           SPACE 3                                                      03135000
+SIGONLY  DS    0H                                                       03136000
+           CH R2,=H'2'                                                  03137000
+           BL SIGERR1                                                   03138000
+         JOLERR 202,'SEVERE ERROR ',#TKN,'SIGNALLED'        FIX-X 76200 03139000
+           B  SIGRETN                                                   03140000
+SIGERR1  JOLERR 101,'MINOR ERROR ',#TKN,' SIGNALLED'        FIX-X 76200 03141000
+SIGRETN    JOLRETN                                                      03142000
+           SPACE 3                                                      03143000
+SIGWTOR  DS    0H                                                       03144000
+*          JOLERR 403,'MAJOR ERROR ',#TKN,' SIGNALLED'                  03145000
+         CLC   #TKN,=H'70'     IS MESSAGE TOO LONG                      03145010
+         BNH   E12WTOR1        NO                                       03145020
+         MVC   #TKN,=H'70'     YES SO ADJUST LENGTH                     03145030
+E12WTOR1 EQU   *               JOLERR WONT ACCEPT A LABEL??             03145040
+         JOLERR 403,#TKN,': REPLY GO OR STOP '                          03145050
+*  JOLERR SETS JOBNAME ETC UP IN #S23LREC                               03145060
+         LA    R1,#S23LREC-8                                            03145070
+         MVI   0(R1),4         LENGTH OF REPLY                          03145080
+         MVC   1(3,R1),=AL3(SIGREPLY) ADDRESS OF REPLY AREA             03145090
+         MVC   4(4,R1),=A(SIGECB) ADDR OF ECB TO WAIT ON                03145100
+SIGRETRY   CLEAR SIGREPLY                                               03146000
+           XC  SIGECB,SIGECB                                            03147000
+*ERE1204  DS    0H                                                      03148000
+*     WTOR 'JOLE12-04 REPLY GO OR STOP',SIGREPLY,4,SIGECB,DESC=(2)      03149000
+         LA    R1,#S23LREC-8                                            03149010
+         SVC   35                  ISSUE WTOR                           03149100
+           WAIT ECB=SIGECB                                              03150000
+         OC    SIGREPLY(4),=C'    '     TO UP CASE                      03150100
+           CLC =C'GO  ',SIGREPLY                                        03151000
+           BE  SIGCONT                                                  03152000
+           CLC =C'STOP',SIGREPLY                                        03153000
+           BE  SIGTERM                                                  03154000
+           B   SIGRETRY                                                 03155000
+           SPACE 3                                                      03156000
+SIGECB     DS  F                                                        03157000
+SIGREPLY   DS CL4                                                       03158000
+           SPACE 3                                                      03159000
+SIGCONT  DS    0H                                                       03160000
+         JOLERR 405,'JOB CONTINUING'                                    03161000
+         B   SIGRETN                                                    03162000
+         TITLE 'UJE13STP:STOP HANDLER'                                  03163000
+         JOLSAVE CSECT=UJE13STP                                         03164000
+* STOP EXECUTER                                                         03165000
+         L     R7,=A(#TKN)                                              03166000
+         USING #TKN,R7                                                  03167000
+         JOLERR 401,'STOP ''',#TKN,''' EXECUTED'                        03168000
+STPRETN  MVI   GOBACK,C'1'                                              03169000
+         CALL  UJE94CLN            CLEAN UP OUTSTANDING ALLOCATIONS     03170000
+         MVC   TASKRETN,=F'&RSVDRC'                                     03171000
+         JOLRETN RC=&RSVDRC                                             03172000

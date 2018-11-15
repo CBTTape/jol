@@ -1,0 +1,72 @@
+XASCAN     TITLE 'TEST IOSVSUCB LOOKUP ROUTINE ON NORMAL MVS'           00010000
+* COPYRIGHT CLEM CLARKE 1983.                                           00020000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00030000
+           SPACE 3                                                      00040000
+*                   J             000000            L                   00050000
+*                   J            0      0           L                   00060000
+*                   J           0        0          L                   00070000
+*                   J          0          0         L                   00080000
+*                   J         0            0        L                   00090000
+*                   J         0            0        L                   00100000
+*                   J         0            0        L                   00110000
+*                   J         0            0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*        J          J         0            0        L                   00160000
+*         J        J           0          0         L                   00170000
+*          J      J             0        0          L                   00180000
+*           J    J               0      0           L                   00190000
+*            JJJJ                 000000            LLLLLLLLLLL         00200000
+         SPACE 3                                                        00210000
+*                                                                       00220000
+******************************************************************      00230000
+*                                                                       00240000
+*                                                                       00250000
+* MODIFIED BY C. V. CLARKE TO INCLUDE XA SUPPORT DEC, 1983              00260000
+*    THIS SUPPORT USES UCB LOOKUP SERVICES IF                           00270000
+*    WE ARE RUNNING ON AN XA SYSTEM.                                    00280000
+*                                                                       00290000
+*                                                                       00300000
+******************************************************************      00310000
+         SPACE 3                                                        00320000
+         GENSAVE CSECT=FINDVOL                                          00330000
+         L     R3,CVTPTR           GET CVT ADDRESS                      00340001
+         USING CVTMAP,R3           SET UP ADDRESSABILITY TO CVT         00350001
+         XC    WORKAREA,WORKAREA   CLEAR THE WORK AREA                  00360001
+         LA    R1,WORKAREA         GET ADDRESS OF WORKAREA              00370001
+         ST    R1,PARMWA           STORE IT IN PARMLIST                 00380001
+         LA    R1,DEVCLASS         GET ADDRESS OF SEARCH PARMS          00390001
+         ST    R1,PARMDEVT         STORE IT IN PARMLIST                 00400001
+         MVI   DEVCLASS,UCB3DACC   SEARCH FOR DA DEVICES ONLY           00410001
+         LA    R1,ADDRUCB          ADDRESS OF RETURN FROM SCAN          00420001
+         ST    R1,PARMUCB          STORE ADDRESS                        00430001
+         OI    PARMUCB,X'80'       INDICATE END OF PARMLIST             00440001
+         LA    R1,PARMLIST                                              00450001
+         USING UCBOB,R2            SET UP ADDRESSABILITY FOR UCB        00460001
+G00SRCH  L     R15,CVTUCBSC        GET SCAN SERVICE ADDRESS             00470001
+         BALR  R14,R15             GO TO SCAN ROUTINE                   00480001
+         LTR   R15,R15             WAS A UCB RETURNED?                  00490001
+         BNZ   G00NMAT             NO, END OF SCAN                      00500001
+* HERE A UCB ADDRESS WAS RETURNED TO US.                                00510001
+         L     R2,ADDRUCB          GET UCB ADDR RETURNED                00520001
+         CLC   UCBVOLI,SRCHVOL     IS IT IT?                            00530001
+         BNE   G00SRCH             CONTINUE                             00540001
+FOUND    DC    H'0'                                                     00550001
+G00NMAT  ABEND  5                                                       00560001
+SRCHVOL  DC    CL6'DLIBXA'                                              00570002
+PARMLIST DS    3F                                                       00580001
+         ORG   PARMLIST                                                 00590001
+PARMWA   DS    A                   ADDRESS OF 100 BYTE WORK AREA        00600001
+PARMDEVT DS    A                   ADDRESS OF SEARCH SCAN               00610001
+PARMUCB  DS    A                   ADDRESS FOR RETURNED UCB             00620001
+DEVCLASS DS    CL1                                                      00630001
+ADDRUCB  DS    F                   UCB RETURNED ADDRESS                 00640001
+         DS    0D                                                       00650001
+WORKAREA DS    CL100                                                    00660001
+         LTORG                                                          00670001
+         PRINT  OFF                                                     00680001
+         DSECT                                                          00690001
+         IEFUCBOB                                                       00700001
+         CVT   DSECT=YES                                                00710001
+         END                                                            00720001

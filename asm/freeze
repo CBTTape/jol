@@ -1,0 +1,43 @@
+FREEZE   CSECT
+         LR    12,15
+         USING FREEZE,12
+         ZAP   COUNTER,=P'0'
+         OPEN  TERM
+         LTR   15,15
+         BNZ   BADOPEN
+R        GET   TERM
+         AP    COUNTER,=P'1'
+         LH    0,TERM+DCBLRECL-IHADCB
+*        SH    0,=H'4'
+*        LA    1,4(,1)
+         TPUT  (1),(0),USERIDL==C'JOLJXS  '
+         LTR   15,15
+         BZ    R
+EOF      DS    0H
+         CLOSE TERM
+         B     FREE
+BADOPEN  DS    0H
+         CVD   15,DOUBLE
+         ED    OPENRC,DOUBLE+6
+         TPUT  OPENMSG,OPENMSGL,USERIDL==C'JOLJXS  '
+FREE     DS    0H
+         CVD   15,DOUBLE
+         ED    RECSCT,COUNTER
+         TPUT  RECSMSG,RECSMSGL,USERIDL==C'JOLJXS  '
+         FREEFL TERM
+         FREEFL LIST
+         SLR   15,15
+         SVC   3
+         DC    0D'0',CL8'TERMFILE'
+TERM     FCB   ACNAME=TERM,DSORG=PS,MACRF=GL,EODAD=EOF
+COUNTER  DC    PL3'0'
+RECSMSG  DC    0C' '
+RECSCT   DC    X'4020206B202120'
+         DC    C' RECORDS PRINTED '
+RECSMSGL EQU   *-RECSMSG
+OPENMSG  DC    C'OPEN RETURN CODE '
+OPENRC   DC    X'40202120'
+OPENMSGL EQU   *-OPENMSG
+DOUBLE   DS    D
+         DCBD  DSORG=PS,DEVD=DA
+         END   FREEZE

@@ -1,0 +1,46 @@
+         TITLE 'TIOT SCAN SOUBROUTINE'                                  00110001
+* THIS SUBROUTINE SEARCHES THE TIOT FOR A SPECIFIED DDNAME              00120000
+*  WHOSE ADDRESS IS PASSED IN REGISTER 1                                00130000
+* There is code after the end statement that shows how it               00131010
+* used to be done prior to z/os.                                        00132010
+* Changed, Dec 16, 2008 for Z/OS by Clement Clarke                      00133010
+         PRINT OFF                                                J60   00134010
+         PRINT ON,DATA                                            J60   00136012
+SRCHTIOT CSECT                                                          00141002
+R00      EQU   0                                                        00150002
+R01      EQU   1                                                        00160002
+R11      EQU   11                                                       00170002
+R13      EQU   13                                                       00171014
+R14      EQU   14                                                       00180002
+R15      EQU   15                                                       00190002
+         SAVE  (11,12)             SAVE REGISTERS                       00200002
+         LR    R11,R15             SET UP A BASE                        00210000
+         USING SRCHTIOT,R11                                             00220004
+         SPACE                                                          00230000
+SCHTIOT  DS    0H                                                       00240000
+         DEVTYPE 0(R01),40(R13)                                   J60   00241014
+         RETURN (11,12),,RC=(15)                                        00242009
+         L     R15,X'010'          ADDRESS OF CVT                       00250000
+         L     R15,0(0,R15)        TCB WORDS                            00260000
+         L     R15,4(,R15)         ADDRESS OF MY TCB                    00270000
+         SLR   R00,R00                                                  00280000
+         L     R15,TCBTIO-TCB(,R15) TIOT ADDRESS                        00290000
+ST010    DS    0H                                                       00300000
+         CLC   28(8,R15),0(R01)    Q... DDNAME MATCH?                   00310000
+         BE    RETURN0             A... YES:RETURN                      00320000
+         IC    R00,24(,R15)        LENGTH OF THIS ENTRY                 00330000
+         AR    R15,R00                                                  00340000
+         LTR   R00,R00             Q... END OF TIOT?                    00350000
+         BNZ   ST010               A... NO: CHECK THE NEXT ENTRY        00360000
+*        CLI   *,0                 SET CC TO SHOW NOT EQUALS            00370000
+*        BR    R14                                                      00380000
+         RETURN (11,12),,RC=4                                           00390002
+RETURN0  LR    1,15                SAVE POINTER INTO TIOT FOR LATER     00400006
+         RETURN (11,12),,RC=0                                           00401005
+         PUSH  PRINT                                                    00410002
+         PRINT NOGEN                                                    00420002
+         DS    0D                                                       00430002
+         TITLE 'TASK CONTROL BLOCK'                                     00440002
+*        KAATCB                                                         00450008
+         IKJTCB                                                         00451008
+         END                                                            00460002

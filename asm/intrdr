@@ -1,0 +1,538 @@
+//CREADER JOB  (05,70003011),HJP,CLASS=M                                00000100
+// EXEC ASMFC,SOUT=Q,LD=                                                00000200
+//SYSLIB DD DSN=SYS1.MACLIB,DISP=SHR                                    00000300
+//    DD DSN=SYST.AMODGEN,DISP=SHR                                      00000400
+//SYSGO DD DSN=SPROG.INTRDR.OBJ,DISP=(,CATLG),UNIT=DISK                 00000401
+INTRDR   TITLE 'JOL/VS1 READER - USING VS1 SUBSYSTEM JOB SUBMISSION'    00000500
+* COPYRIGHT - CLARKE COMPUTER SOFTWARE,                                 00000600
+*             105 COLLINS STREET,                                       00000700
+*             MELBOURNE,                                                00000800
+*             VICTORIA,                                                 00000900
+*             AUSTRALIA, 3000                                           00001000
+*        TELEPHONE (03)-654-2082                                        00001100
+*        TELEX  33833                                                   00001200
+*                                                                       00001300
+* NOTE *********************************************************        00001400
+*                                                                       00001500
+* ALL CHANGES TO THIS PROGRAM MUST BE SENT TO CLARKE COMPUTER           00001600
+*  SOFTWARE AT THE ABOVE ADDRESS.                                       00001700
+*                                                                       00001800
+* THIS IS A CONDITION FOR CCS SUPPLYING THE SOURCE CODE, AND WILL ALLOW 00001900
+* CCS TO SUPPLY ALL USERS WITH THE LATEST COPY OF THE SOFTWARE.         00002000
+*  IT IS, THEREFORE, IN YOUR OWN INTERESTS TO DO SO.                    00002100
+*                                                                       00002200
+* LARGE CHANGES SHOULD BE SENT ON A MINI-TAPE.                          00002300
+*                                                                       00002400
+******************************************************************      00002500
+*                                                                       00002600
+* THIS IS THE JOL VS1 INTERNAL READER.                                  00002700
+*                                                                       00002800
+* AUTHOR: CLEM CLARKE                                                   00002900
+*         MARCH 23,1979                                                 00003000
+*                                                                       00003100
+* NOTE: THIS MODULE REPLACES THE OLD UJERDR1 MODULE THAT USED TO        00003200
+*        ISSUE A START FOR A READER. NOW, VS1 SUBSYSTEM JOB             00003300
+*        SUBMISSION FACILITES ARE USED; THIS CUTS DOWN SUBSTANTIALLY    00003400
+*        ON THE OVERHEADS INVOLVED IN STARTING READERS TO READ THE      00003500
+*        JOL PRODUCED JCL.                                              00003600
+*                                                                       00003700
+* IT IS PLANNED THAT A MODULE SIMILAR TO THIS WILL BE MADE AVAILABLE    00003800
+*        TO INTERFACE WITH CJRE AND ANOTHER WITH PANVALET.              00003900
+*                                                                       00004000
+* IT SHOULD BE NOTED THAT CLARKE COMPUTER SOFTWARE RECIEVED FROM        00004100
+*  TONE CORP THE SOURCE CODE FOR THEIR 'HOT' READER SOMETIME IN         00004200
+*  1976. THIS READER, WHILE PERFOMING THE FUNCTIONS REQUIRED, DID       00004300
+*  NOT DO SO IN THE MANNER WE THOUGHT DESIRABLE DUE TO ITS NON          00004400
+*  TYPE 1 IBM CODE. IT ALTERED THE CLOSE ROUTINE FOR JES, AND ALSO      00004500
+*  REQUIRED DELAYS (HALF A SECOND) WHEN IT WAS NOT READY TO ACCEPT      00004600
+*  DATA. THE METHOD USED BY US USES ONLY IBM FULLY SUPPORTED CODE.      00004700
+*                                                                       00004800
+*                                                                       00004900
+* END OF PREAMBLE:-                                                     00005000
+               EJECT                                                    00005100
+           PRINT OFF                                                    00005200
+           MACRO                                                        00005300
+&NAME      GENSAVE &AREA=,&CSECT=,&BASE=11                              00005400
+           GBLA &REGEQU                                                 00005500
+.* SEE IF EQUATES SET UP FOR THIS RUN YET OR NOT                        00005600
+           AIF (&REGEQU NE 0).NOEQU                                     00005700
+&CSECT     CSECT                                                        00005800
+R0         EQU 0                                                        00005900
+R1         EQU 1                                                        00006000
+R2         EQU 2                                                        00006100
+R3         EQU 3                                                        00006200
+R4         EQU 4                                                        00006300
+R5         EQU 5                                                        00006400
+R6         EQU 6                                                        00006500
+R7         EQU 7                                                        00006600
+R8         EQU 8                                                        00006700
+R9         EQU 9                                                        00006800
+R10        EQU 10                                                       00006900
+R11        EQU 11                                                       00007000
+R12        EQU 12                                                       00007100
+R13        EQU 13                                                       00007200
+R14        EQU 14                                                       00007300
+R15        EQU 15                                                       00007400
+&REGEQU    SETA 1                                                       00007500
+           AGO .NOCSECT                                                 00007600
+.NOEQU     ANOP                                                         00007700
+           AIF ('&CSECT' EQ '').NOCSECT                                 00007800
+           LTORG                                                        00007900
+&CSECT     CSECT                                                        00008000
+.NOCSECT   ANOP                                                         00008100
+&NAME      SAVE (14,12),,&CSECT..&SYSDATE..&SYSTIME               76200 00008200
+           AIF (N'&BASE EQ 1).ONEBASE                                   00008300
+           USING  &CSECT,&BASE(1),&BASE(2)                              00008400
+           LR  &BASE(1),15                                              00008500
+           LA  &BASE(2),2048(15)                                        00008600
+           LA  &BASE(2),2048(&BASE(2))                                  00008700
+           AGO .HOUSE                                                   00008800
+.ONEBASE   ANOP                                                         00008900
+           USING  &CSECT,&BASE                                          00009000
+           LR  &BASE,15                                                 00009100
+.HOUSE     AIF ('&AREA' EQ '').GENAREA                                  00009200
+           MNOTE 12,'AREA NOW UNSUPPORTED'                              00009300
+           AGO .HOUSE2                                                  00009400
+.GENAREA   CNOP 0,4                                                     00009500
+           BAL 15,*+76         BRANCH AROUND SAVE AREA                  00009600
+           DC  18F'0'                                                   00009700
+.HOUSE2    ST  15,8(,13)                                                00009800
+           ST  13,4(,15)                                                00009900
+           LR  13,15                                                    00010000
+           MEND                                                         00010100
+           MACRO                                                        00010200
+&NAME      GENRETN &RC=0                                                00010300
+&NAME      L   R13,4(R13)      RESET SAVE ADDRESS                       00010400
+           AIF ('&SYSLIST(1)' EQ '').R1412                              00010500
+           RETURN &SYSLIST(1),T,RC=&RC                                  00010600
+           MEXIT                                                        00010700
+.R1412     RETURN (14,12),T,RC=&RC                                      00010800
+           MEND                                                         00010900
+*%GOTO PLSICRPM;                                                     /* 00011000
+         MACRO                                                          00011100
+         IHAICRPM &DSECT=YES                                            00011200
+*********************************************************************** 00011300
+*                                                                     * 00011400
+*MODULE-NAME=IHAICRPM(OS/VS1)MACRO                             @X048E68 00011500
+*DESCRIPTIVE-NAME=IN-CORE-READER PARAMETER INTERFACE           @X048E68 00011600
+*COPYRIGHT=NONE                                                @X048E68 00011700
+*                                                                     * 00011800
+*        RELEASE 5   OS/VS1     2/03/75     LEVEL=3            @X50BEB2 00011900
+*                                                                     * 00012000
+*********************************************************************** 00012100
+.*  THIS MAPPING MACRO DEFINES THE INTERFACE BETWEEN THE IN-CORE        00012200
+.*  READER INTERFACE MODULE, IEFVMF, AND IT'S INVOKER.                  00012300
+.*                                                                      00012400
+.*  NO CHANGE ACTIVITY FLAGS APPEAR ON THE STATEMENTS AS THE ENTIRE     00012500
+.*  MACRO IS NEW (CREATED BY REMOVING INFORMATION REQUIRED FOR IN-CORE  00012600
+.*  READER FROM IHAJPRMS).                                              00012700
+.*  A COMMENT CARD IS INSERTED TO REFLECT THE ABOVE FOR MICROFICHE      00012800
+.*  FLAGGING PURPOSES                                                   00012900
+.*A000000-999999                                                 X02932 00013000
+         AIF   ('&DSECT' EQ 'NO').NODSECT                               00013100
+IHAICRPM DSECT                                                          00013200
+         AGO   .DSECT                                                   00013300
+.NODSECT ANOP                                                           00013400
+IHAICRPM DS    0D                                                       00013500
+.DSECT   ANOP                                                           00013600
+ICRDERP  DS    F                       PTR TO AREA TO RETURN DER        00013700
+ICRJLPAP DS    F                       PTR TO AREA FOR JLPA     XL03120 00013800
+ICRACCMP DS    F                       USER ACCESS METHOD PTR  @X50BEB2 00013900
+ICRCSCBP DS    F                       POINTER TO CSCB                  00014000
+ICRJCLSP DS    F                       PTR TO IN-CORE JCL      @X50BEB2 00014100
+ICRPARMP DS    F                       PTR TO RDR PARMS        @X50BEB2 00014200
+ICRPARML DS    H                       LENGTH OF READER PARMS           00014300
+ICRSQID  DS    H                       SOURCE QID              @X50BEB2 00014400
+ICREXITP DS    F                       PTR TO IEEPSN OR DUMMY MODULE    00014500
+ICRIEEPW DS    F                       IEEPSN WORK AREA (MUST BE ZERO   00014600
+*                                      IF  IEEPSN NOT USED)             00014700
+*                                      MAPPING OF IEEPSN WORK AREA      00014800
+         ORG   ICRIEEPW                                                 00014900
+ICRSTAT1 DS    CL1                     STATUS BYTE ONE                  00015000
+ICRPROC  EQU   X'80'                   PROC NOT FOUND            X02932 00015100
+ICRMULTI EQU   X'04'                   MULTI-STEP SYSTEM TASK INDICATOR 00015200
+ICRNORM  EQU   X'00'                   NORMAL RETURN CODE               00015300
+ICRSTAT2 DS    CL1                     STATUS BYTE TWO                  00015400
+ICRSYST  EQU   X'80'                   SYSTEM TASK ON PREVIOUS STEP     00015500
+ICRNODSI EQU   X'40'                   NO DATA SET INTEGRITY            00015600
+ICRXTND  EQU   X'20'                   Q EXTEND PGM STARTED     XL03120 00015700
+ICRRDR   EQU   X'08'                   READER STARTED                   00015800
+ICRWTR   EQU   X'04'                   WRITER STARTED                   00015900
+ICRSPP   EQU   X'02'                    PROBLEM PROGRAM STARTED         00016000
+ICRDSO   EQU   X'01'                   DSO STARTED                      00016100
+ICRSTAT3 DS    CL1                     STATUS BYTE THREE                00016200
+ICRGTF   EQU   X'10'                   GTF STARTED                      00016300
+ICRRTAM  EQU   X'02'                   RTAM STARTED                     00016400
+ICRINIT  EQU   X'01'                   INITIATOR STARTED                00016500
+ICRSTAT4 DS    CL1                     RESERVED                         00016600
+         ORG                                                            00016700
+ICRFLG1  DS    XL1                     FLAG BITS                        00016800
+ICRRSTRT EQU   X'80'                   INVOKER IS RESTART READER        00016900
+ICRSJS   EQU   X'40'                   SUBSYS. JOB SUBMISSION  @X50BEB2 00017000
+ICRINTR  EQU   X'20'                   INITIATOR               @X50BEB2 00017100
+ICRERROR DS    XL1                     ERROR PASSBACK FOR SJS  @X50BEB2 00017200
+ICROK    EQU   X'00'                   SUCCESSFUL COMPLETION   @X50BEB2 00017300
+ICRQUEFL EQU   X'04'                   QUEUE FULL              @X50BEB2 00017400
+ICRSPLFL EQU   X'08'                   SPOOL FULL              @X50BEB2 00017500
+ICRQUEIO EQU   X'0C'                   QUEUE I/O ERROR         @X50BEB2 00017600
+ICRSPLIO EQU   X'10'                   SPOOL I/O ERROR         @X50BEB2 00017700
+ICRJLFUL EQU   X'14'                   JOB LIST FULL           @X50BEB2 00017800
+ICRLOGIC EQU   X'18'                   LOGIC ERROR             @X50BEB2 00017900
+ICRINVPR EQU   X'1C'                   INVALID RDR PARMS       @X50BEB2 00018000
+ICRINPIO EQU   X'20'                   INPUT I/O ERROR         @X50BEB2 00018100
+ICROPTS  DS    XL1                     IN-CORE RDR OPTIONS     @X50BEB2 00018200
+ICRSMF   EQU   X'80'                   TAKE SMF EXIT IF GEND   @X50BEB2 00018300
+ICRENQ   EQU   X'20'                   RDR ENQUEUES JOB        @X50BEB2 00018400
+ICRRDMSG EQU   X'10'                   NORMAL RDR MESSAGES     @X50BEB2 00018500
+ICRCONID DS    XL1                     CONSOLE ID (MCS)        @X50BEB2 00018600
+ICRLEN   EQU   *-ICRDERP               LENGTH OF PARM LIST     @X50BEB2 00018700
+         MEND  ,                                                     */ 00018800
+*%PLSICRPM: ;                                                           00018900
+*DECLARE                                                                00019000
+*/* **************************************************************** */ 00019100
+*/*                                                                  */ 00019200
+*/*MODULE-NAME=IHAICRPM(OS/VS1)MACRO                         @X048E68*/ 00019300
+*/*DESCRIPTIVE-NAME=IN-CORE-READER PARAMETER INTERFACE       @X048E68*/ 00019400
+*/*COPYRIGHT=NONE                                            @X048E68*/ 00019500
+*/*                                                                  */ 00019600
+*/*      RELEASE 5     OS/VS1     LEVEL=3     2/03/75        @X50BEB2*/ 00019700
+*/*                                                                  */ 00019800
+*/* **************************************************************** */ 00019900
+*  1 IHAICRPM BASED BOUNDARY(DWORD),   /* IN-CORE RDR PARAMETER LIST */ 00020000
+*    2 ICRDERP POINTER(31),            /* ADDR OF AREA TO RETURN DER */ 00020100
+*    2 ICRJLPAP POINTER(31),           /* AREA FOR JLPA      XL03120 */ 00020200
+*    2 ICRACCMP POINTER(31),           /* USER ACCESS METHOD @X50BEB2*/ 00020300
+*    2 ICRCSCBP POINTER(31),           /* PTR TO CSCB        @X50BEB2*/ 00020400
+*    2 ICRJCLSP PTR(31),               /* JCL PTR            @X50BEB2*/ 00020500
+*    2 ICRPARMP PTR(31),               /* RDR PARMS PTR      @X50BEB2*/ 00020600
+*    2 ICRPARML FIXED(15),             /* LGT OF RDR PARMS   @X50BEB2*/ 00020700
+*    2 ICRSQID CHAR(2),                /* SOURCE QID         @X50BEB2*/ 00020800
+*    2 ICREXITP POINTER(31),           /* PTR TO IEEPSN OR DUMMY        00020900
+*                                        DUMMY MODULE                */ 00021000
+*    2 ICRIEEPW FIXED(31),             /* IEEPSN W/A (MUST BE ZERO      00021100
+*                                         IF IEEPSN IS NOT USED)     */ 00021200
+*/*                                       MAPPING OF IEEPSN WORK AREA*/ 00021300
+*      3 ICRSTAT1 BIT(8) BOUNDARY(BYTE), /* STATUS BYTE ONE          */ 00021400
+*        4 ICRNORM BIT(8),             /* NORMAL RETURN CODE         */ 00021500
+*          5 ICRPROC BIT(1),           /* PROC NOT FOUND      X02932 */ 00021600
+*          5 * BIT(4),                 /*  RESERVED                  */ 00021700
+*          5 ICRMULTI BIT(1),    /* MULTI-STEP SYSTEM TASK     */       00021800
+*         5 * BIT(2),                  /* RESERVED                   */ 00021900
+*      3 ICRSTAT2 BIT(8) BOUNDARY(BYTE), /* STATUS BYTE TWO          */ 00022000
+*        4 ICRSYST BIT(1),             /* SYSTEM TASK ON PREV STEP   */ 00022100
+*        4 ICRNODSI BIT(1),             /* NO DATA SET INTEGRITY     */ 00022200
+*        4 ICRXTND BIT(1),             /* Q EXTEND STARTED    XL03120*/ 00022300
+*        4 * BIT(1),                   /* RESERVED            XL03120*/ 00022400
+*        4 ICRRDR BIT(1),              /* READER STARTED             */ 00022500
+*        4 ICRWTR BIT(1),              /* WRITER STARTED             */ 00022600
+*        4 ICRSPP BIT(1),              /* PROBLEM PROGRAM STARTED    */ 00022700
+*        4 ICRDSO BIT(1),              /* DSO STARTED                */ 00022800
+*      3 ICRSTAT3 BIT(8) BOUNDARY(BYTE), /* STATUS BYTE THREE        */ 00022900
+*        4 * BIT(3),                   /* RESERVED                   */ 00023000
+*        4 ICRGTF BIT(1),              /* GTF STARTED                */ 00023100
+*        4 * BIT(2),                   /* RESERVED           @X60CVB2*/ 00023200
+*        4 ICRRTAM BIT(1),             /* RTAM STARTED               */ 00023300
+*        4 ICRINIT BIT(1),             /* INITIATOR STARTED          */ 00023400
+*      3 ICRSTAT4 BIT(8) BOUNDARY(BYTE), /* RESERVED                 */ 00023500
+*    2 ICRFLG1 BIT(8),                 /* INVOKER FLAG       @X50BEB2*/ 00023600
+*      3 ICRRSTRT BIT(1),              /* RESTART READER     @X50BEB2*/ 00023700
+*      3 ICRSJS BIT(1),                /* SUBSYS JOB SUB     @X50BEB2*/ 00023800
+*      3 ICRINTR BIT(1),               /* INITIATOR          @X50BEB2*/ 00023900
+*    2 ICRERROR CHAR(1),               /* SJS ERROR RETURN   @X50BEB2*/ 00024000
+*      % ICROK = '''00''X';            /* NO ERROR           @X50BEB2*/ 00024100
+*      % ICRQUEFL = '''04''X';         /* QUEUE FULL         @X50BEB2*/ 00024200
+*      % ICRSPLFL = '''08''X';         /* SPOOL FULL         @X50BEB2*/ 00024300
+*      % ICRQUEIO = '''0C''X';         /* QUEUE I/O ERROR    @X50BEB2*/ 00024400
+*      % ICRSPLIO = '''10''X';         /* SPOOL I/O ERROR    @X50BEB2*/ 00024500
+*      % ICRJLFUL = '''14''X';         /* JOB LIST FULL      @X50BEB2*/ 00024600
+*      % ICRLOGIC = '''18''X';         /* LOGIC ERROR        @X50BEB2*/ 00024700
+*      % ICRINVPR = '''1C''X';         /* INVALID RDR PARMS  @X50BEB2*/ 00024800
+*      % ICRINPIO = '''20''X';         /* INPUT I/O ERROR    @X50BEB2*/ 00024900
+*    2 ICROPTS BIT(8),                 /* SJS OPTIONS        @X50BEB2*/ 00025000
+*      3 ICRSMF BIT(1),                /* SMF EXIT IF GEND   @X50BEB2*/ 00025100
+*      3 * BIT(1),                     /* RESERVED           @X50BEB2*/ 00025200
+*      3 ICRENQ BIT(1),                /* ENQUEUE JOB        @X50BEB2*/ 00025300
+*      3 ICRRDMSG BIT(1),              /* NORMAL RDR WTOS    @X50BEB2*/ 00025400
+*    2 ICRCONID CHAR(1);               /* CONSOLE ID (MCS)   @X50BEB2*/ 00025500
+*        %GOTO DERBSL;                                               /* 00025600
+         MACRO                                                          00025700
+         IEFDER &DSECT=                                                 00025800
+*  MODULE-NAME=IEFDER(OS/VS1)MACRO                             @X048E6A 00025900
+*  DESCRIPTIVE-NAME=DISK ENTRY RECORD MAPPING MACRO            @X048E6A 00026000
+*  COPYRIGHT=NONE                                              @X048E6A 00026100
+*  LAST UPDATE 11/5/73                                         @X04AA68 00026200
+         AIF   ('&DSECT' EQ 'NO').NODST                                 00026300
+IEFDER   DSECT                                                          00026400
+.NODST   ANOP                                                           00026500
+         DS    0F                                                       00026600
+DERDSKAD DS    XL4                     TTRL OF THIS DER         XL03120 00026700
+DERNXT   DS    XL4                     TTRL OF JMR              XL03120 00026800
+DERIDSD  DS    XL4                     TTR OF INPUT DSD                 00026900
+DERODSD  DS    XL4                     TTR OF OUTPUT DSD                00027000
+DERIJCM  DS    XL4                     TTR OF INPUT JCM                 00027100
+DEROJCM  DS    XL4                     TTR OF OUTPUT JCM                00027200
+DERRCT   DS    XL4                     TTRL OF FIRST RECORD CONTROL     00027300
+*                                        TABLE                  XL03120 00027400
+DERJCT   DS    XL4                     TTRL OF JCT ON SYSWADS           00027500
+*                                        OR SWADS               XL03120 00027600
+DERINJCT DS    XL4                     TTRL OF INITIATOR JFCB   XL03120 00027700
+DERSTDCB DS    A                       ADDRESS OF STDS DCB              00027800
+DERSTAWR DS    XL2                     NO. OF ASSIGN/WRITES TO STDS     00027900
+DERDSBCT DS    H                       NO. OF DSB CHAINS ENQUEUED       00028000
+*                                        FOR JOB                XL03120 00028100
+DERLOG   DS    XL1                     LOG STATUS BYTE                  00028200
+DERLOGID EQU   X'80'                   DER FOR LOG DATA SETS            00028300
+DERLOGXO EQU   X'40'                   LOG X OPENED                     00028400
+DERLOGXE EQU   X'20'                   LOG X ENQUEUED                   00028500
+DERLOGYO EQU   X'10'                   LOG Y OPENED                     00028600
+DERLOGYE EQU   X'08'                   LOG Y ENQUEUED                   00028700
+DERCJLP2 DS    0XL5                    COMPRESSED JLPA FOR LOG  XL03120 00028800
+*                                      PROCESSING               XL03120 00028900
+DERFREC2 DS    XL4                     TTRL OF FIRST BLOCK      XL03120 00029000
+DERNBLK2 DS    XL1                     NUMBER OF BLOCKS         XL03120 00029100
+         ORG   DERCJLP2                DUAL USAGE OF FIELDS     XL03120 00029200
+DERCQMP2 DS    0XL5                    COMP QMPA FOR RSTRT COPY XL03120 00029300
+DERQFLT2 DS    XL2                     1ST LOGICAL TRK          XL03120 00029400
+DERQTID2 DS    XL2                     QUEUE ENTRY IDENT        XL03120 00029500
+DERQNOT2 DS    XL1                     NO. TRKS ASSIGNED        XL03120 00029600
+         DS    CL2                     RESERVED                 XL03120 00029700
+DERSTREC DS    XL4                     TOTAL NUMBER OF STDS RECORDS     00029800
+DERSTRTK DS    XL2                     NUMBER OF STDS RECORDS/TRACK     00029900
+DERINREV DS    XL2                     NO. OF SWADS OVERFLOW RECORDS    00030000
+DERJCLDF DS    CL40                    JCL DEFAULTS                     00030100
+DERFLAGS DS    XL1                     DER FLAGS - BYTE 1               00030200
+DERJOBRS EQU   X'80'                   JOB TO BE RESTARTED              00030300
+DERWMST  EQU   X'40'                   WARM START CONDITION             00030400
+DERJOBF  EQU   X'20'                   JOB FAIL BIT                     00030500
+DERINTRP EQU   X'10'                   INTERPRETATION COMPLETE          00030600
+DERTERM  EQU   X'08'                   TERMINATION COMPLETE             00030700
+DERGSTRT EQU   X'04'                   GENERALIZED START IDENT.         00030800
+DERPROCS EQU   X'02'                   PROCEDURE SPOOLED INDICATOR      00030900
+DERTMRT  EQU   X'01'                   TERMINATION HAS PERFORMED ROUTE  00031000
+DERCJLPA DS    0XL5                    COMPRESSED JLPA          XL03120 00031100
+DERFREC  DS    XL4                     TTRL OF FIRST BLOCK      XL03120 00031200
+DERNBLK  DS    XL1                     NUMBER OF BLOCKS         XL03120 00031300
+         DS    CL2                     RESERVED                 XL03120 00031400
+DERJACT  DS    XL4                     TTRL OF JACT RECORD      XL03120 00031500
+DERSCDTR DS    XL4                     TTRL OF SCD              XL03120 00031600
+DERJOBID DS    0CL12                   JOB IDENTIFICATION               00031700
+DERJOBNM DS    CL8                     JOB NAME-EBCDIC- 8 BYTES         00031800
+DERJOBNO DS    BL4                     JOB NUMBER-BINARY- 4 BYTES       00031900
+DERTTRRT DS    XL4                     TTRL OF ROUTE TABLE      XL03120 00032000
+DERQID   DS    H                       QID OF SUBMITTER                 00032100
+DERFLAG1 DS    XL1                     DER FLAGS-BYTE 2        @XA05623 00032200
+DERDSO   EQU   X'80'                   JOB SELECTED BY DSO WTR          00032300
+DERSYSTK EQU   X'40'                   JOB IS A SYSTEM TASK             00032400
+DERREINT EQU   X'20'                   JOB BEING REINTERPRETED  XL03940 00032500
+DERSWA   EQU   X'10'                   JOB UNDER SWA OPTION     XL03051 00032600
+DERSM0   EQU   X'08'                   SM STEP 0 CREATED       @XA05623 00032700
+DERASG   EQU   X'04'                   ASSIGN SPACE FLAG       @XA08521 00032800
+         ORG   DERDSKAD+176                                             00032900
+         MEND    ,   */                                                 00033000
+         MACRO                                                          00033100
+&NAME    IEFQMREQ                                                       00033200
+*   LINKAGE MACRO TO SWA MANAGER - IEFQB550                             00033300
+&NAME    L     15,16(0,0)              LOAD CVT POINTER                 00033400
+         USING CVTMAP,15               START OF CVT                     00033500
+         L     15,CVTJESCT             LOAD JESCT POINTER               00033600
+         USING JESCT,15                                                 00033700
+         L     15,JESQMGR              LOAD QUEUE MANAGER ENTRY POINT   00033800
+         BALR  14,15                   BRANCH TO SWA MANAGER            00033900
+         DROP  15                                                       00034000
+         MEND                                                        */ 00034100
+*%QMREQBSL:;                                                            00034200
+*  DCL                                                                  00034300
+*         SWAMGPTR REG(15) PTR(31);                                     00034400
+*   SWAMGPTR = CVTJESCT -> JESQMGR;                                     00034500
+*GEN (BALR 14,15);                            /* GO TO SWA MANAGER   */ 00034600
+         PRINT ON                                                       00034700
+         EJECT                                                          00034800
+         GENSAVE CSECT=UJERDR                                           00034900
+         B     GO1                                                      00035000
+         DC    C'VS1 INTERNAL READER ... VERSION 1.1, OCT  16, 1979 '   00035100
+         DC    C'     '                                                 00035200
+         DC    C'COPYRIGHT CLARKE COMPUTER SOFTWARE,'                   00035300
+         DC    C' 105 COLLINS STREET, MELBOURNE, AUSTRALIA, 3000'       00035400
+GO1      DS    0H                                                       00035500
+* ON ENTRY, R1 POINTS TO THE DCB WHICH CONTAINS THE JCL THAT IS TO      00035600
+*  BE COPIED TO THE VS1 SPOOL DATA SETS.                                00035700
+         LR    R4,R1          SAVE DCB ADDRESS                          00035800
+         USING IHADCB,R4                                                00035900
+         MVI   DCBMACR,DCBMRGET+DCBMRMVG  MOVE MODE OF QSAM             00036000
+         OPEN  ((R4),(INPUT))      NON RE-ENTRANT CODE                  00036100
+         TM    DCBOFLGS,DCBOFOPN   TEST IF DATA SET OPEN                00036200
+         BO    ERDR1OPN                                                 00036300
+         WTO       'OPEN FOR JCL DATA SET FAILED - VS1'                 00036400
+         ABEND 16,DUMP                                                  00036500
+         SPACE 3                                                        00036600
+ERDR1OPN EQU   *                                                        00036700
+         SPACE 3                                                        00036800
+* NOW SET UP PARAMETER FOR IEFVMF - THE VS1 INTERNAL READER             00036900
+* CLEAR PARAMETER AREA                                                  00037000
+         L     R5,=A(VMFPARMS)                                          00037100
+         USING VMFPARMS,R5                                              00037200
+         XC    VMFPARMS(LVMFP),VMFPARMS                                 00037300
+         LA    R6,VMFP                                                  00037400
+         USING IHAICRPM,R6                                              00037500
+         MVI   ICRFLG1,ICRSJS      TURN ON SUBSYSTEM JOB SUBMISSION.    00037600
+         MVI   ICROPTS,ICRSMF+ICRENQ+ICRRDMSG TURN ON SMF,JOB ENQ +     00037700
+*                                  READER MESSAGES.                     00037800
+         MVC   ICRDERP,=A(DER)     ** NOT REALLY NECESSARY- SEE IEFVMF. 00037900
+*                                  USED WHEN JOB NOT ENQUED. PLAYING    00038000
+*                                  SAFE.                                00038100
+*                                                                       00038200
+* NOTE: READER PARMS NOT SET UP: IEFUMF WILL USE DEFAULTS.              00038300
+*                                                                       00038400
+*                                                                       00038500
+         ST    R4,INPUTDCB                                              00038600
+         SPACE 3                                                        00038700
+* NOTE ***********************************************************      00038800
+*  ONLY PRPCEDURES IN SYS1.PROCLIB CAN BE USED. OTHER PROCEDURE         00038900
+*  LIBRARIES CANNOT BE USED UNTIL RELEASE 7.0 OF VS1.                   00039000
+*                                                                       00039100
+*  IT WOULD, OF COURSE, BE POSSIBLE TO COPY ANY PROCEDURES THAT ARE     00039200
+*  NOT IN SYS1.PROCLIB AS 'IN-STREAM' PROCEDURES, BUT THIS HAS NOT BEEN 00039300
+*  DONE IN THIS VERSION.                                                00039400
+*******************************************************************     00039500
+         SPACE 3                                                        00039600
+         MVC   ICRACCMP,=A(UJERDRG) SET UP OUR PSEUDO GET ROUTINE.      00039700
+         LA    R1,X'3C'            INTO SUPERVISOR MODE                 00039800
+         SVC   107                                                      00039900
+         L     R1,=A(VMFPARMS)     R1 -> IN CORE READER PARM. INTERFACE 00040000
+* NOW GO TO IEFVMF                                                      00040100
+         L     R7,16               CVT ADDRESS                          00040200
+         USING CVT,R7                                                   00040300
+         L     R7,CVTJESCT         JES COMMUNICATION TABLE              00040400
+         USING JESCT,R7                                                 00040500
+         L     R15,JESVMF                                               00040600
+         BALR  R14,R15                                                  00040700
+         SPACE 2                                                        00040800
+* RETURN TO PROBLEM PROGRAM STATE.                                      00040900
+         LA    R1,X'24'                                                 00041000
+         SVC   107                                                      00041100
+* TEST RETURN CODES IN 'ICRERROR'                                       00041200
+         CLI   ICRERROR,0          ALL ZERO ?                           00041300
+         BE    UJERDR1C            CLOSE DATA SET                       00041400
+         TM    ICRERROR,ICRQUEFL   QUEUE FULL ?                         00041500
+         BZ    UJE930                                                   00041600
+         PRINT NOGEN                                                    00041700
+         WTO   'UJE93-01 INTERNAL READER IEFVMF - QUEUE IS FULL'        00041800
+UJE930   TM    ICRERROR,ICRSPLFL                                        00041900
+         BZ    UJE931                                                   00042000
+         WTO   'UJE93-02 INTERNAL READER IEFVMF - SPOOL IS FULL'        00042100
+UJE931   TM    ICRERROR,ICRQUEIO                                        00042200
+         BZ    UJE932                                                   00042300
+         WTO   'UJE93-03 INTERNAL READER IEFVMF - QUEUE I/O ERROR'      00042400
+UJE932   TM    ICRERROR,ICRSPLIO                                        00042500
+         BZ    UJE933                                                   00042600
+         WTO   'UJE93-04 INTERNAL READER IEFVMF - SPOOL I/O ERROR'      00042700
+UJE933   TM    ICRERROR,ICRJLFUL                                        00042800
+         BZ    UJE934                                                   00042900
+         WTO   'UJE93-05 INTERNAL READER IEFVMF - JOB LIST FULL'        00043000
+UJE934   TM    ICRERROR,ICRLOGIC                                        00043100
+         BZ    UJE935                                                   00043200
+         WTO   'UJE93-06 INTERNAL READER IEFVMF - LOGIC ERROR'          00043300
+UJE935   TM    ICRERROR,ICRINVPR                                        00043400
+         BZ    UJE936                                                   00043500
+         WTO   'UJE93-07 INTERNAL READER IEFVMF - INVALID RDR PARMS'    00043600
+UJE936   TM    ICRERROR,ICRINPIO                                        00043700
+         BZ    UJE937                                                   00043800
+         WTO   'UJE93-08 INTERNAL READER IEFVMF - INPUT I/O ERROR'      00043900
+UJE937   CLI   ICRERROR,0                                               00044000
+         BNE   UJE93ER2                                                 00044100
+*UJERDR1C WTO   'UJE93-09 INT READER OK'                                00044200
+UJERDR1C EQU   *                                                        00044300
+         B     UJE93CLS                                                 00044400
+UJE93ER2 WTO   'UJE93-10 INT RDR FAILED'                                00044500
+         PRINT  GEN                                                     00044600
+UJE93CLS CLOSE ((R4))                                                   00044700
+         FREEPOOL (R4)                                                  00044800
+         GENRETN                                                        00044900
+ZAP      DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                               00045000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                               00045100
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                               00045200
+         EJECT                                                          00045300
+         GENSAVE CSECT=UJERDRG                                          00045400
+* THIS ROUTINE IS CALLED BY THE IBM READER IEFVMF TO TRANSFER           00045500
+*  A RECORD TO IT.                                                      00045600
+*                                                                       00045700
+* R1 -> RPL                                                             00045800
+         LR    R2,R1                                                    00045900
+         USING IFGRPL,R2                                                00046000
+         L     R5,=A(VMFPARMS)                                          00046100
+         USING VMFPARMS,R5                                              00046200
+         L     R4,INPUTDCB                                              00046300
+         USING IHADCB,R4                                                00046400
+         MVC   DCBEODAD,=A(EOFXX)                                       00046500
+         L     R3,RPLAREA                                               00046600
+         TM    DCBRECFM,DCBRECCA+DCBRECCM       TEST IF MACHINE CONTROL 00046700
+         BZ    NOCHAR                           NO,JUST DO GET          00046800
+         GET   (R4),BIGCARD                                             00046900
+         MVC   0(80,R3),BIGCARD+1                                       00047000
+         B     GOTREC                                                   00047100
+NOCHAR   EQU   *                                                        00047200
+         GET   (R4),(R3)                                                00047300
+GOTREC   EQU   *                                                        00047400
+         GENRETN                                                        00047500
+EOFXX    EQU   *                                                        00047600
+* EOF ON INPUT STREAM.                                                  00047700
+         L R14,RPLDACB                     ESTABLISH ACB ADDRESSABLITY  00047800
+         USING ACBID,R14                                                00047900
+         L     R14,ACBUEL          ** THIS CODE FROM IEEVRJCL           00048000
+         USING IFGEXLST,R14        **   LOAD EXIT LIST POINTER          00048100
+         L     R1,4(R13)           R1 -> ADDR OF CALLERS SAVED REGS     00048200
+         MVC   12(L'EXLEODP,R1),EXLEODP SET EODAD RETURN IN OUT         00048300
+         GENRETN RC=(15)           SAVE AREA.                           00048400
+         SPACE 3                                                        00048500
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                               00048600
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                               00048700
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                               00048800
+         LTORG                                                          00048900
+         SPACE 3                                                        00049000
+               EJECT                                                    00049100
+SUBJCL   CSECT                                                          00049200
+         USING   *,R15                                                  00049300
+         LA      R1,JCLDCB    LOAD THE ADDRESS OF A DCB                 00049400
+         L       R15,=V(UJERDR)                                         00049500
+         BR      R15                                                    00049600
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                               00049700
+         LTORG                                                          00049800
+         PRINT   NOGEN                                                  00049900
+JCLDCB   DCB     DDNAME=$$JCL,DSORG=PS,MACRF=GM                         00050000
+         PRINT   GEN                                                    00050100
+         EJECT                                                          00050200
+INTRDR   CSECT                                                          00050300
+         USING   *,R15                                                  00050400
+         L       R1,8(R1)     LOAD ADDRESS OF DCB TO R1                 00050500
+         L       R15,=V(UJERDR)                                         00050600
+         BR      R15                                                    00050700
+        DC     S(*,*,*,*,*,*,*,*,*,*,*,*)                               00050800
+        DC     S(*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*)                       00050900
+         LTORG                                                          00051000
+VMFPARMS CSECT                                                          00051100
+VMFP     DS    CL40                                                     00051200
+         DS    0D                                                       00051300
+DER      DS    CL(176)                                                  00051400
+INPUTDCB DS    A              PARAMETER FOR GET RTN                     00051500
+LVMFP    EQU   *-VMFPARMS                                               00051600
+BIGCARD  DS    CL121                                                    00051700
+         PRINT NOGEN                                                    00051800
+         DCBD  DSORG=PS                                                 00051900
+         PRINT GEN                                                      00052000
+         IEFDER                                                         00052100
+         IHAICRPM                                                       00052200
+         CVT   DSECT=YES,SYS=AOS1                                       00052300
+         IEFJESCT                                                       00052400
+         PRINT NOGEN                                                    00052500
+         IFGRPL                                                         00052600
+         IFGEXLST                                                       00052700
+         IFGACB                                                         00052800
+         END                                                            00052900
+//                                                                      00052950
+//LKED.SYSLMOD DD DSN=SYS1.LINKLIB,DISP=SHR                             00053000
+//LKED.SYSIN DD *                                                       00053100
+    SETCODE AC(1)                                                       00053200
+    ALIAS INTRDR                                                        00053300
+    ALIAS SUBJCL                                                        00053400
+    ENTRY UJERDR                                                        00053500
+    NAME UJERDR(R)                                                      00053600

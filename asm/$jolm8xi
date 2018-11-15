@@ -1,0 +1,104 @@
+         LR    R1,R0           SET R1 TO RETURNED POINT IN THE TABLE    06010105
+         BR    R12             BACK TO CALLER                     87150 06011004
+           LNR R14,R1           -12 TO R8                               06020000
+           MH  R1,NOSYMS       NOSYMS X 12                              06030000
+           L   R15,ASYMTBL      START OF TABLE                          06040000
+           AR  R1,R15           END                                     06050000
+           AR  R15,R14     SUBTRACT 12                                  06060000
+           LA  R1,12(R1)                                                06070000
+S20BXH     BXH R1,R14,S20TEST                                           06080000
+           LR  R15,R6          LOAD WITH A '1' (ANY NON-ZERO WILL DO)   06090000
+           BR  R12             BACK TO CALLER WITH ERROR CODE.          06100000
+S20TEST    CLC SYMNAME,CALLAREA+32                                      06110000
+           BNE S20BXH          ROUND LOOP AGAIN                         06120000
+           SR R15,R15                                                   06130000
+           BR  R12             BACK TO CALL:- ALL IS WELL               06140000
+           SPACE 2                                                      06150000
+S20GOTS1   EQU *                                                        06160000
+* WE HAVE A SYMBOLIC TO MOVE TO THE OUTPUT STRING.                      06170000
+           LR  R14,R9          R9=STRING OUTPUT                         06180000
+           L   R15,SYMADDR     LOAD ADDRESS OF SYMBOLIC VARIABLE        06190000
+           MVC CALLAREA(2),0(R15) SHIFT LENGTH OF STRING.               06200000
+           LH  R8,CALLAREA     LOAD INTO R8                             06210000
+* THIS ERROR CORRECTS AN ERROR NOTICED BY SHELL - 2.6.                  06220000
+* IT WAS FIXED ONCE BEFORE BUT IT CREPT IN AGAIN WITH 2.7, AND          06230000
+* WAS PICKED UP BY STANDARD - 3.0. HOPEFULLY, THIS WILL FIX IT          06240000
+* FOR ALL TIME.                                                         06250000
+         SPACE 1                                         JOL30067 76200 06260000
+         LTR   R8,R8          ANY DATA TO MOVE?          JOL30067 76200 06270000
+         BZ    S20MAIN        NO ->                      JOL30067 76200 06280000
+         SPACE 1                                         JOL30067 76200 06290000
+           CLI 2(R15),C''''    HAS SYM VAR GOT QUOTES ?                 06300000
+           BNE S20NOTQ1        NO.                                      06310000
+           AR  R15,R6          YES,ADD 1 TO ADDRESS                     06320000
+           SH  R8,=H'2'        AND REDUCE LENGTH BY 2                   06330000
+           BZ  S20MAIN         NOTHING TO MOVE                          06340000
+S20NOTQ1   AR  R14,R8          FIX TOTAL LENGTH                         06350000
+           LA  R0,WORK                                          80290   06360000
+           A   R0,LWORK                                         80290   06370000
+           CR  R14,R0                                                   06380000
+           BH  S20ERR7         WON'T FIT                                06390000
+* THE FOLLOWING CODE CORRECTS AN ERROR NOTICED BY SHELL                 06400000
+*   JOL26                                                               06410000
+         SPACE 1                                                        06420000
+         LTR   R1,R8          LOAD AND TEST R1                          06430000
+         BZ    S20MAIN        NO DATA TO MOVE, SKIP TO MAIN LOOP        06440000
+         BCTR  R1,0           SUBTRACT 1 FROM R1                        06450000
+         EX    R1,S20MUVSY    SHIFT SYMBOLIC TO OUTPUT AREA             06460000
+         IFVALUE S20QUOTI,S20SETR9 NOT IN '' STRING      JOL30027 76200 06470000
+* HERE WE ARE NOT IN A QUOTED STRING, SO WE MUST NOW SEE JOL30027 76200 06480000
+*  IF THE STRING WE MOVED TO THE OUTPUT AREA HAD DOUBLE  JOL30027 76200 06490000
+*  QUOTES, AND IF SO, WE MUST REPLACE DOUBLE QUOTES WITH JOL30027 76200 06500000
+*  SINGLE QUOTES.                                        JOL30027 76200 06510000
+* R9-> START OF REPLACED SECTION                         JOL30027 76200 06520000
+* R8 CONTAINS LENGTH REPLACED                            JOL30027 76200 06530000
+* R1 =R8-1                                               JOL30027 76200 06540000
+         LR    R14,R6         SET R14 TO 1               JOL30027 76200 06550000
+         LA    R15,0(R9,R1)   SET END ADDRESS            JOL30027 76200 06560000
+         LR    R1,R9          SET R1 TO START OF STRING  JOL30027 76200 06570000
+S20TWOQU CLC   0(2,R1),=C'''''' DOUBLE QUOTES ?          JOL30027 76200 06580000
+         BE    S20DBLQU       YES                        JOL30027 76200 06590000
+S20BXLE2 BXLE  R1,R14,S20TWOQU LOOP ROUND                JOL30027 76200 06600000
+S20SETR9 EQU   *                                         JOL30027 76200 06610000
+           AR  R9,R8           RESET                                    06620000
+           B   S20MAIN                                                  06630000
+S20DBLQU EQU   *                                         JOL30027 76200 06640000
+         LR    R0,R8          PUT R8 IN TO WORK REGISTER JOL30027 76200 06650000
+         S     R0,ONE         SUBTRACT ONE               JOL30027 76200 06660000
+         BNP   S20SETR9       NOT POSITIVE -> OUT (ERROR?JOL30027 76200 06670000
+         LR    R8,R15         LOAD STOP ADDRESS TO R1    JOL30027 76200 06680000
+         SR    R8,R1          SUBTRACT R1=LENGTH TO MOVE JOL30027 76200 06690000
+         EX    R8,S20MVCQ     SHIFT STRING BACK A BYTE   JOL30027 76200 06700000
+         LR    R8,R0          RESET R8                   JOL30027 76200 06710000
+         B     S20BXLE2       BACK TO BXLE LOOP          JOL30027 76200 06720000
+S20MVCQ  MVC   0(*-*,R1),1(R1) DROP QUOTE EXECUTED MVC   JOL30027 76200 06730000
+         SPACE 3                                                        06740000
+S20ERR8    JOLERR 408,'LIST OR CARD SUBSRIPT NEGATIVE:-IGNORED'   75311 06750000
+           B   S20SKIPZ                                           75311 06760000
+S20ERR1    MVC CALLAREA+32(8),0(R1)                               75311 06770000
+         LA    R12,CALLAREA+32                                    87150 06771004
+         USING S20NAME,R12                                              06772004
+         JOLERR 401,'SYMBOLIC NAME COMMENCING ''',S20NAME,             *06780004
+               ''' IS TOO LONG'                             FIX-X 76200 06790004
+           JOLRETN RC=4                                                 06800000
+S20ERR5  JOLERR 405,'%LIST SUBSCRIPT NOT NUMERIC OR TOO LARGE'          06810000
+           JOLRETN RC=4                                                 06820000
+S20ERR6  JOLERR 506,'STRING -VE'                                        06830000
+           JOLRETN RC=4                                                 06840000
+S20ERR7  JOLERR 407,'STRING TOO LARGE AFTER REPLACING SYMBOLICS'        06850000
+           MVC #WORK,=AL2(L'WORK)                                       06860000
+           JOLRETN RC=4                                                 06870000
+S20MUVSY   MVC 0(*-*,R9),2(R15) SHIFT TO OUTPUT STRING                  06880000
+           DROP R1,R12                                                  06890000
+           DC  S(*),S(*),S(*),S(*)                                      06900000
+           DC  S(*),S(*),S(*),S(*)                                      06910000
+           DC  S(*),S(*),S(*),S(*)                                      06920000
+           DC  S(*),S(*),S(*),S(*)                                      06930000
+           DC  S(*),S(*),S(*),S(*)                                      06940000
+           DC  S(*),S(*),S(*),S(*)                                      06950000
+           LTORG                                                        06960000
+PREPSUBS CSECT                                                          06970000
+         DC   D'0' KILL ALL WHO COME HERE                               06980000
+XX001      DSECT                                                        06990000
+S20NAME    DS  CL8                                                      07000000
+         END                                                            07010000

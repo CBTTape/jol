@@ -1,0 +1,69 @@
+*    SVC ALTER SOURCE CODE - MODULE NAME IS IGC255(TYPE 1) OTHER AID    00000100
+*    AVAILABLE FROM CUSTOMER IF NOT TYPE 1 I'M SURE.                    00000200
+*                                                                       00000300
+IGC255     CSECT               ALTER                                    00000400
+           BALR 8,0            LOAD NEXT INST.ADDRESS                   00000500
+           L    6,0(1)         LOAD A(CHANGE VALUE) IE NEW VALUE        00000600
+           LR   7,0            LOAD ADDRESS TO BE MODIFIED              00000700
+           IC   2,0(1)         GET LENGTH OF VALUE                      00000800
+           BCTR 2,0            ADJUST FOR 'EX'                          00000900
+           EX   2,18(8)        MOVE IN NEW VALUE                        00001000
+           BR   14             RETURN                                   00001100
+           MVC  0(0,7),0(6)    'EXECUTED' MOVE                          00001200
+           END                                                          00001300
+           LCLA &TYPE                                                   00001400
+           LCLA &SVC                                                    00001500
+           LCLC &SYS                                                    00001600
+&TYPE      SETA 1              SET TO SVC TYPE                          00001700
+&SVC       SETA 255            SET TO SVC NUMBER                        00001800
+&SYS       SETC 'OS'           SET TO OPERATING SYSTEM  (OS OR VS)      00001900
+ALTER      EQU &SVC                                                     00002000
+*    PARAMETER FORMAT FOR ALTER.                                        00002100
+*              R1 =   A(PARM.LIST)                                      00002200
+*              R0 =   ADDRESS TO BE MODIFIED                            00002300
+*    PARM.LIST FORMAT: PARM DC AL1(LENGTH OF VALUE),AL3(VALUE)          00002400
+*                      VALUE DC X'XX'  FOR WHATEVER LENGTH              00002500
+*                                                                       00002600
+*                                                                       00002700
+*    ROUTINE TO ENTER SUPERVISOR STATE -   EG   BAL R14,SUPVS           00002800
+SUPVS      EQU *                                                        00002900
+           L   R1,16           -> CVT                                   00003000
+           L   R1,0(R1)        -> TCB WORDS                             00003100
+           L   R1,4(R1)        -> CURRENT TCB                           00003200
+           AIF (&TYPE NE 1).OTHER                                       00003300
+           MVZ NEWPSW+1(1),28(R1)  SET STORAGE KEY                      00003400
+           LA  R0,33           ->  SVC OLD PSW                          00003500
+           AGO .END                                                     00003600
+.OTHER     ANOP                                                         00003700
+           L   R1,0(R1)        ->  RB Q                                 00003800
+           LA  R0,17(R1)       ->  RBOPSW+1 (RESUME PSW)                00003900
+           MVC NEWPSW,16(R1)   ->  COPY RESUME PSW BYTES 0-4            00004000
+.END       ANOP                                                         00004100
+           LA  R1,PARMLST      -> ALTER PARMLIST                        00004200
+           SVC ALTER                                                    00004300
+           BR  R14             RETURN FROM WHENCE YOU CAME              00004400
+*    CONSTANTS                                                          00004500
+NPSW       DS  0D                                                       00004600
+           AIF ('&SYS' NE 'OS').VSPSW                                   00004700
+NEWPSW     DC  X'FF05000090'   OS PSW SKELETON                          00004800
+           AGO .ADDR                                                    00004900
+.VSPSW     ANOP                                                         00005000
+NEWPSW     DC  X'070D000000'   VS PSW SKELETON                          00005100
+.ADDR      ANOP                                                         00005200
+           DC  AL3(0)                                                   00005300
+PARMLST    DC  AL1(1),AL3(SUP)                                          00005400
+           AIF ('&SYS' NE 'OS').VSPSWB                                  00005500
+SUP        DC  X'04'           OS PSW KEY                               00005600
+           AGO .ADDRB                                                   00005700
+.VSPSWB    ANOP                                                         00005800
+SUP        DC  X'0C'           VS PSW KEY                               00005900
+.ADDRB     ANOP                                                         00006000
+*    ROUTINE TO EXIT FROM SUPERVISOR STATE     EG   BAL R14,SUPVSEX     00006100
+SUPVSEX    EQU *                                                        00006200
+           ST  R14,WORK        STORE RETURN ADDRESS                     00006300
+           MVC NEWPSW+5(3),WORK    POP IT IN NEW PSW                    00006400
+           LPSW NEWPSW             AND LOAD...AWAY WE GO                00006500
+           ABEND 16,DUMP       SHOULD NEVER GET HERE                    00006600
+WORK       DC  F'0'                                                     00006700
+*    ALL THE ABOVE ROUTINES SHOULD GO IN JOLCOM FOR EASE OF INSTALLATION00006800
+*    MAYBE,  WITH APPROPRIATE LINKAGE TO CONDITIONAL ASSM.CODE THRU JOLG00006900

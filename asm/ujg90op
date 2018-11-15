@@ -1,0 +1,215 @@
+UJG90OP    TITLE 'WRITE JCL AND DATA RECORDS, SPLITTING IF NECESSARY'   00010000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974      74303 00020000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1982.                          00030000
+* JOL CCS-JOL 1987.                                                     00031001
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00040000
+           SPACE 3                                                      00050000
+*                   J             000000            L                   00060000
+*                   J            0      0           L                   00070000
+*                   J           0        0          L                   00080000
+*                   J          0          0         L                   00090000
+*                   J         0            0        L                   00100000
+*                   J         0            0        L                   00110000
+*                   J         0            0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0            0        L                   00160000
+*        J          J         0            0        L                   00170000
+*         J        J           0          0         L                   00180000
+*          J      J             0        0          L                   00190000
+*           J    J               0      0           L                   00200000
+*            JJJJ                 000000            LLLLLLLLLLL         00210000
+         EJECT                                                          00220000
+         PRINT OFF SUPPRESS JOLCOM                                      00230000
+         COPY JOLCOM                                                    00240000
+         PRINT DATA,ON                                            75128 00250000
+         JOLSAVE CSECT=UJG99OP                                          00260000
+UJG90OP  EQU   UJG99OP                                                  00270000
+           ENTRY UJG90OP                                                00280000
+* THIS CSECT OUTPUTS JCL ETC CARDS TO THE JCL FILE                      00290000
+*                                                                       00291001
+* IF WE  ARE R UNNING THE JOB  UNDER TSO, IT SIMPLY EXITS         87150 00292001
+*                                                                       00294001
+*    IT MUST (IF THE LENGTH OF THE STRING IS >71 CHARACTERS) OUTPUT     00300000
+*    SEVERAL CARDS,EACH ENDING IN A ',' AND A BLANK IN COLS 3-15        00310000
+*    FOR EACH CONTINUATION CARD                                         00320000
+*    IF THE ORIGINAL STRING INPUT DOES NOT HAVE '//' IN COLS 1&2 THEN   00330000
+*    THE CONTINUATION CARDS SHOULD BE BLANK IN COLS 1 & 2               00340000
+           LR R3,R1            LOAD ADDR OF AREA TO GO OUT        74303 00350000
+           USING JOLCOM,R2                                              00360000
+           USING #OUTPUT,R3                                             00370000
+           IFTSO G99RETN0      RUNNING DIRECTLY UNDER TSO, EXIT   87150 00371001
+* THIS IS AN EXIT REQUESTED BY SHELL TO MAKE EMERGENCY CHANGES    75311 00380000
+*  TO THE JCL JUST BEFORE IT IS OUTPUT.                           75311 00390000
+* HOPEFULLY, IT WILL NEVER BE USED, BUT ...                       75311 00400000
+         $CALL UJG91OP,((1)) CALL USER EXIT RTN                   75311 00410000
+         LTR R15,R15         DID IT RETURN NON ZERO ?             75311 00420000
+         BNZ G99RETN0        YES, DON'T OUTPUT CARD THEN          75311 00430000
+* CHECK IF THE STRING IS NULL,IF SO MERELY RETURN                       00440000
+         CLC #OUTPUT,=H'0'                                              00450000
+         BNE G99PUTIT OUT                    NOT 0 SO MUST OUTPUT IT    00460000
+G99RETN0 JOLRETN                                                        00470000
+         SPACE 3                                                        00480000
+G99PUTIT DS    0H                                                       00490000
+         ICM   R8,15,OUTPUT         LOAD FIRST BYTES                    00500000
+G99MUSTO DS    0H                                                       00510000
+* GET SPACE FOR THE RECORD                                              00520000
+         L     R5,ADCBS                                                 00530000
+         USING DCBS,R5                                                  00540000
+         PUT JCL                                                        00550000
+         DROP R5                                                        00560000
+         LR R5,R1                                                       00570000
+         USING CARDOUT,R5                                               00580000
+         CLEAR CARDOUT                                                  00590000
+* CHECK IF A COMMENT,IF SO OUTPUT 80 BYTES ALWAYS                       00600000
+*  OF COURSE, WHAT'S A COMMENT DEPENDS ON THE OPERATING SYSTEM          00610000
+         IFOS  ^=X8,G90NX810                                            00620000
+         CLM   R8,12,=C'$*'      ON X8, IT'S THIS                       00630000
+         BE    G90COMM                                                  00640000
+         CLM   R8,8,=C'$'         AND THIS IS JCL                       00650000
+         BE    G99NOTCM                                                 00660000
+         B     G90COMM                                                  00670000
+G90NX810 DS    0H                                                       00680000
+         CLM   R8,14,=C'//*'                                            00690000
+         BE    G90COMM                                            75128 00700000
+         CLM   R8,12,=C'//*'      USE SAME LITERAL, BUT NOW       75128 00710000
+*                                  CHECK IF A JCL CARD            75128 00720000
+         BE    G99NOTCM                                                 00730000
+G90COMM  CLC   #OUTPUT,=H'71' IF COMMENT <71 O/P NORMALLY         75128 00740000
+         BL    G99NOTCM                                           74303 00750000
+         MVC   CARDOUT,OUTPUT                                           00760000
+G99TPRNT BAL   R10,G99PRNT                                              00770000
+         B     G99RETN0                                                 00780000
+         SPACE 3                                                        00790000
+G99NOTCM DS    0H                                                       00800000
+* WELL,THIS ISN'T A COMMENT SO NOW WE'LL SEE IF IT IS >71 CHARS         00810000
+T99LEN     CLC #OUTPUT,=H'71'                                           00820000
+           BH  G99SPLIT                                                 00830000
+           MVC DBL(2),#OUTPUT  SO WE DON'T GET 0C6'S                    00840000
+           LH R1,DBL                                                    00850000
+           BCTR  R1,0                                                   00860000
+           EX  R1,G99MUV1                                               00870000
+           B   G99TPRNT                        TEST IF PRINT REQD,RETN  00880000
+           SPACE 3                                                      00890000
+G99SPLIT DS    0H                                                       00900000
+* NOW THE STRING IS UNFORTUNATELY GREATER THAN 71 CHARACTERS            00910000
+*    I HAVE TO FIND A COMMA IN THE STRING AND SHIFT THE (UP TO AND      00920000
+*    INCLUDING THE COMMA) INTO THE OUTPUT BUFFER.                       00930000
+           LA  R6,70                                                    00940000
+FIND99CM   LA  R7,OUTPUT(R6)   ADDRESS THE BYTE                         00950000
+           CLI 0(R7),C','      ',' ?                                    00960000
+           BE  GOT99COM        YEP                                      00970000
+           BCT R6,FIND99CM     NO,CONTINUE THE LOOP                     00980000
+           LA  R6,70                                                    00990000
+           B    GOT99MVC                                           DASD 01000000
+GOT99COM   EQU *                                                        01010000
+*******************************************************************DASD 01020000
+* CHECK FOR POSSIBLE SPLIT OF FIELD WITHIN QUOTES(JCL FLUSH ACCT FLDASD 01030000
+*******************************************************************DASD 01040000
+         BCTR  R7,0           CHECK LEFT SIDE OF COMMA             DASD 01050000
+         CLI   0(R7),C''''    FOR A QUOTE OR RIGHT PREN  IF SO     DASD 01060000
+         BE    GOT99MVC       LEAVE                                DASD 01070000
+         CLI   0(R7),C')'     IT                                   DASD 01080000
+         BE    GOT99MVC       ALONE                                DASD 01090000
+         LR    R1,R6          SAVE CURRENT DISPLACMENT             DASD 01100000
+         LA    R15,20         LOOK BACK 20 BYTES                   DASD 01110000
+GOT99CQT LA    R7,OUTPUT(R1)  POINT TO NEXT BYTE                   DASD 01120000
+         CLI   0(R7),C''''    QUOTE HERE                           DASD 01130000
+         BE    GOT99CED       YEP                                  DASD 01140000
+         CLI   0(R7),C')'    RIGHT PREN                            DASD 01150000
+         BE    GOT99MVC       YEP                                  DASD 01160000
+         SH    R15,=H'1'      DECREMENT CTR BY 1                   DASD 01170000
+         BZ    GOT99MVC       IF NOT ZERO KEEP LOOKING             DASD 01180000
+         BCT   R1,GOT99CQT    RETURN TO LOOP                       DASD 01190000
+         B     GOT99MVC       NO HIT GET                           DASD 01200000
+GOT99CED  CLI  1(R7),C','    ARE WE AT THE END INSTEAD OF THE BEGINDASD 01210000
+          BE   GOT99MVC      YEP    LEAVE IT                       DASD 01220000
+         BCTR  R1,0           BACKUP BEHIND THE QUOTE              DASD 01230000
+         LR    R6,R1          RELOAD REG-6 WITH GOOD GUY           DASD 01240000
+GOT99MVC   EX  R6,G99MUV1      SHIFT THE OLD STRING IN             DASD 01250000
+         MVI   CARDOUT+71,C'+' MARK CONT: REQD FOR X8, OK FOR OTHERS    01260000
+           BAL  R10,G99PRNT    TEST IF PRINTING REQD                    01270000
+* NOW R6 CONTAINS THE LEGTH OF THE STRING JUST GONE-1                   01280000
+*    THESE NEXT FEW STEPS MUST:-                                        01290000
+*          1.  READJST THE BASE REGISTER R3 SO THAT THE #OUTPUT DSECT   01300000
+*                  POINTS TO THE NEXT BIT OF THE STRING                 01310000
+*          2.  READJUST THE LENGTH IN #OUTPUT                           01320000
+*          3.  CLEAR BYTES 1-15 OF THE NEW OUTPUT STRING                01330000
+*          4.  IF THE STRING JUST OUTPUT HAD '//' IN THE FIRST 2 BYTES  01340000
+*                  THEN THE NEW STRING MUST HAVE THEM ALSO              01350000
+           SPACE 3                                                      01360000
+* NOW THERE IS ONLY ONE THING TO BE CAREFUL OF                          01370000
+*    LET'S SUPPOSE THE STRING JUST OUTPUT WAS LESS THAN 16 BYTES        01380000
+*    IN THAT CASE ,R3 (BASE REG FOR THE OUTPUT STRING) CANNOT BE RESET  01390000
+*    TO POINT TO A LOCATION BEYOND THE BEGGINNING OF THE STRING         01400000
+*    BECAUSE THAT WOULD PUT US IN SOMEBODY ELSE'S BIT OF STORAGE        01410000
+*    AND THAT COULD BE A BIT NAUGHTY.                                   01420000
+           SPACE                                                        01430000
+           LA  R6,1(R6)        ADD 1 COS I TOOK ONE OFF FOR THE EX MVC  01440000
+           CH  R6,=H'16'       <16 ????                                 01450000
+           BL   G99LES16       YES SO LEAVE THE BASE REGISTER UNCHANGED 01460000
+*                              BUT CLEAR BYTES 2 TO LENGTH JUST OP      01470000
+           SPACE                                                        01480000
+* NOW HERE THE STRING IS LONGER THAN 16 BYTES SO WE MUST READJUST THE   01490000
+*    BASE REGISTER AND THEN CLEAR THE REQUIRED BYTES                    01500000
+           MVC DBL(2),#OUTPUT  SAVE THE LENGTH OF STRING FOR A SECOND   01510000
+*                              BUT WE HAVE TO MOVE IT TO A WORK LOCN SO 01520000
+*                              WE DON'T GET A NASTY OLS 0C6             01530000
+           LR  R4,R3           SAVE OLD BASE SO WE CAN HAVE A LOOK FOR  01540000
+*                              '//' LATER ON                            01550000
+         LA    R3,0(R6,R3)     NEW BASE REG BUT IT IS A LITTLE HIGH     01560000
+       LA  R3,1(R3)   ***************                                   01570000
+         SH    R3,=H'16'       ADJUST NOW SO WE CAN CLEAR BYTES 1-16    01580000
+         MVC   OUTPUT(15),BLANKS                                        01590000
+         IFOS  =X8,G99SETLE                                             01600000
+         CLC   =C'//',2(R4)    WERE FIRST BYTES '//' ?                  01610000
+         BNE   G99SETLE        NO,SO MERELY RESET LENGTH OF THE STRING  01620000
+         MVC   OUTPUT(2),=C'//'                                         01630000
+G99SETLE LH    R1,DBL          LOAD OLD LENGTH                          01640000
+         LA    R1,16(R1)       +16 COS OF THE ONES WE TOOK OFF          01650000
+         BCTR  R1,0                                                     01660000
+         SR    R1,R6           SUBSTACT LENGTH PREVIOUSLY OUTPUT        01670000
+         STH   R1,DBL                                                   01680000
+         MVC   #OUTPUT(2),DBL                                           01690000
+         B     G99MUSTO        GO AND OUTPUT THE STRING                 01700000
+           SPACE 3                                                      01710000
+G99LES16   EQU *                                                        01720000
+* THE STRING OUTPUT ON THE PREVIOUS LINE WAS < 16 BYTES.                01730000
+*    THE BASE AND THE LENGTH OF THE STRING CANNOT BE CHANGED BUT WE CAN 01740000
+*    MOST CERTAINLY CLEAR OUT THE LENGTH WHICH WAS OUTPUT               01750000
+           SH  R6,=H'3'        R6 = LENGTH PREVIOUSLY OUTPUT            01760000
+           EX R6,G99CLEAR      CLEAR FROM BYTES 3 ONWARDS               01770000
+           CLC OUTPUT(2),=C'//' LAST STRING HAD '//' ?                  01780000
+           BE G99MUSTO         YES SO LEAVE THEM IN THERE               01790000
+           MVC OUTPUT(2),BLANKS                                         01800000
+           B G99MUSTO                                                   01810000
+G99PRNT    EQU  *                                                       01820000
+           L  R1,AJOLGEN                                                01830000
+           USING GENDETS,R1                                             01840000
+           TM PARMPRNT,X'10' PRINT JCL?                                 01850000
+            DROP R1                                                     01860000
+         BZR   R10             NO                                       01870000
+         IFOS  =X8,G99PRX8                                              01880000
+         L     R1,APRINTLN    LOAD ADDRESS OF THE PRINT LINE      75128 01890000
+         MVC   15(80,R1),CARDOUT                                  75128 01900000
+         MVI   1(R1),80+15                                        75128 01910000
+         JOLPRINT                                                 75128 01920000
+         BR    R10                                                      01930000
+G99PRX8  DS    0H   PRINTJCL FOR X8                                     01940000
+         SPACE                                                          01950000
+* ON X8 WE DO NOT HAVE ANY JCL WORTH PRINTING,                          01960000
+*  BUT WE DO HAVE A FEW FIELDS WHICH MAY BE OF INTEREST                 01970000
+         SPACE                                                          01980000
+         BR    R10                                                      01990000
+G99CLEAR   MVC OUTPUT+2(*-*),BLANKS          ******* EXECUTED           02000000
+G99MUV1    MVC CARDOUT(*-*),OUTPUT           ******* EXECUTED           02010000
+ LTORG                                                                  02020000
+           DC   20S(*)                                                  02030000
+           DROP R3                                                74303 02040000
+OUT        DSECT                                                        02050000
+#OUTPUT    DS  H                                                        02060000
+OUTPUT     DS  CL100                                                    02070000
+OPCARD     DSECT                                                        02080000
+CARDOUT    DS   CL80                                                    02090000
+         END                                                            02100000

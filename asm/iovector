@@ -1,0 +1,91 @@
+IOVECTOR TITLE 'HANDLE ALL SYSTEM DEPENDENT INTERFACES'                 00010000
+* THIS MODULE IS COPYRIGHT CCS-JOL PTY LTD, 1984                        00020000
+         SPACE 2                                                        00030000
+* TASKS:-                                                               00040000
+*                                                                       00050000
+*  TO PERFORM ALL SYSTEM INTERFACES.                                    00060000
+*                                                                       00070000
+* THIS MODULE REMOVES ALL DEPENDENCIES OF JOL TO THE ONE MODULE         00080000
+* AND IS ALTERED FOR DOS, X8 ETC                                        00090000
+*                                                                       00100000
+* OS VERSION +++++++++++++                                              00110000
+*                                                                       00120000
+*                                                                       00130000
+SYSVECTR CSECT                                                          00140001
+         $SYSCALL                                                       00150001
+IOVECTR  CSECT                                                          00160001
+         $IOCALL                                                        00170001
+         JOLSAVE CSECT=@ABEND        ABEND ROUTINE                      00180002
+$CATSRCH DC    V(@CATSRCH)      ADDRESS OF CATALOG SEARCH ROUTINE       00190002
+$CHKDEV1 DC    V(@CHKDEV1)      ADDRESS OF CHECK DEVICE TYPE TO BE      00200002
+*                               DISK OR TAPE ROUTINE                    00210001
+$CHKDEV2 DC    V(@CHKDEV2)      ADDRESS OF CHECK DEVICE TYPE TO BE      00220002
+*                               DISK OR TAPE ROUTINE                    00230001
+$CHKUCB1 DC    V(@CHKUCB1)      ADDRESS OF CHECK DEVICE TYPE TO BE      00240002
+*                               PERMANENTLT MOUNTED OR NOT              00250001
+$FREMAIN DC    V(@FREMAIN)      ADDRESS OF FREE STORAGE ROUTINE         00260002
+$FRECOND DC    V(@FRECOND)      ADDRESS OF FREE CONDITIONAL STRGE RTN   00270002
+$GETMAIN DC    V(@GETMAIN)      ADDRESS OF GET STORAGE ROUTINE          00280002
+$GETCOND DC    V(@GETCOND)      ADDRESS OF GET CONDITIONAL STORAGE RTN  00290002
+$IDENTFY DC    V(@IDENTFY)      ADDRESS OF IDENTIFY LOAD MODULE RTN     00300002
+$TIMEDEC DC    V(@TIMEDEC)      ADDRESS OF GET TIME DECIMAL ROUTINE     00310002
+$TIMEBIN DC    V(@TIMEBIN)      ADDRESS OF GET TIME BINARY ROUTINE      00320002
+         SPACE 3                                                        00330001
+*********************************************************************** 00340001
+         MACRO                                                          00350001
+         $IOCALL                                                        00360001
+$BLDL    DC    V(@BLDL)         ADDRESS OF BLDL FOR MEMBERS RTN         00370002
+$CHECK   DC    V(@CHECK)        ADDRESS OF CHECK AFTER READ/WRITE RTN   00380002
+$CLOSES1 DC    V(@CLOSES1)      ADDRESS OF CLOSE SYSUT1 RTN             00390002
+$CLOSEAL DC    V(@CLOSEAL)      ADDRESS OF CLOSE ALL DATA SET RTN       00400002
+$DELETE  DC    V(@DELETE)       ADDRESS OF DELETE LOAD MODULE ROUTINE   00410002
+$FIND    DC    V(@FIND)         ADDRESS OF FIND A MEMBER RTN            00420002
+$FINDC   DC    V(@FINDC)        ADDRESS OF FINDC MEMBER RTN             00430002
+$GETS1   DC    V(@GETS1)        ADDRESS OF GET SYSUT1 RTN               00440002
+$GETSYS  DC    V(@GETSYS)       ADDRESS OF GET SYSIN RTN                00450002
+$LOAD    DC    V(@LOAD)         ADDRESS OF LOAD A LOAD MODULE ROUTINE   00460002
+$LINK    DC    V(@LINK)         ADDRESS OF LINK TO LOAD MODULE ROUTINE  00470002
+$NOTE    DC    V(@NOTE)         ADDRESS OF NOTE TTR RTN                 00480002
+$OPENAL  DC    V(@OPENAL)       ADDRESS OF OPEN ALL DATA SETS RTN       00490002
+$OPENS1I DC    V(@OPENS1I)      ADDRESS OF OPEN SYSUT1 FOR INPUT RTN    00500002
+$OPENS1O DC    V(@OPENS1O)      ADDRESS OF OPEN SYSUT1 FOR OUTPUT RTN   00510002
+$POINT   DC    V(@POINT)        ADDRESS OF POINT TO TTR RTN             00520002
+$PUTJCL  DC    V(@PUTJCL)       ADDRESS OF PUT JCL RTN                  00530002
+$PUTPRT  DC    V(@PUTPRT)       ADDRESS OF PUT TO PRINTER RTN           00540002
+$PUTS1   DC    V(@PUTS1)        ADDRESS OF PUT SYSUT1 RTN               00550002
+$PUTTERM DC    V(@PUTTERM)      ADDRESS OF PUT TO TERMINAL RTN          00560002
+$READ    DC    V(@READ)         ADDRESS OF READ FILE RTN                00570002
+$TGET    DC    V(@TGET)         ADDRESS OF TGET RTN                     00580002
+$TGETFSC DC    V(@TGETFSC)      ADDRESS OF TGET FULL SCREEN RTN         00590002
+$WTO     DC    V(@WTO)          ADDRESS OF WRITE TO OPERATOR RTN        00600002
+$WTOR    DC    V(@WTOR)         ADDRESS OF WRITE TO OPERATOR AND REPLY  00610002
+$TPUT    DC    V(@TPUT)         ADDRESS OF TPUT RTN                     00620002
+$TPUTFSC DC    V(@TPUTFSC)      ADDRESS OF TPUT FULL SCREEN RTN         00630002
+$WRITE   DC    V(@WRITE)        ADDRESS OF WRITE FILE RTN               00640002
+         SPACE 2                                                        00650000
+           TITLE 'UJA01JOB:USER JOB DEFINITION EXIT'                    00660000
+         TITLE 'HANDLE UNRECOGNISABLE JOB TOKEN'                        00670000
+           JOLSAVE CSECT=UJA01JOB                                       00680000
+           L   R4,0(R1)        LOAD PARAMETER                           00690000
+           USING JOLCOM,R2                                              00700000
+           USING TKNX,R3                                                00710000
+           USING JOBDETS,R4                                             00720000
+         JOLRETN RC=4         ************************************75311 00730000
+* NOW THIS CODING CATERS FOR DEPARTMENT NAMES (ACCOUNT CODES)           00740000
+           CLC =C'FCO',TKN                                              00750000
+           BE  A01DEPT                                                  00760000
+           CLC =C'FC0',TKN                                              00770000
+           BE  A01DEPT                                                  00780000
+           CLC =C'FCD',TKN                                              00790000
+           BE  A01DEPT                                                  00800000
+           CLC =C'FC04',TKN                                             00810000
+           BE  A01DEPT                                                  00820000
+* DON'T KNOW WHAT IT IS,RETURN 4                                        00830000
+           JOLRETN RC=4                                                 00840000
+A01DEPT  MVC   DBL,=CL8'DEPT'                                  75128    00850000
+         JOLRETN RC=0                                             75128 00860000
+* END JOB EXIT ROUTINE                                                  00870000
+         TITLE 'HANDLE UNRECOGNISABLE PROGRAM TOKEN'                    00880000
+           JOLSAVE CSECT=UJA02PGM                                       00890000
+           L   R4,0(R1)                                                 00900000
+           USING PGMDETS,R4                                             00910000

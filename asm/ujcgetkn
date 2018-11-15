@@ -1,0 +1,50 @@
+UJCGETKN   CSECT                                                        00000100
+* THIS MODULE GETS A NEW TOKEN AND STORES IT AT THE END OF THE          00000200
+*    TOKEN AREA IN ITS WORK AREA                                        00000300
+           SPACE 1                                                      00000400
+* ON ENTRY R0 CONTAINS A NUMBER OF THE TOKEN TO GET                     00000500
+*    AND  R1 CONTAINS THE ADDRESS OF THE TOKEN                          00000600
+           SPACE 1                                                      00000700
+*  RE-USABLE,RE-ENTRANT, NOT SELF-RELOCATEABLE                          00000800
+           USING *,15                                                   00000900
+           SAVE (2,5),,*                                                00001000
+           USING TKNX,1                                                 00001100
+           MVI TKN,C' '                        CLEAR              74293 00001200
+           MVC TKN+1(L'TKN-1),TKN               TKNWORK           74293 00001300
+           LTR 2,0             LOAD & TEST THE TOKEN NUMBER       74293 00001400
+           BNP UJCGETER        NOT POSITIVE IS AN ERROR,SO ->     74293 00001500
+           C   2,=A(((#TKN-TKNDESC)/4)+1) NUMBER WITH RANGE ?     74293 00001600
+           BH  UJCGETER        NO,TOO HIGH,SO ERROR ->            74293 00001700
+           SLL 2,2                             MULT BY 4                00001800
+           LH  3,TKNDESC-2(2)  GET THE TOKEN OFFSET IN STRING     74293 00001900
+           LA  4,TKNSTRG(3)    GET ABSOLUTE ADDRESS                     00002000
+           LH  5,TKNDESC-4(2)  GET L'TKN AND TYPE OF TOKEN        74293 00002100
+           STC 5,TKNTYPE       STORE TOKEN TYPE IN 'TKNTYPE'      74293 00002200
+           SR  5,5             CLEAR REGISTER 5                   81300 00002300
+           IC  5,TKNDESC-4(2)  GET L'TKN                          81300 00002400
+           STH 5,#TKN          SET LENGTH OF ANSWER STRING        74293 00002500
+           LTR 5,5             NOW TEST IF POS OR >0          CVC 81300 00002600
+           BNP UJCGETER        LENGTH 0 OR NEGATIVE IS ERROR      74293 00002700
+           BCTR 5,0            -1 FOR THE MOVE EXECUTE            74293 00002800
+           EX  5,MUVTKN                                                 00002900
+           SR  15,15           SET 0 RETURN CODE                  74293 00003000
+UJCGETRT   EQU *                                                  74293 00003100
+           LR 1,0                                                       00003200
+           LA 1,1(1)           REG 1 ALWAYS CONTAINS THE VALUE+1        00003300
+           LTR 15,15           SAVE CALLER DOING IT EVERYWHERE    74293 00003400
+           RETURN (2,5),T,RC=(15)  RETURN TO CALLER               74293 00003500
+UJCGETER   MVI TKNTYPE,2       SET TO 'CHAR STRING'               74293 00003600
+           XC  #TKN,#TKN        CLEAR LENGTH (STRING='' NOW)      80290 00003700
+           LR  1,15            USE REG 1 AS BASE NOW              74293 00003800
+           LA  15,4            SET 15=4 AS BAD RETURN CODE        74293 00003900
+           B   UJCGETRT-UJCGETKN(1) BRANCH TO EPILOG              74293 00004000
+MUVTKN     MVC TKN(*-*),0(4)                                            00004100
+           DC   S(*,*,*,*,*,*,*,*)                                      00004200
+           DC   S(*,*,*,*,*,*,*,*)                                      00004300
+           DC   S(*,*,*,*,*,*,*,*)                                      00004400
+           DC   S(*,*,*,*,*,*,*,*)                                      00004500
+           DC   S(*,*,*,*,*,*,*,*)                                      00004600
+           DC   S(*,*,*,*,*,*,*,*)                                      00004700
+           COPY  JOLGLOBL                                         J60   00004801
+           COPY TKNX                                                    00004900
+           END                                                          00005000

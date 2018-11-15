@@ -1,0 +1,66 @@
+//CLARKES JOB (R777),'LONS 8TH',MSGCLASS=X,NOTIFY=CLARKE                00010000
+// EXEC PGM=IEFBR14                                                     00020000
+//SYSPRINT DD  DSN=CLARKE.SCHED.LIST,DCB=BLKSIZE=1330,                  00030000
+// SPACE=(CYL,(10,10)),UNIT=SYSDA,DISP=(MOD,DELETE)                     00040000
+//ASM EXEC PGM=ASMBLR,PARM='NODECK,OBJ,XREF(SHORT),LIST,TERM'           00050000
+//SYSLIB   DD  DSN=SYS1.MACLIB,DISP=SHR,DCB=BLKSIZE=19040,              00060000
+//    VOL=SER=MTCSYS,UNIT=SYSDA                                         00070000
+//         DD  DSN=CLARKE.PRIVATE.MACLIB,DISP=SHR                       00080000
+//         DD  DSN=CLARKE.JOL36.ASM,DISP=SHR                            00090000
+//         DD  DSN=SYS1.FMODGEN,DISP=SHR                                00100000
+//         DD  DSN=CLARKE.JOL35.MACLIB,DISP=SHR                         00110000
+//         DD  DSN=CLARKE.JOL35.ASM,DISP=SHR                            00120000
+//SYSUT1   DD  DSN=&&SYSUT1,SPACE=(CYL,(5,2)),UNIT=SYSDA                00130000
+//SYSUT2   DD  DSN=&&SYSUT2,SPACE=(CYL,(5,2)),UNIT=SYSDA                00140000
+//SYSUT3   DD  DSN=&&SYSUT3,SPACE=(CYL,(5,2)),UNIT=SYSDA                00150000
+//SYSGO DD DSN=CLARKE.JOL36.OBJ(TEXIST),DISP=OLD                        00160001
+//SYSTERM  DD  SYSOUT=*                                                 00170000
+//SYSPRINT DD  SYSOUT=*                                                 00180000
+TEXISDT    TITLE 'TEST IF A DATA SET EXISTS'                            00190001
+* JOL COPYRIGHT CCS-JOL PTY LTD 1986.                                   00200001
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-E001.           00210000
+         SPACE 3                                                        00220000
+*                   J             000000            L                   00230000
+*                   J            0      0           L                   00240000
+*                   J           0        0          L                   00250000
+*                   J          0          0         L                   00260000
+*                   J         0            0        L                   00270000
+*                   J         0            0        L                   00280000
+*                   J         0            0        L                   00290000
+*                   J         0            0        L                   00300000
+*                   J         0            0        L                   00310000
+*                   J         0            0        L                   00320000
+*                   J         0            0        L                   00330000
+*        J          J         0            0        L                   00340000
+*         J        J           0          0         L                   00350000
+*          J      J             0        0          L                   00360000
+*           J    J               0      0           L                   00370000
+*            JJJJ                 000000            LLLLLLLLLLL         00380000
+           SPACE 3                                                      00390000
+* TEST IF A DATA SET EXISTS, RC=0 IF YES, ELSE 4 OR 16 IF ERROR         00400002
+*                                                                       00410000
+* IT RELIES ON THE FACT THAT THE JCFBIND2 FIELD INDICATES IF A MOD      00411002
+*    DATA SET IS REALLY MOD, OR WAS ALLOCATED AS NEW.                   00412002
+*                                                                       00413002
+*                                                                       00414002
+         GENSAVE  CSECT=TEXIST                                          00420001
+         RDJFCB TEMPDCB       GET DSNAME                                00430001
+         LTR   R15,R15                                                  00440001
+         BNZ   NOTALLOC       ERROR, FILE NOT ALLOCATED                 00450001
+         TM    JFCBFLG2,JFCMODNW     TEST IF REALLY NEW, OR TEMP NEW    00460001
+         BO    NEWDS          REALLY IS A NEW DS                        00470001
+         GENRETN  RC=0                                                  00480001
+NEWDS    GENRETN  RC=4                                                  00490001
+NOTALLOC WTO   'JOL: TEST FILE EXIST PROGRAM: FILE NOT ALLOCATED'       00500001
+         GENRETN  RC=16                                                 00510001
+         PRINT NOGEN                                                    00511002
+TEMPDCB  DCB   DDNAME=$$EXIST,DSORG=PO,MACRF=R,                        *00520001
+               DEVD=DA,EXLST=TEMPEXIT                                   00530001
+TEMPEXIT DC    A(JFCBDSNM+X'87000000')                                  00540001
+         DS    0A                                                       00550001
+         DC    8CL4'JFCB'                                               00560001
+         IEFJFCBN   LIST=YES                                            00570001
+         PRINT GEN                                                      00580000
+           LTORG                                                        00590000
+         DC C'COMPILE DATE=&SYSDATE.,TIME=&SYSTIME.'                    00600001
+         LTORG                                                          00610001

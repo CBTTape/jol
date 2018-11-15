@@ -1,0 +1,138 @@
+           GENSAVE CSECT=VS1RDR                                         00000100
+* THIS PROGRAM DOES THE FOLLOWING:-                                     00000200
+*    1. READS CARDS FROM A CARD READER                                  00000300
+*    2. IF IT FINDS AN OS TYPE JOB CARD, IT WILL COPY THE JCL STREAM    00000400
+*       OT A WORK FILE, THEN CALL IN THE VS1 READER TO TRANSFER         00000500
+*       THE DATA TO THE SYSTEM JOB QUEUE.                               00000600
+*    3. IF AN * JOL CARD IS FOUND, JOL IS LINKED TO AND THE JCL         00000700
+*       IT PRODUCES IS PASSED THROUGH TO THE VS1 READER.                00000800
+*                                                                       00000900
+* THE PARAMETERS PASSED TO THIS PROGRAM ARE THOSE USED BY THE VS1       00001000
+*    READER.                                                            00001100
+* THE PARAMETERS PASSED TO JOL ARE ASSEMBLED IN THIS CSECT.             00001200
+           LR  R4,R1           SAVE ORIGINAL PARAMETERS.                00001300
+MAINLOOP   SR  R5,R5           INDICATOR TO SAY JCL COPIED              00001400
+           SR  R6,R6           INDICATOR TO SAY JCL COPIED              00001500
+           OPEN (SYSIN,(INPUT),                CARD READER             *00001600
+               $$JCL,(OUTPUT),                 JOL JCL OUTPUT          *00001700
+               WORK1,(OUTPUT),                 JCL COPIED THERE        *00001800
+               $$JIN,(OUTPUT))                 JOL INPUT STREAM         00001900
+           SPACE 3                                                      00002000
+* NOW GET A CARD                                                        00002100
+SKIPTHIS   GET SYSIN,CARD      READ A CARD FROM THE CARD READER         00002200
+           CLC CARD(2),=C'//'  JCL CARD ?                               00002300
+           BNE TJOLCARD        NO, TEST IF A JOL CARD THEN.             00002400
+* HERE JCL CARD                                                         00002500
+NEWJCLJB   LM  R7,R9,=A(CARD,1,CARD+L'CARD-1-8)                         00002600
+           CLI 0(R7),C' '      END OF NAME ?                            00002700
+           BE  NAMEEND         YES, NOW FIND ' JOB '                    00002800
+           BXLE R7,R8,*-8      NO, ROUND LOOP                           00002900
+           B   JCLFLUSH        FLUSH TILL NEXT JOB CARD FOUND, OR *JOL  00003000
+           SPACE 2                                                      00003100
+NAMEEND    EQU   *                                                      00003200
+           CLEAR JOBNAME                                                00003300
+           LA  R1,CARD+3                                                00003400
+           LR  R15,R7                                                   00003500
+           SR  R15,R1                                                   00003600
+           MVC COPYMSSG+12(8),BLANKS                                    00003700
+           EX  R15,MVCJOBNM                                             00003800
+           WTO MF=(E,COPYMSSG) TELL OPERATOR WE ARE COPYING             00003900
+PUTWORK1   PUT WORK1,CARD      COPY JCL CARD TO WORK FILE               00004000
+* NOW WE ENTER A COPY LOOP TILL WE GET '//' | *JOL | NEW JOBCARD.       00004100
+           GET SYSIN,CARD      GET NEXT CARD                            00004200
+           CLC =C'//',CARD     JCL CARD ?                               00004300
+           BE  JCL2CARD        GO TEST '//' | NEW JOBCARD               00004400
+           CLI CARD,C'*'       * JOL MAYBE ?                            00004500
+           BE  TJOL2           GO TEST JOL CARD                         00004600
+           B   PUTWORK1        GO PUT, GET NEXT CARD                    00004700
+           SPACE 2                                                      00004800
+JCL2CARD   CLC =CL71'// ',CARD NULL CARD (EOF?)                         00004900
+           BE  PUTWORK1        YES, COPY THRU, CHECK NEXT               00005000
+* TEST NEW JOB CARD                                                     00005100
+TNEWJCLJ   LM  R7,R9,=A(CARD,1,CARD+70)                                 00005200
+           CLI 0(R7),C' '      END OF NAME ?                            00005300
+           BE  END2NM                                                   00005400
+           BXLE R7,R8,*-8                                               00005500
+           B   PUTWORK1        NOT A JOB CARD ANYWAY                    00005600
+           SPACE 2                                                      00005700
+END2NM     CLC =C' JOB ',0(R7) JOB ?                                    00005800
+           BE  NEWJCLJB        YES, GOT A NEW JCL CARD                  00005900
+           BXLE R7,R8,*-10                                              00006000
+           B   PUTWORK1        NOT A JOB CARD, COPY IT THROUGH          00006100
+           SPACE 3                                                      00006200
+TJOLCARD   CLI CARD,C'*'       * JOL ?                                  00006300
+           BNE JCLFLUSH        NOPE, AND NOT A JCL CARD EITHER,FLUSH IT 00006400
+TJOL2      LM  R7,R9,=A(CARD,1,CARD+70)                                 00006500
+           CLC =C'JOL',0(R7)                                            00006600
+           BE  ISJOL                                                    00006700
+           BXLE R7,R8,*-10                                              00006800
+* NOT JOL HERE. EASIEST THING IS TO JUST COPY IT THROUGH                00006900
+JCLFLUSH   EQU  *                                                       00007000
+JOBFLUSH   B   PUTWORK1                                                 00007100
+           SPACE 3                                                      00007200
+ISJOL      LA  R6,1            SET JOL INDIC ON                         00007300
+           PUT $$JIN,CARD      PUT OUT TO JOL INPUT FILE                00007400
+           GET SYSIN,CARD                                               00007500
+           CLC =C'//',CARD     JCL CARD ?                               00007600
+           BE  JCL3CARD        YES                                      00007700
+           B   ISJOL           NO, GO TO COPY LOOP                      00007800
+           SPACE 3                                                      00007900
+JCL3CARD   CLC =CL71'// ',CARD IS IT ONLY A NULL CARD                   00008000
+           BE  SKIPTHIS       YES.                                      00008100
+           B   TNEWJCLJ        NO, TEST IF JOB CARD THEN (JCL)          00008200
+           SPACE 3                                                      00008300
+EOFSYSIN   EQU *                                                        00008400
+         CLOSE (SYSIN,,$$JCL,,WORK1,,$$JIN)                             00008500
+         FREEPOOL SYSIN                                                 00008600
+         FREEPOOL $$JCL                                                 00008700
+         FREEPOOL WORK1                                                 00008800
+         FREEPOOL $$JIN                                                 00008900
+           LTR R6,R6           ANY JOL JOBS TO COMPILE ?                00009000
+           BZ  USERDR          NO, GO USE VS1 READER THEN               00009100
+           XC  TASKECB,TASKECB CLEAR RETURN ECB                         00009200
+           ATTACH EP=$JOLCP30,PARAM=JOLPARM,ECB=TASKECB,VL=1            00009300
+           LR  R6,R1           SAVE NEW TCB ADDRESS                     00009400
+           WAIT ECB=TASKECB    WAIT FOR JOL TO END                      00009500
+           TM  X'1D'(R6),X'80' ABEND ?                                  00009600
+           BO  JOLABEND                                                 00009700
+           DETACH (R6)                                                  00009800
+USERDR     XC  TASKECB,TASKECB CLEAR ECB                                00009900
+*          ATTACH EP=IEFVMA,PARAM=(4),ECB=TASKECB                       00010000
+           ATTACH EP=UT49AA,PARAM=(4),ECB=TASKECB                       00010100
+           LR  R6,R1           SAVE NEW TCB ADDRESS                     00010200
+           WAIT ECB=TASKECB    WAIT FOR VS1 READER TO END               00010300
+           TM  X'1D'(R6),X'80' ABEND ?                                  00010400
+           BO  VS1RDRAB        VS READER ABENDED ...                    00010500
+           CLC TASKECB+1(3),=F'0' DID IT RETURN 0 ?                     00010600
+           BNE VS1NON0         NO, NO 0                                 00010700
+           DETACH (R6)         DETATCH IT                               00010800
+         GENRETN                                                        00010900
+           B   MAINLOOP                                                 00011000
+JOLABEND   ABEND 1,DUMP,STEP                                            00011100
+VS1RDRAB   ABEND 2,DUMP,STEP                                            00011200
+VS1NON0    LR  R10,R15                                                  00011300
+           ABEND 3,DUMP,STEP                                            00011400
+TASKECB    DS  F               ECB FOR JOL, READER                      00011500
+CARD       DS  CL80                                                     00011600
+MVCJOBNM   MVC COPYMSSG+12(*-*),CARD+2                                  00011700
+COPYMSSG   WTO 'JOLRDR:          BEING COPIED',ROUTCDE=(11),MF=L        00011800
+JOLPARM    DC AL2(L'JOLPARMC)                                           00011900
+JOLPARMC   DC C'NOSRDR'                                                 00012000
+JOBNAME    DS CL8                                                       00012100
+BLANKS     DC  CL80' '                                                  00012200
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*)                       00012300
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*)                       00012400
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*)                       00012500
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*)                       00012600
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*)                       00012700
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*)                       00012800
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*)                       00012900
+           PRINT NOGEN                                                  00013000
+           ENTRY SYSIN,$$JCL,WORK1,$$JIN                                00013100
+SYSIN      DCB DDNAME=SYSIN,EODAD=EOFSYSIN,DSORG=PS,MACRF=GM,DEVD=DA    00013200
+$$JCL      DCB DDNAME=$$JCL,DSORG=PS,MACRF=PM                           00013300
+WORK1      DCB DDNAME=JCLSPOOL,DSORG=PS,MACRF=PM                        00013400
+$$JIN      DCB DDNAME=$$JIN,DSORG=PS,MACRF=PM                           00013500
+           PRINT GEN                                                    00013600
+           LTORG                                                        00013700
+           END                                                          00013800

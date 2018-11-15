@@ -1,0 +1,84 @@
+           TITLE 'JOL SUBROUTINES'                                74303 00001000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974,1975       00002000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00003000
+           SPACE 3                                                      00004000
+*                   J             000000            L                   00005000
+*                   J            0      0           L                   00006000
+*                   J           0        0          L                   00007000
+*                   J          0          0         L                   00008000
+*                   J         0            0        L                   00009000
+*                   J         0            0        L                   00010000
+*                   J         0            0        L                   00011000
+*                   J         0            0        L                   00012000
+*                   J         0            0        L                   00013000
+*                   J         0            0        L                   00014000
+*                   J         0            0        L                   00015000
+*        J          J         0            0        L                   00016000
+*         J        J           0          0         L                   00017000
+*          J      J             0        0          L                   00018000
+*           J    J               0      0           L                   00019000
+*            JJJJ                 000000            LLLLLLLLLLL         00020000
+           SPACE 3                                                      00021000
+         COPY JOLCOM                                                    00022000
+           TITLE 'SPLIT STATEMENT INTO TOKENS:CALL UJCTKN'              00023000
+           JOLSAVE CSECT=UJC50SPL  NEW CSECT  3 NOV 74 *********        00024000
+           ORG UJC50SPL                                                 00025000
+UJSPLIT    EQU *                                                        00026000
+           ENTRY UJSPLIT                                                00027000
+           ORG                                                          00028000
+* THIS IS A NEW CSECT AND IS CALLED WHEN-EVER IT IS REQUIRED TO         00029000
+*  SPLIT A STATEMENT INTO TOKENS. UJCTKN IS CALLED TO ACTUALLY DO       00030000
+*  THE JOB.                                                             00031000
+* PREVIOUSLY, UJCTKN USED TO BE CALLED DIRECTLY,BUT AS IT IS USED       00032000
+*  BY PROGRAMS OTHER THAN JOL, IT CANNOT BE ALTERED TO GIVE ERROR       00033000
+*  MESSAGES, AND RATHER THAN THE VARIOUS PARTS OF JOL TESTING IT'S      00034000
+*  RETURN CODE, AND ISSUING SPACE CONSUMMING ERROR MESSAGES, THIS       00035000
+*  MODULE IS CALLED INSTEAD AND DOES IT ALL.                            00036000
+*                                                                       00037000
+***NOTE*** THE NAME IS UJC50. THIS IS BECAUSE THE DOCUMENTATION         00038000
+*   HAS TOKEN ERROR MESSAGES FOR C50,AND I DO NOT INTEND TO             00039000
+*   SET UP A NEW ERROR MESSAGE MANUAL JUST YET,SO THE SAME              00040000
+*   ERROR NUMBER WILL BE USED FOR NOW.                                  00041000
+*                                                                       00042000
+* ON WITH THE JOB.                                                      00043000
+           USING TKNX,R3                                          74303 00044000
+           ST  R3,CALLAREA     ADDRESS OF TKNX STORED (R3 ALWAYS        00045000
+*                              POINTS TO TKNX).                         00046000
+           LR  R1,R2           R2 ALWAYS POINTS TO JOLCOM,OR            00047000
+*                              CALLAREA                                 00048000
+           L   R15,=V(UJCTKN)                                           00049000
+           BALR R14,R15        AND AWAY.                                00050000
+           LR  R8,R15          SAVE RETURN CODE                         00051000
+           B   UJSPLX(R15)                                              00052000
+UJSPLX     B   UJSPL0          RETURN 0,NO ERROR MESSAGE                00053000
+           B   UJSPL4          STATEMENT TOO LONG                       00054000
+           B   UJSPL8          TOO MANY SYMBOLS IN STATEMENT            00055000
+           B   UJSPL12         A SYMBOL TOO LONG                        00056000
+           B   UJSPL16         INVALID LITERAL STRING                   00057000
+           SPACE 1                                                      00058000
+UJSPLRET   EQU *                                                        00059000
+UJSPL0     LR  R15,R8          LOAD 15 WITH UJCTKN RETURN CODE          00060000
+           JOLRETN RC=(15)     RETURN NOW                               00061000
+           SPACE 1                                                      00062000
+UJSPL4   JOLERR 401,'STATEMENT TOO LONG, GREATER THAN 2048 BYTES'  DASD 00063001
+           B   UJSPLRET        RETURN                                   00064000
+           SPACE 1                                                      00065000
+UJSPL8 JOLERR 402,'TOO MANY TOKENS(SYMBOLS), GREATER THAN 512 TOKENS' D 00066001
+           B   UJSPLRET                                                 00067000
+           SPACE 1                                                      00068000
+UJSPL12    GETTKN TKNNO         SYMBOL TOO LONG,GET IT                  00069000
+           MVI #TKN+1,50       SET LENGTH SHORTER                       00070000
+         JOLERR 403,'SYMBOL STARTING ''',#TKN,''' TOO LONG, GREATER THA*00071000
+               N 253 BYTES'                                        DASD 00072001
+           B   UJSPLRET        RETURN                                   00073000
+           SPACE 1                                                      00074000
+UJSPL16    GETTKN TKNNO        GET OFFENDING LITERAL STRING             00075000
+           CLI #TKN+1,50                                                00076000
+           BL  *+8                                                      00077000
+           MVI #TKN+1,50       SET LENGTH TO 50                         00078000
+         JOLERR 404,'LITERAL STRING STARTING ',#TKN,                   *00079000
+               'HAS NO ENDING QUOTE'                                    00080000
+           B   UJSPLRET        RETURN                                   00081000
+           SPACE 1                                                      00082000
+           LTORG                                                        00083000
+         END                                                            00084000

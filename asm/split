@@ -1,0 +1,45 @@
+         COPY  JOLCOM                                                   00000100
+         EJECT                                                          00000200
+         JOLSAVE CSECT=UJZ02SPL                                         00000300
+         USING TKNX,R3                                                  00000400
+* THIS ROUTINE SPLITS PARAMETERS UP AND PLACES THEM IN A RETURN         00000500
+* LIST ACCORDING TO OTHER PARAMETERS.                                   00000600
+*    SPLIT RECEIVE-NAME,LENGTH OTHERS;                                  00000700
+         MVC      ICOMMAND,=CL8'MACRO' MAKE ASSIGN BETTER.              00000710
+         GETTKN   4                    GET LENGTH TO PAD TO.            00000800
+         TNUM     #TKN                 CONVERT TO NUMERIC               00000900
+         LR       R5,R1                SAVE IN R5                       00001000
+         GETTKN   2                    GET RECEIVE NAME.                00001200
+         MVC      SYMBOLIC,TKN         STORE IN SYMBOLIC NAME FIELD     00001300
+         MVC      TKNNO,=H'5'          PREPARE TO LOOP.                 00001400
+         MVC      #WORK,=H'1'          SET RECEIVE AREA TO '.           00001500
+         MVI      WORK,C''''                                            00001510
+Z02LOOP  GETTKN   TKNNO                GET FIRST TOKEN IN LIST          00001600
+         STH      R1,TKNNO             SAVE IT                          00001700
+         CLI      TKN,C' '             END OF LIST?                     00001800
+         BE       Z02END               END OF LIST, SO RETURN.          00001900
+         CLI      TKN,C'('             IGNORE                           00001910
+         BE       Z02LOOP              LOOP                             00001920
+         CLI      TKN,C')'             IGNORE                           00002000
+         BE       Z02LOOP              LOOP                             00002100
+         CLI      TKN,C','             IGNORE                           00002200
+         BE       Z02LOOP              LOOP                             00002300
+         FIX 'WHAT ABOUT IF QUOTED STRINGS ?'                           00002305
+* HERE WE HAVE A VALID TOKEN.                                           00002400
+         STH      R5,#TKN              RESET LENGTH CORRECTLY           00002500
+         BAL      R14,CONCAT           CONCAT TO #WORK                  00002600
+         B        Z02LOOP              GET NEXT                         00002700
+Z02END   B     *+4                     ZAP SPACE IF REQUIRED            00002800
+         MVC      #TKN,=H'1'                                            00002810
+         MVI      TKN,C''''                                             00002820
+         BAL      R14,CONCAT                                            00002830
+         $CALL UJP85ASN                                                 00002900
+         JOLRETN                                                        00003000
+         DC    S(*,*,*,*)              ZAP SPACE IF REQUIRED            00003100
+         DC    S(*,*,*,*)              ZAP SPACE IF REQUIRED            00003200
+         DC    S(*,*,*,*)              ZAP SPACE IF REQUIRED            00003300
+         DC    S(*,*,*,*)              ZAP SPACE IF REQUIRED            00003400
+UJZ01CAL DC    F'0'                    ADDRESS OF PARM LIST             00003500
+UJZ01DTA DC    CL8' '                  PGM-ID FOR LINK                  00003600
+UJZ01MVC MVC   UJZ01DTA(*-*),TKN       MOVE PGM-ID                      00003700
+         END                                                            00003800

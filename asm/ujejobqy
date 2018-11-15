@@ -1,0 +1,547 @@
+         COPY  JOLGLOBL                                          88036  00010005
+         LCLC  &C                                                       00030000
+         $UJEPARM                                                       00040000
+&X8      SETB  ('&JOLOS' EQ 'X8')                                       00050000
+         AIF   (&X8).X8020                                              00060000
+         GENSAVE CSECT=UJEJOBQ                                          00070000
+         SLL   R13,8           DROP COND CODE FROM SAVE (FUJITSU)       00080004
+         SRL   R13,8           DROP COND CODE FROM SAVE (FUJITSU)       00090004
+* THIS CSECT IS PART OF THE JOL (JOB ORGANISATION LANGUAGE) SYSTEM.     00100000
+* THIS CSECT WRITTEN ON THE 6TH MAY,1975 TO REPLACE                     00110000
+*  THE PREVIOUS METHOD OF ACCESSING THE JOBQ.                           00120000
+*                                                                       00130000
+        SPACE 1                                                         00140000
+*********************************************************************** 00150000
+*                                                                     * 00160000
+* FOR VS SYSTEMS, MODESET MUST BE USED TO POP US IN KEY 1 TO ENABLE   * 00170000
+*    IEFQMRAW TO WRITE INTO JOBQ (VIRTUAL).                           * 00180000
+*                                                                     * 00190000
+* IT WAS THOUGHT BY MYSELF THAT AUTHORISATION MAY BE LOST WHEN A      * 00200000
+*    PROBLEM PROGRAM WAS ATTACHED. HOWEVER MIKE STRAHAN AT SHELL      * 00210000
+*    (AUSTRALIA) TRIED THE ATTACH WITH THE JSCB OPTIONS AND FOUND     * 00220000
+*    THAT YOU CAN STOP AUTHORISATION THROUGH ITS USE.                 * 00230000
+*                                                                     * 00240000
+*********************************************************************** 00250000
+           SPACE 3                                                      00260000
+*********************************************************************** 00270000
+*                                                                       00280000
+* FEW CHANGES TO GET THIS TO RUN ON VS1 IN A HURRY (SEE **** AND E70OPN 00290000
+*                                                                       00300000
+*********************************************************************** 00310000
+           SPACE 1                                                      00320000
+*                                                                       00330000
+* ON ENTRY,R1 POINTS TO :-                                              00340000
+*     1.  A(AREA TO READ/WRITE DATA TOO)                                00350000
+*     2.  A(TTR OF RECORD REQUIRED)                                     00360000
+*     3.  INDIC TO SAY READ/WRITE ETC (SEE QMPA INDICATORS)             00370000
+*     4.  ADDRESS OF IEFQMRAW                                           00380000
+*                                                                       00390000
+* CODE TO USE JES JOBQ ROUTINES ON VS1 AND MVS INCLUDED SEPT 21, 1976.  00400000
+*                                                                       00410000
+* WHILE IEFQMRAW IS AVAILABLE ON THE VS SYSTEMS, WE SHALL USE THE       00420000
+* MACROS SUPPLIED BY IBM TO DO THE FUNCTIONS THAT IEFQMRAW DOES         00430000
+* ON MFT AND MVT SYSTEMS.                                               00440000
+*                                                                       00450000
+*******                                                                 00460000
+*                                                                       00470000
+* MUCH CODE HERE IS NO LONGER REQUIRED, BUT WILL BE LEFT FOR THE TIME   00480008
+* BEING...                                                              00490008
+*                                                                       00500000
+*******                                                                 00510000
+*                                                                       00520000
+         SR    R7,R7           SET=1 LATER IF WE USED MODESET     75311 00530008
+*                              ON A VS1 SYSTEM                    75311 00540000
+         LR    R8,R1         LOAD R8 WITH PARAMETER AREA                00550000
+         L     R9,=A(IOPARAMS) GET ADDR QMPA                            00560000
+         USING IOPARAMS,R9                                              00570000
+         USING OURPARMS,R8                                              00580000
+         L     R3,=A(JOBQCOM)                                     ***** 00590008
+         USING JOBQCOM,R3                                         ***** 00600008
+         L     R15,AJSCB                                          ***** 00610008
+*                                                               *****   00620008
+         B     MVC1QMPA                                           ***** 00630008
+         B     *+4                                                ***** 00640008
+         B     *+4                                                ***** 00650008
+MVC1QMPA EQU *                                                    ***** 00660008
+         L     R15,X'F4'(R15) POINT TO INPUT QMPA                       00670000
+         MVC   IOPARAMS(QMPALEN),0(R15) OVERWRITE OUR QMPA WITH SYSTEMS 00680000
+*        SO THAT WE GET WHATEVER SYSTEMS QMPA WE NEED                   00690000
+      SPACE 3                                                           00700000
+         MVC   QMPOP,FUNC+3   SHIFT FUNCTION CODE TO QMPA               00710000
+         LA  R15,JOBQAREA                                               00720000
+         ST  R15,QMPCL                                                  00730000
+         MVI   QMPCM,1        READ 1 RECORD                             00740000
+         MVC JOBQAREA,AREAADDR  SHIFT IN AREA TO READ INTO              00750000
+         MVC   JOBQTTR,TTRREQD SHIFT REQUIRED TTR TO PARAMETER AREA     00760000
+         B     CHECK$JO                                                 00770000
+         ORG   *-4                                                      00780000
+         B     *+4                                                      00790000
+*        XC    QMWTQ,QMWTQ                                              00800000
+         L   R1,=A(IOB)                                                 00810000
+         ST    R1,QMEIA       STORE IN QMPA                             00820000
+CHECK$JO EQU    *                                                       00830008
+         SPACE 3                                                        00840008
+* NOW CHECK IF THE 'JOBQ' DCB IS OPEN, AND IF SO PERFORM THE JOBQ IO    00850000
+*  OURSELVES.                                                           00860008
+         EXTRN JOBQ                                               ***** 00870008
+         L     R10,=A(JOBQ)                                       ***** 00880008
+         TM    48(R10),X'10'   OPEN                               ***** 00890008
+         BZ    TESTSWA         NO, TEST 'SWA' THEN                ***** 00900008
+* OK, WE HAVE TO DO THE I/0 OURSELVES.                            ***** 00910000
+         SPACE 1                                                        00920008
+         CLI QMPOP,3           WRITE FUNCTION ?                   ***** 00930008
+         BE    JOBQWRIT        YES.                               ***** 00940008
+* HERE WE HAVE A SIMPLE READ FUNCTION; POINT, READ, CHECK.        ***** 00950000
+         POINT (R10),JOBQTTR                                      ***** 00960008
+         L     R2,AREAADDR     GET AREA TO WHICH IT IS GOING      ***** 00970008
+         READ JOBQDECB,SF,,(R2),MF=E                              ***** 00980008
+         MVC LASTTTR,JOBQTTR SAVE THIS FOR WRITE FUNCTION.        ***** 00990008
+WRITCHK  CHECK JOBQDECB                                           ***** 01000008
+         GENRETN RC=0                                             ***** 01010008
+         SPACE 3                                                  ***** 01020008
+JOBQWRIT EQU *                                                    ***** 01030008
+* RECORD TO GO OUT.                                                     01040000
+*                                                                       01050000
+* CHECK THAT THE LAST RECORD READ HAS THE SAME TTR AS THE ONE TO        01060000
+*    GO OUT, IF SO POP IT OUT BECAUSE THE DECB IS OK, BUT OTHERWISE     01070000
+*    WE WILL HAVE TO READ THE TTR REQUESTED AND THEN WRITE BECAUSE      01080000
+*    THE DECB WILL HAVE THE WRONG MMCCHHR THINGS SET UP, AND WHO        01090000
+*    KNOWS WHAT WE WOULD BE WRITING ON ?                                01100000
+         CLC JOBQTTR,LASTTTR LAST READ=THIS ?                           01110008
+         BE    WRITQNOW        YES, JUST POP IT OUT.                    01120008
+* OK, MUST READ, THEN WRITE                                             01130000
+         POINT (R10),JOBQTTR                                            01140008
+         READ JOBQDECB,SF,,DUMMYJOB,MF=E                                01150008
+         CHECK JOBQDECB                                                 01160008
+         MVC LASTTTR,JOBQTTR                                            01170008
+WRITQNOW L     R2,AREAADDR                                              01180008
+         WRITE JOBQDECB,SF,,(R2),MF=E                                   01190008
+         B     WRITCHK         CHECK, RETN                              01200008
+         SPACE 3                                                        01210008
+TESTSWA  EQU *                                                          01220008
+* CHECK IF MFT,MFT -> GO TO UJEBALR                                     01230000
+         CLI SYSTYPE,C' '      MFT, MVT ?                               01240008
+         BE    UJEBALR         LET 'QMRAW' DO ITS THING THEN.           01250008
+         B TSYST   ********                                       76200 01260008
+         SPACE 3                                                        01270008
+* A VS SYSTEM, AND WE DONT HAVE A $$JOBQ DCB OPEN. SO WE'LL HAVE        01280000
+*    TO DO THE TRANSFER OURSELVES. (TILL WE GET IEFQMRAW TO WORK!)      01290000
+         SPACE 3                                                        01300000
+* LET S SET R2 = TO THE CORE ADDRESS WE ARE GOING TO (SWA ADDRESS)      01310000
+         L     R2,JOBQTTR                                               01320000
+* NOTE ******* JOBTTR CONTAINS AN ADDRESS, AND IT IS LEFT ADJUSTED ***  01330000
+         SRL   R2,8           MAKE IT A REAL ADDRESS NOW                01340000
+         LA    R2,0(R2)       DROP HIGH ORDER BYTES (CAN BE X'F00000?)  01350000
+         SPACE 3                                                        01360000
+         CLI SYSTYPE,C'1'      VS1 SYSTEM ?                             01370008
+         BNE MVSSYS            NOPE, GO FIX MVS TYPE SYSTEM THEN.       01380008
+         SPACE 3                                                        01390008
+* AS I UNDERSTAND THINGS, THE VS SWA DOESN'T CONTAIN THE PREFIX BYTES   01400000
+* THAT MVS DOES.                                                        01410008
+* SO :-                                                                 01420000
+         CLI QMPOP,3           WRITE ?                                  01430008
+         BNE VS1READS                                                   01440008
+* NOW VALIDATE THAT THE AREA THAT THE RECORD IS GOING TO IS IN SWA      01450000
+         L     R1,AJSCB                                                 01460008
+         L     R4,X'E0'(R1)    POINT TO SWADS CONTROL BLOCK.            01470008
+         TM    68(R4),X'80'    ARE WE USING SWA | SWADS ?               01480008
+         BO    VS1SWA          ALL WE, USING SWA                        01490008
+         WTO 'VS1 NOT USING SWA',ROUTCDE=(2,11)                         01500008
+VS1SHFTS MVC DUMMYJOB(176),0(R4) SHIFT SWA CONTROL BLOCK ?              01510008
+         ABEND 15,DUMP,STEP                                             01520008
+         SPACE 2                                                        01530008
+VS1SWA   EQU *                                                          01540008
+         LH    R15,74(R4)      LOAD LENGTH OF SWA                       01550008
+         L     R14,68(R4)      LOAD SWA ADDRESS                         01560008
+         LA    R14,0(R14)      DROP HIGH ORDER BYTES.                   01570008
+         CR    R14,R2          CHECK IN RANGE                           01580008
+         BL    VS1SWAER        ERROR                                    01590008
+         AR    R14,R15         END OF SWA                               01600008
+         SH    R14,=H'176'     LENGTH OF JOBQ RECORDS                   01610008
+         CR    R14,R2         R2 CONTAINS SWA ADDRESS                   01620008
+         BL    VS1SWAER        STILL AN ERROR                           01630008
+* OK, POP INTO SUP MODE, SHIFT RECORD, RETURN                           01640000
+         LA    R1,X'3C'                                                 01650008
+         SVC 107                                                        01660008
+         L     R15,AREAADDR    FROM ADDRESS                             01670008
+         MVC 0(176,R2),0(R15) SHIFT RECORD TO SWA                       01680008
+         LA    R1,X'24'        MODESET                                  01690008
+         SVC 107                                                        01700008
+         B     RETN0                                                    01710008
+VS1SWAER WTO 'ADDRESS ERROR MOVING TO SWA',ROUTCDE=(2,11)               01720008
+         B     VS1SHFTS       ABEND                                     01730008
+         SPACE 3                                                        01740008
+VS1READS EQU *                                                          01750008
+* COPY FROM SWA TO AREA REQUESTED.                                      01760000
+         L     R1,AREAADDR                                              01770008
+         MVC 0(176,R1),0(R2) SHIFT FROM R2 (SWA ADDRESS)                01780008
+         GENRETN RC=0                                                   01790008
+         SPACE 3                                                        01800008
+MVSSYS   EQU *                                                          01810008
+* HERE WE HAVE AN MVS SYSTEM.                                           01820000
+*                                                                       01830000
+* NOW MVS ALWAYS HAS SWA. BUT THE POINTERS TO SWA RECORDS ARE A         01840000
+*  BIT FUNNY. THEY POINT TO THE RECORD WE WANT -16 BYTES.               01850008
+*                                                                       01860000
+* WE CHECKED IN THE VS1 CODE THAT WHERE WE ARE GOING TO MOVE THE        01870000
+*  RECORD TO WAS IN SWA.                                                01880008
+* FOR MVS, THERE APPEARS TO BE NO EASILY OBTAINED INFORMATION ABOUT     01890000
+*  THE LENGTH OF SWA. SO ALL WE CAN DO IS CHECKED THAT THE ADDRESS      01900008
+*  WE HAVE BEEN ASKED TO WRITE INTO IS GREATER OR EQUAL TO THE          01910008
+*  START OF SWA.                                                        01920008
+* SORRY ABOUT THAT.                                                     01930000
+         SPACE 2                                                        01940008
+         CLI QMPOP,3           READ | WRITE                             01950008
+         BNE MVSREAD           READ                                     01960008
+* OK, MVS WRITE HERE                                                    01970000
+         L     R4,ATCB                                                  01980008
+         L     R4,X'F8'(R4)    SWA ADDRESS                              01990008
+         LA    R4,0(R4)        DROP HIGH ORDER BYTES IF ANY.            02000008
+         CR    R4,R2          COMPARE SWA ADDRESS WITH OUT 'TO' ADDRESS 02010008
+         B     MVSWROK1        ********* MVS SWA ADDRESS WRONG *****    02020008
+         BL    MVSWROK1        OK TO WRITE INTO SWA (CHECK MORE THO)    02030008
+         WTO 'MVS JOBQ ADDR WRONG-1',ROUTCDE=(2,11)                     02040008
+MVSERR1  MVC DUMMYJOB(176),0(R4)                                        02050008
+         ABEND 14,DUMP,STEP                                             02060008
+         SPACE 3                                                        02070008
+MVSWROK1 EQU *                                                          02080008
+         L     R1,AREAADDR     SEND ADDRESS                             02090008
+         LR    R15,R2          RECEIVE ADDRESS                          02100008
+* CHECK THAT THE RECIEVE AREA LOOKS SOMETHING LIKE IT SHOULD.           02110000
+         CLC 1(3,R15),1+4(R15) PREFIX BYTES EQUAL ?                     02120008
+         B     MVSWROK2        ********* TEST FAILS ****************    02130008
+         BE    MVSWROK2       OK, SHIFT IT                              02140008
+         MVC DUMMYJOB(176),0(R15)                                       02150008
+         WTO 'PREFIX WRONG-MVS',ROUTCDE=(2,11)                          02160008
+         ABEND 13,DUMP,STEP                                             02170008
+         SPACE 2                                                        02180008
+MVSWROK2 EQU *                                                          02190008
+         LA    R1,X'3C'                                                 02200008
+         SVC 107                                                        02210008
+         L     R1,AREAADDR     RELOAD                                   02220008
+         MVC 16(176,R2),0(R1)                                           02230008
+         LA    R1,X'24'                                                 02240008
+         SVC 107                                                        02250008
+RETN0    GENRETN RC=0                                                   02260008
+         SPACE 3                                                        02270008
+MVSREAD  L     R1,AREAADDR                                              02280008
+         MVC 0(176,R1),16(R2)                                           02290008
+         B     RETN0                                                    02300008
+   SPACE  3                                                             02310000
+TSYST    EQU   *                                                        02320000
+         SPACE 3                                                        02330000
+*                                                                       02340000
+* BEFORE BALR TO THIS ROUTINE, WE MAY HAVE TO ISSUE                     02350000
+* A MODESET TO POP US INTO SUPERVISOR MODE SO THAT WE CAN USE           02360000
+* THE MVS JOBQ RTNS.                                              76200 02370000
+*                                                                 75311 02380000
+         L     R6,16           LOAD ADDRESS OF THE CVT                  02390008
+         TM    116(R6),X'02'   WE USE THE DAT FEATURE ?                 02400008
+         BZ    UJEBALR         NOPE, NOT VS, SO JUST BALR               02410008
+* SO I GUESS WE ARE RUNNING UNDER A VS SYSTEM OF SOME DESCRIPTION       02420000
+         SPACE                                                          02430008
+* THE NEXT BIT OF CODE MAY *** BE USLESS, WE SHALL SEE ....             02440000
+         TM    116(R6),X'10'   VS2 (DOES THAT MEAN MVS TOO?)            02450008
+         BO    VS2                                                      02460008
+* MUST BE VS1  NOW.                                                     02470000
+         B     VS1                                                      02480008
+         B     *+4                                                      02490008
+         B     *+4                                                      02500008
+         B     *+4                                                      02510008
+         B     *+4                                                      02520008
+VS1      EQU *                                                          02530008
+VS2      EQU *                                                          02540008
+* SO...                                                                 02550000
+* WE HAVE TO POP INTO SUPERVISOR MODE BEFORE WE CAN THE MVS JOBQ RTN    02560000
+         LA    R1,X'3C'        CANT USE MODESET, COS ASSEMBLING   75311 02570008
+*                            ON AN MVT SYSTEM                     75311 02580008
+         SVC 107               MODESET NOW                        75311 02590008
+* NOW WHAT WE HAVE TO DO IS SET UP OUR PARAMETER AREA IN NON-FETCH      02600000
+* PROTECTED STORAGE SO THAT THE JES ROUTINES CAN READ THE PARAMETER     02610000
+* AREA.                                                                 02620000
+*   THE ONLY AREA THAT SEEMS TO BE RECOMMENDED FOR THIS IS              02630000
+*     SUBPOOL 230 , SO WE SHALL ALLOACTE AN AREA                        02640000
+*     AN AREA AND COPY THE QMPA TO IT, PLUS THE RECORD (IF MOVING)      02650000
+*      AND HAND CONTROL TO JES I/O RTNS .                               02660000
+*                                                                       02670000
+*                                                                       02680000
+* THE AREA CHOSEN IS SUBPOOL 230 (NO FETCH PROTECT...)                  02690000
+*                                                                       02700000
+         GETMAIN R,LV=QMPALEN+L'JOBQAREA+L'JOBQTTR+176,SP=230           02710000
+         MVC  0(QMPALEN+8,R1),QMNAM  SHIFT QMPA TO OBTAINED STORAGE     02720008
+         LR  R9,R1 USE NEW QMPA NOW                                     02730008
+         LA    R15,JOBQAREA                                             02740000
+         ST    R15,QMPCL RESET EXTNL PARM LIST ADDR                     02750000
+         MVI    QMPCL,1     READ OR WRITE 1 RECORD                      02760008
+         CLI   QMPOP,3        WRITE FUNCTION?                           02770000
+         BNE   GOTOJES        NO,SO SKIP NEXT CODE                      02780000
+* HERE WE ARE ATTEMPTING TO STORE INFO INTO SWA                         02790000
+* THE JES ROUTINES VERY NICELY GO INTO THE USERS KEY BEFORE             02800000
+*   SHIFTING INFO BACK TO US IF READING, BUT THE OTHER WAY              02810000
+*   IT MUST STAY IN KEY 1. THEREFORE, WE HAVE TO SHIFT THE DATA WE WANT 02820000
+* WRITTEN INTO SP 230 (NOT FETCH PROTECTED) AND THEN GIVE CONTROL.      02830000
+*                                                                       02840000
+* SO THIS MEANS MOVING THE RECORD, THEN RESETING THE 'FROM' ADDRESS     02850000
+*   PARAMETER.                                                          02860000
+         L     R15,JOBQAREA                                             02870000
+         MVC   JOBQTTR+4(176),0(R15)                                    02880000
+         LA    R15,JOBQTTR+4     LOAD NEW ADDRESS                       02890000
+         ST    R15,JOBQAREA   SET ....                                  02900000
+         SPACE 3                                                        02910000
+* NOW OFF TO JES WE GO..                                                02920000
+         SPACE 1                                                        02930000
+* R1 STILL POINTS TO GOTTEN STORAGE..                                   02940000
+GOTOJES  IEFQMREQ                                                       02950000
+* NOW SAVE RETURN CODE AND FREE STORAGE                                 02960000
+         LR    R2,R15                                                   02970000
+         FREEMAIN R,LV=QMPALEN+L'JOBQAREA+L'JOBQTTR+176,SP=230,A=(9)    02980000
+* NOW BACK TO PROBLEM PROGRAM KEY                                       02990000
+         LA    R1,X'24'       PROBLEM STATE                             03000000
+         SVC   107                                                      03010000
+         LR    R15,R2                                                   03020008
+         GENRETN RC=(15)                                                03030000
+         SPACE 3                                                        03040008
+UJEBALR  EQU *                                                          03050008
+         LA    R1,IOPARAMS                                              03060008
+         L     R15,AIEFQMRA                                             03070000
+         BALR  R14,R15        AND BRANCH                                03080000
+         LR    R2,R15          SAVE RETURN CODE WHILE WE THINK    75311 03090008
+*                              ABOUT ANOTHER MODESET TO GET US    75311 03100000
+*                              BACK TO PROBLEM STATE              75311 03110000
+         LTR R7,R7             ARE WE IN SUP MODE ?               75311 03120008
+         BZ    UJERETN         NOPE                               75311 03130008
+         LA    R1,X'24'        BACK TO PROB STATE, KEY AS WAS     75311 03140008
+         SVC 107               ISSUE SVC                          75311 03150008
+         LR    R15,R2          RESET QMRAW RETURN CODE            75311 03160008
+UJERETN  GENRETN                                                        03170008
+         LTORG                                                          03180000
+         DC    S(*,*,*,*)                                               03190000
+         DC    S(*,*,*,*)                                               03200000
+         DC    S(*,*,*,*)                                               03210000
+         DC    S(*,*,*,*)                                               03220000
+         DC    S(*,*,*,*)                                               03230000
+         DC    S(*,*,*,*)                                               03240000
+         DC    S(*,*,*,*)                                               03250000
+         DC    S(*,*,*,*)                                               03260000
+         DC    S(*,*,*,*)                                               03270000
+         DC    S(*,*,*,*)                                               03280000
+         DC    S(*,*,*,*)                                               03290000
+         DC    S(*,*,*,*)                                               03300000
+         DC    S(*,*,*,*)                                               03310000
+         DC    S(*,*,*,*)                                               03320000
+         DC    S(*,*,*,*)                                               03330000
+         DC    S(*,*,*,*)                                               03340000
+         DC    S(*,*,*,*)                                               03350000
+.X8020   ANOP                                                           03360000
+         GENSAVE CSECT=UJE70OPN                                         03370000
+         LR  R3,R1           SAVE PARAMETER AREA ADDRESS INTO R3        03380000
+         USING E70PARMS,R3                                              03390000
+* FUNCTION : OPEN REQUIRED FILES, SET INDICATORS, LOAD IBM JOBQ RTN     03400000
+*  IF NECESSARY.                                                        03410000
+         SPACE 3                                                        03420000
+         L   R4,AATCB        LOAD TCB PARM ADDRESS                      03430000
+         AIF   (NOT &X8).NX8010                                         03440000
+         MVC   0(R4),FLCTOLD                                     88036  03450008
+         AGO   .X8040                                                   03480000
+.NX8010  ANOP                                                           03490000
+         L     R15,16          CVT ADDRESS                              03500007
+         L     R15,0(,R15)      TCB WORDS                               03510007
+         L     R10,4(,R15)      OUR TCB                                 03520007
+*        L     R10,PSATOLD                                       88036  03521007
+         ST    R10,0(,R4)       ST ADDRESS OF TCB INTO CORRECT HOLE     03530007
+         L     R2,=A(JOBQCOM)                                           03540006
+         USING JOBQCOM,R2                                               03550000
+         ST    R10,ATCB        SAVE FOR LATER USE                       03560006
+         USING TCB,R10                                                  03570000
+* NOW SET TTR ADDRESS OF JCT. FOR VS1 SYSTEMS WE WILL ALTER LATER,      03580000
+*  BUT THIS IS OK FOR OTHER SYSTEMS.                                    03590000
+         L     R14,TCBJSCB     R14-> JSCB NOW                           03600006
+         ST    R14,AJSCB       SAVED                                    03610006
+         L     R4,AJCTTTR      LOAD ADDRESS OF LOCN TO RECIEVE TTR OF   03620006
+*                              JCT                                      03630000
+         MVC 0(3,R4),261(R14) THERE, JCT ADDRESS SET UP                 03640008
+* NOTE : MVS MAY BE A REAL CORE ADDRESS, THEREFORE DIFFERENT.           03650000
+* EXPERIENCE WILL TELL.                                                 03660000
+         SPACE 3                                                        03670008
+* NOW LETS SEE WHAT SORT OF SYSTEM ETC.                                 03680000
+* START BY PREPARING TO OPEN THE INSTRUCT AND RETN FILES                03690000
+         MVC DCBSOPEN(4),AINSTRUC INSTRUCTION FILE                      03700008
+         MVI DCBSOPEN,X'0'     INPUT                                    03710008
+         MVC DCBSOPEN+4(4),ARETN    RETURNCODE MEMBER.                  03720008
+         MVI DCBSOPEN+4,X'0F' OUTPUT                                    03730008
+* NOW CHECK IF $$PRNT PRESENT OR NOT                                    03740000
+         LA    R5,DCBSOPEN+4   NEXT HOLE IN DCB LIST                    03750008
+         FINDDD =CL8'$$PRNT'                                            03760008
+         LTR   R15,R15         IS IT PRESENT ?                          03770005
+         BNZ   E70CHKSY        NOW CHECK SYSTEM TYPE.                   03780005
+* THERE IS A $$PRNT DD CARD                                             03790000
+         MVC   4(4,R5),APRINT    SHIFT DCB ADDRESS INTO LIST            03800005
+         MVI   4(R5),X'0F'     OUTPUT DATA SET, SET OPEN OPTION         03810005
+         LA    R5,4(R5)        BUMP LIST                                03820005
+         SPACE 3                                                        03830005
+E70CHKSY DS    0H                                                       03840000
+         SPACE 2                                                        03850005
+* NOW WE HAVE TO WORK OUT WHAT TYPE OF SYSTEM WE ARE ON SO THAT WE      03860000
+*  CAN DETERMINE IF WE HAVE TO OPEN THE JOBQ DATA SET OR NOT.           03870000
+         SPACE 2                                                        03880005
+         LM    R6,R7,AAQMRAW   (A(QMRAW ADDRESS),A(NAME OF RTN LOADED)  03890005
+         L     R8,AVS          A(VS IND)                                03900005
+         MVI   0(R8),C' '     SET TO BLANK INITIALLY                    03910000
+         MVI   SYSTYPE,C' ' AS ABOVE                                    03920000
+         L     R15,16          CVT POINTER                              03930008
+         TM    116(R15),X'02'  USING DAT FEATURE (VS?) ?                03940008
+         BZ    E70NVS          NOT VS                                   03950008
+* OK, IS A VS SYSTEM OF SOME DESRIPTION                                 03960000
+         TM    116(R15),X'10'  MVS (VS2)                                03970008
+         BO    E70MVS                                                   03980008
+* HERE A VS1 SYSTEM.                                                    03990000
+         MVI 0(R8),C'1'        INDICATE VS1 SYSTEM                      04000008
+         MVI SYSTYPE,C'1'      INDICATE VS1 SYSTEM                      04010008
+         SPACE 1                                                        04020000
+* NOW FIND OUT IF WE ARE USING SWA OR SWADS                             04030000
+         L     R1,AJSCB       ADDRESS OF THE JOB STEP CONTROL BLOCK     04040000
+         L     R1,X'E0'(R1)   POINT TO SWA CONTROL BLOCK                04050000
+         TM    68(R1),X'80'   USING SWA?                                04060000
+         BO    E70SWA1        YES, GO ELSEWHERE                         04070000
+* HERE WE ARE USING SWADS.                                              04080000
+*        WTO 'VS1 USING SWADS DATA SET',ROUTCDE=11                      04090000
+         MVC   0(4,R4),=X'00000100'   FIRST RECORD IN SWADS IS JCT      04100000
+         B     E70OPNJB                                                 04110000
+         B     LOADRAW                                                  04120000
+E70SWA1  EQU   *              SWA ON VS1 SYSTEM HERE.                   04130000
+*THE ADDRESS OF THE JCT IN A VS1 SYSTEM IS THE FIRST RECORD IN SWA.     04140000
+         MVC   0(3,R4),69  SHIFT CORE ADDRESS (WE KNOW TO SHIFT RIGHT)  04150000
+         MVI   3(R4),0        ZERO RIGHT BYTE                           04160000
+         WTO 'VS1 USING SWA',ROUTCDE=11                                 04170000
+         B     E70OPEN                                                  04180000
+         B     LOADRAW                                                  04190000
+* NOW WE WILL PUT IN CODE TO SUPPORT 'SWADS' AND OUR '$$JOBQ'           04200000
+*    DCB. THIS HOPEFULLY WILL NEVER BE REQUIRED, BUT...                 04210000
+E70OPNJB MVC 4(4,R5),AJOBQ     SHIFT IN JOBQ DCB                        04220008
+         MVI 4(R5),X'04'       OPEN FOR UPDATE                          04230008
+         LA    R5,4(R5)        BUMP UP OPEN'S PARAMETER LIST.           04240008
+         B     E70OPEN                                                  04250008
+         B     *+4                                                      04260008
+         B     *+4                                                      04270008
+         B     *+4                                                      04280008
+         B     *+4                                                      04290008
+         B     *+4                                                      04300008
+         B     *+4                                                      04310008
+         SPACE 3                                                        04320008
+E70MVS   MVI 0(R8),C'2'        MVS (VS2)                                04330008
+         MVI SYSTYPE,C'2'      MVS (VS2) AGAIN                          04340008
+         B     E70OPEN         BYPASS LOAD IEFQMRAW.....                04350008
+LOADRAW EQU    *                                                        04360008
+E70NVS   MVC 0(8,R7),=CL8'IEFQMRAW'                                     04370008
+         SPACE 3                                                        04380008
+E70OPEN  OI    0(R5),X'80'     TURN OFF LIST FOR OPEN                   04390008
+         LA    R1,DCBSOPEN                                              04400008
+         SVC 19                OPEN THE DATA SETS.                      04410008
+* NOW LOAD ROUTINE IF NECESSARY.                                        04420000
+         CLI 0(R7),C' '                                                 04430008
+         BE    E70NLOAD                                                 04440008
+* IF THE SYSTEM IS A VS SYSTEM, WE WILL POP INTO SUPERVISOR             04450000
+* BEFORE LOADING THE QMRAW ROUTINE.                                     04460000
+         CLI   0(R8),C' '     VS?                                       04470000
+         BE    JUSTLOAD                                                 04480000
+*        LA    R1,X'3C'       INTO SUPERVISOR STATE                     04490000
+*        SVC   107            MODESET                                   04500000
+JUSTLOAD EQU   *                                                        04510000
+         LOAD EPLOC=0(R7)    LOAD RTN                                   04520000
+         ST  R0,0(R6)                                                   04530000
+* NOW CHECK IF WE HAD TO GO INTO SUPERVISOR MODE                        04540000
+         CLI   0(R8),C' '     DID WE?                                   04550000
+         BE    LOADOK                                                   04560000
+*        LA    R1,X'24'       PROBLEM STATE NOW                         04570000
+*        SVC   107                                                      04580000
+LOADOK   DS    0H                                                       04590000
+         AGO   .NX8040                                                  04600000
+.X8040   ANOP                                                           04610000
+         SPACE 2                                                        04620000
+*  CHECK THAT THIS REALLY IS AN X8 SYSTEM                               04630000
+         SPACE                                                          04640000
+         L     R15,X'010'    ADDRESS THE CVT                            04650000
+         USING CVT,R15                                                  04660000
+         CLI   CVTDCB,X'83'  THIS IS THE VALUE FOR X8                   04670000
+         BE    E70TISX8      AND THAT'S WHAT'S THERE!!                  04680000
+         WTO   'THIS VERSION OF JOL ONLY SUPPORTS OSIV/X8, AND THIS SYS.04690005
+               TEM ISN''T',ROUTCDE=(11,14)                              04700000
+         ABEND 3,DUMP,STEP                                              04710000
+         SPACE 3                                                        04720000
+E70TISX8 DS    0H                                                       04730000
+         L     R14,AVS        ADDRESS FLAG                              04740000
+         MVI   0(R14),C'X'      AND SAY "IT IS OSIV/X8"                 04750000
+*        DEVTYPE =CL8'JOLPRINT',WORK                                    04760005
+         FINDDD =CL8'JOLPRINT'                                          04761005
+         LTR   R15,R15         IS IT PRESENT ?                          04770000
+         BNZ   E70OPEN         GO AND OPEN THE OTHER FILES              04780000
+         JOLOPEN (,AD),MF=(E,APRINT)   EXTEND THE PRINT FILE            04790000
+E70OPEN  DS    0H                                                       04800000
+*        JOLOPEN (,INPUT),MF=(E,AINSTRUC)                               04810005
+         SPACE 2                                                 88036  04810105
+*   WE GET UP TO SOME FUNNY TRICKS FOR THE INSTRUCTION FILE.            04811005
+*   THE MONITOR INITIALISATION ROUTINE HAS READ THE ENTIRE FILE INTO    04812005
+*   VIRTUAL STORAGE AN WE ACCESS THE FILE FROM THERE.                   04813005
+*   FOR TRANSPARENCY, HOWEVER, WE PRETEND TO USE A DCB. THE TRICK IS    04814005
+*   SIMPLY TO PLACE THE ADDRESS OF OUR OWN ACCESS ROUTINE IN THE        04815005
+*   SAME LOCATION SAM WOULD USE. THE DCB WILL BE USED AS A GENERAL WORK 04816005
+*   AREA TO STORE THINGS LIKE CURRENT LOCATION POINTER, START AND END   04817005
+*   OF THE TABLE.                                                       04818005
+         SPACE 2                                                 88036  04819005
+         L     R14,AINSTRUC    ADDRESS THE DCB                   88036  04819105
+         LA    R15,UJEBPAM                                       88036  04819205
+         ST    R15,48(,R14)    STORE THE ADDRESS OF THE I/O ROUT 88036  04819305
+         JOLOPEN (,AD),MF=(E,ARETN)                                     04820000
+.NX8040  ANOP                                                           04830000
+E70NLOAD GENRETN RC=0                                                   04840000
+         DC    60S(*)                                                   04850008
+         LTORG                                                          04960008
+E70PARMS DSECT                                                          04970008
+AAQMRAW  DS    A                                                        04980008
+AIBMRTN  DS    A                                                        04990008
+AINSTRUC DS    A                                                        05000008
+APRINT   DS    A                                                        05010008
+ARETN    DS    A                                                        05020008
+AJOBQ    DS    A                                                        05030008
+AJCTTTR  DS    A                                                        05040008
+AVS      DS    A                                                        05050008
+AATCB    DS    A                                                        05060008
+WORK     DS     XL2048      THERE IS AT LEAST THIS MUCH                 05070008
+         AIF     (&X8).X8100                                            05080008
+JOBQCOM  CSECT                                                          05090008
+ATCB     DS    A                                                        05100008
+DCBSOPEN DC    A(0,0,0,0,0)                                             05110008
+AJSCB    DC    A(0)                                                     05120008
+SYSTYPE  DC    C' '                                                     05130008
+LASTTTR  DC    A(0)                                                     05140008
+         DS    0D                                                       05150008
+DUMMYJOB DS    CL176                                                    05160008
+         DS    CL20                                                     05170008
+         READ JOBQDECB,SF,JOBQ,0,176,MF=L                               05180008
+         IEFQMNGR                                                       05190000
+         ORG                                                            05200008
+QMPALEN  EQU    *-IOPARAMS                                              05210008
+JOBQAREA DS    A                                                        05220000
+JOBQTTR  DS    A                                                        05230000
+         XDAP   IOB,RI,0,,176,,,4,MF=L                                  05240000
+         DS CL(100)                                                     05250000
+         SPACE 3                                                        05260000
+OURPARMS DSECT                                                          05270000
+AREAADDR DS    A                                                        05280000
+TTRREQD  DS    A              TTR WE WANT TO READ OR WRITE              05290000
+FUNC     DS    A              LAST BYTE =3/4                            05300000
+AIEFQMRA DS    A              IEFQMRAW IS LOADED BY THE MONITOR         05310000
+*                             TO SAVE IT BEING LOADED EVERY TIME        05320000
+*                             THIS ROUTINE IS CALLED.                   05330000
+SPECSVC  DC    H'0'            SVC IS HERE                              05340008
+         IEFJESCT                                                       05350000
+         CVT DSECT=YES,LIST=YES                                         05360000
+         IKJTCB                                                         05370008
+         AGO  .END                                                      05380008
+.X8100   ANOP                                                           05390008
+UJEJOBQ  CSECT                                                          05400001
+         DC    D'0'    ANYBODY CALLING THIS IS IN FOR A SHOCK           05410002
+         TITLE 'COMMUNICATIONS VECTOR TABLE'                            05420008
+         XAMCVT DSECT=YES                                               05430008
+.END     ANOP                                                           05440008
+         END                                                            05450000

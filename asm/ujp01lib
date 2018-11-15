@@ -1,0 +1,95 @@
+JOBLIB    TITLE 'JOL JOB LIB PROCESSING'                                00010000
+           PRINT  FF                                                    00020008
+         COPY  JOLCOM                                                   00030000
+           PRINT ON,GEN                                                 00040000
+P01SAVE  DSECT                                                          00050000
+         DS    18F                                                      00060000
+LP01BUF  DS    A              L'BUFFER FOR FREEMAIN AT END OF FILE      00070000
+AP01BUF  DS    A              A(BUFFER) FOR FILE                        00080000
+P01BLKSI   DS  H               BLOCKSIZE                                00090000
+P01CURRA   DS  A               ADDRESS OF CURRENT RECORD                00100000
+P01SAVEL EQU   *-P01SAVE                                                00110000
+         PRINT GEN,DATA                                                 00120000
+         JOLSAVE CSECT=UJP01LIB,SIZE=P01SAVEL                           00130000
+          USING TKNX,R3                                                 00140000
+         USING JOLCOM,R2                                                00150000
+         USING P01SAVE,R13                                              00160000
+* COPYRIGHT CCS-JOL PTY LTD.                                            00170000
+*                                                                       00180000
+* THIS ROUTINE IS HANDLES THE JOB LIB STATEMENT.                        00190000
+*                                                                       00200000
+***** WRITTEN JULY, 1987 TO REPLACE THE JOBLIB MACRO.                   00210000
+*                                                                       00220000
+* WE NEED THE JOB LIB TO BE REAL JOL FOR DYNAMIC ALLOCTION.             00230000
+*                                                                       00240000
+         MVC ICOMMAND,=CL8'MACRO'                                       00250000
+         L     R4,AJOBDETS                                              00251000
+         USING JOBDETS,R4                                               00252000
+         SPACE                                                          00260000
+* NOW SET UP THE DSNAMES                                                00270000
+         GETTKN 2              GET 2ND TOKEN                            00280000
+         STH   R1,TKNCURR      SAVE CURRENT TOKEN NUMBER                00281000
+         CLI   TKN,C' '        ANY DATA THERE?                          00290000
+         BNE   P01GO1                                                   00300000
+         JOLERR   301,'JOBLIB CALLED WITH NO PARAMETERS'                00310007
+         JOLRETN  RC=16                                                 00320000
+P01GO1   EQU   *                                                        00330000
+         CLI   TKN,C''''       DSNAME LITERAL SPECIFIED ?               00340000
+         BNE   P01START        NOPE                                     00350000
+         BAL   R14,DROPQUOT    DROP THE QUOTES                          00360000
+         MVC   #WORK(L'TKN),#TKN MOVE TKN TO WORK                       00370000
+P01STRL  BAL   R14,STORLIB     STORE THE LIBRARY NAME                   00380000
+P01TEND  CLI   TKN,C' '        ANY MORE TO DO?                          00390006
+         BE    P01END          NO                                       00400006
+         CLC   TKN,=C'||'      CONCATENATE SYMBOL ?                     00401007
+         BE    P01SKIP         YES, SKIP IT                             00402007
+         CLI   TKN,C','        A COMMA?                                 00402107
+         BNE   P01START        NO -> CONTINUE                           00402207
+P01SKIP  GETTKN TKNCURR        GET NEXT TOKEN                           00403007
+         STH   R1,TKNCURR      SAVE CURRENT TOKEN NUMBER                00404006
+         B     P01TEND         TEST IF END AGAIN, OR ','                00405006
+         SPACE                                                          00410000
+P01START DS    0H                                                       00420000
+         MVC   #WORK(L'TKN),#TKN MOVE FIRST PART TO WORK                00440000
+         GETTKN TKNCURR        GET NEXT TOKEN                           00450000
+         STH   R1,TKNCURR      SAVE CURRENT TOKEN NUMBER                00460000
+         CLI   TKN,C' '        ANY MORE TO DO?                          00470000
+         BE    P01STRL         NOPE                                     00480000
+P01DOTL  CLI   TKN,C'.'        PART OF A DSNAME ?                       00490000
+         BNE   P01STRL         NOPE                                     00500000
+         BAL   R14,CONCAT      WORK=WORK||TKN ('.')                     00510000
+         GETTKN (R1)           GET NEXT TOKEN (NEXT PART OF NAME)       00520000
+         STH   R1,TKNCURR      SAVE CURRENT TOKEN NUMBER                00530000
+         BAL   R14,CONCAT      WORK=WORK||TKN.                          00540000
+         GETTKN (R1)           GET NEXT TOKEN (NEXT PART OF NAME)       00541004
+         STH   R1,TKNCURR      SAVE CURRENT TOKEN NUMBER                00542004
+         B     P01DOTL         SEE IF A '.', AND CONCAT, ELSE STORE     00550000
+P01END   JOLRETN RC=0                                                   00551000
+STORLIB  DS    0H                                                       00560000
+* STORE THE LIBRARY NAME IN THE NEXT AVAILABLE SPOT                     00570000
+         LH    R7,JOBLIB#                                               00580000
+         LA    R7,1(R7)        INCREMENT                                00581000
+         CH    R7,=H'6'                                                 00590000
+         BH    P01ERR2                                                  00600000
+         STH   R7,JOBLIB#                                               00601000
+         SH    R7,=H'1'                                                 00602005
+         MH    R7,=H'46'                                                00610002
+         LA    R7,JOBLIB(R7)                                            00611000
+         MVC   0(46,R7),#WORK                                           00612003
+         BR    R14             RETURN                                   00613000
+P01ERR2  LR    R6,R14                                                   00614001
+         JOLERR 302,'TOO MANY JOB LIBS SPECIFIED'                       00615003
+         BR    R6                                                       00616001
+         LTORG                                                          00620000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00630000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00640000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00650000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00660000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00670000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00680000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00690000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00700000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00710000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00720000
+           DC  S(*,*,*,*,*,*,*,*,*,*,*,*)                               00730000
+           END                                                          00740000

@@ -1,0 +1,413 @@
+REDO     TITLE 'JOL REPEAT INSTRUCTION'                                 00010000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1981.                          00020000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1982.                          00030000
+* JOL COPYRIGHT CCS-JOL PTY LTD          1986.                          00040000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00050000
+           SPACE 3                                                      00060000
+*                   J             000000            L                   00070000
+*                   J            0      0           L                   00080000
+*                   J           0        0          L                   00090000
+*                   J          0          0         L                   00100000
+*                   J         0            0        L                   00110000
+*                   J         0            0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0            0        L                   00160000
+*                   J         0            0        L                   00170000
+*        J          J         0            0        L                   00180000
+*         J        J           0          0         L                   00190000
+*          J      J             0        0          L                   00200000
+*           J    J               0      0           L                   00210000
+*            JJJJ                 000000            LLLLLLLLLLL         00220000
+           SPACE 3                                                      00230000
+           PRINT  OFF                                             J52   00240000
+         COPY  JOLCOM                                                   00250000
+           PRINT  ON,DATA                                         J52   00260000
+* THE FOLLOWING SOURCE CODE  CONTAINS THE ADD_ONS:-                     00270000
+*                                                                       00280000
+*  1. LABEL    STORE ADDRESS  OF LABEL X FOR RE-DO OR LOOP COMMAND      00290000
+*                                                                       00300000
+*  2. REDO     SORT OF A GO TO - REDO A GROUP OF JOL CODE               00310000
+*               REDO * MEANS CURRENT LINE                               00320000
+*               REDO LABEL MEANS BRANCH BACK                            00330000
+*                                                                       00340000
+*                                                                       00350000
+PX       DSECT                                                          00360000
+PXTTR    DS     A              TTRK OF LABEL OF BLOCK                   00370000
+PXDCB    DS     A              CURRENT DCB                              00380000
+PXPOSN   DS     A              CURRENT RECORD ADDRESS                   00390000
+PXFILENO DS     H              CURRENT FILENO                           00400000
+PXLEVEL  DS     H              CURRENT LEVEL                            00410000
+PXNEST   DS     H              CURRENT NEST                             00420000
+PXBLKSZE DS     H              CURRENT BLKSIZE                          00430000
+PXLRECL  DS     H              CURRENT LRECL                            00440000
+PXCP     DS     H              CURRENT CHARACTER POSITION               00450000
+* NOTE *** LEAVE PXCOUNT LAST ****                                      00460000
+PXCOUNT  DS     H              LOOP COUNTER                             00470000
+PXLEN    EQU    *-PX           SET AN EQUATE TO THE LENGTH              00480000
+UJP45LAB JOLSAVE                                                        00490000
+         ORG    UJP45LAB                                                00500000
+LABELX   EQU    *                                                       00510000
+         ENTRY LABELX                                                   00520000
+         ORG                                                            00530000
+* WE GET CALLED WHEN A LABEL IS FOUND OR LABEL X; IS CODED.      J52    00540000
+         L      R10,AP52DCBS   LOAD ADDRESS OF DCB                      00550000
+         USING  P52DCBS,R10                                             00560000
+         L      R4,ADCBS                                                00570000
+         USING  DCBS,R4                                                 00580000
+         CLC   =C'LABEL ',ICOMMAND                                J51   00590000
+         BE    LABELCMD                                           J51   00600000
+* HERE,  LABEL :                                                  J51   00610000
+*        MVC    ICOMMAND,=CL8'MACRO'                              J52   00620000
+         MVC    #TKN(10),#WORK   (DELETE THIS LATER - SEE P50RD)  J52   00630000
+         B     STRLAB                                             J51   00640000
+LABELCMD DS    0H                                                 J51   00650000
+         MVC    ICOMMAND,=CL8'MACRO'                                    00660000
+         GETTKN 2              GET LABEL NAME                           00670000
+STRLAB   DS    0H                                                 J51   00680000
+* WE WANT TO STORE THIS IN THE TABLE IN A WAY WE CAN DIFFERENTIATEJ52   00690000
+* IT FROM A SYMBOL.  TO DO THIS, WE'LL CHANGE THE 1ST CHARACTER   J52   00700000
+* TO LOWER CASE.  WE HAVE TO BE  CAREFUL ABOUT '$', '_' AND '@'   J52   00710000
+         MVC    #WORK(10),#TKN SAVE IN WORK                             00720000
+*        MVI    #TKN+1,1       SET LENGTH TO 1                          00730000
+*        MVI    TKN,C':'                                                00740000
+*        BAL    R14,CONCAT     CONCAT TKN TO WORK                       00750000
+         SR    R0,R0                                              J52   00760000
+         IC    R0,WORK                                            J52   00770000
+         CLI   WORK,C'A'         $, _ OR @ ?                      J52   00780000
+         BH    P45ALF1           NO, 'A' THRU 'Z'                 J52   00790000
+TOLOW    EQU   C'A'-C'a'                                          J52   00800000
+AMPERS   EQU   C'&&'                                              J52   00810000
+         SH    R0,=AL2(AMPERS)                                    J52   00820000
+         B     LABCONV1                                           J52   00830000
+P45ALF1  SH    R0,=AL2(TOLOW)                                     J52   00840000
+LABCONV1 STC   R0,WORK                                            J52   00850000
+         CLC    #WORK,=H'9'    CHECK LENGTH TO BE LESS THAN OR= 8       00860000
+         BL     P45OK1                                                  00870000
+         JOLERR 401,'LABEL FOR REDO MUST BE 8 CHARACTERS OR LESS' J52   00880000
+P45RETNF JOLRETN RC=16                                                  00890000
+         SPACE 3                                                        00900000
+P45OK1   EQU    *                                                       00910000
+* WE ARE GOING TO STORE THE LABEL IN THE SYMBOLIC PARAMETER TABLE.      00920000
+*  THERE ARE 2 ADVANTAGES TO THIS:-                                     00930000
+*  1. THE NAME WILL BE DELETED AUTOMATICALLY AT THE END OF A MACRO      00940000
+*  2. WE CAN HAVE MULTIPLE LABELS IN THIS VERSION OF JOL (3.3)          00950000
+*     WITHOUT HAVING TO DO A GETMAIN FOR MORE STORAGE.                  00960000
+*  3. IT IS MUCH FASTER TO IMPLEMENT IN 3.3 OF JOL.                     00970000
+         MVC    SYMBOLIC,WORK  SHIFT NAME SO WE CAN STORE IT            00980000
+* NOW GET CURRENT TTR SO WE CAN STORE IT ON THE SYMBOLIC.               00990000
+*        CLC   =C'LABEL ',ICOMMAND                                J52   01000000
+*        BNE   P45SYSIN                                           J52   01010000
+         L      R5,CURRDCB     GET CURRENT DCB ADDRESS.                 01020000
+         LA     R1,SYSIN       GET SYSIN DCB ADDRESS.                   01030000
+         CR     R1,R5          SAME DCB?                                01040000
+         BNE    P45OK2                                                  01050000
+         CLC   =C'LABEL ',ICOMMAND                                J52   01060000
+         BNE   P45SYSIN                                           J52   01070000
+         JOLERR 402,'CANNOT TAKE ADDRESS OF SYSIN FILE ',            ***01080000
+               ' FOR LOOPING.'                                          01090000
+P45SYSIN DS    0H                                                 J52   01100000
+         SR    R6,R6                                              J52   01100101
+         MVI   ISPGMDCL,1        temporarily make a pgm declare   J52   01101003
+         B     P45DOPGM                                           J52   01102003
+         JOLRETN RC=16                                                  01110000
+* NOW WRITE THE TTR OF THE CURRENT BLOCK ETC.                           01120000
+P45OK2   NOTE   (R5)           NOTE THE CURRENT TTR OF FILE             01130000
+         LR     R6,R1          SAVE TTR RETURNED TO US                  01140000
+         CLC    AWORKFIL+1(3),CURRDCB+1  READING FROM WORKFILE          01150000
+         BE     *+8           YES, DON'T WORRY ABOUT CONCAT FILE NUMBER 01160000
+         IC     R6,CURRCONC    LOAD CURRENT CONCATENATION NUMBER        01170000
+* R6 NOW CONTAINS TTRK OF CURRENT FILE.                                 01180000
+         SPACE 3                                                        01190000
+P45DOPGM DS    0H                                                 J52   01191001
+         LA     R9,WORK        WE WILL STORE THE DATA HERE.             01200000
+         USING  PX,R9 USE THE DSECT OVER WORK                           01210000
+         ST     R6,PXTTR       SAVE TTR                                 01220000
+         MVC    PXDCB,CURRDCB                                           01230000
+         CLI   ISPGMDCL,0        Is it a program declare?         J52   01240000
+         BE    P45NPROG                                           J52   01250000
+         MVC   PXDCB,ZERO                                         J52   01260000
+P45NPROG DS    0H                                                 J52   01270000
+         MVC    PXFILENO,FILENO ETC                                     01280000
+         MVC    PXLEVEL,LEVEL                                           01290000
+         MVC    PXNEST,NEST                                             01300000
+         MVC    PXBLKSZE,CURRBLKS                                       01310000
+         MVC    PXLRECL,CURRLREC                                        01320000
+         MVC    PXPOSN,ACURREC                                          01330000
+         MVC    PXCP,CP                                                 01340000
+         CLEAR  PXCOUNT       CURRENT NUMBER OF TIMES WE HAVE LOOPED    01350000
+         MVC    #WORK,=AL2(PXLEN)                                       01360000
+         SPACE 3                                                        01370000
+         USING  SYMOVLY,R1                                              01380000
+* PREPARE TO SEARCH SYMBOLIC NAME TABLE.                                01390000
+         MVC    ICOMMAND,=CL8'MACRO'                              J52   01400000
+         FINDSYM SYMBOLIC      SEE IF IT IS ALREADY DECLARED            01410000
+         LR    R1,R0           COPY RETURN TO AN ADDRESSABLE REGISTER   01420000
+         LTR   R15,R15         DID WE FIND IT ?                         01430000
+         BZ    P45GOTLB        YES, WE DID.                             01440000
+* HERE, LABEL NOT FOUND. TRY TO STORE IT AGAIN (IT MIGHT BE AT A        01450000
+*       DIFFERENT LEVEL OR MACRO).                                      01460000
+P45STOR $CALL   UJP02DCL       STORE ABOVE DETAILS.                     01470000
+         LTR    R15,R15                                                 01480000
+         BZ     P45RET0                                                 01490000
+P45DUPL  DS     0H                                                J52   01500004
+         JOLRETN RC=16                                                  01500104
+         FIX   'Check if IF being  skipped, then give msg'        J52   01500204
+         JOLERR 403,'YOU ALREADY HAVE A LABEL ''',SYMBOLIC,         ****01501004
+               ''' THIS ONE IGNORED'                                    01510000
+         JOLRETN RC=16                                                  01520000
+* HERE, WE HAVE FOUND A LABEL OF THAT NAME.                             01530000
+P45GOTLB CLC    SYMLEVEL,LEVEL+1 CHECK IF LEVEL THE SAME                01540000
+         BNE    P45STOR        DIFFERENT (LOWER) LEVELS; STORE IT.      01550000
+* HERE WE HAVE THE LABEL AGAIN AT THE SAME LEVEL.                       01560000
+* CHECK IF IS FOR THE SAME CODE, IE USER BRANCHED BACK TO IT.           01570000
+         CLI   ISPGMDCL,0        Is it a program declare?         J52   01580000
+         BNE   P45GOBAK          2 program declares are OK        J52   01590000
+         L      R9,SYMADDR                                              01600000
+         USING  PX,R9                                                   01610000
+         CLC    #WORK(PXLEN-L'PXCOUNT),0(R9) CHECK IF THE SAME LABEL.   01620000
+         BNE   P45DUPL         NO, SO GIVE AN ERROR MESSAGE             01630000
+P45RET0  GETTKN 3             SEE IF TOO MANY PARMETERS ON LINE         01640000
+         CLI   ISPGMDCL,0        Is it a program declare?         J52   01641002
+         BNE   P45GOBAK          2 program declares are OK        J52   01642002
+         CLI    TKN,C' '      IS PARM 3 BLANK.                          01650000
+         BE     P45GOBAK      YES, OK...                                01660000
+         JOLERR 404,'TOO MUCH DATA ON LABEL INSTRUCTION'                01670000
+         JOLRETN RC=16                                                  01680000
+P45GOBAK MVI   ISPGMDCL,0        turn off pgm declare             J52   01681003
+         JOLRETN RC=0                                                   01690003
+         DC      S(*,*,*,*,*,*,*,*)                                     01700000
+         DC      S(*,*,*,*,*,*,*,*)                                     01710000
+         DC      S(*,*,*,*,*,*,*,*)                                     01720000
+         DC      S(*,*,*,*,*,*,*,*)                                     01730000
+         DC      S(*,*,*,*,*,*,*,*)                                     01740000
+         DC      S(*,*,*,*,*,*,*,*)                                     01750000
+         DC      S(*,*,*,*,*,*,*,*)                                     01760000
+         DC      S(*,*,*,*,*,*,*,*)                                     01770000
+         DC      S(*,*,*,*,*,*,*,*)                                     01780000
+         DC      S(*,*,*,*,*,*,*,*)                                     01790000
+         DC      S(*,*,*,*,*,*,*,*)                                     01800000
+         DC      S(*,*,*,*,*,*,*,*)                                     01810000
+         DC      S(*,*,*,*,*,*,*,*)                                     01820000
+         DC      S(*,*,*,*,*,*,*,*)                                     01830000
+         DC      S(*,*,*,*,*,*,*,*)                                     01840000
+         DC      S(*,*,*,*,*,*,*,*)                                     01850000
+         DC      S(*,*,*,*,*,*,*,*)                                     01860000
+         DC      S(*,*,*,*,*,*,*,*)                                     01870000
+         DC      S(*,*,*,*,*,*,*,*)                                     01880000
+         DC      S(*,*,*,*,*,*,*,*)                                     01890000
+         LTORG                                                          01900000
+         EJECT                                                          01910000
+UJP46RED JOLSAVE                                                        01920000
+         ORG    UJP46RED                                                01930000
+REDO     EQU    *                                                       01940000
+         ENTRY  REDO                                                    01950000
+         ORG                                                            01960000
+         L      R10,AP52DCBS   LOAD ADDRESS OF DCB                      01970000
+         USING  P52DCBS,R10                                             01980000
+         L      R4,ADCBS                                                01990000
+         USING  DCBS,R4                                                 02000000
+         SR     R6,R6          FOREVER INDICATOR                  86015 02010000
+         GETTKN 3              GET 3RD ITEM  (IF CODED)                 02020000
+         CLC    =C'FOREVER ',TKN                                  86015 02030000
+         BNE    P46TKN3                                           86015 02040000
+         LA     R6,1           SET FOREVER INDICATOR ON           86015 02050000
+         B      P46OK1                                            86015 02060000
+P46TKN3  CLI    TKN,C' '       IS THERE ONE?                            02070000
+         BE     P46OK1          NO..                                    02080000
+         JOLERR 401,'TOO MANY PARAMETERS IN REDO INSTRUCTION'           02090000
+P46RETNF JOLRETN RC=16                                                  02100000
+         SPACE 3                                                        02110000
+P46OK1   EQU    *                                                       02120000
+         GETTKN 2 GET REAL PARAMETER                                    02130000
+         CLI    TKN,C' '       BLANK?                                   02140000
+         BNE    P46OK2                                                  02150000
+         JOLERR 102,'BLANK PARAMETER ON REDO - NEXT INSTRUCTION WILL BE*02160000
+                 EXECUTED'                                              02170000
+P46RETNO JOLRETN RC=0                                                   02180000
+P46OK2   EQU    *                                                       02190000
+         CLI    TKN,C'*'                                                02200000
+         BE     P46AST         REDO CURRENT LINE                        02210000
+* NOW TO FIND THE SYMBOLIC PARAMETER CONTAINING THE NAME                02220000
+         MVC    #WORK(10),#TKN  MOVE SYMBOLIC NAME TO WORK              02230000
+         IC    R0,WORK                                            J52   02240000
+         CLI   WORK,C'A'                                          J52   02250000
+         BH    P46ALF1                                            J52   02260000
+         SH    R0,=AL2(AMPERS)                                          02270000
+         B     LABCONV2                                           J52   02280000
+P46ALF1  SH    R0,=AL2(TOLOW)                                     J52   02290000
+LABCONV2 STC   R0,WORK                                            J52   02300000
+*        MVI    #TKN+1,1       SET LENGTH TO ONE                        02310000
+*        MVI    TKN,C':'       PUT A COLON IN                           02320000
+*        JOLERR 199,'WORK=''',#WORK,''':TKN=''',#TKN,''''               02330000
+*        BAL    R14,CONCAT     CONCAT A COLON TO THE CONTENTS OF WORK   02340000
+*        JOLERR 198,'WORK=''',#WORK,''':TKN=''',#TKN,''''               02350000
+         SPACE 3                                                        02360000
+         USING  SYMOVLY,R1                                              02370000
+* PREPARE TO SEARCH SYMBOLIC NAME TABLE.                                02380000
+         FINDSYM WORK          TRY TO FIND THE SYMBOLIC PARAMETER       02390000
+         LR    R1,R0           COPY RETURN TO AN ADDRESSABLE REGISTER   02400000
+         LTR   R15,R15         DID WE FIND IT ?                         02410000
+         BZ    P46GOTLB        YES, WE DID.                             02420000
+* HERE, LABEL NOT FOUND.                                          J52   02430000
+* GOTO's can go forward, so check this.                           J52   02440000
+         CLC   ICOMMAND,=CL8'GOTO'                                J52   02450000
+         BNE   P46NFND                                            J52   02460000
+ISGOTO   MVC   GOTO,TKN                                           J52   02470000
+         JOLRETN RC=4                                             J52   02480000
+P46NFND  DS    0H                                                 J52   02490000
+         JOLERR 403,'LABEL ''',#WORK,''' NOT FOUND FOR LOOPING'         02500000
+         JOLRETN RC=16                                                  02510000
+* HERE, WE HAVE THE CORRECT SYMBOLIC NAME.                              02520000
+P46GOTLB CLC    SYMLEVEL,LEVEL+1 CHECK IF LEVEL THE SAME                02530000
+         BE     P46OK3                                                  02540000
+         CLC   ICOMMAND,=CL8'GOTO'                                J52   02550000
+         BE    ISGOTO                                             J52   02560000
+         JOLERR 404,'SYMBOLIC NAME ',#WORK,' FOUND AT WRONG LEVEL.',   *02570000
+               ' ARE YOU REDOING CODE IN A MACRO WITHOUT',             *02580000
+               ' A PREVIOUS LABEL?'                                     02590000
+         JOLRETN RC=16                                                  02600000
+P46OK3   EQU    *                                                       02610000
+         L      R8,SYMADDR                                              02620000
+         USING  PX,R9                                                   02630000
+         LA     R9,2(R8)      SKIP OVER LENGTH PARAMETER                02640000
+         CLC    =AL2(PXLEN),0(R8) CHECK IF LENGTH OK                    02650000
+         BE     P46OK4                                                  02660000
+         JOLERR 405,'LENGTH OF LABEL SYMBOLIC INVALID'                  02670000
+         JOLRETN RC=16                                                  02680000
+         SPACE 2                                                        02690000
+P46OK4   EQU    *                                                       02700000
+* NOW WE HAVE THE TTR ETC OF THE LABEL WE WISH TO REPEAT                02710000
+*                                                                       02720000
+* CHECK THAT EVERYTHING IS VALID                                        02730000
+         CLC    PXFILENO,FILENO                                         02740000
+         BE     P46FILOK                                                02750000
+         JOLERR 406,'INCORRECT FILE LEVELS :LABEL FILE=',PXFILENO,     *02760000
+               ':CURRENT FILENO=',FILENO                               *02770000
+               '. ARE YOU RE-DOING CODE FROM INCLUDED TEXT ?'           02780000
+         JOLRETN RC=16                                                  02790000
+         SPACE                                                          02800000
+P46FILOK CLC    PXDCB,CURRDCB                                           02810000
+         BE     P46DCBOK                                                02820000
+         JOLERR 407,'YOUR REDO INSTRUCTION IS BEING EXECUTED ',        *02830000
+               'FROM A DIFFERENT MEMBER OR DATA SET'                    02840000
+         JOLRETN RC=16                                                  02850000
+P46DCBOK EQU    *                                                       02860000
+         SPACE 2                                                        02870000
+* HERE, WE HAVE VALIDATED (TO A LARGE EXTENT) ALL THE PARAMETERS        02880000
+*                                                                       02890000
+* WE MUST SET NEST BACK TO ITS ORIGINAL LEVEL BECAUSE WE MAY HAVE       02900000
+* CODE LIKE:-                                                           02910000
+*                                                                       02920000
+*        IF %X+1                                                        02930000
+*        THEN DO;                                                       02940000
+*               %X=0;                                                   02950000
+*               REDO A;                                                 02960000
+*        END;                                                           02970000
+*  AND WE WOULD BE INCREASING OUR DO LEVEL FOREVER!                     02980000
+*                                                                       02990000
+*                                                                       03000000
+         MVC NEST,PXNEST RESET NEST                                     03010000
+* NOW SET UP CONTROL POINTERS, ISSUE A FIND OR POINT TO RE-POSITION     03020000
+* THE DATA SET, SET CP (CHARACTER POINTER) CORRECTLY AND RETURN.        03030000
+         MVC    CURRBLKS,PXBLKSZE RESET BLOCKSIZE OF BLOCK WE WILL      03040000
+*                              RE-READ                                  03050000
+         MVC    CURRLREC,PXLRECL AND RECORD LENGTH                      03060000
+         MVC    ACURREC,PXPOSN AND POSITION IN BLOCK                    03070000
+         LH     R1,PXCP                                                 03080000
+         SH     R1,=H'1'                                                03090000
+         STH    R1,CP                                                   03100000
+         MVI    INCHAR,C' '    CLEAR INCHARACTER                        03110000
+         CLEAR  CARD           AND CARD                                 03120000
+         LH     R1,PXCOUNT     LOAD COUNTER OF LOOPS WE HAVE DONE       03130000
+         LA     R1,1(R1)       ADD ONE TO IT                            03140000
+         CH     R1,=H'50'      HAVE WE DONE 50 LOOPS?                   03150000
+         BL     P46LUPOK       NO, SO CARRY ON                          03160000
+         LTR    R6,R6          IS IT A FOREVER TYPE LOOP?         86015 03170000
+         BNZ    P46LUPOK       YES, SO CARRY ON                   86015 03180000
+         JOLERR 108,'YOU HAVE EXCEEDED 50 LOOPS. TYPE ''C'' TO CONTINUE*03190000
+                OR ENTER TO EXIT THE LOOP'                              03200000
+*        TGET  TWORK,1                                                  03210000
+         LA     R0,1             LENGTH OF REPLY                        03220000
+         LA     R15,CALLAREA     WORK AREA                              03230000
+         ST     R15,CALLAREA STORED IN WORKAREA                         03240000
+         MVI    CALLAREA,X'80'   SET OPTIONS                            03250000
+         L      R1,CALLAREA      SET R1 TO X'80',AL3(CALAREA)           03260000
+         SVC    93               TGET                                   03270000
+         OI     CALLAREA,C' '    MAKE UPPER CASE                        03280000
+         CLI    CALLAREA,C'C'    IS IT C FOR CONTINUE?                  03290000
+         BNE    P46EXIT          NO, SO JUST EXIT                       03300000
+         CLEAR  PXCOUNT                                                 03310000
+P46LUPOK EQU    *                                                       03320000
+         STH    R1,PXCOUNT                                              03330000
+         L      R8,CURRDCB                                              03340000
+         NOTE   (R8)           NOTE THE CURRENT TTR OF FILE             03350000
+         ST     R1,CALLAREA    SAVE TTR RETURNED TO US                  03360000
+         CLC    CALLAREA(3),PXTTR SEE IF THE SAME BLOCK (SAVE RE-READ)  03370000
+         BE     P46NORED                                                03380000
+         MVC    CALLAREA,PXTTR                                          03390000
+         FIND   (R8),CALLAREA,C GET TO CORRECT BLOCK                    03400000
+         XC     CALLAREA(20),CALLAREA                                   03410000
+         MVC    33(3,R8),=AL3(P46EOF)                                   03420000
+         L      R5,AREADBUF                                             03430000
+         READ   CALLAREA,SF,(8),(5),MF=(E,CALLAREA)                     03440000
+         CHECK  CALLAREA                                                03450000
+P46NORED JOLRETN RC=0                                                   03460000
+P46EOF   JOLERR 509,'EOF WHEN RESETTING FILE FOR REDO'                  03470000
+         JOLRETN RC=16                                                  03480000
+P46AST   EQU    *                                                       03490000
+         LH     R1,USER5+4     LOAD COUNTER OF LOOPS WE HAVE DONE       03500000
+         LA     R1,1(R1)       ADD ONE TO IT                            03510000
+         CH     R1,=H'50'      HAVE WE DONE 50 LOOPS?                   03520000
+         BL     P46LUP2        NO, SO CARRY ON                          03530000
+         LTR    R6,R6          IS IT A FOREVER TYPE LOOP?         86015 03540000
+         BNZ    P46LUP2        YES, SO CARRY ON                   86015 03550000
+         JOLERR 110,'YOU HAVE EXCEEDED 50 LOOPS. TYPE ''C'' TO CONTINUE*03560000
+                OR ENTER TO EXIT THE LOOP'                              03570000
+*        TGET  TWORK,1                                                  03580000
+         LA     R0,1             LENGTH OF REPLY                        03590000
+         LA     R15,CALLAREA     WORK AREA                              03600000
+         ST     R15,CALLAREA STORED IN WORKAREA                         03610000
+         MVI    CALLAREA,X'80'   SET OPTIONS                            03620000
+         L      R1,CALLAREA      SET R1 TO X'80',AL3(CALAREA)           03630000
+         SVC    93               TGET                                   03640000
+         OI     CALLAREA,C' '    MAKE UPPER CASE                        03650000
+         CLI    CALLAREA,C'C'    IS IT C FOR CONTINUE?                  03660000
+         BNE    P46EXIT          NO, SO JUST EXIT                       03670000
+         LA     R1,0             RESET COUNT TO ZERO                    03680000
+P46LUP2  EQU    *                                                       03690000
+         STH    R1,USER5+4                                              03700000
+         CLEAR  CP                                                      03710000
+P46EXIT  JOLRETN RC=0                                                   03720000
+         DC      S(*,*,*,*,*,*,*,*)                                     03730000
+         DC      S(*,*,*,*,*,*,*,*)                                     03740000
+         DC      S(*,*,*,*,*,*,*,*)                                     03750000
+         DC      S(*,*,*,*,*,*,*,*)                                     03760000
+         DC      S(*,*,*,*,*,*,*,*)                                     03770000
+         DC      S(*,*,*,*,*,*,*,*)                                     03780000
+         DC      S(*,*,*,*,*,*,*,*)                                     03790000
+         DC      S(*,*,*,*,*,*,*,*)                                     03800000
+         DC      S(*,*,*,*,*,*,*,*)                                     03810000
+         DC      S(*,*,*,*,*,*,*,*)                                     03820000
+         DC      S(*,*,*,*,*,*,*,*)                                     03830000
+         DC      S(*,*,*,*,*,*,*,*)                                     03840000
+         DC      S(*,*,*,*,*,*,*,*)                                     03850000
+         DC      S(*,*,*,*,*,*,*,*)                                     03860000
+         DC      S(*,*,*,*,*,*,*,*)                                     03870000
+         DC      S(*,*,*,*,*,*,*,*)                                     03880000
+         DC      S(*,*,*,*,*,*,*,*)                                     03890000
+         DC      S(*,*,*,*,*,*,*,*)                                     03900000
+         DC      S(*,*,*,*,*,*,*,*)                                     03910000
+         DC      S(*,*,*,*,*,*,*,*)                                     03920000
+         DC      S(*,*,*,*,*,*,*,*)                                     03930000
+         LTORG                                                          03940000
+UJP46GO  JOLSAVE                                                  J52   03950000
+         ORG    UJP46GO                                           J52   03960000
+GOTORTN  EQU    *                                                 J52   03970000
+         ENTRY  GOTORTN                                           J52   03980000
+         ORG                                                            03990000
+         CALL  UJP46RED                                           J52   04000000
+         JOLRETN RC=(15)                                          J52   04010000
+         LTORG                                                          04020000
+         END                                                            04030000

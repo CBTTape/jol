@@ -1,0 +1,44 @@
+.*  CHECK TO SEE IF ERRORS OCCURED.                                     00010001
+.*                                                                      00020000
+         ST    R15,S99CVCRT             SAVE DYNALLOC RETURN CODE       00030004
+         LTR   R15,R15                                                  00040002
+         BNZ   D03ERR                RETURN CODE ZERO                   00050000
+         CLC   S99ERROR(4),=XL4'00'  TEST ERR AND INFO CODE             00060000
+         BE    D0399OK                                                  00070004
+D03ERR   EQU   *                                                        00080000
+         L     R15,=V(DYNDUMP)          GET DUMP ROUTINE                00090004
+         LA    R1,S99RB                 REQUEST BLOCK POINTER           00100004
+         BALR  R14,R15                  GO TO IT                        00110004
+         SPACE  3                                                       00120004
+         L     R1,S99ERR0R                                              00130005
+         L     R0,S99CVCRT             ADDR OF ERROR AND INFO CODES     00140005
+         O     R1,=XL4'40F0'        (CONVERT                            00150002
+         C     R15,=F'12'            CODES                              00160002
+         BNE   *+8                      TO                              00170005
+         LH    R1,=X'F1F2'                EBCDIC                        00180002
+         STH   R1,D03MSGH                   FOR                         00190005
+         UNPK  D03MSGH(9),S99ERROR            THE                       00200005
+         NC    D03MSGH(8),=8X'0F'                ERROR                  00210005
+         TR    D03MSGH(8),=C'0123456789ABCDEF'     MESSAGE)             00220005
+         LA    R1,D03MSG                                                00230005
+         SVC   35               WTO, ROUTCDE=11                         00240000
+         LINK  EP=IKJEFF18,PARAM=(CALLAREA,S99CVCRT,TSOADR,TSOADR+4)    00250005
+         LA    R0,D03MSGL                                               00260006
+         LA    R1,D03MSG                                                00270005
+         SVC   93               TPUT MESSAGE                            00280000
+*        L     R1,&CPPL          GET CPPL ADDRESS                       00290005
+.* NOW LINK TO TSO ERROR MESSAGE ROUTINE                                00300000
+*.RT1    LINK  EP=IKJEFF18,PARAM=(CALLAREA,S99CVCRT,TSOADR,        **   00310006
+*              TSOADR+4,&C)                                             00320006
+D03MSG   EQU   *                                                        00330005
+         DC    AL2(D03MSGL),X'8000'    LENGTH AND FLAGS                 00340005
+         DC    C' DYNALLOC RETURN CODE '                                00350000
+D03MSGH  DS    H                                                        00360005
+         DC    C', ERROR AND INFO CODE '                                00370000
+D03MSGI  DS    XL8                 SPACE FOR ERROR AND INFO CODES       00380005
+D03MSGL  EQU   *-D03MSG            LENGTH OF MESSAGE                    00390005
+         DC    XL4'20'      ROUTING CODE                                00400000
+TSOADR   DC    F'0'                DON'T KNOW ADDR OF IKJEFF02          00410005
+         DC    X'80'      '80' WANT WTO, '00' WANT PUTLINE              00420005
+         DC    X'32'      '32' IF SVC99 USED, '01' IF DAIR USED         00430000
+D0399OK  L     R15,S99CVCRT         RESTORE DYNALLOC RETURN CODE        00440005

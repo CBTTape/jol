@@ -1,0 +1,238 @@
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974,1975       00010000
+* COPYRIGHT CCS, 1976                                                   00020000
+* UPDATED JULY 4, 1976                                                  00030000
+*   CORRECT DATE FOR LEAP YEAR                                          00040000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00050000
+           SPACE 3                                                      00060000
+*                   J             000000            L                   00070000
+*                   J            0      0           L                   00080000
+*                   J           0        0          L                   00090000
+*                   J          0          0         L                   00100000
+*                   J         0            0        L                   00110000
+*                   J         0            0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0            0        L                   00160000
+*                   J         0            0        L                   00170000
+*        J          J         0            0        L                   00180000
+*         J        J           0          0         L                   00190000
+*          J      J             0        0          L                   00200000
+*           J    J               0      0           L                   00210000
+*            JJJJ                 000000            LLLLLLLLLLL         00220000
+           SPACE 3                                                      00230000
+         PRINT OFF                                                      00240000
+           COPY JOLCOM                                                  00250000
+         PRINT ON,GEN,DATA                                              00260000
+         JOLSAVE CSECT=UJP93DTE                                   75128 00270000
+* THIS MODULE RECEIVES CONTROL AT THE START OF A NEW JOB                00280000
+*    FIRST CALL,IT DECODES THE COMPILER PARM FIELD                      00290000
+*    IF AN *JOL CARD IS PRESENT,IT DECODES THE OPTIONS ON IT            00300000
+* ANOTHER MODULE THEN (IF REQD) PRINTS OUT THE OPTIONS IN SHORT         00310000
+*    OR LONG FORM.                                                      00320000
+           SPACE 3                                                      00330000
+* THE ALLOWABLE OPTIONS ARE LISTED IN THE TABLE 'OPTIONS'               00340000
+           SPACE                                                        00350000
+         MVC   ICOMMAND,=CL8'MACRO' SO ASSIGNMENT ROUTINE         75128 00360000
+*                             AND DECLARE ROUTINES WON'T DO SO    75128 00370000
+*                             MUCH MESSING ROUND STORING VALUES   75128 00380000
+         SPACE 2                                                        00390000
+           USING JOLCOM,R2                                              00400000
+           USING TKNX,R3                                                00410000
+           MVC  TITLE2,=CL20'PREPROCESSOR'                        75128 00470000
+         L     R4,AJOLGEN                                         75128 00480000
+         USING GENDETS,R4                                        75128  00490000
+P93SETSY EQU   *                                                  75128 00500000
+         MVC   WORK(80),BLANKS                                    75128 00510000
+         MVC   #WORK,ZERO                                         75128 00520000
+         SPACE 3                                                  75128 00530000
+* THE FOLLOWING ROUTINE WILL CONVERT THE JULIAN DATE INTO         75128 00540000
+*  SOMETHING A BIT MORE RESPECTABLE                               75128 00550000
+         TIME                                                           00560000
+         ST    R1,DBL+4       STORE DATE,TIME                     75128 00570003
+         SRL   R0,4           DROP HUNDRETHS                            00580000
+         ST    R0,DBL   AND STORE                                       00590000
+         MVC   SYMBOLIC,=CL8'SYSDATE'                             75128 00600000
+         MVI   #WORK+1,5      SET LENGTH TO 5                     75128 00610000
+         UNPK  WORK(5),DBL+4(4)                                   75128 00620000
+         OI    WORK+4,C'0'                                        75128 00630000
+         $CALL UJP85ASN       STORE %SYSDATE                      75128 00640000
+         MVI   DBL+3,X'0C'    SET UP SIGN BIT FOR UNPACK TIME     75128 00650000
+         UNPK  WORK(6),DBL(4) UNPACK TIME                         75128 00660000
+         OI    WORK+5,C'0'      MAKE PRINTABLE                    75128 00670000
+         MVI   #WORK+1,2                                          75128 00680000
+         MVC   SYMBOLIC,=CL8'HOURS'                               75128 00690000
+         MVC   TIME,WORK      SAVE IT FOR OTHER USES TOO                00700000
+         $CALL UJP85ASN       SET UP '%HOURS'                     75128 00710000
+         MVC   WORK(4),WORK+2 DROP HOURS                          75128 00720000
+         MVC   SYMBOLIC,=CL8'MINS'                                75128 00730000
+         $CALL UJP85ASN                                           75128 00740000
+         MVC   WORK(2),WORK+2                                     75128 00750000
+         MVC   SYMBOLIC,=CL8'SECS'                                75128 00760000
+         $CALL UJP85ASN                                           75128 00770000
+         SPACE 3                                                  75128 00780000
+* NOW THE TRICKY BIT, LETS GET THE DATE ETC ALL SET UP            75128 00790000
+         SPACE 2                                                  75128 00800000
+         MVC DBL(4),ZERO       CLEAR OUT HIGH BIT OF DBL (TIME).  75128 00810000
+         SR    R14,R14        CLEAR R14                                 00820000
+         CVB   R15,DBL        CONVERT YYDDD TO BINARY             75128 00830000
+         D     R14,=F'1000'  /1000 TO GET YEAR/DATE               75128 00840000
+* R15=YEAR,R14=DAY                                                 DASD 00850000
+         SPACE 1                                                   SOCO 00860000
+*******************************************************************DASD 00870000
+* THE FOLLOWING PIECE OF CODE CALCULATES THE DAY THAT TODAY FALLS ODASD 00880000
+* IT IS NECESSARY THAT "TODAY" BE 1/1/77 OR LATER AS THIS CODE USESDASD 00890000
+* THIS DATE AS A BASE.  THE EQUATION USED TO DO THIS CALCULATION ISDASD 00900000
+* AS FOLLOWS:  (Y IS THE YEAR NO EG.77 AND D IS THE DAY NO EG.179) DASD 00910000
+*                                                                  DASD 00920000
+*   ( REMAINDER( ( (Y-77)*365 + INT( (Y-77)/4 ) + (D) )/7) ) + 5   DASD 00930000
+*                  __________   _______________   ___              DASD 00940000
+*     ____________________________________________________         DASD 00950000
+*   ____________________________________________________________   DASD 00960000
+*                                                                  DASD 00970000
+*******************************************************************DASD 00980000
+         SPACE 1                                                   SOCO 00990000
+         LR    R7,R15         GET YEAR NUMBER  R7=Y                DASD 01000000
+         SH    R7,=H'77'      SUBTRACT 77 BASE R7=Y-77             DASD 01010000
+         LR    R9,R7           AND SAVE A COPY R9=Y-77             DASD 01020000
+         MH    R9,=H'365'     NO OF DAYS IN WHOLE YEARS R9=(Y-77)*3DASD 01030000
+         SRL   R7,2           NO OF 2/29 DAYS  R7=INT((Y-77)/4)    DASD 01040000
+         AR    R9,R7          GET TOTAL   R9=((Y-77)*365 +         DASD 01050000
+         AR    R9,R14          OF THE NO      INT((Y-77)/4) +      DASD 01060000
+         SR    R8,R8           OF DAYS        (D))                 DASD 01070000
+         D     R8,=F'7'       GET DAYNO REL TO 1/1/77              DASD 01080000
+         AH    R8,=H'5'       COMPENSATE FOR BASE OF 1/1/77        DASD 01090000
+*                       R8=REM(((Y-77)*365 + INT((Y-77)/4) + (D))/ DASD 01100000
+         C     R8,=F'7'       IS DAYNO WITHIN RANGE (1,7) ?        DASD 01110000
+         BL    *+8            IF IT IS IGNORE THE NEXT INSTRUCITON DASD 01120000
+         S     R8,=F'7'       MAY HAVE RUN OVER                    DASD 01130000
+         MH    R8,=H'9'       GET INDEX INTO THE DAY TABLE         DASD 01140000
+         LA    R8,P93DAYS(R8) GET ADDRESS OF THE DAY TABLE ENTRY   DASD 01150000
+         MVC   DAY,0(R8)      SHIFT THE DAY AWAY                   DASD 01160000
+         SPACE                                                    75128 01170000
+* NOW PICK UP THE MONTH                                           75128 01180000
+         LR    R0,R15         SAVE YEAR                           75128 01190000
+         AH    R15,=H'1900'                                       75128 01200000
+         CVD   R15,DBL                                            75128 01210000
+         UNPK  YEAR,DBL                                           75128 01220000
+         OI    YEAR+3,C'0'                                        75128 01230000
+         ST    R15,DBL        STORE YEAR IN WORK AREA    JOL30001 76200 01240000
+         TM    DBL+3,B'00000011' TEST IF LEAP YEAR NOW   JOL30001 76200 01250000
+          BZ    P93LEAP                                  JOL30001 76200 01260000
+         B     P93NOLEP       NOT A LEAP YEAR,RELAX               75128 01270000
+* NOW, AS WE ALL KNOW  A LEAP YEAR IS A LITTLE DIFFERENT          75128 01280000
+P93LEAP  LM    R7,R9,P93MONCL LOAD DAY NO CONSTANTS(LEAP)JOL30001 76200 01290000
+         B     P93FDAY        GO FIND DAY ETC            JOL30001 76200 01300000
+P93NOLEP EQU   *                                                  75128 01310000
+         SPACE 1                                                  75128 01320000
+         LM    R7,R9,P93MONC  LOAD DAY NO CONSTANTS               75128 01330000
+P93FDAY  EQU   *                                         JOL30001 76200 01340000
+         CH    R14,2(R7)      CLC DAYNO WITH TABLE                75128 01350000
+         BNH   P93GOTMN       GONE PAST ?                         75128 01360000
+         BXLE  R7,R8,*-8      NO, ROUND AGAIN                     75128 01370000
+         JOLERR 207,'DAY INVALID'                                 75128 01380000
+         B     P93SKIPD                                           75128 01390000
+         SPACE 2                                                  75128 01400000
+P93GOTMN LR    R8,R14         SAVE DAY NO                         75128 01410000
+         SH    R7,=H'4'       WE WENT TOO FAR OVER THE TABLE       DASD 01420000
+         CH    R8,=H'32'      JANUARY?                                  01430000
+         BL    P93JAN         YEP,DON'T SUBTRACT FIGURE                 01440000
+         SH    R8,2(R7)       - TABLE ENTRY NUMBER =DAY IN MONTH  75128 01450000
+P93JAN  CVD   R8,DBL         STORE IT                             75311 01460000
+         UNPK  DAYNO,DBL                                          75128 01470000
+         OI    DAYNO+L'DAYNO-1,C'0'                               75128 01480000
+         SPACE 2                                                  75128 01490000
+         LH    R1,4(R7)       GET OFFSET                          75128 01500000
+         LR    R8,R1          SAVE MONTHNO                        75128 01510000
+         MH   R1,=H'9'                                            75128 01520000
+         LA    R1,P93MNTHN(R1) GET MONTH NAMES                    75128 01530000
+         MVC   MONTH,0(R1)    SHIFT AND SAVE                      75128 01540000
+         MVI   #WORK+1,L'DAY                                      75128 01550000
+         MVC   WORK(L'DAY),DAY                                    75128 01560000
+         MVC   SYMBOLIC,=CL8'DAY'                                 75128 01570000
+         BAL   R14,DRPBWORK   DROP BLANKS FROM WORK               75128 01580000
+         $CALL UJP85ASN                                           75128 01590000
+         MVI   #WORK+1,L'MONTH                                    75128 01600000
+         MVC   WORK(L'MONTH),MONTH                                75128 01610000
+         MVC   SYMBOLIC,=CL8'MONTH'                               75128 01620000
+         BAL   R14,DRPBWORK   DROP BLANKS FROM WORK               75128 01630000
+         $CALL UJP85ASN                                           75128 01640000
+         MVI   #WORK+1,L'DAYNO                                    75128 01650000
+         MVC   WORK(L'DAYNO),DAYNO                                75128 01660000
+         MVC   SYMBOLIC,=CL8'DAYNO'                               75128 01670000
+         $CALL UJP85ASN                                           75128 01680000
+        LA    R1,1(R8)       MAKE A REAL MONTH NUMBER             75128 01690000
+        CVD   R1,DBL                                                    01700000
+        UNPK  WORK(2),DBL                                               01710000
+        OI    WORK+1,C'0'                                               01720000
+         MVC    SYMBOLIC,=CL8'MONTHNO'                            75128 01730000
+         $CALL UJP85ASN           STORE IT                              01740000
+          MVC #WORK,=H'4'                                               01750000
+           MVC  SYMBOLIC,=CL8'YEAR'                                     01760000
+          MVC   WORK(4),YEAR                                            01770000
+           $CALL UJP85ASN                                               01780000
+         SPACE 3                                                  75128 01790000
+P93SKIPD EQU   *                                                        01800000
+         JOLRETN RC=0                                             75128 01810000
+* END DATE ROUTINE                                                75128 01820000
+     SPACE 2                                                            01830000
+         SPACE 3                                                  75128 01840000
+P93DAYS  DC    CL9'SUNDAY'                                              01850000
+         DC    CL9'MONDAY'                                              01860000
+         DC    CL9'TUESDAY'                                             01870000
+         DC    CL9'WEDNESDAY'                                           01880000
+         DC    CL9'THURSDAY'                                            01890000
+         DC    CL9'FRIDAY'                                              01900000
+         DC    CL9'SATURDAY'                                            01910000
+         SPACE 3                                                        01920000
+P93MONC  DC    A(*+12,4,P93MONCE-4)                                     01930000
+         DC    AL2(00),AL2(31)                                          01940000
+         DC    AL2(01),AL2(31+28)                                       01950000
+         DC    AL2(02),AL2(31+28+31)                                    01960000
+         DC    AL2(03),AL2(31+28+31+30)                                 01970000
+         DC    AL2(04),AL2(31+28+31+30+31)                              01980000
+         DC    AL2(05),AL2(31+28+31+30+31+30)                           01990000
+         DC    AL2(06),AL2(31+28+31+30+31+30+31)                        02000000
+         DC    AL2(07),AL2(31+28+31+30+31+30+31+31)                     02010000
+         DC    AL2(08),AL2(31+28+31+30+31+30+31+31+30)                  02020000
+         DC    AL2(09),AL2(31+28+31+30+31+30+31+31+30+31)               02030000
+         DC    AL2(10),AL2(31+28+31+30+31+30+31+31+30+31+30)            02040000
+         DC    AL2(11),AL2(31+28+31+30+31+30+31+31+30+31+30+31)         02050000
+P93MONCE EQU   *                                                        02060000
+         SPACE 3                                                        02070000
+P93MONCL DC    A(*+12,4,P93LEND-4)                       JOL30001 76200 02080000
+         DC    AL2(00),AL2(31)                            JOL3001 76200 02090000
+         DC    AL2(01),AL2(31+29)                         JOL3001 76200 02100000
+         DC    AL2(02),AL2(31+29+31)                      JOL3001 76200 02110000
+         DC    AL2(03),AL2(31+29+31+30)                   JOL3001 76200 02120000
+         DC    AL2(04),AL2(31+29+31+30+31)                JOL3001 76200 02130000
+         DC    AL2(05),AL2(31+29+31+30+31+30)             JOL3001 76200 02140000
+         DC    AL2(06),AL2(31+29+31+30+31+30+31)          JOL3001 76200 02150000
+         DC    AL2(07),AL2(31+29+31+30+31+30+31+31)       JOL3001 76200 02160000
+         DC    AL2(08),AL2(31+29+31+30+31+30+31+31+30)    JOL3001 76200 02170000
+         DC    AL2(09),AL2(31+29+31+30+31+30+31+31+30+31)         76200 02180000
+         DC    AL2(10),AL2(31+29+31+30+31+30+31+31+30+31+30)      76200 02190000
+         DC    AL2(11),AL2(31+29+31+30+31+30+31+31+30+31+30+31)   76200 02200000
+P93LEND  EQU   *                                                        02210000
+         SPACE 3                                                        02220000
+P93MNTHN DC    CL9'JANUARY'                                             02230000
+         DC    CL9'FEBRUARY'                                            02240000
+         DC    CL9'MARCH'                                               02250000
+         DC    CL9'APRIL'                                               02260000
+         DC    CL9'MAY'                                                 02270000
+         DC    CL9'JUNE'                                                02280000
+         DC    CL9'JULY'                                                02290000
+         DC    CL9'AUGUST'                                              02300000
+         DC    CL9'SEPTEMBER'                                           02310000
+         DC    CL9'OCTOBER'                                             02320000
+         DC    CL9'NOVEMBER'                                            02330000
+         DC    CL9'DECEMBER'                                            02340000
+          DC S(*,*,*,*)                                                 02350000
+          DC S(*,*,*,*)                                                 02360000
+          DC S(*,*,*,*)                                                 02370000
+          DC S(*,*,*,*)                                                 02380000
+       DC S(*,*,*,*)                                                    02390000
+       DC S(*,*,*,*)                                                    02400000
+       DC S(*,*,*,*)                                                    02410000
+       DC S(*,*,*,*)                                                    02420000
+           END                                                          02430000

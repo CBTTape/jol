@@ -1,0 +1,91 @@
+UJD01JOB TITLE 'ALLOCATE JOBLIB FOR DYNAMIC JOLS'                '      00010000
+* JOL COPYRIGHT CCS-JOL PTY LTD 1988                                    00020000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-E001.           00030000
+         SPACE 3                                                        00040000
+*                   J             000000            L                   00050000
+*                   J            0      0           L                   00060000
+*                   J           0        0          L                   00070000
+*                   J          0          0         L                   00080000
+*                   J         0            0        L                   00090000
+*                   J         0            0        L                   00100000
+*                   J         0            0        L                   00110000
+*                   J         0            0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*        J          J         0            0        L                   00160000
+*         J        J           0          0         L                   00170000
+*          J      J             0        0          L                   00180000
+*           J    J               0      0           L                   00190000
+*            JJJJ                 000000            LLLLLLLLLLL         00200000
+           SPACE 3                                                      00210000
+*                                                                       00220000
+* CREATED ON JULY 27, 1988 BY THE ESTIMABLE JOHN SUMMERFIELD WITH       00230000
+* FLAWLESS ASSEMBLER INSTRUCTIONS TO PERFORM THE REQUIRED OPERATIONS.   00240000
+*                                                                       00250000
+* IF THIS IS THE FIRST CALL, JOBLBDD IS BLANK. IN THAT CASE, WE         00260003
+* ALLOCATE THE DATASET WITH THE DDNAME JOBLIB$$.                        00270003
+*                                                                       00280000
+* ON SECOND AND LATER CALLS, WE ALLOCATE THE DATASET WITH A NEW DDNAME  00290000
+* NICELY PROVIDED BY DYNAMIC ALLOCATION, AND THEN CONCATENATE THE NEW   00300000
+* ONE ONTO THE OLD.                                                     00310000
+*                                                                       00320000
+* FINALLY, WE STORE THE DDNAME JOBLIB$$ INTO JOBLBDD SO WE KNOW WE'VE   00330000
+* BEEN HERE BEFORE.                                                     00340000
+*                                                                       00350000
+* LAST SOURCE UPDATE                                                    00360000
+*   CHANGES:-                                                           00370000
+*     1.                                                                00380000
+         COPY  JOLGLOBL                                                 00390000
+         $UJEPARM                                                       00400000
+&TYPE    SETC  'SCHED'                                           88036  00410000
+         PRINT ON,DATA                                                  00420000
+UJECOMM  DSECT                                                          00430000
+         USING UJECOMM,R3,R5                                            00440000
+         COPY  UJECOMM                                                  00450000
+D01WORK  DSECT                                                          00460000
+         DS    18F                                                      00470000
+D01WORKS EQU   *-D01WORK                                                00480000
+         JOLSAVE CSECT=UJD01JOB,                                       .00490000
+               SIZE=D01WORKS,                                      .   .00500002
+               BASE=R11                                                 00510000
+         CLI   JOBLBDD,C' '                                             00520001
+         BNE   D01$010                                                  00530001
+         MVC   DDDDNAME,=CL8'JOBLIB$$'                                  00540001
+         B     D01$020                                                  00550001
+D01$010  DS    0H                                                       00560001
+         MVC   DDDDNAME,=CL8'        '                                  00570001
+D01$020  DS    0H                                                       00580001
+        $CALL  UJD03DS1,DDDSNDET ALLOCATE THE DATASET              J60  00590007
+         LTR   R15,R15                                                  00600001
+         BNZ   D01DIE          IT'S OK                                  00610001
+         JOLERR 002,'JOBLIB ',ERETDDN,' ',DDDSNAME,' ',ERETVOL          00620004
+D01$030  DS    0H                                                       00630001
+         CLI   JOBLBDD,C' '                                             00640001
+         MVC   JOBLBDD,=CL8'JOBLIB$$'                                   00650001
+         BE    JRETN0                                                   00660001
+* AT THIS POINT IT IS VERY NECESSARY TO CONCATENATE THIS FILE WITH THE  00670000
+*    OLD ONE                                                            00680000
+         MVC   DDNAME,JOBLBDD                                           00690001
+         MVC   #DDNAME,=H'8'                                            00700001
+         LA    R1,DYNCONC                                               00710001
+         $SVC99                                                         00720001
+*                                                                       00730001
+*  CHECK TO SEE IF ERRORS OCCURED.                                      00740001
+*                                                                       00750001
+         LTR   R15,R15                                                  00760001
+         BNZ   D01ERR                RETURN CODE ZERO                   00770001
+         L     R0,CONCERR            TEST ERR AND INFO CODE             00780001
+         LTR   R0,R0                 ERROR ?                            00790001
+*        BZ    E20GVOL                                                  00800001
+         BZ    JRETN0                                                   00810001
+D01ERR   DS    0H                                                       00820001
+         L     R1,DYNCONC                                               00830001
+         LR    R0,R15          R15                                      00840001
+         $CALL UJD03ERR        RECORD AN ERROR DURING CONCATENATION     00850001
+D01DIE   DS    0H                                                       00860001
+         JOLERR 401,'JOB FAILED DUE TO ALLOCATION ERROR FOR JOBLIB DS,',00870001
+               ,#DSN                                                    00880003
+         ABEND 1                                                        00890001
+         LTORG                                                          00900001
+         END                                                            00910001

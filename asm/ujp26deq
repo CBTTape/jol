@@ -1,0 +1,120 @@
+***  DEQUEUE OR DEQ JOL INSTRUCTION                                     00010001
+*          ON DATA SETS OR ANY RESOURCE                               * 00020000
+*                                                                     * 00030000
+*    MODIFIED FROM US26ENQ BY MIKE STRAHAN, SHELL OIL, MELBOURNE.     * 00040000
+*                                                                     * 00050000
+*                                                                     * 00060000
+*    FUNCTION:                                                        * 00070000
+*                                                                     * 00080000
+*         TO DEQUEUE ON MAJOR AND MINOR NAMES AS                      * 00090001
+*         SPECIFIED BY THE USER.                                      * 00100001
+*                                                                     * 00110000
+*         THIS IS A COMPILER INSTRUCTION, NOT EXECUTION.              * 00120000
+*                                                                     * 00130000
+*         ALTHOUGH REALLY DESIGNED FOR SAVESYMS, IT IS APPLICABLE     * 00140000
+*         TO MANY MANY FUNCTIONS.                                     * 00150000
+*                                                                     * 00160000
+*    LINKAGE:                                                         * 00170000
+*                                                                     * 00180000
+*         INVOKED BY DEQ MAJOR-NAME,MINOR-NAME {OPTIONS}              * 00190001
+*                                                                     * 00200000
+*           WHERE OPTIONS ARE:-                                       * 00210000
+*                                                                     * 00220000
+*              SYSTEM ¦ STEP                                          * 00230000
+*              -------                                                * 00240000
+*              TEST ¦ USE ¦ HAVE ¦ CHNG                               * 00250000
+*              WAIT ¦ NOTIFY                                            00260000
+*              ----                                                   * 00270000
+*                                                                     * 00280000
+*         ON ENTRY, REGISTERS CONTAIN STANDARD JOL REGISTER VALUES.   * 00290000
+*                                                                     * 00300000
+*         ON RETURN, %LASTCC IS SET TO :-                             * 00310000
+*         REGISTER 15 CONTAINS A RETURN CODE :                        * 00320000
+*         FOR ENTRY POINT US26ENQ                                     * 00330000
+*                                                                     * 00340000
+*         RC = 0   CONTROL OF RESOURCE HAS BEEN RELEASED.             * 00350001
+*                                                                     * 00360000
+*                                                                     * 00370000
+*         FOR ENTRY POINT US26DEQ                                     * 00380000
+*                                                                     * 00390000
+*         RC = 0   CONTROL OF THE RESOURCE HAS BEEN RELEASED.         * 00400000
+*                                                                     * 00410000
+*         RC = 4   APPLICABLE ONLY TO BACKGROUND TASKS.               * 00420000
+*                  CONTROL OF THE RESOURCE IS NOT RELEASED AS THE     * 00430000
+*                  TASK IS CURRENTLY WAITING FOR CONTROL OF THE       * 00440000
+*                  RESOURCE.                                          * 00450000
+*                                                                     * 00460000
+*         RC = 8   TASK HAS NO REQUESTS FOR CONTROL OF THE RESOURCE.  * 00470000
+*                                                                     * 00480000
+*                                                                     * 00490000
+*    MODULE ATTRIBUTES:                                               * 00500000
+*                                                                     * 00510000
+*         RE-ENTERABLE.                                               * 00520000
+*                                                                     * 00530000
+*********************************************************************** 00540000
+DEQUEUE  TITLE 'DEQUEUE ON NAMES SPECIFIED BY USER'                     00550001
+         PRINT OFF                                                      00560000
+         COPY  JOLCOM                                                   00570000
+         PRINT ON                                                       00580000
+         SPACE                                                          00590000
+P26WORK  DSECT                                                          00600000
+SAVE     DS    18F                 SAVE AREA                            00610000
+EXENQ    DEQ   (,,0,SYSTEM),RET=HAVE,MF=L                               00620002
+         DS    0F                                                       00630002
+QNAME    DS    CL8                 MAJOR NAME COPIED HERE               00640000
+MINORNM  DS    CL60                MINOR NAME COPIED HERE               00650000
+LNTHWRK  EQU   *-P26WORK           LENGTH OF WORK AREA                  00660000
+*R8       EQU   8                   STORES RETURN CODE DURING EXECUTION 00670000
+*R10      EQU   10                  POINTS TO WORK AREA                 00680000
+*R11      EQU   11                  BASE REGISTER FOR BULK OF PROGRAM   00690000
+*   EQUATES FOR FIELDS IN SYSTEM CONTROL BLOCKS                         00700000
+         SPACE 3                                                        00710000
+         JOLSAVE CSECT=UJP26DEQ,SIZE=LNTHWRK                            00720000
+         USING P26WORK,R13                                              00730000
+         LR    R10,R13             SET TO POINT TO WORK AREA            00740000
+         DROP  R13                                                      00750000
+         USING P26WORK,R10                                              00760000
+         MVC   ICOMMAND,=CL8'MACRO'                                     00770001
+         MVC   SYMBOLIC,=CL8'LASTCC'                                    00780001
+         MVC   #WORK(3),=X'0001F0' SET UP RC=0                          00790001
+         $CALL UJP85ASN                                                 00800001
+         SPACE 2                                                        00810001
+*    FIND THE RESOURCES WE WANT TO DEQ                                  00820001
+         SPACE 1                                                        00830001
+         GETTKN  2                 GET THE MAJOR QNAME                  00840001
+         MVC   QNAME,TKN                                                00850001
+         GETTKN  3                 GET THE SLASH (/)                    00860001
+         CLI   TKN,C'/'                                                 00870001
+         BE    P26SLASH                                                 00880001
+P26BAD   JOLERR 301,'DEQUEUE:- INVALID PARAMETERS'                      00890001
+         JOLERR 302,'MUST BE:- MAJOR-NAME/MINOR-NAME'                   00900001
+P26RET4  MVC   #WORK(3),=X'0001F4' SET UP RC=4                          00910001
+         $CALL UJP85ASN                                                 00920001
+         JOLRETN RC=4                                                   00930001
+P26SLASH DS    0H                                                       00940001
+         GETTKN  4                 GET THE NAME AFTER THE SLASH         00950001
+         BAL   R14,DROPQUOT                                             00960001
+         MVC   #WORK(L'TKN),#TKN                                        00970001
+         MVC   MINORNM(50),WORK    FOR ERROR MESSAGES                   00980001
+         CLC   =C'   ',TKN                                              00990001
+         BE    P26BAD                                                   01000001
+         GETTKN  5                                                      01010001
+         CLI   TKN,C' '                                                 01020001
+         BE    P26OK3                                                   01030001
+* WAIT DOESN'T MNATTER FOR DEQUEUE, SO IGNORE IT.                       01040001
+         CLC   =C'NOWAIT',TKN                                           01050001
+         BE    P26OK3                                                   01060001
+         CLC   =C'WAIT',TKN                                             01070001
+         BE    P26OK3                                                   01080001
+WAITERR  JOLERR 306,'WAIT OR NOWAIT EXPECTED, NOT ''',#TKN,''''         01090001
+P26OK3   DS    0H                                                       01100001
+         MVC   EXENQ(DEQLNTH),DEQ  SET UP DEQ PARAMETERS                01110000
+         DEQ   (QNAME,WORK-1,0),MF=(E,EXENQ)  TRY RET = USE             01120000
+         LTR   R15,R15                                                  01130000
+         BNZ   P26RET4                                                  01140001
+         JOLRETN                                                        01150001
+DEQ      DEQ   (,,0,SYSTEM),RET=HAVE,MF=L                               01160000
+DEQLNTH  EQU   *-DEQ               LENGTH OF DEQ LIST                   01170000
+         LTORG                                                          01180000
+         SPACE 3                                                        01190000
+         END                                                            01200000

@@ -1,0 +1,90 @@
+UJTNUMV  CSECT                                                          00000101
+* THIS ROUTINE WILL TEST A CHARACTER STRING TO BE NUMERIC               00000200
+*    IT HAS 2 ENTRY POINTS,UJTNUM WHICH EXPECTS R1 TO POINT AT THE      00000300
+*          START POSN OF A CHARACTER STRING,                            00000400
+*          AND R0 TO CONTAIN THE LENGTH                                 00000500
+*    UJTNUMV EXPECTS R1 TO POINT AT A VARYING CHARACTER STRING          00000600
+*          THEREFORE FIRST 2 BYTES CONTAIN ITS CURRENT LENGTH           00000700
+           SPACE 2                                                      00000800
+* ON RETURN,R1 CONTAINS THE NUMBER CONVERTED,R15=0 IF NUMERIC,          00000900
+*    OTHERWISE 4                                                        00001000
+           SPACE 2                                                      00001100
+* RE-ENTRANT                                                      75128 00001200
+         SPACE 2                                                        00001301
+         REGEQU                                                         00001401
+* VARYING STRING HERE,SO R0 MUST BE SET TO THE LENGTH,AND               00002601
+*              R1 TO *+2(TO GET START POSN OF STRING)                   00002701
+         LH    R0,0(R1)                 LOAD LENGTH OF STRING           00002801
+         LA    R1,2(,R1)                                                00002901
+         BALR  R15,0           DROP INTO FIXED-LENGTH ROUTINE           00003001
+         USING UJTNUM,R15                                               00003101
+UJTNUM   DS    0H                                                       00003201
+         ENTRY UJTNUM                                                   00003301
+         SAVE  (2,4),,*                                           75128 00003701
+*        BALR  R15,0                                              75128 00003801
+*        USING *,R15                                              75128 00003901
+         LTR   R0,R0            TEST IF L'VAR STRING=0                  00004401
+         BZ    NOTNUM                                             74303 00004501
+         LR    R2,R1                                                    00004901
+         AR    R2,R0                                                    00005001
+         BCTR  R2,0                            -1 TO GET R2 POSN        00005101
+* NOW SKIP ANY BLANKS                                                   00005201
+FINDSTRT CLI   0(R1),C' '                                               00005301
+         BNE   GOTSTART                                                 00005401
+         LA    R1,1(,R1)                                                00005501
+         CR    R1,R2                                                    00005601
+         BE    ALLBLANK                                                 00005701
+         B     FINDSTRT                                                 00005801
+* NOW WORK BACKWARDS FROM END AND RESET IT(MAY HAVE BLANKS AT THE END)  00005901
+GOTSTART DS    0H                                                       00006001
+FINDSTOP CLI   0(R2),C' '                                               00006101
+         BNE   STOPOK                                                   00006201
+         BCT    R2,FINDSTOP                                             00006301
+STOPOK   DS    0H                                                       00006401
+         SR    R4,R4          INDICATOR TO SAY IF -VE |NUM'I      75128 00006501
+         CLI   0(R1),C'-'     -VE SIGN ?                          75128 00006601
+         BNE   CHKNUM1        NOPE                                75128 00006701
+         LA    R4,1           MAKE NON-ZERO                       75128 00006801
+         LA    R1,1(R1)  SKIP -VE SIGN                            75128 00006901
+CHKNUM1  LR    R0,R1          SAVE START ADDRESS IN R0            75128 00007001
+         FIX   'A TRT INSTRUCTION WOULD GO RATHER WELL HERE'            00007101
+LOOK     CLI   0(R1),C'0'                                               00007201
+         BL    NOTNUM                                                   00007301
+         CLI   0(R1),C'9'                                               00007401
+         BH    NOTNUM                                                   00007501
+         LA    R1,1(,R1)                                                00007601
+         CR    R1,R2                                                    00007701
+         BNH   LOOK           GO CHECK NEXT DIGIT                 75128 00007801
+* NOW WE HAVE R2= LAST VALID CHARACTER,                           75128 00007901
+*        R0=FIRST                                                 75128 00008001
+*        R2    DESTROYED (=R2 NOW)                                75128 00008101
+*        R4=0  IF +VE, ELSE NOT 0                                 75128 00008201
+* NOW CALC LENGTH OF STRING                                       75128 00008301
+         SR    R2,R0          REG R2= L'NUMBER-1                  75128 00008401
+         LR    R1,R0          GET START ADDRESS INTO REAL REGISTR 75128 00008501
+* NOW FIND A DBL WORD IN THE SAVE AREA TO PACK THE NUMBER INTO    75128 00008601
+         LA    R3,4+7+4(R13)  GET FREE PLACE IN SAVE AREA         75311 00008701
+         SRL   R3,3           DIVIDE BY 8                         75311 00008801
+         SLL   R3,3           MULT BY 8 (GIVES DBL WORD ALIGN)    75311 00008901
+         USING PACKED,R3                                          75128 00009001
+         CH    R2,=H'10'      > 10 DIGITS                         75128 00009101
+         BH    NOTNUM         LAST CHECK ALMOST                   75128 00009201
+         EX    R2,PACK        PACK THE NUMBER                     75128 00009301
+         CP    PACKED,=P'2147483647' TOO BIG TO CONVERT ?         75128 00009401
+         BH    NOTNUM                YEP ->                       75128 00009501
+         CVB   R1,PACKED      CONVERT TO BINARY                   75128 00009601
+         LTR   R4,R4          TEST IF -VE                         75128 00009701
+         BZ    RETN0          OK                                  75128 00009801
+         LNR   R1,R1          MAKE -VE                            75128 00009901
+RETN0    RETURN (2,4),T,RC=0  AND RETURN 0 IN R15                 75128 00010001
+ALLBLANK DS    0H                                                       00010101
+NOTNUM   SR    R1,R1          CLEAR RETURN REGISTER               75128 00010201
+         RETURN (2,4),T,RC=4  SET INVALID RETURN CODE             75128 00010301
+PACK     PACK  PACKED,0(0,R1)                                     75128 00010401
+         LTORG                                                    75128 00010501
+         DC S(*,*,*,*)                                                  00010601
+         DC S(*,*,*,*)                                                  00010701
+         DC 8S(*)                                                       00010801
+P        DSECT                                                    75128 00011001
+PACKED   DS    D                                                        00011101
+         END                                                            00011201

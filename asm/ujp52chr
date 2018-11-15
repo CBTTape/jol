@@ -1,0 +1,1555 @@
+UJP52CHR TITLE 'JOL PREPROCESSOR READ STATEMENT ROUTINES'               00010000
+         COPY  JOLCOM                                                   00020000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974            00030000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1976                           00040000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1980                           00050000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1981                           00060000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1982                           00070000
+* JOL COPYRIGHT CCS-JOL 1984                                            00080000
+* JOL COPYRIGHT CCS-JOL 1985                                            00090000
+* JOL COPYRIGHT CCS-JOL 1986                                            00100000
+* JOL COPYRIGHT CCS-JOL 1987                                            00101000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00110000
+           SPACE 3                                                      00120000
+*                   J             000000            L                   00130000
+*                   J            0      0           L                   00140000
+*                   J           0        0          L                   00150000
+*                   J          0          0         L                   00160000
+*                   J         0            0        L                   00170000
+*                   J         0            0        L                   00180000
+*                   J         0            0        L                   00190000
+*                   J         0            0        L                   00200000
+*                   J         0            0        L                   00210000
+*                   J         0            0        L                   00220000
+*                   J         0            0        L                   00230000
+*        J          J         0            0        L                   00240000
+*         J        J           0          0         L                   00250000
+*          J      J             0        0          L                   00260000
+*           J    J               0      0           L                   00270000
+*            JJJJ                 000000            LLLLLLLLLLL         00280000
+         SPACE 3                                                        00290000
+*                                                                       00300000
+* MAY 2, 1984                                                           00310000
+*                                                                       00320000
+* CHANGES TO MOVE ALL I/O AND SYSTEM ROUTINES TO THREE OR FOUR SOURCE   00330000
+*  MODULES SO THAT JOL BECOMES OPERATING SYSTEM INDEPENDENT.            00340000
+*                                                                       00350000
+* THIS MODULE CONTAINS THE PRE-PROCESSOR READ FUNCTIONS.                00360000
+*                                                                       00370000
+* THE MODULE IS CALLED UJPREAD.                                         00380000
+*                                                                       00390000
+* ON ENTRY, IT SETS UP ADDRESS CONSTANTS SO THAT THE MAIN PRE-PROCESSOR 00400000
+*  MODULES CAN ACCESS THE READ MODULES.                                 00410000
+*                                                                       00420000
+* CONTROL THEN RETURNS TO UJM00MN - THE MAIN JOL COMPILER MODULE.       00430000
+*                                                                       00440000
+*                                                                       00440100
+*                                                                       00440200
+*                                                                       00440300
+**************************************************************          00440400
+* AUGUST 22, 1988 BY C. V. CLARKE                                       00440500
+*                                                                       00440600
+* ALTER PRINT FORMAT: ADD LEVEL AND NEST AND MOVE STATEMENT RIGHT J40B  00441000
+*                     A FEW CHARACTERS.                           J40B  00442000
+*                                                                       00443000
+*                                                                       00444000
+**************************************************************          00450000
+* MARCH 20, 1987 BY C. V. CLARKE                                        00452000
+*                                                                       00453000
+* WHEN WRITING THE MACROS FOR NETWORKING AND SCHEDULING, I NOTICED      00454000
+* THAT WHEN LISTS ARE FORMED, THAT IS A USER CODES :                    00455000
+* AFTER (A ENDED | (C ENDED & C ENDED))                                 00456000
+* THAT ALL THE ITEMS ARE FORMED AS A CONCATENATED LIST (THE WAY IT      00457000
+* SHOULD BE).  HOWEVER, THE ORIGINAL INTENTION WAS THAT ONLY ITEMS      00458000
+* SEPERATED BY SPECIALS WOULD COME INTO THIS AUTOMATIC CONCATENATION.   00459000
+*                                                                       00459100
+* THE ERRORS WERE:                                                      00459200
+* 1. NO ACCOUNT WAS TAKEN OF THE LACK OF A COMMA, OR OTHER SPECIAL      00459300
+*       CHARACTER, SO 'A ENDED' CAME OUT AS 'AENDED'!                   00459400
+* 2. THE BRACKETS WEREN'T BEING COUNTED.  AS SOON AS A ) WAS            00459500
+*       FOUND, IT DROPPED OUT OF THE CONCATENATION LOOP.                00459600
+*                                                                       00459700
+*                                                                       00459800
+**************************************************************          00459900
+* MARCH 20, 1987 BY C. V. CLARKE                                        00460000
+*                                                                       00460100
+* HANDLE IMPROVED EXIT INSTRUCTION                                      00460200
+*                                                                       00460300
+         EJECT                                                          00460400
+         PRINT DATA                                                     00470000
+UJP52CHR CSECT                                                          00540000
+* THIS ROUTINE RETURNS THE NEXT CHARCTER FROM FILE SYSIN                00550000
+         USING UJP52CHR,R15                                             00560000
+         CLI   EOFSYSIN,C' '                                            00570000
+         BNE   P52RBLAN       RETURN A BLANK, RESET EOF IND     86200   00580000
+         CLI   SYSINMDE,C'1'  ARE WE IN SYSINMODE ?             74303   00590000
+         BE    P52OLDRD       GOTO THE OLD READ ROUTINE         86200   00600000
+         L     R1,AJOLGEN                                               00610000
+         USING GENDETS,R1                                               00620000
+*        CLC   CP,SM2         RUN OVER CARD BOUNDARY ?                  00630000
+         LH    R0,CP          LOAD CURRENT CHARACTER POSITION     CVC   00631000
+         CH    R0,SM2         RUN OVER CARD BOUNDARY ?            CVC   00632000
+         BNL   P52OLDRD       GOTO OLD READ ROUTINE             86200   00640000
+*        LH    R1,CP          LOAD CURRENT CHARACTER POSITION           00650000
+*        LA    R15,CARD(R1)   GET ABSOLUTE ADDRESS CHAR WE WANT         00660000
+*        MVC   INCHAR,0(R15)  GET REQD CHARACTER                        00670000
+         LR    R1,R0                                              J60   00670100
+         DROP  R1                                                       00670200
+         IC    R0,CARD(R1)       LOAD CHARACTER                   CVC   00671000
+         STC   R0,INCHAR                                          CVC   00672000
+         LA    R1,1(R1)       ADD 1 TO CP                               00680000
+         STH   R1,CP          AND RESTORE                               00690000
+         SR    R15,R15                                                  00700000
+         BR    R14                                                      00710000
+P52RBLAN EQU   *                                                        00720000
+         MVI   EOFSYSIN,C'1'                                            00730000
+         MVI   INCHAR,C' '                                              00740000
+         LA    R15,12                                                   00750000
+         BR    R14                                                      00760000
+* HERE WE NEED TO GO TO THE FULL READ CHARACTER ROUTINE                 00770000
+P52OLDRD L     R15,=V(UJP52OLD)                                   84100 00780000
+         BR    R15                                                74303 00790000
+         DC    20S(*)                                                   00800000
+         LTORG                                                          00810000
+         DROP  R15                                               74303  00820000
+*        END                                                            00830000
+         LTORG                                                          00831000
+        TITLE 'GET NEXT CHARACTER FROM INPUT STREAM(3)'                 00840000
+P52SAVE  DSECT                                                          00850000
+         DS    18F                                                      00860000
+SAVEEODA DS AL3              SAVE THE EODAD HERE                        00870000
+P52SAVEL EQU   *-P52SAVE                                                00880000
+P52LNERR DSECT ,                                                        00890000
+P52LN#   DS    CL1           INVALID SKIP LINE #                        00900000
+         JOLSAVE CSECT=UJP52OLD,SIZE=P52SAVEL                           00910000
+         USING  P52SAVE,R13                                             00920000
+* THIS ROUTINE RETURNS THE NEXT CHARCTER FROM FILE SYSIN OR THE CURRENT 00930000
+*  LIBRARY FILE.                                                        00940000
+         L     R7,AJOLGEN                                         75128 00950000
+         USING GENDETS,R7                                         75128 00960000
+         L     R8,ADCBS                                           75128 00970000
+         USING DCBS,R8                                            75128 00980000
+         CLI   EOFSYSIN,C' '                                            00990000
+         BNE   RETNBLAN                                                 01000000
+         CLI   SYSINMDE,C'1'   ARE WE IN SYSINMODE ?              74303 01010000
+         BE    READCARD                                                 01020000
+P52GETCH EQU   *                                                        01030000
+         CLC   CP,SM2          RUN OVER CARD BOUNDARY ?                 01040000
+         BL    CARDOK           DON'T NEED TO GET A NEW ONE             01050000
+READCARD EQU   *                                                        01060000
+* IF WE ARE USING SYSIN DCB,DO A GET,OTHERWISE TEST IF WE CAN           01070000
+*    GET A NEW RECORD FROM THE CURRENT BLOCK AND IF NOT READ A          01080000
+*    NEW ONE                                                            01090000
+         SPACE                                                          01100000
+         L     R4,AP52DCBS                                        75128 01110000
+         USING P52DCBS,R4                                               01120000
+         L     R5,AREADBUF                                        75128 01130000
+         USING READAREA,R5                                              01140000
+         LA    R15,SYSIN                                          74303 01150000
+         FIX   'MAKE L ASYSIN'                                          01160000
+         C     R15,CURRDCB                                        74303 01170000
+         BE    P52GET                                                   01180000
+           SPACE                                                        01190000
+* WE ARE READING FROM A LIBRARY OF SOME SORT HERE                       01200000
+           SPACE                                                        01210000
+P52NEWRC EQU   *                                                  75128 01220000
+         CLI   ICOMMAND,C'\'   TOLD TO EXIT?                      87080 01221000
+         BE    P52READB        YES, SO GO TO READ BLOCK RTN       87080 01222000
+         L     R1,ACURREC      LOAD ADDRESS OF CURRENT RECORD IN BLOCK  01230000
+         L     R15,CURRDCB                                              01240000
+         LTR   R1,R1                                                    01250000
+         BZ    P52READB                                                 01260000
+         USING IHADCB,R15                                               01270000
+         TM    DCBRECFM,X'50'  VB ?                                     01280000
+         BO    P52VB                                                    01290000
+* FB HERE                                                               01300000
+         LA    R14,READAREA    LOAD ADDRESS OF THE READAREA             01310000
+         AH    R14,CURRBLKS    + LENGTH OF BLOCK                        01320000
+         CR    R1,R14          DO WE NEED A NEW BLOCK ?                 01330000
+         BNL   P52READB        YEP,GO GET IT.                     74303 01340000
+         SPACE 2                                                        01350000
+P52MUVFB MVC   CARD,0(R1)      MOVE THE RECORD IN (IT HAD BETTER BE     01360000
+*                              80 BYTES AT THE MOMENT)                  01370000
+         MVC   CURRLREC,DCBLRECL   SAVE RECORD LENGTH FOR LATER   75128 01380000
+         AH    R1,DCBLRECL     RESET NEXT RECORD POINTER                01390000
+********* COULD READ THE NEXT BLOCK *******                             01400000
+         ST    R1,ACURREC                                               01410000
+         B     P52TRECT        TEST IF JOL-CARD OR SYSIN ETC            01420000
+         SPACE 3                                                        01430000
+P52VB    EQU *                                                          01440000
+* VARIABLE BLOCKED INPUT HERE                                           01450000
+         MVC   DCBLRECL,0(R1)    SHIFT CURRENT RECORD LENGTH TO WORK    01460000
+*                              AREA SO WE DON'T GET 0C6'S               01470000
+         CLC   =X'FFFF',DCBLRECL                                  75128 01480000
+         BE    P52EOM                                             75128 01490000
+         MVI   DCBLRECL,0    WIPE OUT ANT NEGATIVE LRECL           DASD 01500000
+         MVC   CURRLREC,DCBLRECL SAVE LRECL FOR LATER    JOL30040 76200 01510000
+*        AH    R1,DCBLRECL     AND ADD                                  01520000
+         LA    R14,READAREA    ADDRESS OF BLOCK                         01530000
+         AH    R14,CURRBLKS    + LENGTH OF BLOCK                        01540000
+         CR    R1,R14          RUN OVER END OF BLOCK ?                  01550000
+*        BL    P52MUVVB        NO,DECOMPRESS VB RECORD                  01560000
+STOP     BNL   P52READB        YES, GO GET A NEW BLOCK                  01570000
+*        MVI   DCBLRECL,X'7F'                                     75128 01580000
+         SPACE 3                                                        01590000
+P52MUVVB L     R0,ACURREC     SAVE  RECORD POINTER FIRST OF ALL   75128 01600000
+* NOW VB RECORDS MAY BE 'COMPRESSED' RECORDS,THAT IS ANY SERIES OF      01610000
+*    BLANKS FOUND MAY BE REPLACED BY A SERIES OF HEX CHARACTERS         01620000
+*    OF LESS THAN X'40) (BLANK) AND RE-EXPANEDE UP TO LOOK LIKE         01630000
+*    REAL CARD IMAGES                                                   01640000
+         AH    R1,DCBLRECL     AND ADD                                  01641000
+         ST    R1,ACURREC     RESET CURRENT RECORD POINTER        75128 01650000
+         CLEAR CARD                                                     01660000
+         LH    R15,DCBLRECL   LOAD CURRENT LRECL                  75128 01670000
+* NOW FIRST 4 BYTES ARE UNUSEABLE, AND IF THE FILE DCB IS         75128 01680000
+*  NOT WORKFILE(SYSUT2), IT MUST BE A USER FILE WHICH WE ARE      75128 01690000
+*  GOING TO ASSUME IS A TSO VB FILE, IE THE FIRST 8 BYTES HAVE    75128 01700000
+*  A LINE NUMBER(WHICH WE DON'T WANT)                             75128 01710000
+         LR   R14,R0         LOAD R14 WITH ADDRESS OF CURRENT REC.75128 01720000
+         CLC   AWORKFIL+1(3),CURRDCB+1                            75128 01730000
+         BNE   P52TSO                                             75128 01740000
+* OK, ITS OUR WORKFILE, DO WHAT WE WILL WITH IT                   75128 01750000
+         SH    R15,=H'5'      -4 VB OVERHEADS,-1 FOR EX MVC       75128 01760000
+         BM    P52NEWRC       NULL RECORD (CAN HAPPEN I GUESS)    75128 01770000
+         EX    R15,P52MVCVB   SHIFT 'CARD' TO CARD                75128 01780000
+         B     P52TRECT       NOW TEST RECORD TYPE ETC            75128 01790000
+P52TSO   SH    R15,=H'13'     -4 VB,-1 EX,-8 TSO LINE NUMBERS     75128 01800000
+         BM    P52NEWRC                                           75128 01810000
+         EX    R15,P52MVCTS   MOVE TSO RECORD                     75128 01820000
+         B     P52TRECT       GO TEST RECORD TYPE                 75128 01830000
+         SPACE 3                                                  75128 01840000
+P52MVCVB MVC   CARD(*-*),4(R14)    OUR VB RECORD                  75128 01850000
+P52MVCTS MVC   CARD(*-*),12(R14)   TSO VB RECORD                  75128 01860000
+*********************************************************************** 01870000
+           SPACE 3                                                      01880000
+P52GET   MVC   SYSIN+DCBEODA-IHADCB(3),=AL3(P52RETNF)                   01890000
+* There is a bug here.  I don't know if it is Hercules, MVS 3.8,        01891009
+*    or if it only happens on Z/OS.                                     01892009
+* However, P50SAVEF gets clobbered with blanks when a GET is done       01893009
+*    from TSO.                                                          01894009
+* So, it needs to be saved, and restored after the GET.                 01895009
+* Clem Clarke, Feb, 2010.                                          J60  01896009
+         GET   SYSIN,CARD                                               01900000
+         MVC   P50SAVEF,=F'0'                                      J60  01901009
+         B     P52TRECT        TEST IF A JOL CARD OR SYSIN DATA         01910000
+         SPACE 3                                                        01920000
+P52READB EQU *                                                          01930000
+* APPARENTLY WE HAVE TO READ A NEW BLOCK                                01940000
+         SPACE                                                          01950000
+         L    R9,CURRDCB       LOAD DCB ADDR INTO 9                     01960000
+         DROP R15                                                       01970000
+         XC   CALLAREA(24),CALLAREA                               74303 01980000
+         MVC   SAVEEODA(3),DCBEODA-IHADCB(R9)      SAVE THE OLD EODAD   01990000
+         CLI   ICOMMAND,C'\'   TOLD TO EXIT?                      87080 01991000
+         BE    P52EOM          YES, SO RESET POINTERS TO LAST CALL87080 01992000
+         MVC   DCBEODA-IHADCB(3,R9),=AL3(P52EOFLI) SHIFT IN EODAD       02000000
+         READ  CALLAREA,SF,(9),(5),MF=(E,CALLAREA)                      02010000
+         CHECK CALLAREA                                           74303 02020000
+         SPACE 1                                                  74303 02030000
+P52GOTBL DS    0H                                                C DASD 02040000
+* NOW FIND THE NUMBER OF BYTES READ ETC                                 02050000
+         USING IHADCB,R9                                                02060000
+         L     R1,CALLAREA+16  LOAD ADDRESS OF IOB                74303 02070000
+         LH    R14,DCBBLKSI    GET NUMBER OF BYTES REQUESTED IN 'READ'  02080000
+         SH    R14,14(R1)      -RESIDUAL COUNT=NUMBER BYTES READ        02090000
+         STH R14,CURRBLKS      STORE IN CURRENT BLOCK-SIZE POSN         02100000
+* IF VB SET 'ACURREC' TO READAREA+4 (TO SKIP BLKSIZE)                   02110000
+*  ELSE SET IT TO A(READAREA)                                           02120000
+         ST    R5,ACURREC      ACURREC = A(READAREA)              74303 02130000
+         TM    DCBRECFM,X'80'  VARIABLE?                                02140000
+         BNZ   READCARD        NO,SO GET NEXT CARD AS NORMAL            02150000
+         MVC   CURRBLKS(2),READAREA    JS FIX MVS PROBLEM     JS        02160000
+         LA    R15,READAREA+4                                     74303 02170000
+         ST    R15,ACURREC                                        74303 02180000
+         B     READCARD                                                 02190000
+         SPACE 3                                                        02200000
+P52EOFLI EQU *                                                          02210000
+       MVC     DCBEODA-IHADCB(3,R9),SAVEEODA       RESTORE THE EODAD    02220000
+* FOUND END OF MEMBER CONDITION WHEN READ A BLOCK                       02230000
+*  FIRST OF ALL WE SHALL RESET THE ERROR INDICATORS SHICH               02240000
+*  WOULD HAVE NO DOUBT BEEN SET BY THE EOF CONDITION                    02250000
+         NI    DCBCIND1,255-X'10'                                       02260000
+         NI    DCBCIND2,255-X'10'                                       02270000
+         NI    DCBIFLGS,255-B'11000000'                                 02280000
+         SPACE 3                                                        02290005
+* NOW WE MUST 'DROP' THE LEVEL OF DCBS SO WE CAN GET BACK               02300000
+*  TO THE NEXT HIGHER MACRO OR INCLUDE DATA SET.                        02310000
+P52EOM EQU     *                                                  75128 02320000
+*        IF (!(CLC(GOTO_NM, "        ",8)))                             02321000
+*        {                                                              02322000
+*            CPYLIT(ERRTEXT, "GOTO LABEL '");                           02323000
+*            CATSTR(ERRTEXT, GOTO_NM);                                  02324000
+*            CATLIT(ERRTEXT, "' NOT FOUND");                            02325000
+*            JOLERR("P46303");                                          02326000
+*            CPYLIT(GOTO_NM, "        "); /* CVC 220 */                 02327000
+*        }                                                              02328000
+         CLC   GOTO,BLANKS                                        J52   02329000
+         BE    P52SETF                                            J52   02329100
+         JOLERR 403,'GOTO LABEL ''',GOTO,''' NOT FOUND'           J52   02329200
+         MVC   GOTO,BLANKS                                        J52   02329300
+P52SETF  DS    0H                                                 J52   02329400
+         LH    R1,FILENO       CURRENT 'NEST'                           02330000
+         BCTR  R1,0            -1                                 74303 02340000
+         STH   R1,FILENO                                                02350000
+         LR    R14,R1                                                   02360000
+         MH    R14,=Y(SAVEDCBL)                                         02370000
+         LA    R14,P52DCBS(R14)                                         02380000
+         MVC   CP+1(1),SAVECP-P52DCBS(R14) RESET CHARACTER POINTER75128 02390000
+         MVC   ACURREC,SAVEPOSN-P52DCBS(R14) AND CURRENT RECORD ADDR    02400000
+         MVC   CURRBLKS,SAVEBLKS-P52DCBS(R14) AND BLOCKSIZE             02410000
+         MVC   CURRDCB,SAVEDCB-P52DCBS(R14)    AND DCB                  02420000
+         MVC   CURRLREC+1(1),SAVELREC-P52DCBS(R14)        75128         02430000
+         L     R1,CURRDCB                                               02440000
+         LA    R15,SYSIN                                          74303 02450000
+         FIX 'MAKE L ASYSIN'                                            02460000
+         CR    R1,R15          HAVE WE DROPPED BACK TO THE SYSIN  74303 02470000
+*                            FILE DCB ?                                 02480000
+         BNE   P52READ2                                                 02490000
+         MVC   CARD,SAVECARD                                            02500000
+         MVI   PRINTIND,C' '      TURN ON PRINT IN 'COMPILE' LISTING    02510000
+*                                 COS IT MAY HAVE GOT TURNED OFF        02520000
+*                                 WHILE PROCESSING THE LAST MACRO       02530000
+*        STLINENO LINE=1,MODE=OFF                                 J60   02531003
+         B     P52GETCH                                                 02540000
+P52READ2   EQU *                                                        02550000
+*IF THIS MEMBER THAT WE ARE BACK TO IS NOT THE MACRO FILE,              02560000
+*     WE MUST TURM OF THE PRINTIND FOR THE SECOND PHASE                 02570000
+         LA    R15,PROCLIB     PROCLIB DCB                        74303 02580000
+         FIX  'MAKE L PROCLIB'                                          02590000
+         CR    R15,R1          EQUAL ?                            74303 02600000
+         BNE   P52MACRO                                           74303 02610000
+         MVI   PRINTIND,C' '                                            02620000
+P52MACRO EQU   *                                                        02630000
+         L     R15,AWORKFIL    SEE IF THIS A SWITCH FOR THE       DASD  02640000
+         CR    R15,R1          WORKFILE   ECT.. INVOKE O/P        DASD  02650000
+         BE    P52WORK                                            DASD  02660000
+         L     R15,ACURREC                                              02670000
+         SH    R15,CURRLREC                                       75128 02680000
+         ST    R15,ACURREC                                              02690000
+P52WORK  EQU   *                                                  DASD  02700000
+         LR  R9,R1                                                      02710000
+         MVC   BLDLTTR,SAVETTR-P52DCBS(R14) RESET TTR OF LAST MACRO5128 02720000
+         MVC   CURRCONC,BLDLTTR+3 SAVE CONCATENATION #   JOL30006 76200 02730000
+         FIND  (9),BLDLTTR,C                                     75128  02740000
+         XC    CALLAREA(20),CALLAREA                             74303  02750000
+         READ  CALLAREA,SF,(9),(5),MF=(E,CALLAREA)                      02760000
+         CHECK CALLAREA                                                 02770000
+         CLI   CALLAREA,X'7F'                                    74303  02780000
+         BNE   P52RESER                                                 02790000
+         FIX   'GET RID OF ABOVE TWO INSTRUCTIONS'                      02800000
+         L     R15,ACURREC                                              02810000
+         MVC   CARD,0(R15)                                              02820000
+         L     R1,AWORKFIL   CHECK AGAIN FOR WORKFILE              DASD 02830000
+         CR    R9,R1         IF SO DONT DISTURB THE RECORD         DASD 02840000
+         BE    READCARD      POINTERS                              DASD 02850000
+         LA    R15,80(R15)                                              02860000
+         ST    R15,ACURREC                                              02870000
+         CLI   ICOMMAND,C'\'   CALLED BY EXIT PROCESSOR ?         87080 02871000
+         BNE   P52GETCH        NO, SO GET NEXT CHARCTER.          87080 02872000
+         MVI   ICOMMAND,C' '   CLEAR THE EXIT INDICATOR           87150 02873000
+         JOLRETN  ,            YES, SO RETURN NOW                 87150 02874000
+P52RESER EQU   *                                                        02890000
+         JOLERR 501,'ERROR REPOSITIONING INPUT FILES'                   02900000
+*                              OR INCLUDE END                           02910000
+         CHECK CALLAREA                                                 02920000
+         JOLRETN                                                        02930000
+P52TRECT EQU   *                                                        02940000
+* THE NEXT BIT OF CODE GOES LIKE:-                                74303 02950000
+*    IF MACROLIB & CARD='**' THEN GOTO ISJOL2;                    74303 02960000
+*    IF PARMCOL¬='' & PARMCOL=CARD THEN GOTO ISJOL2;              74303 02970000
+*    IF SYSINMDE THEN GO TO ISDATA                                74303 02980000
+           SPACE 1                                                74303 02990000
+* WE ACCEPT MACROLIB & CARD='**' BECAUSE ALL JOL MACROS ARE       74303 03000000
+*    CURRENTLY CODED THIS WAY                                     74303 03010000
+           SPACE 1                                                74303 03020000
+         LA    R1,2            PREPARE TO SET CP=2                74303 03030000
+         LA    R15,MACRODCB                                       74303 03040000
+         FIX   'MAKE LOAD'                                              03050000
+         C     R15,CURRDCB     = ?                                74303 03060000
+         BNE   P52NMAC3        NOPE                               74303 03070000
+         CLC   =C'**',CARD     COLS 1 & 2 ='**'                   74303 03080000
+         BE    P52STRCP        YES,SET CP=2                       74303 03090000
+P52NMAC3 CLC   PARMCOL,BLANKS PARMCOL='  '                        75128 03100000
+         BE    P52TSYS9                                           75128 03110000
+         CLC   PARMCOL,CARD    PARMCOL¬='',SEE IF COLS 1 & 2=     74303 03120000
+         BE    P52STRCP        YES,IS JOL,SET CP=2                74303 03130000
+P52TSYS9 IFNULL SYSINMDE,P52SETCP CHECK IF SYSIN MODE NOW         74303 03140000
+* NOW, HERE WE ARE IN SYSIN MODE (IE READING DATA CARDS) AND COLS 74303 03150000
+*          1 AND 2 ARE ALLOWED TO BE ' ' OR USED BY THE PROGMR.   74303 03160000
+*          THEREFORE,IT SEEMS POSSIBLE THAT THIS CARD IS A DATA   74303 03170000
+*          CARD. BUT WE HAD BETTER CHECK IF IT IS 'EOF;'          74303 03180000
+         CLC   =C'EOF;',CARD                                      74303 03190000
+         BE    P52ISEOF        YES,ASSUME DATA CARD HERE          74303 03200008
+         CLC   =C'eof;',CARD                                      74303 03201008
+         BNE   P52ISDTA        YES,ASSUME DATA CARD HERE          74303 03202008
+* HERE, EOF ON A DATA CARD FILE.                                  74303 03210000
+P52ISEOF EQU   *                                                  J60   03211008
+         CLEAR SYSINMDE        TURN OFF SYSIN MODE.               74303 03220000
+         B     P52ISJOL       HANDLE 'EOF' INSTRUCTION      FIX-X 76200 03230000
+P52ISDTA EQU   *                                                  74303 03240000
+* SYSIN DATA SET HERE                                                   03250000
+         JOLRETN RC=4        SYSIN RETURN CODE                          03260000
+P52ISJOL EQU   *               COLS 1 & 2 SIGNIFY JOL CARD        74303 03270000
+P52SETCP EQU   *                                                  74303 03280000
+         SR    R1,R1           SET R1=0                           74303 03290000
+P52STRCP STH   R1,CP           STORE INTO CP                      74303 03300000
+         CLEAR SYSINMDE                                                 03310000
+         LA    R1,CARD(R1)     HAVE A LOOK AT THE FIRST VALID     74303 03320000
+*                            CHARACTER IN THE CARD                74303 03330000
+         LA    R14,1                                                    03340000
+         LA    R15,CARD+71                                              03350000
+         CLI   OPERATOR,X'FF'   IN COMMENT ?                       SOCO 03360000
+         BE    P52OLDJB                                            SOCO 03370000
+         CLI   0(R1),C'*'      IS IT '* JOL'                      74303 03380000
+         BE    P52TJOL         WELL GO SEE,AT LEAST WE HAVE THE '*'     03390000
+         B     P52OLDJB                                           74303 03400000
+P52TJOL  CLC   =C'JOL',0(R1)                                            03410000
+         BE    JRETN8          RETURN A CODE OF 8 DIRECTLY,       74303 03420000
+*                            NOT THROUGH A JOLRETN MACRO.         74303 03430000
+         BXLE  R1,R14,P52TJOL                                           03440000
+         SPACE 2                                                        03450000
+P52OLDJB EQU *                                                    74303 03460000
+         IFVALUE LEVEL,P52TITOK IF IN A MACRO, SKIP THIS CODE     87150 03461000
+* FOR BETTER PERFORMANCE, AND WE DON'T WANT $$JOLINI CODE         87150 03462000
+* TO BE USED AS A TITLE.                                          87150 03463000
+         CLC   TITLE1,BLANKS  SET UP THE TITLE YET?               87150 03470000
+         BNE   P52TITOK                                           75128 03480000
+         CLI   CARD,C'$'      IS THIS A $$JOLINI AUTOMATIC MACRO? 87150 03490000
+         BE    P52TITOK                                                 03500000
+         MVC   TITLE1,CARD                                              03510000
+P52TITOK EQU   *                                                        03520000
+         CLEAR THISPRNT                                                 03530000
+         LA    R1,CARD          POINT AT CARD BUFFER               DASD 03540000
+         LA    R14,1            BXLE INCR                          DASD 03550000
+         LA    R15,CARD+71      BXLE LIMIT                         DASD 03560000
+P52CKBLN CLI   0(R1),C' '       NON-BLANK ?                        DASD 03570000
+         BNE   P52GOTIT         YES, CHECK FOR CONTROL VERB        DASD 03580000
+         BXLE  R1,R14,P52CKBLN  LOOK AT NEXT CHAR                  DASD 03590000
+         B     P52CKPRT         ALL BLANK SO CONTINUE AS USUAL     DASD 03600000
+         SPACE 2                                                   DASD 03610000
+P52GOTIT CLC   =C'EJECT ',0(R1) IS IT EJECT ?                      DASD 03620000
+         BNE   P52CKSKP         NO, GO CHECK SKIP                  DASD 03630000
+         L     R1,APRINTLN                                         DASD 03640000
+         MVI   4(R1),C'1'       SET CC TO EJECT PAGE               DASD 03650000
+         B     P52SETLN         FINISH LINE                        DASD 03660000
+         SPACE 1                                                   DASD 03670000
+P52CKSKP CLC   =C'SKIP ',0(R1)  IS IT SKIP ?                       DASD 03680000
+         BNE   P52CKPRT         NO, GO ON                          DASD 03690000
+         LA    R1,5(R1)         POINT PAST SKIP, LOOK FOR #        DASD 03700000
+P52SRCH# CLI   0(R1),C' '       GOT SOMETHING ?                    DASD 03710000
+         BNE   P52CHK#          YES, CHECK FOR A #                 DASD 03720000
+         BXLE  R1,R14,P52SRCH#  LOOK AT NEXT COLUMN                DASD 03730000
+P52SKP1  L     R1,APRINTLN      ALL BLANK SO TREAT SKIP 1          DASD 03740000
+         MVI   4(R1),C' '       SET CC TO SKIP 1                   DASD 03750000
+P52SETLN MVC   0(4,R1),=AL2(6,0) SET LENGTH                        DASD 03760000
+         MVI   5(R1),C' '       BLANK AFTER THE CC                 DASD 03770000
+         JOLPRINT ,             OUTPUT THE LINE                   87150 03780000
+         B     READCARD         GO GET THE NEXT CARD               DASD 03790000
+         SPACE 2                                                   DASD 03800000
+P52CHK#  CLI   0(R1),C'1'       IS IT SKIP 1 ?                     DASD 03810000
+         BE    P52SKP1          GO DO IT THEN                      DASD 03820000
+         CLI   0(R1),C'2'       IS IT SKIP 2 ?                     DASD 03830000
+         BNE   P52CKSK3         NO, GO CHECK FOR SKIP 3            DASD 03840000
+         L     R1,APRINTLN                                         DASD 03850000
+         MVI   4(R1),C'0'       SET CC TO DOUBLE SPACE             DASD 03860000
+         B     P52SETLN         GO FINISH THE LINE                 DASD 03870000
+         SPACE 2                                                   DASD 03880000
+P52CKSK3 CLI   0(R1),C'3'       IS IT SKIP 3 ?                     DASD 03890000
+         BNE   P52#ERR          NO, MUST BE AN ERROR               DASD 03900000
+         L     R1,APRINTLN                                         DASD 03910000
+         MVI   4(R1),C'-'       SET CC TO TRIPLE SPACE             DASD 03920000
+         B     P52SETLN         GO FINISH THE PRINT LINE           DASD 03930000
+         SPACE 2                                                   DASD 03940000
+         USING P52LNERR,R1                                         DASD 03950000
+P52#ERR  JOLERR 102,'INVALID NUMBER OF LINES TO SKIP - ''',        DASD*03960000
+               P52LN#,''' DEFAULTING TO SKIP 1'                    DASD 03970000
+         B     P52SKP1                                             DASD 03980000
+         SPACE 2                                                        03990000
+P52CKPRT EQU   *        COME HERE IF NOT EJECT AND NOT SKIP        DASD 04000000
+         LA    R15,SYSIN                                          74303 04010000
+         C     R15,CURRDCB                                        74303 04020000
+         BE    P52PCARD                                                 04030000
+* NOW SEE IF WE ARE TO PRINT THIS 'CARD' BECAUSE IT DIDN'T              04040000
+*   COME THROUGH THE PRIMARY INPUT STREAM                               04050000
+         LA    R15,PROCLIB     ARE WE LOOKING AT                  74303 04060000
+         C     R15,CURRDCB     THE INCLUDE LIBRARY?               74303 04070000
+         BNE   P52MACL         NO,TIS THE MACRO LIBRARY                 04080000
+         TM    PARMPRNT,X'80'  DO WE PRINT 'INCLUDES' ?                 04090000
+         BZ    P52NPRT1        NO PRINT OFF INCLUDE LIBRARY REQD        04100000
+         CLI   LEVEL+1,0       IS LEVEL=0 (IE ARE WE IN A MACR0?) 75311 04110000
+         BNE   P52MACL         NOPE, SO DON'T PRINT MACRO INCLUDES75311 04120000
+         B     P52PCARD        GO PRINT THE CARD                        04130000
+P52MACL  EQU *                                                          04140000
+* THE FOLLOWING CODES FIXES THIS PROBLEM:-                        76200 04150000
+*  IF A MACRO OR INVOKE ROUTINE RETURNS 'MACRO; END;' AND         76200 04160000
+*  THEN RETURNS OTHER STATEMENTS (QUITE ALLOWABLE), THEN          76200 04170000
+*  THEY WILL NOT BE PRINTED. CURRENTLY, STANDARD USE A JOLOPT     76200 04180000
+*  INSTRUCTION HERE, BUT THIS MEANS THAT THEY LOSE THE CURRENT    76200 04190000
+*  PRINT STATUS AS THERE IS NO 'POP' LIKE ASSEMBLER.              76200 04200000
+*                                                                 76200 04210000
+*WE CAN COME HERE EVEN IF WE ARE USING AN 'INCLUDE' LIBRARY,      76200 04220000
+*  SO LET'S RE-CHECK THAT ...                                     76200 04230000
+*                                                                 76200 04240000
+         C     R15,CURRDCB    INCLUDE LIBRARY ?                   76200 04250000
+         BNE   P52TMPR        TEST IF MACRO TO PRINT.             76200 04260000
+         CLI   LEVEL+1,0      IS LEVEL=0 ?                        76200 04270000
+         BE    P52PCARD       YES, SO PRETEND THIS CAME FROM      76200 04280000
+*                             SYSIN, AND SEE IF WE WANT TO        76200 04290000
+*                             PRINT IT                            76200 04300000
+P52TMPR  EQU   *                                                  76200 04310000
+         TM    PARMPRNT,X'40'  PRINT MACROS ?                           04320000
+         BZ    P52NPRT1        NO                                       04330000
+P52PCARD EQU   *                                                        04340000
+* WE HAVE 2 NEW OPTIONS TO COPE WITH HERE;                              04350000
+*    1. NOPRINT - NOLIST                                                04360000
+*    2. FLAG                                                            04370000
+         TM    PARMPRNT,B'0000010' NOPRINT ?                      75311 04380000
+         BO    P52NPRT1        YES, N0PRINT THEN                  75311 04390000
+         L     R1,APRINTLN    GET A(PRINT BUFFER-LINE)            75128 04400000
+         MVC   0(4,R1),=AL2(101,0)  SET VB RECORD LENGTH          J40B  04410000
+* ALTER PRINT FORMAT: ADD LEVEL AND NEST AND MOVE STATEMENT RIGHT J40B  04411000
+*                     A FEW CHARACTERS.                           J40B  04412000
+         MVC   5(4,R1),PRNTSTMT    MOVE IN PRINT STATEMENT NUMBER J40B  04420000
+         LA    R14,=C' 1 2 3 4 5 6 7 8 910111213141516'           J40B  04420100
+         LH    R15,LEVEL         LOAD THE LEVEL NUMBER            J40B  04420200
+         AR    R15,R15           DOUBLE IT                        J40B  04420300
+         AR    R15,R14                                            J40B  04420500
+         MVC   11(2,R1),0(R15)                                    J40B  04420600
+         LH    R15,NEST          LOAD THE NEST NUMBER             J40B  04420700
+         AR    R15,R15           DOUBLE IT                        J40B  04420800
+         AR    R15,R14                                            J40B  04420900
+         MVC   15(2,R1),0(R15)                                    J40B  04421000
+         LA    R15,SYSIN                                          74303 04421100
+         C     R15,CURRDCB                                        74303 04422000
+         BE    P52NPLUS        DON'T PUT A PLUS IN THE LISTING    J40B  04423000
+         MVI   9(R1),C'+'     TELL USER INCLUDE OR MACRO STMT     J40B  04424000
+P52NPLUS DS    0H                                                 87150 04425000
+         MVC   20(80,R1),CARD      AND THE CARD TO BE PRINT       J40B  04430000
+* NOW TEST 'FLAG' OPTION                                          75311 04440000
+*          IFNULL FLAGCOL,P52RPRIN FLAG=0,DO PRINT NOW.           7SOCO 04450000
+         CLC   FLAGCOL,ZERO         ELIMIANTE THE RETURN           SOCO 04460000
+         BE    P52RPRIN             CODE 8 IN THE ASSEMBLY         SOCO 04470000
+* OK, THE FLAG OPTION IS IN USE, SO WE'D BETTER POP IN THE '*'    75311 04480000
+*    AFTER SHIFTING THE STRING DOWN A BIT.                        75311 04490000
+         LH    R14,FLAGCOL     LOAD FLAG COLUMN                   75311 04500000
+         LA    R1,19(R1,R14)   CALC SPOT IN PRINT BUFFER TO PUT   75311 04510000
+*                              THE '*'; THIS INDICATES END MARGIN 75311 04520000
+         SPACE  1                                                 75311 04530000
+* NOW, THE '*' WILL WIPE OUT THE FIRST COLUMN OF THE FIELD, SO    75311 04540000
+* WE HAVE TO SHIFT THE COLUMNS BACK AFTER WE PUT THE '*' IN.      75311 04550000
+* SO...                                                           75311 04560000
+         LNR   R15,R14         LOAD NEG FLAGCOL                   75311 04570000
+         LA    R15,79(R15)     =LENGTH OF FLAGCOL TO END OF CARD, 75311 04580000
+*                            -1 FOR MVC EXECUTE                   75311 04590000
+         LA    R14,CARD(R14)  R14-> DATA AFTER FLAGCOL NOW       75311  04600000
+         MVI   0(R1),C'*'      '*' IN                             75311 04610000
+         EX    R15,P52MVCFL    SHIFT REST BACK IN                 75311 04620000
+P52RPRIN EQU *                                                    75311 04630000
+         JOLPRINT                  PRINT IT                       75128 04640000
+         MVI   THISPRNT,C'1'      INDICATE THIS HAS BEEN PRINTED        04650000
+         SPACE 3                                                  75128 04660000
+P52NPRT1 EQU *                                                          04670000
+         IFNULL PRNTSTMT,FIXCP                                          04680000
+         LA    R1,CARD                                                  04690000
+         AH    R1,SM3                                                   04700000
+         BCTR  R1,0       BACKTRACK 1 CHARACTER        75049            04710000
+         MVC   INLINENO,0(R1)                                           04720000
+         CLEAR PRNTSTMT                                                 04730000
+FIXCP    EQU   *                                                        04740000
+CARDOK   EQU   *                                                        04750000
+         LH    R1,CP              LOAD CURRENT CHARACTER POSITION       04760000
+         LA    R14,CARD(R1)       GET ABSOLUTE ADDRESS CHAR WE WANT     04770000
+         MVC   INCHAR,0(R14)      GET REQD CHARACTER                    04780000
+         LA    R1,1(R1)           ADD 1 TO CP                           04790000
+         STH   R1,CP              AND RESTORE                           04800000
+RETN     JOLRETN                                                        04810000
+RETNBLAN EQU *                                                          04820000
+P52RETNF MVI   EOFSYSIN,C'1'                                            04830000
+         MVI   INCHAR,C' '                                              04840000
+         JOLRETN RC=12                                                  04850000
+P52MVCFL MVC   1(*-*,R1),0(R14) SHIFT DATA AFTER FLAG COL         75311 04860000
+         DROP  R9                                                       04870000
+         FIX  'MAKE LOAD'                                               04880000
+         LTORG                                                          04890000
+         DC   80S(*)                                                    04900000
+         DROP  R7,R8                                              75128 04910000
+READAREA DSECT                                                          04920000
+         TITLE 'START MACRO PROCESSOR ON ITS WAY'                       04930000
+P53SAVE  DSECT                                                          04940000
+         DS    18F                                                      04950000
+P53LABEL DS    CL8            LABEL SAVED HERE                          04960000
+P53INST  DS    CL8            INSTRUCTION SAVED HERE                    04970000
+P53BRAC  DS    H              COUNT OF PARENS WHEN FORMING LISTS  87080 04971000
+P53TYPES DS    H              TYPE OF LAST CHARACTER CONCATENATED 87080 04972000
+P53JOIN  DS    H              SET NON ZERO IF 'NOJOIN' CODED      87080 04973000
+P53SAVEL EQU   *-P53SAVE                                                04980000
+         JOLSAVE CSECT=UJP53MAC,SIZE=P53SAVEL                           04990000
+         USING P53SAVE,R13                                              05000000
+* A MACRO INSTRUCTION (I.E AN INSTRUCTION THAT IS NOT A KNOWN JOL       05010000
+*  INSTRUCTION) HAS BEEN FOUND IN THE INPUT STREAM                      05020000
+         SPACE 3                                                        05030000
+         FIX   'SET %SYSSTMT FOR THE COMMAND LINE'                      05040000
+         USING P53SAVE,R13                                        75128 05050000
+         LH    R1,LEVEL        ADD                                      05060000
+         LA    R1,1(R1)            1                                    05070000
+         CH    R1,=H'12'               TO                         82300 05080000
+         BL    P53OK3                      LEVEL                        05090000
+         JOLERR 402,'TOO MANY LEVELS (IE CONCURRENTLY EXECUTING MACROS)*05100000
+               '                                                        05110000
+         B     P53RETNF            VET                                  05120000
+P53OK3   EQU    *                                                       05130000
+* NOW LETS SET UP THE DCBS ETC SO THE NEXT READ WILL GET THE MEMBER     05140000
+*    WE WANT                                                            05150000
+         GETTKN 1             GET THE MEMBER NAME                       05160000
+         MVC   P53INST,TKN    SAVE INSTRUCTION NAME                     05170000
+         MVC   P53LABEL,LABEL SAVE LABEL MACRO WAS CALLED WITH          05180000
+         $CALL UJP54INC                                                 05190000
+         LTR   R15,R15         DID WE FIND THE MEMBER (OR MACRO)?       05200000
+         BZ    P53OK1          YES                                      05210000
+         CH    R15,=H'4'      NO DATA RETURNED FROM INVOKED RTN?  75128 05220000
+         BNE   P53RETNF       NOPE,REAL ERROR                     75128 05230000
+         JOLRETN    RC=0                                          75128 05240000
+P53OK1   EQU *                                                          05250000
+         SPACE 3                                                  75128 05260000
+* NOW WE MUST SAVE THIS INSTRUCTION SO THAT WE CAN RE-ANALISE IT  75128 05270000
+*  AFTER THE PROTO-TYPE MACRO HAS BEEN SET UP                     75128 05280000
+*                                                                 75128 05290000
+         L     R1,AMACBUF     USE INSTREAM MACRO AREA TO SAVE THIS75128 05300000
+         LA    R0,#TKNSTRG    LOAD ADDRESS OF WHERE DATA IS NOW   75128 05310000
+         BAL   R14,MOVEDATA   SHIFT IT TO GOTTEN CORE             75128 05320000
+* NOW OUTPUT IT TO THE NEXT PHASE SO THAT IT CAN BE PRINTED             05330000
+*     NICELY                                                            05340000
+          $CALL UJP90OP               OUTPUT TO COMPILER PHASE    75003 05350000
+         SPACE 3                                                  75128 05360000
+*                                                                 75128 05370000
+*                                                                 75128 05380000
+* AND WE MUST LET THE DECLARE AND ASSIGNMENT ROUTINES KNOW (IF WE       05390000
+*    CALL THEM) THAT THEY ARE BEING CALLED BY A MACRO                   05400000
+         MVC   ICOMMAND,=CL8'MACRO'                                     05410000
+         MVI   ISMACRO,C'1'                                             05420000
+         L     R14,AJOLGEN                                        75128 05430000
+         USING GENDETS,R14                                        75128 05440000
+         TM    PARMPRNT,X'20'   DO WE PRINT MACRO EXPANSIONS ?          05450000
+         DROP  R14                                                75128 05460000
+         BNZ   P53RDXX         YES                                      05470000
+         MVI   PRINTIND,C'1'                                            05480000
+P53RDXX  EQU    *                                                       05490000
+         $CALL UJP50RD            READ FROM MACLIB                      05500000
+         $CALL UJSPLIT            SPLIT INTO TOKENS               74303 05510000
+         GETTKN 1                                                       05520000
+         CLC   =C'MACRO ',TKN                                           05530000
+         BE    P53OK2                                                   05540000
+         JOLERR 301,'FIRST STATEMENT IS NOT A MACRO BUT ''',#TKN,      *05550000
+               ''''                                                     05560000
+         B    P53RETNF                                                  05570000
+         SP   PCKDSTMT,=P'1'  RESET STMT NO                             05580000
+P53RETNF JOLRETN RC=16                                                  05590000
+P53OK2   EQU *                                                          05600000
+         SPACE 3                                                        05610000
+         LH    R1,LEVEL        ADD                                      05620000
+         LA    R15,SAVENEST(R1)                                         05630000
+         MVC   0(1,R15),NEST+1                                          05640000
+         XC    NEST,NEST          CLEAR THIS NEW NEST FOR THE MACRO     05650000
+         LA    R1,1(R1)            1                                    05660000
+         STH   R1,LEVEL                                                 05670000
+         SPACE 3                                                  75128 05680000
+* WE MUST NOW COPY THE BINARY OFFSET TABLE TO THE NEXT LEVEL.     87150 05690000
+         $CALL UJP19CTB           COPY THE TABLE.                 87150 05711000
+         SPACE 3                                                  75128 05711100
+* NOW SET UP SOME SYMBOLICS THAT CAN BE REFERENCED BY THE MACRO   75128 05712000
+*  WRITER                                                         75128 05713000
+         SPACE 3                                                  75128 05714000
+         LR    R7,R1          SAVE LEVEL NO                       75128 05720000
+         MVC   SYMBOLIC,=CL8'SYSLABEL'                                  05730000
+         MVC   WORK(8),P53LABEL GET LABEL WE WERE CALLED WITH     75128 05740000
+         MVC   #WORK,=H'8'    SET LENGTH TO 8                     75128 05750000
+         BAL   R14,DRPBWORK    DROP TRAILING BLANKS               75128 05760000
+         $CALL UJP02DCL       STORE LABEL MACRO WAS CALLED WITH   75128 05770000
+         MVC   WORK(8),P53INST    STORE NAME MACRO WAS CALLED WITH75128 05780000
+         MVI   #WORK+1,8                                                05790000
+         MVC   SYMBOLIC,=CL8'SYSMACNM' ** IT MAY BE AN ALIAS AND        05800000
+         BAL   R14,DRPBWORK    DROP TRAILING BLANKS               75128 05810000
+         $CALL UJP02DCL           ** A MACRO WRITER MAY LIKE TO   75128 05820000
+         MVC   SYMBOLIC,=CL8'SYSSCMD'  ** KNOW THE NAME T'WAS CALLED    05830000
+         MVI   #WORK+1,8                                                05840000
+         BAL   R14,DRPBWORK    DROP TRAILING BLANKS               75128 05850000
+         $CALL UJP02DCL           ** WITH                               05860000
+         MVI   #WORK+1,1                                                05870000
+         MVC   SYMBOLIC(8),=CL8'SYSLEVEL'                               05880000
+         STC   R7,WORK                                                  05890000
+         OI    WORK,C'0'           EBSIDIC NOW                          05900000
+         $CALL UJP02DCL       STORE 'SYSLEVEL'                    75128 05910000
+         SPACE 3                                                        05920000
+* NOW THE NEXT TASK IS TO SET UP THE MACRO DEFAULT (OR PARAMETER)       05940000
+*    INFORMATION                                                        05950000
+* A MACRO HAS ACCESS TO ALL SYMBOLICS ETC THAT ARE NORMALLY             05960000
+*    DECLARED BUT IF ANY ARE DECLARED IN THIS 'MACRO' THEN ONLY         05970000
+*    LOWER LEVELS MAY ACCESS THE INFORMATION.                           05980000
+           SPACE 3                                                      05990000
+* A TYPICAL SORT OF DEFINITION COULD BE:-                               06000000
+*    MACNAME:MACRO(%A=,%B='ABCD');                                      06010000
+* THIS NEXT PIECE OF CODE MERELY POPS THE %A IN THE NAME STACK          06020000
+*    AND %B WITH ITS VALUE.                                             06030000
+**** TWO NEW FEATURES TO HELP THE MACRO WRITER (7 OCT 1973)             06040000
+******************************************************************      06050000
+* OFTEN IT IS HIGHLY DESIRABLE TO KNOW IF THE USER CODED                06060000
+*     AN ITEM,AND OTHER TIMES IT IS HELPFUL TO KNOW WHERE IT            06070000
+*     WOULD HAVE BEEN IN THE %LIST                                      06080000
+* AND SO:                                                               06090000
+*     IF SORT:MACRO(CYLS,%TAPE) WAS CODED (NOTE,NO = SIGNS)             06100000
+*         THEN %CYLS = 0 IF NO CYLS WAS CODED BY THE USER               06110000
+*             OR ELSE IT IS SET EQUAL TO THE %LIST NUMBER SO            06120000
+*             THAT THE MACRO WRITER CAN EASILY GET TO THE PREVIOUS      06130000
+*             (OR FOLLOWING) LIST ITEM                                  06140000
+*         AND IF THE USER DID CODE TAPE THEN %TAPE='TAPE'               06150000
+*             OTHER A NULL STRING                                       06160000
+******************************************************************      06170000
+         MVC   P53JOIN,ZERO    ZERO JOIN FLAG                     87080 06171000
+         GETTKN 2                                                       06180000
+         CLI   TKN,C'('                                                 06190000
+         BE    P53GET3                                                  06200000
+         CLI   TKN,C' '                                                 06210000
+         BE    P53NODEF        NO DEFAULT DEFINITION                    06220000
+* HERE THE TOKEN IS NOT A ' ' OR A '(' SO ASSUME IT TO BE THE           06230000
+*  FIRST PART OF THE DEFINITION                                         06240000
+         CLC   =C'NOJOIN ',TKN                                    87080 06240100
+         BNE   P53GOTS                                                  06240200
+         MVC   P53JOIN,ONE+2   SET TO NON-ZERO                    87080 06241000
+P53GET3  GETTKN 3                                                       06260000
+P53GOTS  EQU *                                                          06270000
+         STH   R1,TKNCURR                                               06280000
+         CLI   TKN,C')'          END ?                                  06290000
+         BE    P53NODEF                                                 06300000
+* OK THEN,NOW WE SHOULD HAVE A VARIABLE NAME HERE.                      06310000
+         CLI   TKNTYPE,2         NAME ?                                 06320000
+         BE    P53IDNAM                                                 06330000
+         CLI   TKNTYPE,0         <NUMBER> (MIGHT AS WELL LET THEM       06340000
+*                                         THROUGH).                     06350000
+         BE    P53NUM                                                   06360000
+         JOLERR 403,'SYMBOL ''',#TKN,''' INVALID IN MACRO PROTOTYPE'    06370000
+         B     P53MOREP         SKIP AND ATTEMPT TO CARRY ON            06380000
+P53IDNAM EQU *                                                          06390000
+         CLI   TKN,C'%'                                                 06400000
+         BE    P53NAMOK                                                 06410000
+P53NUM   EQU *                                                          06420000
+         MVC   SYMBOLIC,TKN        SAVE NAME                     75128  06430000
+         GETTKN TKNCURR        GET NEXT TOKEN                           06440000
+         CLI   TKN,C'='          '=' ?                                  06450000
+         BNE   P53NAM1           NO,OK                                  06460000
+         JOLERR 404,'NAME ''',SYMBOLIC,''' INVALID IN MACRO PROTOTYPE'  06470000
+         B     P53MOREP         SKIP AND ATTEMPT TO CARRY ON            06480000
+P53NAM1  EQU   *                                                        06490000
+* HERE LIES A CYLS OR 2314 TYPE PROTOTYPE                               06500000
+         MVC   #WORK(3),=XL3'000100'                                    06510000
+         $CALL UJP02DCL                                                 06520000
+         B     P53TMORE                                                 06530000
+P53NAMOK EQU   *                                                        06540000
+         MVC   SYMBOLIC,TKN+1                                     75128 06550000
+         GETTKN LOCN=TKNCURR                                            06560000
+         CLI   TKN,C'='                                                 06570000
+         BE    P53EQUOK                                                 06580000
+         MVC   #WORK(3),=XL3'0001FF'    SET SPECIAL INDICATOR           06590000
+*        STH   R1,TKNCURR        SAVE NEXT TKN NUMBER     CVCMOD 80105  06600000
+        $CALL  UJP02DCL         STORE VALUE                             06610000
+         B     P53TMORE        GO AND TEST IF MORE VALUES               06620000
+         SPACE 3                                                        06630005
+P53EQUOK XC    #WORK,#WORK                                              06640000
+         MVI   WORK,C' '                                                06650000
+         GETTKN (R1)           GET THE VALUE                            06660000
+         STH   R1,TKNCURR                                               06670000
+         CLI   TKN,C','                                                 06680000
+         BE    P53NOVAL                                                 06690000
+         CLI   TKN,C')'                                                 06700000
+         BE    P53NOVAL                                                 06710000
+         MVC   #WORK(L'TKN+2),#TKN                                      06720000
+         GETTKN (1)            GET NEXT                                 06730000
+         STH   R1,TKNCURR                                               06740000
+* NOW HE COULD HAVE CODED %A=(1,2) ETC IN WHICH CASE WE SHALL           06750000
+*    JOIN THEM ALL UP FOR HIM.                                          06760000
+* ***** NOT NOW                                                         06770000
+P53NOVAL EQU   *                                                        06780000
+         $CALL UJP02DCL                                                 06790000
+* NOW ARE WE AT THE END,OR NOT OF THE PROTO-TYPE SET UP PHASE ?         06800000
+P53TMORE EQU   *                                                        06810000
+         CLC   TKNCURR,TKNNO                                            06820000
+         BL    P53MOREP                                                 06830000
+         B     P53INSTX                                                 06840000
+P53MOREP GETTKN TKNCURR                                                 06850000
+         CLI   TKN,C','          COMMA HERE ?                           06860000
+         BNE   P53GOTS                                                  06870000
+         STH   R1,TKNCURR                                               06880000
+         B     P53MOREP         SKIP THE COMMA                          06890000
+         B     P53GOTS                                                  06900000
+         SPACE 3                                                        06910000
+P53NODEF EQU   *                                                        06920000
+P53INSTX EQU   *                                                        06930000
+* NOW THE ORIGINAL INSTRUCTION MUST BE RESTORED FROM GOTTEN CORE  75128 06940000
+*    AND ANY OVER-RIDES SET UP IN THE SYMBOLIC TABLE FOR VALUES THAT    06950000
+*    WERE IN THE PROTO TYPE                                             06960000
+         L     R0,AMACBUF                                         75128 06970000
+         LA    R1,#TKNSTRG                                        75128 06980000
+         BAL   R14,MOVEDATA        SHIFT STRING BACK              75128 06990000
+        $CALL UJSPLIT                                             74303 07000000
+         MVC   TKNCURR,=H'2'                                            07010000
+* NOW A FAIRLY FIDDLY TASK MUST BE PERFORMED                            07020000
+*    IN THE SYMBOLIC STACK,WE HAVE STORED ALL THE NAMES.                07030000
+*    HOWEVER,THE MACRO CALLER MAY HAVE OVER-RIDDEN THE PROTO-TYPE       07040000
+*    AND SO WE MUST DO THAT AND SET UP %LIST VALUES.                    07050000
+* FOR PARAMETERS TO BE PASSED AND NOT STORED AS %LIST ITEMS,THE         07060000
+*    NAME MUST BE IN THE STACK,SO STARTING AT THE TOP OF THE STACK      07070000
+*    FOR THAT LEVEL WE SHALL PROCEED GENTLY DOWN AND FIND THE           07080000
+*    CORRESPONDING NAME IN THE TOKEN AREAS.                             07090000
+* IF WE FIND A PARAMETER LIKE'FIELDS=(1,72,CH,A)' WE FORM UP            07100000
+*    THE BRACKETS AS ONE 'TOKEN' BEFORE STORING THEM                    07110000
+         ZAP   P53NO,=P'0'       SET %LIST CNTR TO 0                    07120000
+         MVC   TKNCURR,=H'2'     START AT 2ND SYMBOL                    07130000
+P53NEXTT GETTKN TKNCURR                                                 07140000
+         STH   R1,TKNCURR                                               07150000
+         MVC   P53BRAC,ZERO      SET COUNT OF BRACKETS TO 0 (JOIN)87150 07151000
+         CLI   TKN,C' '          END OF TOKEN STRING ?                  07160000
+         BE    P53FIXDF          GO NOW AND SCAN THRU THE TABLE         07170000
+*                                AND CHANGE ANY VALUES OF X'00' | X'FF' 07180000
+*                                TO 0 OR '' (NULL) FOR THE NEW MACRO    07190000
+*                                FEATURE                                07200000
+         CLI   TKNTYPE,0         <NUMBER>                               07210000
+         BE    P53NUM5                                                  07220000
+         CLI   TKNTYPE,2         <IDENTIFIER> ?                         07230000
+         BNE   P53TCOM           NO TEST IF A COMMA                     07240000
+* NOW WE HAVE A TOKEN THAT IS AN <IDENTIFIER> AND WE MUST NOW SEE       07250000
+*  IF IT IS A PARAMETER (KEYWORD) DECLARATION.                          07260000
+P53NUM5  EQU *                                                          07270000
+* NOTE **** WE LET NUMBERS THROUGH NOW.                                 07280000
+         LH    R8,TKNCURR      SAVE START NO OF TOKEN COS WE MAY        07290000
+*                              HAVE TO 'DELETE' THIS TOKEN LATER        07300000
+*                              I.E NOT PUT IT IN AS A %LIST             07310000
+* NOW SEARCH THE SYMBOLIC FOR THE NAME (AT THE SAME LEVEL)              07320000
+*    WE START AT THE END OF THE TABLE                                   07330000
+         FINDSYM TKN                                                    07331000
+         LTR   R15,R15         DID WE FIND IT?                          07332000
+         BNZ   P53NOTHR        NO.                                      07333000
+         LR    R5,R0           PUT POINTER TO TABLE IN R5               07333100
+         USING SYMOVLY,R5                                               07334000
+         CLC   SYMLEVEL(1),LEVEL+1                                      07336000
+         BNE   P53NOTHR          NOT THERE,COS LEVEL NOT SAME           07337000
+         B     P53GOTS2                                                 07338000
+***************************  CODE BELOW NOT USED NOW.                   07339000
+         L     R7,ASYMTBL      GET ADDRESS OF TABLE                     07340000
+         LH    R5,NOSYMS       NO SYMS SO FAR                           07350000
+         MH    R5,=H'12'       LENGTH OF TABLE ENTRIES                  07360000
+         AR    R5,R7           POINTS AT END OF STACK                   07370000
+         LH    R6,=H'-12'      INCREMENT                                07380000
+         USING SYMOVLY,R5                                               07390000
+P53FSYM1 EQU   *                                                        07400000
+         CLC   SYMLEVEL(1),LEVEL+1                                      07410000
+         BNE   P53NOTHR          NOT THERE,COS LEVEL NOT SAME           07420000
+         CLC   TKN(8),SYMNAME                                           07430000
+         BE    P53GOTS2                                                 07440000
+         BXH   R5,R6,P53FSYM1                                           07450000
+P53NOTHR EQU   *                                                        07460000
+P53TCOM  EQU   *                                                        07470000
+         CLI   TKN,C','                                                 07480000
+         BE    P53NEXTT         SKIP COMMAS HERE                        07490000
+           SPACE 3                                                      07500005
+* OK,HERE EITHER THE NAME WAS NOT ALREADY IN THE SYMBOLIC TABLE         07510000
+*     OR THIS IS A NUMBER ETC TO BE STORED AS %LIST                     07520000
+         AP    P53NO,=P'1'                                              07530000
+         MVC   SYMBOLIC(4),=C'LIST'                               75128 07540000
+         UNPK  SYMBOLIC+4(4),P53NO                                      07550000
+         OI    SYMBOLIC+7,C'0'                                          07560000
+         B     P53FORML         FORM UP ( ) LIST IF NECESSARY           07570000
+         SPACE 3                                                        07580000
+P53GOTS2 EQU *                                                          07590000
+         MVC   SYMBOLIC,TKN         SAVE NAME FOR ASSIGNMENT ROUTINE    07600000
+* NOW IF THE VALUE OF THE STRING IS X'00' | X'FF' WE MUST               07610000
+*   CHANGE IT TO THE %LIST VALUE,OR THE TKN VALUE.                      07620000
+         L    R15,SYMADDR                                               07630000
+         CLC  =XL3'000100',0(R15)                                       07640000
+         BE   P53MAKL         FIX UP THE LIST NUMBER                    07650000
+         CLC  =XL3'0001FF',0(R15)                                       07660000
+         BNE  P53EQLUP                                                  07670000
+* NOW THIS ONE MUST BE SET TO THE VALUE OF TOKEN (I.E ITSELF)           07680000
+         MVC   #WORK(L'TKN+2),#TKN                                      07690000
+         B     P53OVRD1                                                 07700000
+         SPACE 3                                                        07710005
+P53MAKL  EQU *                                                          07720000
+* HERE WE MERELY STORE THE LIST NUMBER                                  07730000
+         AP    P53NO,=P'1'                                              07740000
+         UNPK  WORK(4),P53NO                                            07750000
+         OI    WORK+3,C'0'                                              07760000
+         LA    R1,4                                                     07770000
+P53TLNUM CLI   WORK,C'0'                                                07780000
+         BNE   P53LOK                                                   07790000
+         MVC   WORK(4),WORK+1    DROP LEADING ZEROS                     07800000
+         BCT   R1,P53TLNUM                                              07810000
+P53LOK   EQU    *                                                       07820000
+         STH   R1,#WORK                                                 07830000
+         B     P53OVRD1                                                 07840000
+* WE HAVE THE NAME.                                                     07850000
+*    NOW IF WE GET THE NEXT TOKEN AND SEE IF IT IS AN '=' (WE IGNORE)   07860000
+P53EQLUP EQU   *                                                        07870000
+         GETTKN TKNCURR                                                 07880000
+         STH   R1,TKNCURR                                               07890000
+         CLI   TKN,C'='                                                 07900000
+         BE    P53EQLUP                                                 07910000
+         SPACE 3                                                        07920000
+P53FORML EQU *                                                          07930000
+* TO EASE THE TASK FOR THE MACRO WRITER,IF THE VALUE STARTS WITH A      07940000
+*   '(' WE JOIN THEM ALL UP UNTIL WE FIND A ')', UNLESS 'NOJOIN'  87080 07950000
+*   WAS CODED.                                                    87080 07951000
+         MVC   #WORK(L'TKN+2),#TKN SHIFT TO WORK FOR ASSIGNMENT ROUTINE 07960000
+         CLC   P53JOIN,ZERO   TOLD NOT TO JOIN PARAMETERS UP ?    87080 07961000
+         BNE   P53TDSN        GO TEST IF DSNAME THEN              87080 07962000
+         CLI   TKN,C'('          START LIST ?                           07970000
+         BNE   P53TDSN        GO TEST IF DSNAME THEN     CHG30014 76200 07980000
+         MVC   #WORK(L'TKN),#TKN   SET UP THE '('                 87080 07990000
+* HERE START OF LIST.                                                   08010000
+         MVC   P53BRAC,=H'1'  SET INITIAL COUNT TO ONE            87080 08020000
+         MVI   P53TYPES,1     AND INITIALISE THE TYPE OF STRING   87080 08021100
+*                             (REMEMBER, IT IS A BRACKET,IE SPECIAL)    08021200
+P53CONLT GETTKN TKNCURR                                                 08022000
+         STH   R1,TKNCURR                                               08030000
+         CLI   TKN,C' '       END ALL PARMS ?                     75128 08081000
+         BE    P53OVRD1       YES -> OUT WE GO                    75128 08090000
+P53CONCT EQU   *    CONTINUE CONCATENATION               CHG30014 76200 08100000
+* NOW TEST IF EITHER OF THE STRINGS HAS A SPECIAL CHARACTER.      87080 08101000
+* IF NOT, LEAVE A BLANK BETWEEN EACH ITEM.                        87080 08102000
+         LH    R14,#WORK                                                08110000
+         LA    R15,WORK(R14)                                            08110100
+         CLI   P53TYPES,1      LAST CHARACTER WE ADDED A SPECIAL? 87080 08111000
+         BE    P53COMOK        YES, SO DON'T PUT A BLANK IN       87080 08120200
+* NOW CHECK IF THE TYPE OF THE CURRENT TOKEN IS A SPECIAL         87080 08120300
+         CLI   TKNTYPE,1       IS IT A SPECIAL CHARACTER ?        87080 08120600
+         BE    P53COMOK        YES.                               87080 08120700
+* WELL, WE'D BETTER PUT A BLANK IN THEN                           87080 08120800
+         MVI   1(R15),C' '     PUT THE BLANK IN                   87080 08120900
+         LA    R14,1(R14)      BUMP UP LENGTH OF STRING BY ONE    87080 08121000
+         LA    R15,1(R15)      POINT TO NEXT SPOT IN WORK         87080 08121200
+P53COMOK LH    R1,#TKN                                                  08130000
+         AR    R14,R1                                                   08140000
+         CH    R14,=AL2(L'WORK)                                         08150000
+         BL    P53CONC                                                  08160000
+         JOLERR 405,'MACRO PARAMETER STRING TOO LONG'                   08170000
+         B     P53RETNF                                                 08180000
+P53CONC  STH   R14,#WORK                                                08190000
+         BCTR  R1,0                                                     08200000
+         EX    R1,P53MVC1                                               08210000
+         MVC   P53TYPES(1),TKNTYPE RESET STRING TYPE (NEXT ITER)  87080 08210100
+         CLI   TKN,C')'       END LIST ?                          75128 08211000
+         BNE   P53TOPEN       NO, TEST IF OPEN BRACKET            87080 08212000
+         LH    R15,P53BRAC    LOAD BRACKET COUNT                  87080 08213000
+         SH    R15,=H'1'      DECREMENT BRACKET COUNTER           87080 08214000
+         STH   R15,P53BRAC    SAVE BRACKET COUNT                  87080 08215000
+         BZ    P53OVRD1       DID IT REACH ZERO ? YES, STORE NOW  87080 08215100
+         B     P53CONLT       CONTINUE CONCATENATION THEN         87080 08216100
+*        ORG   *-4                                                75311 08217000
+*          DC  X'47000000'                                        75311 08218000
+P53TOPEN CLI   TKN,C'('       OPEN BRACKET THEN?                  87080 08219000
+         BNE   P53TENDL       NO, TEST IF END OF LIST             87080 08219100
+         LH    R15,P53BRAC    LOAD BRACKET COUNT                  87080 08219200
+         LA    R15,1(R15)     INCREMENT                           87080 08219300
+         STH   R15,P53BRAC    SAVE BRACKET COUNT                  87080 08219400
+         B     P53CONLT                                           87080 08220000
+P53TENDL CLI   TKN,C' '                                                 08230000
+         BE    P53OVRD1       END LIST IN FACT                    87080 08240000
+         B     P53CONLT                                           87080 08260000
+         SPACE 4                                         CHG30014 76200 08280000
+* NEW FOR RELEASE 3.1 :- JOIN UP DSNAME TYPE TOKENS      CHG30014 76200 08290000
+P53TDSN  GETTKN TKNCURR       GET NEXT TOKEN             CHG30014 76200 08300000
+         CLI   TKN,C'/'       PASSWORD COMING UP?        JCS OF KCP     08310000
+         BE    P53SLASH       YEAH, JUST PASS IT ON      JCS OF KCP     08320000
+         CLI   TKN,C'.'       '.'                        CHG30014 76200 08330000
+         BNE   P53TBRA6                                  CHG30014 76200 08340000
+* THIS TOKEN IS A '.' OR A '/'                           CHG30014 76200 08350000
+P53SLASH DS    0H                                                       08360000
+         BAL   R14,CONCAT     CONCATENATE TO WORK        CHG30014 76200 08370000
+         GETTKN (R1)                                     CHG30014 76200 08380000
+         BAL   R14,CONCAT     CONCATENATE TOKEN AS WELL  CHG30014 76200 08390000
+         STH   R1,TKNCURR     RESET POINTER              CHG30014 76200 08400000
+         B     P53TDSN        GO SEE IF MORE.            CHG30014 76200 08410000
+         SPACE 1                                         CHG30014 76200 08420000
+P53TBRA6 CLI   TKN,C'('       START OF MBR OR GDG ?   U  CHG30014 76200 08430000
+         BNE   P53OVRD1       NO, GO STORE               CHG30014 76200 08440000
+         CLC   P53JOIN,ZERO   TOLD NOT TO JOIN PARAMETERS UP ?    87080 08441000
+         BNE   P53OVRD1       YES, SO JUST STORE TOKEN            87080 08442000
+         STH   R1,TKNCURR     RESET TOKEN POINTER        CHG30014 76200 08450000
+         B     P53CONCT       CONCAT, THEN LOOK FOR ')'  CHG30014 76200 08460000
+         SPACE 2                                         CHG30014 76200 08470000
+P53OVRD1 CLC =C'LIST0',SYMBOLIC     %LIST MUST BE STORED WITH P02DCL    08480000
+         BNE  P53ASN99                                            75311 08490000
+         $CALL UJP02DCL                                           75311 08500000
+         B    P53NEXTT                                            75311 08510000
+P53ASN99 EQU  *                                                   75311 08520000
+         $CALL UJP85ASN                                           75311 08530000
+         B     P53NEXTT        AND BACK TO THE MAIN LOOP                08540000
+         SPACE 3                                                        08550000
+P53FIXDF EQU *                                                          08560000
+* NOW SCAN THE SYMBOLIC TABLE AGAIN AND CHANGE ANY X'00' | X'FF'        08570000
+*   VALUE TO 0 OR '' (NULL)                                             08580000
+         L    R7,ASYMTBL       ADDRESS OF TABLE                         08590000
+         LH   R5,NOSYMS          NO OF SYMBOLICS                        08600000
+         S     R5,ONE          WE WILL GO TO FAR OTHERWISE        87150 08601000
+         MH   R5,=H'12'          LENGTH ENTRIES IN TABLE                08610000
+         AR   R5,R7              POINTS TO END OF STACK                 08620000
+         LH   R6,=H'-12'         INCREMENT                              08630000
+P53FSYM2 CLC  SYMLEVEL(1),LEVEL+1                                       08640000
+         BNE  P53RETN0          LEVELS NOT THE SAME,SO RETURN           08650000
+         L    R15,SYMADDR       GET ADDRESS OF VALUE OF SYMBOLIC        08660000
+         CLC  =XL3'000100',0(R15)                                       08670000
+         BE   P53MAK0         CHANGE TO ZERO                            08680000
+         CLC  =XL3'0001FF',0(R15)                                       08690000
+         BE   P53MAKNL        CHANGE TO '' (NULL)                       08700000
+P53BXH2  BXH  R5,R6,P53FSYM2                                            08710000
+         B    P53RETN0                                                  08720000
+         SPACE 3                                                        08730000
+P53MAK0  MVC   #WORK(3),=XL3'0001F0'                                    08740000
+P53OVRD2 MVC   SYMBOLIC,SYMNAME     SET NAME UP FOR ASSIGNMENT ROUTINE  08750000
+        $CALL  UJP85ASN                                                 08760000
+         B     P53BXH2                                                  08770000
+P53MAKNL XC    #WORK(2),#WORK                                           08780000
+         B     P53OVRD2                                                 08790000
+P53RETN0 EQU    *                                                       08800000
+         SPACE 3                                                  75128 08810000
+* NOW JUST BEFORE WE RETURN, WE MUST SET UP %SYSNLIST WITH THE    75128 08820000
+*  NUMBER OF %LIST ITEMS THAT WERE FOUND                          75128 08830000
+         MVC   #WORK,=H'3'                                        75128 08840000
+         UNPK  WORK(3),P53NO  NO OF %LIST ITEMS                   75128 08850000
+         OI    WORK+2,C'0'                                        75128 08860000
+         MVC   SYMBOLIC,=CL8'SYSNLIST'                            75128 08870000
+         $CALL UJP02DCL                                           75128 08880000
+         JOLRETN                                                        08890000
+         SPACE 3                                                        08900000
+P53MVC1  MVC   0(*-*,R15),TKN  EXECUTED ******                          08910000
+         LTORG                                                          08920000
+         DC    80S(*)                                                   08930000
+         JOLSAVE CSECT=UJP54INC                                         08940000
+*    THIS MODULE HAS BEEN CALLED BY THE INCLUDE PROCESSOR WHEN AN       08950000
+*          INCLUDE WAS FOUND, OR CALLED BY THE MACRO PROCESSOR.         08960000
+* THE CURRENT CARD MUST BE SAVE (IN CASE THERE IS MORE INFORMATION      08970000
+*    ON IT) AND WE MUST SAVE THE 'CHARACTER POINTER' (CP),THE TTR       08980000
+*    AND ADDRESS IN THE CURRENT BLOCK SO WE CAN GET BACK TO WHERE       08990000
+*    WE WERE IN THE INPUT STREAM WHEN WE HAVE FINISHED.                 09000000
+           SPACE 3                                                      09010000
+         L     R9,AP52DCBS    LOAD DCB SAVE AREAS                 75128 09020000
+         USING P52DCBS,R9                                               09030000
+         L     R7,ADCBS                                           75128 09040000
+         USING DCBS,R7                                            75128 09050000
+         MVC   BLDLLEN,=H'58'                                           09060000
+         MVC   BLDLNO,=H'1'                                             09070000
+         LH    R4,FILENO                                                09080000
+         LA    R4,1(R4)                                                 09090000
+         CH    R4,=H'30'      TOO MANY LEVELS OR INCLUDES ?       82300 09100000
+         FIX 'CHECK THIS'                                               09110000
+         BL    P54OK1                                                   09120000
+         JOLERR 401,'TOO MANY ACTIVE MACROS/INCLUDES'                   09130000
+P54RETNF JOLRETN RC=16                                                  09140000
+         SPACE 3                                                        09150000
+P54OK1   EQU *                                                          09160000
+* NOW LETS SEE WHERE WE ARE (TTR) WITH THE CURRENT DCB                  09170000
+         L     R5,CURRDCB                                               09180000
+         LA    R1,SYSIN                                           74303 09190000
+         FIX   'USE LOAD'                                               09200000
+         CR    R5,R1                                              74303 09210000
+         BE    P54INCX                                                  09220000
+         NOTE  (5)                                                      09230000
+         LR    R6,R1           SAVE TTR RETURNED TO US                  09240000
+* IF CURRENT DCB IS THE WORKFILE DONT WORRY ABOUT THE                   09250000
+* CONCATENATION NUMBER    MAYBE ABEND 001 AND S300 WILL GO AWAY ?       09260000
+         CLC   AWORKFIL+1(3),CURRDCB+1  READING FROM WORKFILE ??        09270000
+         BE    *+8                      BLAST AROUND IC                 09280000
+         IC    R6,CURRCONC    LOAD CURRENT CONCATENATION NUMBER   75128 09290000
+* R6 NOW CONTAINS TTRK                                            75128 09300000
+      SPACE 1                                                           09310000
+P54INCX   EQU   *                                                       09320000
+         SPACE 3                                                  75128 09340000
+         MVC   BLDLNAME,ICOMMAND PREPARE FOR MACRO INVOCATION BUT-75128 09350000
+         GETTKN  2  GET TKN 2 IN CASE ITS INVOKE | INCLUDE        75128 09360000
+* NOW ARE WE INCLUDEING OR MACROING ?                                   09370000
+         CLC   =C'INCLUDE ',ICOMMAND                                    09380000
+         BNE   P54TINV        NO, TEST INVOKE THEN                75128 09390000
+         MVC   BLDLNAME,TKN   SHIFT INCLUDE MEMBER NAME           75128 09400000
+         CLI   TKN,C''''       Q... QUOTED DSNAME?               88036  09401000
+         BE    P54DS           A... YES, GO AND ALLOCATE IT      88036  09402000
+         LA    R8,PROCLIB     LOAD PROCLIB DCB ADDRESS            75128 09410000
+         FIX   'USE LOAD'                                               09420000
+         BLDL  (8),BLDL       SEE IF ITS IN PROCLIB               75128 09430000
+         B     *+4(R15)       BRANCH ON RETURN CODE TEST          75128 09440000
+         B     P54GOTMB       GOT MEMBER,PREPARE TO START PROCESS 75128 09450000
+         B     P54NOINC       NO THERE -> ISSUE ERROR MESSAGE     75128 09460000
+         B     P54PERME       PERM I/O ERROR ON LIBRARY           75128 09470000
+         SPACE 3                                                  75128 09480000
+P54NOINC JOLERR 402,'CANNOT FIND MEMBER ''',BLDLNAME,''''               09490000
+         JOLRETN RC=16        AND RETURN                          75128 09500000
+P54TINV  CLC   =C'INVOKE ',ICOMMAND INVOKE THEN ?                 75128 09510000
+         BE    P54INV                                             75128 09520000
+* HERE TLS A MACRO INVOCATION                                     75128 09530000
+         LA    R8,MACROLIB    GET MACRO DCB                       75128 09540000
+         BLDL  MACROLIB,BLDL  SEE IF ITS IN THE MACRO LIB         75311 09550000
+         B     *+4(R15)       BRANCH ON RETURN CODE               75128 09560000
+         B     P54GOTMB       GOT MEMBER IN MACROLIB              75128 09570000
+         B     P54TJOLL       NOT THERE, NOW TRY TO LOAD USERS    75128 09580000
+*                             HARD CODE TO DEAL WITH IT           75128 09590000
+         B     P54PERME       PERMANENT I/O ERROR ON A LIBRARY    75128 09600000
+         SPACE 3                                                  75128 09610000
+P54TJOLL L    R8,AJOLLOAD     LOAD DYNAMIC LOAD LIBRARY           75128 09620000
+         BLDL  (R8),BLDL      TRY AGAIN                           75128 09630000
+         B     *+4(R15)                                           75128 09640000
+         B     P54GOTIN       GOT THE MACRO FROM THE INVOKE LIB   75128 09650000
+         B     P54RETNF       NOT THERE,SO RETURN                 75128 09660000
+         B     P54PERME       PERM ERROR ON LIBRARY               75128 09670000
+           SPACE  3                                                     09680005
+P54PERME JOLERR 403,'PERM I/O ERR IN DIRECTORY LOOKING FOR ''',        *09690000
+               BLDLNAME,''''                                      75128 09700000
+         WTO   'UJP54-03 * JOL LIBRARY HAS PERM I/O ERR *',      75128 *09710000
+               ROUTCDE=(11,2),DESC=6                                    09720000
+         B     P54RETNF                                                 09730000
+           SPACE 3                                                      09740000
+P54INV   MVC   BLDLNAME,TKN   SET UP NAME OF ROUTINE TO INVOKE    75128 09750000
+         L    R8,AJOLLOAD                                         75128 09760000
+         BLDL  (8),BLDL                                  JOL30029 76200 09770000
+         B     *+4(R15)                                           75128 09780000
+         B     P54GOTIN                                           75128 09790000
+         B     P54NOINV                                           75128 09800000
+         B     P54PERME                                           75128 09810000
+P54NOINV JOLERR 405,'MODULE ''',BLDLNAME,''' CANNOT BE INVOKED-ABSENT'  09820000
+         JOLRETN RC=16                                            75128 09830000
+         SPACE 3                                                        09840000
+P54GOTMB   EQU *                                                        09850000
+         BAL   R15,P54STRFI   STORE FILE INFORMATION              75128 09860000
+P54DOFND  FIND (8),BLDLTTR,C  POINT TO CORRECT SPOT IN FILE  75128      09870000
+P54RETN0 JOLRETN RC=0                                             75128 09880000
+         SPACE 3                                                  75128 09890000
+P54STRFI DS    0H                                                 75128 09900000
+         STH   R4,FILENO                                                09910000
+* NOW IF WE ARE READING FROM SYSIN AT THE MOMENT,WE MUST SAVE THE       09920000
+*    CARD THAT WE ARE LOOKING AT BECAUSE WE CAN'T RE-READ A CARD        09930000
+*    CAN WE ?                                                           09940000
+         LA    R1,SYSIN                                           74303 09950000
+         C     R1,CURRDCB                                         74303 09960000
+         BNE   P54NSYSI          NOT SYSIN SO DON'T WORRY               09970000
+         MVC   SAVECARD,CARD                                            09980000
+         SPACE 3                                                        09990005
+P54NSYSI EQU *                                                          10000000
+* NOW WE MUST STORE ODDS AND ENDS LIKE THE TTR WE JUST GOT ETC          10010000
+         SH    R4,=H'1'                                                 10020000
+         BM    P54FILER                                                 10030000
+         MH    R4,=AL2(SAVEDCBL) GET POSN IN TABLE FOR ITEMS            10040000
+         LA    R4,P52DCBS(R4)    AND ADDRESS                            10050000
+*                              *********                           DASD 10060000
+         MVI   INCHAR,C' '     STOP ERROR C-2241                   DASD 10070000
+*                              *********                           DASD 10080000
+         LH    R1,CP           *********                          74303 10090000
+         LTR   R1,R1           TEST IF 0 CVC APRIL 2, 1987        87080 10091000
+         BZ    P54NOSUB        DON'T SUBTRACT ONE                 87080 10092000
+         BCTR  R1,0            STOP ERROR C-0029                  74303 10100000
+         STH   R1,CP           *********                          74303 10110000
+P54NOSUB MVC   SAVECP-P52DCBS(,R4),CP+1                           75128 10120000
+         MVC   SAVELREC-P52DCBS(,R4),CURRLREC+1                   75128 10130000
+         MVC   SAVEDCB-P52DCBS(,R4),CURRDCB                             10140000
+         MVC   SAVEPOSN-P52DCBS(,R4),ACURREC                            10150000
+         MVC   SAVEBLKS-P52DCBS(,R4),CURRBLKS                           10160000
+         ST    R6,SAVETTR-P52DCBS(R4)                                   10170000
+         MVC   CURRCONC,BLDLTTR+3                                 75128 10180000
+         SPACE 3                                                        10190000
+* NOW SET UP THE POINTERS ETC SUCH THAT WHEN THE READ ROUTINE IS        10200000
+*    CALLED,AUTO-MAGICALLY A NEW BLOCK (FROM THE PROCLIB DCB) WILL      10210000
+*    BE BROUGHT IN                                                      10220000
+         MVI   CP,X'7F'          SET CURRENT CHARACTER POINTER HIGH     10230000
+         XC    ACURREC,ACURREC                                          10240000
+         XC    CURRBLKS,CURRBLKS                                        10250000
+         ST    R8,CURRDCB                                         75128 10260000
+         BR    R15            BACK TO CALLER                      75128 10270000
+P54FILER JOLERR 504,'INTERNAL ERROR'                                    10280000
+         JOLRETN RC=16                                                  10290000
+         SPACE 3                                                        10300000
+P54GOTIN DS    0H                                                       10310000
+* HERE WE HAVE FOUND THE USERS ROUTINE THAT IS TO HANDLE THE            10320000
+*  INSTRUCTION.                                                         10330000
+* NOW WE CAN USE THE BUFFER AREA TO OUTPUT THE DETAILS THAT             10340000
+*  THE USER IS GOING TO GIVE US.                                        10350000
+         SPACE 3                                                        10360000
+* INITIALISE THE OUTPUT BUFFER                                          10370000
+         SPACE 3                                                        10380000
+         L     R1,AMACBUF                                         75128 10390000
+         MVC   0(2,R1),=AL2(4)                                          10400000
+         XC    2(20,R1),2(R1)                                           10410000
+         CLEAR P98TTR1             CLEAR FIRST TTR OF AREA TOO.   75128 10420000
+         SPACE 3                                                        10430000
+**************************                                              10440000
+* FOR NOW, WE WILL PASS THE FIRST PARAMETER TO THE CALLER,              10450000
+* IE IF CODED WAS INVOKE X '123', WE WILL PASS THE 123 WITH             10460000
+* OUT THE ''S ON. LATER, THIS MAY BE CAHNGED.                           10470000
+**************************                                              10480000
+         GETTKN 1                                                       10490000
+         CLC  =C'INVOKE ',TKN                                           10500000
+         BE  P543                                                       10510000
+         GETTKN 2                                                       10520000
+         B    P54DROP                                                   10530000
+P543     GETTKN 3                                                       10540000
+P54DROP  BAL  R14,DROPQUOT                                              10550000
+         LA    R1,#TKN        LOAD ADDRESS OF TOKEN      JOL30028 76200 10560000
+         ST    R1,DYNPARMS    STORE IN PARM AREA         JOL30028 76200 10570000
+         MVI   DYNPARMS,X'80' SET HIGH ORDER BIT ON      JOL30028 76200 10580000
+         LA    R1,DYNPARMS    SET R1 -> DYNPARMS         JOL30028 76200 10590000
+         ST    R1,CALLAREA    SAVE                       JOL30028 76200 10600000
+         B    P54LINK                                                   10610000
+         SPACE 3                                                  75128 10620000
+* NOW WE HAVE A BIT OF FIDDLING TO DO BEFORE ACTUALLY INVOKING    75128 10630000
+*  THE ROUTINE.                                                   75128 10640000
+* ORIGINALLY, I THOUGHT IT WOULD BE IN ASSEMBLER, BUT WE MUST     75128 10650000
+*  NOW MAKE ALLOWANCES FOR PL1, AND ALSO SOMEONE SUGGESTED        75128 10660000
+*  THAT IT MIGHT BE A GOOD IDEA IF WE COULD ALLOW ANY NORMAL      75128 10670000
+*  PROGRAM TO BE CALLED - SO WE HAVE A BIT OF FIDDLING TO DO      75128 10680000
+*  FOR THAT.                                                      75128 10690000
+* LETS SET UP WORK WITH A FEW VALUES.                             75128 10700000
+         MVC   WORK(8),ICOMMAND    INVOKE | NAME OF ROUTINE       75128 10710000
+         MVC   WORK+8(8),BLDLNAME  NAME OF ROUTINE                75128 10720000
+         MVC   #WORK,=H'16'   AND SET THE LENGTH OF IT            75128 10730000
+* NOW WE WANT TO SHIFT THE STRING ALONG, DROPPING THE INVOKE AND  75128 10740000
+*  THE NAME OF THE ROUTINE CALLED                                       10750000
+         GETTKN 1                                                       10760000
+         LH    R1,TKNDESC+4   LOAD OFFSET TO 2ND TOKEN            75128 10770000
+         CLC   =C'INVOKE ',TKN                                    75128 10780000
+         BNE   *+8                                                75128 10790000
+         LH    R1,TKNDESC+8   LOAD OFFSET TO 3RD TOKEN            75128 10800000
+* NOW WE WANT TO CALCULATE THE LENGTH OF THE STRING MINUS         75128 10810000
+*  THE ONE | TWO TOKENS AT THE START OF THE STRING                75128 10820000
+         LH    R15,#TKNSTRG   GET CURRENT LENGTH                  75128 10830000
+         SR    R15,R1         - OFFSET TO TOKEN FOLLOWING         75128 10840000
+         BNM   *+6            IF -VE, NOTOKENS, PASS ZERO PARMS   75128 10850000
+         SR    R15,R15        CLEAR 15 THEN                       75128 10860000
+         STH   R15,#TKNSTRG   RESET NEW LENGTH                    75128 10870000
+* NOW TO SHIFT THE STRING UP. WE WILL USE THE 'MOVEDATA' ROUTINE. 75128 10880000
+         LA    R15,#TKNSTRG(R1)                                   75128 10890000
+         LR    R0,R15                                                   10900000
+         MVC   0(2,R15),#TKNSTRG   SHIFT LENGTH TO STRING-2       75128 10910000
+         LH    R15,#TKNSTRG   LOAD LENGTH OF STRING               75128 10920000
+         LA    R1,#TKNSTRG                                              10930000
+         ST    R1,DYNPARMS                                              10940000
+         BAL   R14,MOVEDATA       GO TO MOVEDATA ROUTINE                10950000
+* WELL THE ABOVE ISN'T VERY PRETTY,BUT  ....                            10960000
+        $CALL  UJSPLIT        RE-SPLIT TOKENS                           10970000
+         LTR   R15,R15        DID WE ?                                  10980000
+         BNZ   P54RETNF       NOPE -> (ERROR ALREADY GIVEN)             10990000
+* NOW SET UP THE OTHER PARAMETERS, THEN LINK                      75128 11000000
+* NOW WE CAN ALMOST DO THE LINK                                   75128 11010000
+         LA    R1,DYNPARMS    POINT TO THE PARM AREA              75128 11020000
+         OI    DYNPARMS,X'80' TELL ANY PROGRAM THAT DOESN'T KNOW  75128 11030000
+*                             WHATS HAPPENING THAT THERE IS ONLY  75128 11040000
+*                             ONE PARAMETER                       75128 11050000
+P54LINK  TIME  BIN    GET CURRENT BINARY TIME                     DASD  11060000
+         ST    R0,USER1    SAVE IN SAVE AREA                      DASD  11070000
+         LA    R1,DYNPARMS    POINT TO THE PARM AREA               DASD 11080000
+         LINK  DE=BLDLNAME,DCB=(8),SF=(E,CALLAREA)                 DASD 11090000
+P54CHKRC DS    0H                                           FIX-X 76200 11100000
+         ST    R15,CALLAREA    SAVE R15                            DASD 11110000
+         TIME  BIN    GET CURRENT BIN TIME                         DASD 11120000
+         C     R0,USER1   HAVE WE ROLLED BY MIDNITE                DASD 11130000
+         BNL   *+8        IF NOT  LETS SKIP THE NEXT ADJ           DASD 11140000
+         A     R0,=A(24*(360000))  ADD IN 24 HOURS                 DASD 11150000
+         S     R0,USER1                                            DASD 11160000
+         A     R0,USER5   ADD TO ACCUM                             DASD 11170000
+         ST    R0,USER5   AND SAVE                                 DASD 11180000
+         L     R0,USER4   LOAD CURRENT INVOKE COUNT                DASD 11190000
+         A     R0,ONE    UP THE INVOKE CTR BY ONE                  DASD 11200000
+         ST    R0,USER4                                            DASD 11210000
+         L     R15,CALLAREA  RELOAD REG 15                         DASD 11220000
+         IFOS  ^=X8,P54NX8                                       88036  11221001
+         SLR   R14,R14                                           88036  11222000
+         D     R14,=F'10'      X8 RETURN CODES IN MULTIPLES      88036  11223000
+         BCTR  R15,0            (MIN WOZ 10)                     88036  11224000
+         SLL   R15,2           OF 10                             88036  11225000
+P54NX8   DS    0H                                                88036  11226000
+         LTR   R15,R15                                            75128 11230000
+         BZ    P54INVK0                                           75128 11240000
+         ST    R15,CALLAREA     STORE RC FOR MSG                 88036  11241000
+*        JOLERR 406,'DYNAMIC LOADED MODULE RETURNED NON-ZERO' 75128     11250000
+         JOLERR 406,'DYNAMIC LOADED MODULE RETURNED ',CALLAREA          11251000
+         JOLRETN RC=16                                                  11260000
+*P54LINK  LA    R15,BLDLNAME                                       DASD 11270000
+*         ST    R15,CALLAREA                                       DASD 11280000
+*         ST    R8,CALLAREA+4                                      DASD 11290000
+*         LINK  EP=UJP38INV,SF=(E,CALLAREA+16),DCB=(8)             DASD 11300000
+*         B   P54CHKRC    GO CHECK RETURN CODES.                   DASD 11310000
+         SPACE 3                                                  75128 11320000
+P54INVK0  LA   R8,WORKFILE     GET CORRECT FILE AS CURRENT    75128     11330000
+* NOW CHECK THAT THE DYNAMIC ROUTINE DID PUT ANYTHING                   11340000
+* IN THE WORK DATA SET PROVIDED FOR IT.                                 11350000
+         IFVALUE   P98TTR1,P54INVDT     GO HOME, DYNAMIC                11360000
+         L   R1,AMACBUF   ANY DATA IN BLOCK READY TO GO?                11370000
+         CLC 0(2,R1),=H'4'  IS THERE????                                11380000
+         BNE  P54INVDT                                                  11390000
+* HERE, MERELY RETURN A 4, NO DATA ON WORK FILE                         11400000
+         JOLRETN RC=4     TELLS P53 TO GO HOME TOO.                     11410000
+P54INVDT EQU  *                                                         11420000
+*                                  ROUTINE HAS DONE IT ALL        75128 11430000
+         BAL   R15,P54STRFI   STORE CURRENT FILE INFORMATION      75128 11440000
+         SPACE 1                                                  75128 11450000
+* NOW BECAUSE THERE IS NO 'EOF' ON THE FILE, WE MUST PUT IN       75128 11460000
+*  A X'FFFF' TO TELL THE READ ROUTINE IT HAS REACHED EOF          75128 11470000
+         L     R1,AMACBUF                                         75128 11480000
+         LH    R14,0(R1)      LOAD CURRENT LENGTH OF THE BLOCK    75128 11490000
+         LA    R15,0(R1,R14)  CALC NEXT SPOT IN BLOCK             75128 11500000
+         MVC   0(2,R15),=X'FFFF' SHIFT THE X'FFFF'                75128 11510000
+         LA    R14,4(R14)     RESET LENGTH OF BLOCK               75128 11520000
+         STH   R14,0(R1)      ** DONE                             75128 11530000
+* NOW WE MUST OUTPUT THE BLOCK TO THE WORK FILE                   75128 11540000
+         BAL   R14,OPBLOCK    OUTPUT THE BLOCK                          11550000
+         IFVALUE P98TTR1,P54SCUDC                                       11560000
+         ST   R1,P98TTR1   SET 1ST TTR BLOCK                            11570000
+P54SCUDC MVC   BLDLTTR,P98TTR1 SHIFT IN NEW TTR THAT READ ROUTINES75128 11580000
+*                             WILL USE TO START READING NEW RECORD75128 11590000
+         MVC   CURRDCB,AWORKFIL AND TELL IT WHICH DCB TO USE      75128 11600000
+         L     R8,AWORKFIL                                              11610000
+*******************************************************************SOCO 11620000
+* THIS CHANGE OF A BRANCH TO DO A FIND MACRO TO A POINT MACRO      SOCO 11630000
+* SHOLUD FIX THE SYSTEM 001 ABEND CODE ON THE $$JWORK2 FILE.       SOCO 11640000
+*******************************************************************SOCO 11650000
+******************************                                     SOCO 11660000
+******** B  P54DOFND *********                                     SOCO 11670000
+         POINT (8),BLDLTTR     POINT TO FIRST WORK FILE BLOCK      SOCO 11680000
+*                                                                  SOCO 11690000
+         JOLRETN                                                        11700000
+         SPACE 3                                                        11710000
+         DC    0D'0',CL8'P54DS '                                 88036  11720000
+P54DS    DS    0H                                                88036  11730000
+         GETTKN 1                                                       11740000
+         MVC   CALLAREA(2),=C'||'                                       11750000
+         MVC   TKNCURR,=H'2'                                            11760000
+         $CALL UJS60DSN                                                 11770000
+         SPACE 3                                                        11780000
+* NOW WE MUST FORM UP THE FULL DSNAME.EACH PART IS SEPARATED BY A '.'   11790000
+*  OR THERE MAY BE'( )' AFTER                                           11800000
+         XC    CALLAREA(2),CALLAREA                                     11810000
+         $CALL UJS60DSN        PROCESS DSNAME                           11820000
+         B     *+4(R15)                                                 11830000
+         B     P54DSN1         STRAIGHT DSNAME                          11840000
+         B     P54DSN2         DSNAME + GENERATION NUMBER               11850000
+         B     P54DSN3         DSNAME + MEMBER                          11860000
+         B     P54DSN4         ERROR IN GENERATION NUMBER               11870000
+         B     P54DSN5         INVALID DSNAME                           11880000
+P54DSN1  JOLERR 407,'MEMBER NAME REQUIRED WITH ',#WORK,'.'              11890000
+         JOLRETN RC=16                                                  11900000
+P54DSN4  DS    0H                                                       11910000
+P54DSN2  JOLERR 408,'CANNOT INVOKE A GENERATION DATASET ',#WORK,'.'     11920000
+         JOLRETN RC=16                                                  11930000
+P54DSN5  JOLERR 409,'INVALID DATASET NAME',#WORK,'(',MBRNAME,').'       11940000
+         JOLRETN RC=16                                                  11950000
+P54DSN3  DS    0H                                                       11960000
+         XC    S99AREA,S99AREA CLEAR SVC 99 PARAMETERS                  11970000
+         LA    R0,S99RB                                                 11980000
+         ST    R0,S99PARMS                                              11990000
+         OI    S99PARMS,X'80'                                           12000000
+         MVC   S99RB(2),=X'1401'                                        12010000
+         LA    R0,S99TU                                                 12020000
+         ST    R0,S99TULST                                              12030000
+         MVC   TUDSN(4),=Y(2,1)  DSN=, THERE IS ONE OF THEM             12040000
+         MVC   TUDSN+4(46),#WORK                                        12050000
+         LA    R0,TUDSN                                                 12060000
+         ST    R0,S99TU                                                 12070000
+         LA    R0,=Y(4,1,1,8*256) DISP=, THERE IS ONE, IT'S SHARE       12080000
+         ST    R0,S99TU+4                                               12090000
+         LA    R15,S99TU+8                                       88036  12100000
+         CLI   TUPSWD+6,C' '                                     88036  12110000
+         BE    P54DS10                                           88036  12120000
+         MVC   TUPSWD(6),=Y(X'50',1,8) PSWD=, 1 OF THEM          88036  12130000
+         LA    R0,TUPSWD                                         88036  12140000
+         ST    R0,0(,R15)                                        88036  12150000
+         LA    R15,4(,R15)                                       88036  12160000
+P54DS10  DS    0H                                                88036  12170000
+         MVC   TURDDN(6),=Y(X'55',1,8) GIVE ME THE DDNAME               12180000
+         LA    R0,TURDDN                                                12190000
+         ST    R0,0(,R15)                                               12200000
+         OI    0(R15),X'80'    END OF THE LIST                          12210000
+         LA    R1,S99PARMS                                              12220000
+         SVC   99                                                       12230000
+         LTR   R15,R15                                                  12240000
+         BZ    P54DS20                                                  12250000
+         FIX   'USE DAIRFAIL SOME OTHER TIME'                           12260000
+         JOLERR 410,'DATASET ALLOCATION FOR ',#DSN56,' FAILED.'         12270000
+         JOLRETN RC=16                                                  12280000
+P54DS20  DS    0H                                                       12290000
+         MVC   DUMMYDCB,P54DCB                                          12300000
+         MVC   P54DECB,P54DECBP                                  88036  12301000
+         MVC   DUMMYDCB+DCBDDNAM-IHADCB(8),RETDDN                       12310000
+         MVI   CALLAREA,X'80'                                           12320000
+         OPEN  (DUMMYDCB,INPUT),MF=(E,CALLAREA)                         12330000
+         LTR   R15,R15                                                  12340000
+         BZ    P54DS40                                                  12350000
+         JOLERR 411,'OPEN FAILURE FOR ',#DSN56                          12360000
+         JOLRETN RC=16                                                  12370000
+P54DS40  DS    0H                                                       12380000
+         LH    R0,DCBBLKSI-IHADCB+DUMMYDCB                       88036  12390000
+         GETMAIN R,LV=(0)                                        88036  12400000
+         LR    R12,R1                                            88036  12410000
+         MVC   BLDLNAME,MBRNAME                                         12420000
+         BLDL  DUMMYDCB,BLDL                                            12430000
+         B     *+4(R15)                                                 12440000
+         B     P54DS100                                                 12450000
+         B     P54DS60                                                  12460000
+         B     P54DS50                                                  12470000
+P54DS50  DS    0H                                                       12480000
+         JOLERR 412,'PERMANENT I/O ERROR IN ',#DSN56,                  .12490000
+               ' LOOKING FOR''',                                 88036 .12500000
+               BLDLNAME,''''                                     88036  12510000
+*    NOW LET'S CLOSE THE FILE                                    J52    12511000
+         SPACE 3                                                 J52    12512005
+         BAL   R14,P54CLS      CLOSE THE FILE                    J52    12513000
+         JOLRETN RC=16                                           88036  12520000
+P54DS60  DS    0H                                                       12530000
+         JOLERR 413,'MEMBER ''',                                       .12540000
+               BLDLNAME,''' CANNOT BE INCLUDED: IT DOES NOT EXIST IN ',.12550000
+               #DSN56                                            88036  12560000
+*    NOW LET'S CLOSE THE FILE                                    J52    12561000
+         SPACE 3                                                 J52    12562006
+         BAL   R14,P54CLS      CLOSE THE FILE                    J52    12563000
+         JOLRETN RC=16                                           88036  12570000
+P54DS100 DS    0H                                                       12580000
+         FIND  DUMMYDCB,BLDLTTR,C                                       12590000
+         L     R1,AMACBUF                                               12600000
+         MVC   0(4,R1),=Y(4,0) INITIALISE BLOCK DESCRIPTOR              12610000
+         CLEAR P98TTR1             CLEAR FIRST TTR OF AREA TOO.   75128 12613000
+P54DS110 DS    0H                                                       12620000
+         READ  P54DECB,SF,DUMMYDCB,(R12),32000,MF=E              J60    12630004
+*        READ  P54DECB,SF,DUMMYDCB,(R12),'L',MF=E                       12631004
+         CHECK P54DECB                                                  12640000
+* PROBLEM: ON MVS, INCLUDE 'DATA.SET(MEMBER)' FAILS.             J60    12640207
+* REASON : MVS OPERATES DIFFERENTLY FROM F4 WHEN READING BLOCKS -J60    12640307
+*          - F4 SETS THE AMOUNT READ IN THE DECB, BUT MVS        J60    12640407
+*            DOES NOT.                                           J60    12640507
+         L     R1,P54DECB+16 GET ADDR OF IOB                     J60    12641007
+         LH    R14,DCBBLKSI-IHADCB+DUMMYDCB                      J60    12642007
+         SH    R14,14(R1)   -RESIDULE COUNT=#BYTES READ          J60    12643007
+         STH   R14,P54DECB+6 (CURRENT BLKSIZE)                   J60    12644007
+         SLR   R4,R4           CURRENT RECORD POINTER                   12650000
+P54DS120 DS    0H                                                       12660000
+         LA    R14,P54CARD     ADDRESS TO STORE RECORD                  12670000
+         LA    R15,L'P54CARD   ITS LENGTH                               12680000
+         LH    R1,DCBLRECL-IHADCB+DUMMYDCB                              12690000
+         LR    R5,R1           SAVE THE RECORD LENGTH                   12700000
+         CR    R1,R15          Q... WILL IT FIT                         12710000
+         BNH   P54DS130        IT WILL                                  12720000
+         LR    R1,R15          IT WILL NOW                              12730000
+P54DS130 DS    0H                                                       12740000
+         LA    R0,0(R4,R12)    ADDRESS RECORD                           12750000
+         TM    DCBRECFM-IHADCB+DUMMYDCB,X'80'                           12760000
+         BO    P54DSF00        IT'S FIXED LENGTH                        12770000
+         LR    R1,R0           ADDRESS RDW                       88036  12771000
+         LA    R0,4(R4,R12)    ADDRESS RECORD'S DATA AREA               12780000
+         LH    R1,0(,R1)       LOAD RECORD LENGTH                       12800000
+         LR    R5,R1           SAVE RECORD LENGTH                88036  12801000
+         SH    R5,=H'4'        DATA LENGTH                       88036  12802000
+P54DSF00 DS    0H                                                88036  12803000
+         STH   R1,#P54CARD     STORE DATA LENGTH                 88036  12804000
+         MVCL  R14,R0          COPY THE DATA                     88036  12805000
+         LA    R1,#P54CARD                                       88036  12806000
+         ST    R1,CALLAREA                                       88036  12807000
+         LA    R1,CALLAREA                                       88036  12808000
+         L     R15,AUJP98                                        88036  12809000
+         BALR  R14,R15         PUT THE RECORD AWAY               88036  12809100
+         AR    R4,R5           CALCULATE RECORD LENGTH TO-DATE   88036  12809200
+         CH    R4,P54DECB+6                                      88036  12809300
+         BL    P54DS120        GET ANOTHER RECORD                88036  12809400
+         B     P54DS110        GET ANOTHER BLOCK                 88036  12809500
+P54DS200 DS    0H              AN ERROR OCCURRED                 88036  12809600
+         SYNADAF ACSMETH=BPAM                                    88036  12809700
+         LH    R15,0(,R1)      RECORD LENGTH                     88036  12809800
+         SH    R15,=H'60'      SKIP THE JUNK                     88036  12809900
+         STH   R15,#WORK                                         88036  12810000
+         LA    R14,60(,R1)     ADDRESS THE DATA                  88036  12810100
+         LA    R0,WORK                                           88036  12810200
+         LA    R1,128                                            88036  12810300
+         MVCL  R0,R14          COPY THE MESSAGE TEXT             88036  12810400
+         JOLERR 414,'ERROR ',#WORK,' READING ',#DSN56            88036  12810500
+         SYNADRLS                                                88036  12810600
+         JOLRETN RC=16                                           88036  12810700
+P54DS300 DS    0H              THE END OF THE DATA               88036  12810800
+         SPACE 3                                                 88036  12810905
+*    NOW LET'S CLOSE THE FILE                                    88036  12811000
+         SPACE 3                                                 88036  12811105
+         BAL   R14,P54CLS      CLOSE THE FILE                    88036  12811200
+* NOW BECAUSE THERE IS NO 'EOF' ON THE FILE, WE MUST PUT IN             12811300
+* A X'FFFF' TO TELL THE READ ROUTINE IT HAS REACHED END-OF-FILE         12811400
+         LH    R4,FILENO       NEW NEST LEVEL                    88036  12811500
+         LA    R4,1(,R4)                                         88036  12811600
+         L     R8,AWORKFIL     MAKE SURE HE HAS THE RIGHT FILE   88036  12811700
+         AGO   .QAZ                                              88036  12811800
+         L     R1,AMACBUF                                        88036  12812000
+         LH    R14,0(,R1)                                        88036  12813000
+         LA    R15,0(R1,R14)                                     88036  12814000
+         MVC   0(2,R15),=X'FFFF'                                 88036  12815000
+         LA    R14,4(,R14)                                       88036  12816000
+         STH   R14,0(,R1)                                        88036  12817000
+*    NOW WE MUST WRITE THE BLOCK TO THE WORK FILE                88036  12818000
+         BAL   R14,OPBLOCK                                       88036  12819000
+         LH    R4,FILENO       UPDATE CURRENT NEST LEVEL         88036  12819100
+         LA    R4,1(,R4)                                         88036  12819200
+         L     R8,AWORKFIL                                       88036  12819300
+         BAL   R15,P54STRFI    STORE FILE INFORMATION            88036  12819400
+         JOLRETN RC=0                                            88036  12819600
+.QAZ     ANOP                                                    88036  12819700
+         B     P54INVDT        THIS ROUTINE DOES IT ALL          88036  12819800
+         SPACE 3                                                 88036  12819900
+P54CLS   DS    0H                                                88036  12820000
+         LR    R4,R14                                            88036  12820100
+         LH    R0,DCBBLKSI-IHADCB+DUMMYDCB                       88036  12820200
+TED      FREEMAIN R,LV=(0),A=(R12)                               88036  12820300
+         MVI   CALLAREA,X'80'                                    88036  12820400
+         CLOSE DUMMYDCB,MF=(E,CALLAREA)                          88036  12820500
+         BR    R4                                                88036  12820600
+         DS    0D                                                88036  12820700
+P54DCB   DCB   DDNAME=1,DSORG=PO,MACRF=R,EODAD=P54DS300,         88036 .12820800
+               SYNAD=P54DS200                                    88036  12820900
+LENDCB   EQU   *-P54DCB                                          88036  12821000
+         READ  P54DECBP,SF,0,0,32000                             J60    12821104
+*        READ  P54DECBP,SF,0,0,'L'                               88036  12821204
+DECBL    EQU   *-P54DECBP                                        88036  12821304
+         DS    0D                                                88036  12821404
+         LTORG                                                          12821504
+         DC    40S(*)                                                   12821604
+JOLCOM   DSECT                                                          12821704
+         ORG   DBL+1                                                    12830000
+SCC      DS    CL4                                                      12840000
+         ORG   #WORK                                                    12850000
+#DSN     DS    H                                                        12860000
+DSN      DS    CL44                                                     12870000
+         ORG   WORK+100                                                 12880000
+MBRNAME  DS    CL8                                                      12890000
+         ORG   WORK+114                                                 12900000
+TUPSWD   DS    XL6                                                      12910000
+PSWD     DS    CL8                                                      12920000
+         ORG   WORK+200                                                 12930000
+S99AREA  DS    0XL256                                                   12940000
+S99PARMS DS    F                                                        12950000
+S99RB    DS    0XL24                                                    12960000
+         DC    X'1401'                                                  12970000
+S99FLGS1 DS    XL2                                                      12980000
+S99ERR   DS    XL2                                                      12990000
+S99INF   DS    XL2                                                      13000000
+S99TULST DS    A                                                        13010000
+         DS    XL4             RESERVED                                 13020000
+S99FLGS2 DS    XL2                                                      13030000
+         DS    XL2             THE REST OF IT                           13040000
+S99TU    DS    A               DSN=                                     13050000
+         DS    A               DISP=SHR                                 13060000
+         DS    A               PASSWORD=                                13070000
+         DS    A               DDNAME=                                  13080000
+         DS    4A              IN CASE WE WANT THEM                     13090000
+TUDSN    DS    XL4             DSN=, ONE OF THEM                        13100000
+#DSN56   DS    H               LENGTH                                   13110000
+DSN56    DS    CL44            THE  DSNAME                              13120000
+TURDDN   DS    XL4             YOU TELL ME ON DDN                       13130000
+         DS    H               LENGTH                                   13140000
+RETDDN   DS    CL8             THE DDNAME                               13150000
+CC       DS    CL5                                                      13160000
+         DS    0D                                                       13170000
+#P54CARD DS    H                                                 88036  13180000
+P54CARD  DS    CL255                                             88036  13190000
+         DS    0D                                                       13230000
+P54DECB  DS    XL(DECBL)                                         88036  13231000
+         DS    0D                                                       13232000
+DUMMYDCB DS    XL(LENDCB)                                               13240000
+         DS    0D                                                       13250000
+         DROP  R7    DROP DCBS                                   75128  13290000
+         PRINT NOGEN                                                    13300000
+         DCBD  DSORG=PS,DEVD=DA                                         13310000
+         END                                                            13320000

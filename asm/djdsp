@@ -1,0 +1,911 @@
+         TITLE 'MAINLINE PROCESSING'
+SPACEMAN CSECT
+                                 SPACE 1
+R0       EQU   0                 WORK
+R1       EQU   1                 WORK
+R2       EQU   2                 WORK
+R3       EQU   3                 WORK
+R4       EQU   4                 WORK
+R5       EQU   5                 WORK
+R6       EQU   6                 WORK
+R7       EQU   7                 WORK
+R8       EQU   8                 WORK
+R9       EQU   9                 WORK
+R10      EQU   10                SUBROUTINE RETURN
+R11      EQU   11                2ND LEVEL SUBROUTINE RETURN
+R12      EQU   12                BASE REGISTER
+R13      EQU   13                SAVE AREAS
+R14      EQU   14                RETURN ADDRESS/WORK
+R15      EQU   15                RETURN ADDRESS/WORK
+                                 SPACE 1
+         SAVE  (14,12),,*
+         LR    R12,R15           SET UP BASE REGISTER
+         USING SPACEMAN,R12
+         USING DATA,R13
+         L     R15=A(SAVE)       MY SAVE AREA
+         ST    R13,4(R15)        BACK CHAIN
+         ST    R15,8(R13)        FORWARD CHAIN
+         LR    R13,R15           SAVE AREA ADDRESSABILITY
+         L     R2,0(R1)          ADDRESS THE PARM LIST
+
+         OPEN  (PRINT,(OUTPUT))
+         TM    PRINT+DCBOFLGS,-1HADCB,DCBOFORM
+         BO    CALLINIT
+         WTO   'SPACEMAN HAS NO PRINT DD',ROUTCDE=11
+ABEND    ABEND 16
+*
+*        ESTABLISH ESTAE ENVIRONMENT
+*
+CALLINIT DS    0H
+         STM   R9,R13,ESTAESAV   REGISTER FOR RECOVERY
+         L     R2,=A(ESTAEXIT)   A(RECOVERY ROUTINE)
+         ESTAE (R2),PARAM=(R13)
+         LTR   R15,R15
+         BZ    ESTAEOK
+         WTO   'OCS102E SPACEMAN COULD NOT ESTABLISH ESTAE             *
+                ENVIRONMENT',ROUTCDE=11
+         B     ABEND
+ESTAEOK  DS    0H
+         CALL  INIT              =>PROCESS PARM & SYSIN
+         LTR   R15,R15
+         BZ    CALLVTOC
+         WTO   'SPACEMAN HAD SEVERE ERROR IN PARAMETER PROCESSING',    *
+               ROUTCDE=11
+         B     ABEND
+CALLVTOC DS    0H
+*
+*
+* DETERMINE IF ANY GENERIC DATASET NAMES EXIST IN THE EXCLUDE, DELETE
+* OR DSNAME TABLE
+*
+         TM    FLAGS3,FLG3EXCL   ANY GENERIC EXCLUDES
+         BZ    MAINDEL1
+         LM    R1,R4,EXCLUDES
+         BAL   R10,GENERICS
+         BZ    MAINDEL1
+         OI    FLAGS5,FLG5EXCL
+MAINDEL1 DS    0H
+         TM    FLAGS3,FLG3DELT   ANY GENERIC DELETES
+         BZ    MAINDSN1
+         LM    R1,R4,DELETES
+         BAL   R10,GENERICS
+         BZ    MAINDSN1
+         OI    FLAGS5,FLG5DELT
+MAINDSN1 DS    0H
+         TM    FLAGS3,FLG3DSN    ANY GENERIC DSNAMES
+         BZ    MAINVOL1
+         LM    R1,R4,DSNAMES
+         BAL   R10,GENERICS
+         BZ    MAINVOL1
+         OI    FLAGS5,FLG5DSN
+MAINVOL1 DS    0H
+         TM    FLAGS3,FLG3VOL    ANY GENERIC VOLUMES
+         BZ    MAIN010
+         LM    R1,R4,VOLUMES
+         BAL   R10,GENERICS
+         BZ    MAIN010
+         OI    FLAGS5,FLG5VOL
+MAIN010  DS    0H
+*
+* IF VOLSERIAL IS NOT CODED THEN EACH DATASET MUST BE CATALOGUED
+* IN ORDER TO BE DELETED OR HAVE ITS SPACE RELEASED
+*
+         TM    FLAGS3,FLG3VOL    VOL CODED ?
+         BO    MAINVOL           ==>YES
+         TM    FLAGS5,FLG5DSN    ANY GENERIC DSNAME
+         BO    INITERR6          YES, BUT INVALID
+         TM    FLAGS5,FLG5DELT   ANY GENERIC DELETES
+         BO    INITERR7          YES BUT INVALID
+         TM    FLAGS5,FLG5EXCL   ANY GENERIC EXCLUDES
+         BO    INITERR8          YES BUT INVALID
+         TM    FLAGS3,FLG3DELT   DELETE ANYTHING
+         BZ    MAINDSN           NO
+         CALL  DELETE            PROCESS DELETES
+MAINDSN  DS    0H
+         TM    FLAGS3,FLG3DSN    PROCESS DSNAME
+         BZ    MAINREPT          NO
+         CALL  DSNAME            PROCESS DSNAME
+MAINREPT DS    0H
+         CALL  REPORT
+         XR    R15,R15           SET PGM RC=0
+         L     R13,4(R13)        RESTORE CALLERS SAVE AREA
+         RETURN (14,12),,RC=(15) AND RETURN
+*
+* PROCESS THE VOLUME LIST AND CONVERT THE GENERICS TO REAL
+*
+MAINVOL  TM    FLAGS5,FLG5VOL    ANY GENERIC VOLUMES
+         BZ    SKIPVOL           NO
+         LM    R1,R4,VOLSERS     LOOP CONTROL
+         LR    R3,R4             END OF VOL LIST
+UCBLOOP0 LH    R4,2(R1)          LENGTH THIS ENTRY
+         CLI   4(R1,R4),C'*'     GENERIC
+         BNE   SKIPUCB           NO
+         L     R5,16             A(CVT)
+         L     R5,40(R5) A(UCB ADDRESSES)
+UCBLOOP1 DS    0H
+         LH    R6,6(R5)          A(UCB)
+         LTR   R6,R6             VALID ADDRESS
+         BZ    UCBLOOP2          UCBHOLE
+         BM    UCBLOOP3          END OF UCB CHAIN
+         USING UCBMSEG,R6
+         CLI   UCBUNTYP,DA3HEX20 IS IT A DASD
+         BNE   UCBLOOP2          NOT DASD
+         BCTR  R4,0              LESS 1 FOR EX CLC
+         LTR   R4,R4             CHECK FOR VOL=*
+         BM    GOTUCB            GOT A VOLUME
+         EX    R4,UCBCLC         IS IT THIS VOL
+         BE    GOTUCB            YES
+UCBLOOP2 DS    0H
+         LA    R5,2(R5)          A(NEXT UCB ADDRESS)
+         B     UCBLOOP1          PROCESS NEXT UCB
+GOTUCB   DS    0H
+         TM    UCBVOL1,X'BF'     CHECK IF VOL IS LOADED
+         BZ    UCBLOOP2          NOT LOADED
+         L     R4,VOLSERS+12     POINTER TO LAST VOLSER
+         LA    R4,10(R4)         PLUS LENGTH OF VOLSER
+         ST    R4,VOLSERS+12     SAVE FOR LATER
+         MVC   4(6,R4),UCBVOL1   MOVE IN VOLSER
+         MVC   0(4,R4),=A(6)     LENGTH OF VOL
+         B     UCBLOOP2          GET NEXT UCB
+UCBLOOP3 0H
+         MVI   0(R1),X'FF'       FLAG AS GENERIC
+SKIPUCB  DS    0H
+         BXLE  R1,R2,UCBLOOP0    UNTIL DONE
+*
+*   DO OVER VOLUME LIST
+*
+         LM    R1,R4,VOLSERS     VOLUME ADDRESS
+         LR    R3,R4             A(LAST VOL)
+VOLLOOP  CLI   0(R1),X'FF'       GENERIC
+         BE    SKIPVOL1          YES SKIP IT
+         CALL VOLUME             PROCESS THE VOLUME
+SKIPVOL1 DS    0H
+         BXLE  R1,R2,VOLLOOP     UNTIL ALL VOLS DONE
+         B     MAINREPT
+         TITLE 'MAINLINE SUBROUTINES'
+* GENERICS LOOP THROUGH ANY TABLE LOOKING FOR A GENERIC VOLUME
+* THE LOOP WILL STOP AT THAT VOLUME IF FLAGS5(FLG5STOP)=1.
+* RC FROM THIS SUBROUTINE IS 0  IF NONE FOUND OR 4 IF GENERIC FOUND.
+* A CONTINUATION ENTRY TO THIS SUBROUTINE IS GENERIC.
+*
+GENERICS DS    0H
+         CR    R4,R3             TOO MANY ENTRIES
+         BH    GENABEND          YES
+         LR    R3,R4             SET TO LAST ENTRY
+GENERIC  DS    0H
+         NI    FLAGS5,255-FLG5GEN TURN OFF FLAGS
+GENLOOP  DS    0H
+         LH    R5,2(R1)          SET LENGTH OF TOKEN
+         CLI   4(R1,R5),C'*'     IS THE LAST CHAR AN *
+         BNE   GENLOOPC          NO
+         OI    FLAGS5,FLG5GEN    TURN ON GENERIC FOUND
+         TM    FLAGS5,FLG5STOP   DO I STOP HERE
+         BO    GENLOOP4          YES SET RC=4
+GENLOOPC DS    0H
+         BXLE  R1,R2,GENLOOP     TILL DONE
+         LA    R15,0             SET RC=0
+         TM    FLAGS5,FLG5GEN    UNLESS GENERIC FOUND
+         BZ    GENLOOP2          IT WASNT
+GENLOOP4 DS    0H
+         LA    R15,4             SET RC=4
+GENLOOP2 DS    0H
+         LTR   R15,R15           SET CONDITION CODE
+         BR    R10               RETURN
+GENABEND ABEND 17
+         TITLE 'PROCESS VOLUME SERIALS'
+VOLUME CSECT
+*
+* FOR EACH VOLUME, READ THE VTOC, SKIP ALL BUT F1 DSCB'S, IF
+* IN EXCLUDED LIST- EXCLUDE IT, IF IN DELETE LIST, DELETE IT,
+* IF IN DSNAME LIST - PROCESS IT
+*
+         DROP,
+         SAVE  (14,12),,*
+         USING VOLUME,R12
+         USING SAVE2,R13
+         L     R15,=A(SAVE2)
+         ST    R15,8(R13)
+         ST    R13,4(R15)
+         LR    R13,R15
+                                  SPACE 1
+         MVC   VOL,4(R1)          SAVE VOL SERIAL
+         LA    R1,FREERBP         FREE THE DSNAME=SPACEDDN
+         DYNALLOC
+         LA    R1,ALOCRBP         ALLOC THE VOLSER
+         DYNALLOC
+         LTR   R15,R15            ALLOC OK
+         BNZ   VOLERR1            NO
+*
+* RDJFCB & OPEN THE VTOC
+*
+         RDJFCB (VTOC)            GET THE JFCB
+         MVI   JFCB,X'04'         PUT IN THE DSNAME
+         MVC   JFCB+1(43),JFCB
+         OPEN  VTOC,TYPE=J
+         ENQ   (SYSVTOC,VOL,E,6,SYSTEMS)
+*
+* READ THE VTOC TO DETERMINE IF ANY DSNAMES NEED PROCESSING
+*
+VTOCREAD DS    0H
+         READ  DECB,SF,VTOC,DSCB
+         CHECK DECB
+         CLI   DSCB+44,C'1'       FORMAT 1 DSCB
+         BNE   VTOCREAD
+         CALL  CHECK              CHECK FOR PROCESSING
+         LTR   R15,R15
+         BNZ   VTOCREAD
+         TM    FLAGS2,FLG2TYPE    TEST FOR EXPIRY DATE
+         BO    SKIPEXPD
+         CLC   DS1EXPDT,EXPDT
+         BH    VTOCREAD
+SKIPEXPD DS    0H
+         TM    FLAGS2,FLG2TYPP    TEST FOR RACF/PASSWORD PROTECTION
+         BO    SKIPPWRD
+         TM    DS1DSIND,DS1IND40+DS1IND10+DS1IND04
+         BNZ   VTOCREAD
+         PUT   WORK,DSCB
+         B     VTOCREAD
+VTOCEOD  DS    0H
+         DEQ   (SYSVTOC,VOL,6,SYSTEMS)
+         CLOSE (VTOC,(REREAD))
+         CLOSE (WORK,(REREAD))
+CHECK    CSECT
+*
+*  CHECKDSCB FOR PROCESSING
+*
+         DROP,
+         SAVE  (14,12),,*
+         USING CHECK,R12
+         USING SAVE3,R13
+         L     R15,=A(SAVE3)
+         ST    R15,8(R13)
+         ST    R13,4(R15)
+         LR    R13,R15
+                                 SPACE 1
+         TM    FLAGS3,FLG3EXCL   WAS EXCLUDE CODED
+         BZ    CHECKDEL          NO
+         LM    R1,R4,EXCLUDES    LOAD ADDRESSES
+         BAL   R5,CHECKDS        CHECK AGAINST CODED DATA
+         LTR   R15,R15           FOUND A MATCH
+         BNZ   CHECKDEL          NO
+         LA    R15,4 SET RC
+         B     CHECKEND          RETURN TO CALLER
+CHECKDEL DS    0H
+         TM    FLAGS3,FLG3DELT   WAS DELETE CODED
+         BZ    CHECKDSN          NO
+         LM    R1,R4,DELETES     LOAD ADDRESSES
+         BAL   R5,CHECKDS        CHECK AGAINST CODED DATA
+         LTR   R15,R15           FOUND A MATCH
+         BNZ   CHECKDSN          NO
+         LA    R15,0
+         MVI   DSCBFLAG,C'D'     FLAG FOR DELETION
+         B     CHECKEND
+CHECKDSN DS    0H
+         TM    FLAGS3,FLG3DSN    WAS DSN CODED
+         BZ    CHECKFIN          NO
+         LM    R1,R4,DSNAMES     LOAD ADDRESSES
+         BAL   R5,CHECKDS        CHECK AGAINST CODED DATA
+         LTR   R15,R15 FOUND A MATCH
+         BNZ   CHECKFIN          NO
+         LA    R15,0             SET RC
+         MVI   DSCBFLAG,C'P'     FLAG FOR PROCESSING
+         B     CHECKEND
+CHECKFIN DS    0H
+         LA    R15,4             SET RC
+CHECKEND DS    0H
+         L     R13,4(R13)        RESTORE SAVE AREA
+         RETURN (14,12),,RC=(15)
+                                SPACE 1
+CHECKDS  DS    0H
+         LR    R3,R4
+         LH    R4,2(R1)          CHECK LENGTH OF PARM
+         CLI   0(R1,R4),C'*'     IS IT GENERIC
+         BE    CHECKDS1          YES
+         LA    R15,4             SET RC
+         CLC   DSCB(44),4(R1)    COMPARE DSNAMES
+         BNER  R5
+         LA    R15,0
+         B     R5
+CHECKDS1 DS    0H
+         BCTR  R4,0              LENGTH -1 FOR EX
+         LTR   R4,R4             CHECK FOR DSNAME=*
+         BM    CHECKDS2
+         LA    R15,4             SET RETURN CODE NOT FOUND
+         EX    R4,CHECKCLC       COMPARE DSNAMES
+         BNER  R5
+         LA    R15,0
+         BR    R5
+CHECKDS2 DS    0H
+         LA    R15,0
+         BR    R5
+INIT     CSECT
+         DROP,
+         SAVE  (14,12),,*
+         LR    R12,R15
+         USING INIT,R12
+         USING SAVE2,R13
+         L     R15,=A(SAVE2)
+         ST    R15,8(R13)
+         ST    R13,4(R15)
+         LR    R13,R15
+         LH    R3,0(R2)
+         LTR   R3,R3
+         BZ    INITOPEN           NO PARM
+         OI    FLAGS4,FLG4PARM    INDICATE PARM FIELD
+         ST    R3,TKNSTRLN        A(STRING LENGTH)
+         LA    R2,2(R2)
+         ST    R2,TKNSTR
+         B     INITGET
+INITOPEN DS    0H
+         OPEN  SYSIN
+         TM    SYSIN+DCB0FLGS-IHADCB,DCB0FOPN
+         BZ    INITERR1           NO DD ABEND
+         BAL   R11,INITREAD       READ IN A RECORD
+         BNZ   INITERR2           FILE IS EMPTY, ABEND
+INITGET  DS    0H
+         BAL   R10,GETTKN
+         BNZ   INITEXIT
+         LM    R1,R13,KEYWORDS
+         USING KEYS,R1
+         BCTR  R2,0
+INITLOOP DS    0H
+         EX    R2,INITCLC
+         BNE   INITL
+         C     R2,KEYLEN         INCORRECT KEY
+         BL    INITL             YES
+         LM    R4,R6,KEYADDR     LOAD VALUES
+         BR    R4
+INITL    DS    0H
+         LA    R1,KEYSLEN(R1)
+         CLI   0(R1),X'FF'
+         BE    INITERR3          UNKNOWN KEYWORD
+         B     INITLOOP
+         DROP  R1
+PRMKEYS  DS    0H
+         USING KEYVALS,R5
+         BAL   R10,GETTKN
+         BNZ   INITERR4
+         LM    R1,R3,KEYWORDS
+PRMKLOOP DS    0H
+         EX    R2,INITCLC
+         BNE   PRMKL
+         C     R2,KEYVLEN
+         BL    PRMKL
+         C     R2,KEYVLEN
+         BL    PRMKL
+         OC    0(1,R6),KEYVALUE
+         B     INITGET
+PRMKL    DS    0H
+         LA    R5,KEYVLEN(R5)
+         CLI   0(R5),X'FF'
+         BE    INITERR5
+         B     PRMKLOOP
+PRMDSN   DS    0H
+         MVI   TABLFLAG,0             TURN OFF FLAG
+         TM    FLAGS4,FLG4LB          LEFT BRACKET IN LAST TOKEN
+         BZ    PRMDSN1                NO
+         MVI   TABLFLAG,1             INDICATE MORE THAN 1 TOKEN
+PRMDSN1  DS    0H
+         BAL   R10,GETKN              GET A TOKEN
+         BNZ   INITGET                NO MORE TOKENS
+         LM    R1,R2,TKNSTRLN         GET LENGTH AND ADDRESS OF TOKEN
+         L     R3,12(R5)              WHERE TO PUT THEM
+         ST    R1,0(R3)               SAVE LENGTH
+         EX    R2,MOVEDSN             COPY TOKEN
+         ST    R2,0(R3)
+         L     R1,4(R5)               LENGTH OF TOKEN
+         LA    R3,4(R1,R3)            POINT TO NEXT AVAILABLE SLOT
+         ST    R3,12(R5)              AND SAVE IT
+         CLI   TABLFLAG,1             BRACKETED PARAMETERS
+         BNE   INITGET                NO
+         TM    FLAGS4,FLG4RB          RIGHT BRACKET FOUND
+         BZ    PRMDSN1                NO
+         B     INITGET                YES
+MOVEDSN  MVC   4(*-*,R3),0(R2)
+PRMNUM   DS    0H
+         MVI   TABLFLAG,0             TURN OFF FLAG
+         TM    FLAGS4,FLG4LB          LEFT BRACKET IN LAST TOKEN
+         BZ    PRMNUM1                NO
+         MVI   TABLFLAG,1
+         TM    FLAGS4,FLG4COM         AND NO COMMA
+         BZ    PRMNUM1                NO
+         MVI   TABLFLAG,2
+PRMNUM1  DS    0H
+         BAL   R10,GETKN              GET A TOKEN
+         BNZ   INITGET                NO MORE TOKENS
+         LM    R1,R2,TKNSTRLN         GET LEN AND ADD OF TOKEN
+         EX    R1,TKNPACK             PACK IT
+         CVB   R3,DB
+         CLI   TABLFLAG,1             SAVE IN FIRST VALUE
+         BH    PRMNUM2                NO
+         STH   R3,0(R5)               SAVE IT
+         BL    INITGET                IF NO BRACKETS
+         MVI   TABLFLAG,2             INDICATE LAST ONE
+         B     PRMNUM1                GET ANOTHER
+PRMNUM2  DS    0H
+         STH   R3,2(R5)               SAVE IT IN SECOND VALUE
+         B     INITGET                RETURN
+TKNPACK  PACK  DB,0(*-*,R2)
+INITERR1 ABEND 1                      NO SYSIN DD
+INITERR2 ABEND 2                      SYSIN IN MT
+INITERR3 ABEND 3                      UNKNOWN KEYWORD
+INITERR4 ABEND 4                      INVALID VALUE
+INITERR5 ABEND 5                      INVALID VALUE
+INITERR6 ABEND 6                      GENERIC DSNAMES BUT NO VOL
+INITERR7 ABEND 7                      GENERIC DELETES BUT NO VOL
+INITERR8 ABEND 8                      GENERIC EXCLUDES BUT NO VOL
+INITEXIT DS    0H
+         CLI   VOL1,C' '
+         BE    INITEX1
+         OI    FLAGS3,FLG3VOL
+INITEX1  DS    0H
+         CLI   DSN1,C' '
+         BE    INITEX2
+         OI    FLAGS3,FLG3DSN
+INITEX2  DS    0H
+         CLI   EXC1,C' '
+         BE    INITEX3
+         OI    FLAGS3,FLG3EXCL
+INITEX3  DS    0H
+         CLI   DEL1,C' '
+         BE    INITEX4
+         OI    FLAGS3,FLG3DELT
+INITEX4  DS    0H
+         CLC   =F'0',PERCENTP
+         BE    INITEX5
+         OI    FLAGS3,FLG3PERC
+INITEX5  DS    0H
+         CLC   =F'0',THRESHP
+         BE    INITEX6
+         OI    FLAGS3,FLG3THRS
+INITEX6  DS    0H
+         XR    R15,R15
+         L     R13,4(R13)
+         RETURN (14,12),,RC=(15)
+         LTORG
+         DC    4S(*)                   ZAPSPACE
+         DC    4S(*)                   ZAPSPACE
+         DC    4S(*)                   ZAPSPACE
+         DC    4S(*)                   ZAPSPACE
+         DC    4S(*)                   ZAPSPACE
+         TITLE 'INITIALISATION SUBROUTINES'
+INITREAD DS    0H
+*
+* FUNCTION IS TO READ A SYSIN RECORD, PRINT IT, AND THEN
+* DETERMINE THE START OF A TOKEN. IF A RECORD IS ALL BLANK,
+* OR STARTS WITH AN ASTERISK IN COLUMN 1.
+*
+         GET   SYSIN,INPUT
+         PUT   PRINT,INPUT-1
+         CLI   INPUT,C'*'          IF AN * THEN IT IS A COMMENT
+         BE    INITREAD
+         TRT   INPUT(22),TRTBLNK   FIND FIRST NONBLANK CHAR
+         BNL   INITREAD            ALL BLANKS MUST BE A COMMENT
+         ST    R1,TKNSTR           START OF TOKEN
+         LA    R15,INPUT+71        END OF INPUT
+         SR    R15,R1              LESS START OF FIRST TOKEN
+         ST    R15,TKNSTRLN
+         XR    R15,R15             SET RETURN CODE
+         LTR   R15,R15             AND COND CODE
+         BR    R11                 RETURN
+SYSINEOD DS    0H
+         CLOSE SYSIN
+         LA    R15,4
+         LTR   R15,R15
+         BR    R11
+TRTBLNK  DC    256X'FF'           TABLE TO SCAN FOR NONBLANKS
+         ORG   TRTBLNK+C' '
+         DC    X'00'
+         ORG   ,
+GETTKN   DS    OH
+GETTKN   DS    OH
+*
+* FUNCTION IS TO OBTAIN ONE TOKEN FROM THE INPUT STREAM
+* AND TO SET FLAGS INDICATING WHICH DELIMITER FOLLOWS IT
+* THE VALID DELIMITERS ARE: BLANK,COMMA,EQUALS,LEFT & RIGHT BRACKET
+* A DELIMITER MAY BE FOLLOWED BY ANOTHER DLEIMITE EG, A=(B,C)
+         NI    FLAGS4,255-FLG4LB-FLG4RB-FLG4EQ-FLG4BL-FLG4COM
+         L     R14,TKNSTRLN     LENGTH OF REMAINING TOKENS
+         LTR   R14,R14          HAD BETTER BE POSITIVE
+         BP    GETKN010         OK
+         TM    FLAGS4,FLG4PARM  PARM FIELD OR SYSIN
+         BZ    GETKNRC4         = PARM FIELD
+         BAL   R11,INITREAD     GET ANOTHER SYSIN RECORD
+         BZ    GETKN
+GETKNRC4 DS    0H
+         LA    R15,4            SET RETURN CODE
+         LTR   R15,R15
+         BR    R10
+GETKN010 DS    0H
+         MVI   TKN,C' '
+         MVC   TKN+1(L'TKN-1),TKN  BLANK OUT NEW TOKEN
+         L     R15,TKNSTR          POINT TO TOKENS
+         BCTR  R14,0
+         XR    R2.R2
+         EX    R14,TKNTRT          SCAN TOKENS FOR DELIMITERS
+         BZ    GETKN020            CC=0 SOURCE EXHAUSTED, NO DELIMITER
+         BP    GETKN040            CC=2 SOURCE EXHAUSTED, DEL AT END
+         BO    GETKN030            CC=1 DELIMITER FOUND IN SOURCE
+GETKN040 DS    0H
+         BCTR  R14,0
+GETKN020 DS    0H
+         ST    R14,TKNL            SAVE IN TOKEN LENGTH
+         EX    R14,TKNMVC          MOVE THE TOKEN
+GETKNBLN XR    R15,R15             GET THE RETURN CODE
+         ST    R15,TKNSTRLN        SAVE NEW STRING LENGTH
+         LTR   R15,R15
+         BR    R10
+GETKN030 DS    0H
+         SR    R1,R15              CALCULATE LENGTH OF TOKEN
+         BCTR  R1,0                LESS ONE
+         ST    R1,TKNL
+         EX    R1,TKNMVC           MOVING IT
+         B     *(22)               PROCESS THE DELIMITER
+         B     GETKNBLN
+         B     GETKNEQ
+         B     GETKNLB
+         B     GETKNRB
+         B     GETKNCOM
+GETKNEQ  DS    0H
+         CLI   2(R1),C'('           IS NEXT A LEFT BRACKET
+         BNE   GETKNGO              NO
+         0I    FLAGS4,FLG4EQ
+         LA    R1,1(R1)
+         B     GETKNGO
+GETKNLB  DS    0H
+         0I    FLAGS4,FLG4LB
+         B     GETKNGO
+GETKNLB  DS    0H
+         OI    FLAGS4,FLG4LB
+         B     GETKNGO
+GETKNRB  DS    0H
+         OI    FLAGS4,FLG4RB
+         CLI   2(R1),C','
+         BE    GETKNRB1
+         CLI   2(R1),C' '
+         BE    GETKNBLN
+GETKNRB1 DS    0H
+         OI    FLAGS4,FLG4COM
+         LA    R1,1(R1)
+         CLI   2(R1),C' '
+         BE    GETKNBLN
+         B     GETKNGO
+GETKNCOM DS    0H
+         OI    FLAGS4,FLG4COM
+         LA    R1,1(R1)
+         CLI   2(R1),C' '
+         BE    GETKNBLN
+         B     GETKNGO
+GETKNGO  DS    0H
+         LA    R1,2(R1)             POINT TO NEXT TOKEN
+         ST    R1,TKNSTR            AND SAVE IT
+         SR    R1,R15
+         ST    R1,TKNSTRLN
+         XR    R15,R15
+         LTR   R15,R15
+         BR    R10
+TKNMVC   MVC   TKN(*-*),0(R15)
+TKNTRT   TRT   0(*-*,R15),TKNTRTAB
+TKNTRTAB DC    256X'00'
+         ORG   TKNTRTAB+C' '
+         DC    X'04'
+         ORG   TKNTRTAB,C'='
+         DC    X'08'
+         ORG   TKNTRTAB,C'('
+         DC    X'0C'
+         ORG   TKNTRTAB,C')'
+         DC    X'10'
+         ORG   TKNTRTAB,C','
+         DC    X'14'
+         ORG   ,
+*
+* THE ESTAE EXIT ROUTINE ISSUES A FIVE LINE ABEND MESSAGE THEN SCHED'S
+* THE LATEST RETRY ADDRESS AS THE RETRY ADDRESS
+*
+ESTAEXIT CSECT
+         DROP  ,
+         USING ESTAEXIT,R2
+         LR    R2,R15              SET BASE REGISTER
+         XR    R15,R15
+         LA    R3,12
+         CR    R0,R3               SDWA PROVIDED
+         BCR   8,R14               NO, SKIP RECOVERY
+         USING SDWA,R1
+         L     R8,SDWAPARM         ESTAE PARAMETERS
+         USING DATA,R8
+         ST    R13,ESTAER13        SAVE R13
+         LM    R9,R13,ESTAESAV
+         DROP  R8
+         USING DATA,R13
+         UNPK  MSG5ABN,SDWAABCC+1(2)
+         OI    MSG5ABN+2,X'F0'
+         UNPK  ESTAESCR(4),SDWACR15+2(3)
+         TR    ESTAESCR(3),TRHEX
+         MVC   MSG5CDE,ESTAESCR
+         UNPK  ESTAESCR(9),SDWAGRR(5)
+         TR    ESTAESCR(8),TRHEX
+         MVC   MSG5EP,ESTAESCR
+         UNPK  ESTAESCR(9),SDWACTL1(5)
+         TR    ESTAESCR(8),TRHEX
+         MVC   MSG5PSW1,ESTAESCR
+         UNPK  ESTAESCR(9),SDWACTL1+4(5)
+         TR    ESTAESCR(8),ESTAESCR
+         MVC   MSG5PSW2,ESTAESCR
+         LA    R1,WTO1
+         WTO   MF=(E,(1))
+         LA    R4,4
+         LA    R5,SDWAGR00
+ESTAEL1  DS    0H
+         LA    R6,MSG6R0
+         LA    R7,4
+ESTAEL2  DS    0H
+         UNPK  ESTAESCR(9),0(R5)
+         TR    ESTAESCR(8),TRHEX
+         MVC   0(8,R6),ESTAESCR
+         LA    R5,4(R5)
+         LA    R6,L'MSG6R0(R5)
+         BCT   R7,ESTAEL2
+         BAL   R3,ESTAEWTO
+         LR    R3,R2
+         SLL   R3,2
+         B     *+4(R3)
+         B     ESTAEL6                  0
+         B     ESTAEL3                  1
+         B     ESTAEL4                  2
+         B     ESTAEL5                  3
+ESTAEBCT DS    0H
+         BG    R4,ESTAEL1
+         B     ESTAEL6
+ESTAEL3  DS    0H
+         MVC   MSG6REGS,=C'C-F '
+         B     ESTAEBCT
+ESTAEL4  DS    0H
+         MVC   MSG6REGS,=C'8-B '
+         B     ESTAEBCT
+ESTAEL5  DS    0H
+         MVC   MSG6REGS,=C'4-7 '
+         B     ESTAEBCT
+ESTAEL6  DS    0H
+         MVC   MSG6REGS,=C'0-3 '
+         TM    ESTAEFLG,RECURSIVE
+         BZ    ESTAEL8
+ESTAEL7  DS    0H
+         L     R13,ESTAER13
+         SETRP RC=0,REGS=(14,12)
+ESTAEL8  DS    0H
+         L     R3,ESTAEREC
+         LTR   R3,R3
+         BZ    ESTAEL7
+         STM   R9,R13,SDWASR09
+         OI    ESTAEFLG,RECURSIVE
+         L     R13,ESTAER13
+         SETRP RC=4,RETADDR=(R3),FRESDWA=YES,                          *
+               RETREGS=YES,REGS=(14,12)
+ESTAEWTO LA    R1,WTO2
+         WTO   MF=(E,(1))
+         BR    R3
+         TITLE 'DATA CSECT'
+DATA     CSECT
+SAVE     DC    18F'0'
+SAVE2    DC    18F'0'
+SAVE3    DC    18F'0'
+KEYWORDS DC    A(KEYWORD)
+TKNSTRLN DC    A(0)
+TKNSTR   DC    A(0)
+VOLSERS  DC    A(VOL1)
+         DC    F'6'
+         DC    A(VOL48)
+         DC    A(VOL1)
+VOL1     DC    47CL10' '
+VOL48    DC    CL10' '
+DSNAMES  DC    A(DSN1)
+         DC    F'44'
+         DC    A(DSN48)
+         DC    A(DSN1)
+DSN1     DC    47CL48' '
+DSN48    DC    CL48' '
+EXCLUDES DC    A(EXC1)
+         DC    F'44'
+         DC    A(EXC48)
+         DC    A(EXC1)
+EXC1     DC    47CL48' '
+EXC48    DC    CL48' '
+DELETES  DC    A(DEL1)
+         DC    F'44'
+         DC    A(DEL48)
+         DC    A(DEL1)
+DEL1     DC    47CL48' '
+DEL48    DC    CL48' '
+*  KEYWORD TABLE
+         DS    0F
+KEYWORDS KWD   ACTION,1,PRMKEYS,VALACT,FLAGS1
+         KWD   COMPRESS,1,PRMKEYS,VALCOMP,FLAGS1
+         KWD   DELETE,2,PRMDSN,DELETES,0
+         KWD   DSNAMES,2,PRMDSN,DSNAMES,0
+         KWD   EXCLUDE,1,PRMDSN,EXCLUDES,0
+         KWD   MODE,1,PRMKEYS,VALMODE,FLAGS2
+         KWD   PERCENT,1,PRMNUM,PERCENTP,0
+         KWD   RELEASE,1,PRMKEYS,VALREL,FLAGS2
+         KWD   SORTPRINT,1,PRMKEYS,VALSORT,FLAGS6
+         KWD   TEMP,2,PRMKEYS,VALTEMP,FLAGS1
+         KWD   THRESHOLD,2,PRMNUM,THRESHP,0
+         KWD   TRKCONV,2,PRMKEYS,VALTRK,FLAGS2
+         KWD   TYPE,2,PRMKEYS,VALTYPE,FLAGS2
+         DC    4X'FF'
+*
+* KEYWORD VALUE TABLES
+*
+VALCOMP  KWDV  YES,1,FLG1CMPY
+         KWDV  NO,1,FLG1CMPN
+         KWDV  INPLACE,1,FLG1CMPI
+         DC    4X'FF'
+VALMODE  KWDV  PASSIVE,1,FLG2MDEP
+         KWDV  ACTIVE,1,FLG2MDEA
+         DC    4X'FF'
+VALACT   KWDV  PARTITIONED,1,FLG1ACTP
+         KWDV  SEQUENTIAL,1,FLG1ACTS
+         KWDV  ALL,1,FLG1ACTA
+         DC    4X'FF'
+VALTYPE  KWDV  EXPDT,1,FLG2TYPE
+         KWDV  PWORD,1,FLG2TYPP
+         DC    4X'FF'
+VALTEMP  KWDV  YES,1,FLG2TMPY
+         KWDV  NO,1,FLG2TMPN
+         DC    4X'FF'
+VALREL   KWDV  ALL,1,FLG2RELA
+         KWDV  EXTENTS,1,FLG2RELE
+         DC    4X'FF'
+VALTRK   KWDV  YES,1,FLG2TRKY
+         KWDV  NO,1,FLG2TRKN
+         DC    4X'FF'
+VALSORT  KWDV  YES,1,FLG6SORT
+         KWDV  NO,1,FLG6NSRT
+         DC    4X'FF'
+DB       DC    D'0'
+FLAGS1   DC    X'00'
+FLG1ACTS EQU   X'80'
+FLG1ACTP EQU   X'40'
+FLG1ACTA EQU   X'20'
+FLG1CMPY EQU   X'10'
+FLG1CMPN EQU   X'08'
+FLG1CMPI EQU   X'04'
+FLG1TMPY EQU   X'02'
+FLG1TMPN EQU   X'01'
+                                SPACE 1
+FLAGS2   DC    X'00'
+FLG2MDEP EQU   X'80'
+FLG2MDEA EQU   X'40'
+FLG2TRKY EQU   X'20'
+FLG2TRKN EQU   X'10'
+FLG2TYPE EQU   X'08'
+FLG2TYPP EQU   X'04'
+FLG2RELA EQU   X'02'
+FLG2RELE EQU   X'01'
+                                SPACE 1
+FLAGS3   DC    X'00'
+FLG3DELT EQU   X'80'
+FLG3DSN  EQU   X'40'
+FLG3EXCL EQU   X'20'
+FLG3PERC EQU   X'10'
+FLG3TEMP EQU   X'08'
+FLG3THRS EQU   X'04'
+FLG3VOL  EQU   X'02'
+FLG3KEEP EQU   X'01'
+                                SPACE 1
+FLAGS4   DC    X'00'
+FLG4PARM EQU   X'80'
+FLG4LB   EQU   X'40'
+FLG4RB   EQU   X'20'
+FLG4EQ   EQU   X'10'
+FLG4BL   EQU   X'08'
+FLG4SYS  EQU   X'04'
+FLG4COM  EQU   X'02'
+*        EQU   X'01'
+PERCENTP DC    H'0'
+PERCENTS DC    H'0'
+THRESHP  DC    H'0'
+THRESHS  DC    H'0'
+FLAGS5   DC    X'00'
+FLG5DELT EQU   X'80'
+FLG5DSN  EQU   X'40'
+FLG5EXCL EQU   X'20'
+FLG5VOL  EQU   X'10'
+FLG5GEN  EQU   X'08'
+FLG5STOP EQU   X'04'
+FLAGS6   DC    X'00'
+FLG6SORT EQU   X'80'
+FLG6NSRT EQU   X'40'
+*
+* DATA USED BY VOLSER ACCESS
+*
+VOL      DC    CL6''
+FREERBP  DC    X'80',AL3(FREERB)       SVC99 RB PARA
+FREERB   DC    X'14020000',A(0)        SVC99 RB
+         DC    X'80',AL3(FREETXTP)     SVC99 RB TEXT PTR
+         DC    2A(0)
+FREETXTP DC    X'80',AL3(FREETXT)
+FREETXT  DC    AL2(DUNDDNAM,1,8),CL8'SPACEDDN'
+ALOCRBP  DC    X'80',AL3(ALOCRB)
+ALOCRB   DC    X'14010000',A(0)
+         DC    X'80',AL3(ALOCTXTP)
+         DC    2A(0)
+ALOCTXTP DC
+EXPDT    DS    CL3
+         PRINT NOGEN
+VTOC     DCB   DSORG=PS,MACRF=R,DDNAME=SPACEDDN,BLKSIZE=96,            *
+               KEYLEN=44,RECFM=FS,EXLST=VTOCLST,EODAD=VTOCEOD
+         PRINT GEN
+VTOCLST  DC    X'87',AL3(JFCB)
+JFCB     DS    44F
+SYSVTOC  DC    CL8'SYSVTOC'
+DSCB     DC    CL96' '
+DSCBFLAG DC    C''
+PRVOL    DS    CL6
+PRDSN    DS    CL44
+PRDSORG  DS    CL2
+PRALLOC  DS    C
+PROLDTRK DS    H
+PROLDIDL DS    H
+PROLDPCT DS    H
+PRNRETR  DS    H
+PRNEWIDL DS    H
+PRNEWPCT DS    H
+PRRELTRK DS    H
+PRRELKB  DS    H
+PRFLAGS1 DS    X
+PRSCRTCH EQU   X'80'
+PRUNCAT  EQU   X'40'
+PRRLSE   EQU   X'20'
+PRCOMP   EQU   X'10'
+PRNEWALL EQU   X'08'
+PREXCL   EQU   X'04'
+PRTHRSH  EQU   X'02'
+PRTYPE   EQU   X'01'
+PRFLAGS2 EQU   X
+PRNCAT   EQU   X'80'
+PRNALLOC EQU   X'40'
+PRLENGTH EQU   *-PRVOL
+MSG5     DC    AL2(MSG5L,0)
+         DC    C'OCS105E   SPACEMAN  ABEND  5'
+MSG5ABN  DC    C'XXX'
+         DC    C'-'
+MSG5CDE  DC    C'XXX'
+         DC    C' EP='
+MSG5EP   DC    C'XXXXXXXX'
+         DC    C' PSW='
+MSG5PSW1 DC    C'XXXXXXXX'
+         DC    C','
+MSG5PSW2 DC    C'XXXXXXXX'
+MSG5L    EQU   *-MSG5
+MSG5F1   DC    X'....'
+MSG5F2   DC    X'....'
+MSG6     DC    AL2(MSG6L,0)
+         DC    C'OCS106E   REGS '
+MSG6REGS DC    C'0-3 '
+MSG6R0   DC    C'XXXXXXXX'
+         DC    C''
+MSG6R1   DC    C'XXXXXXXX XXXXXXXX XXXXXXXX'
+MSG6L    EQU   *-MSG6
+MSG6F1   DC    X'....'
+MSG6F2   DC    X'....'
+ESTAESAV DC    5F'0'
+ESTAESTR DC    F'0'
+ESTAESCR DC    3F
+ESTAER13 DC    F
+ESTAEFLG DC    X'00'
+RECURSIVE EQU  X'01'
+KEYS     DSECT ,
+KEYLEN   DS    F
+KEYADDR  DS    F
+KEYTABL  DS    F
+KEYFLAG  DS    F
+KEY      DS    CL12
+KEYSLEN  EQU   *-KEYS
+KEYVALS  DSECT ,
+KEYVLEN  DS    F
+KEYVALUE DS    X
+KEYV     DS    CL11
+KEYVLEN  EQU   *-KEYVALS
+         PRINT NOGEN
+         IHADCB DSORG=(PO,PS)
+         END

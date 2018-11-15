@@ -1,0 +1,119 @@
+         PRINT OFF                                                J51
+         COPY  JOLCOM                                             J51
+         PRINT ON,DATA                                            J51
+         JOLSAVE CSECT=UJZ01STR                                   J51
+         ORG     UJZ01STR                                         J51
+STORESYM EQU     *                                                J51
+         ENTRY   STORESYM
+         ORG
+* DUMMY  CSECT                                                    J51
+         JOLRETN RC=0                                             J51
+         JOLERR 101,'STORESYM CALLED'                             J60
+*        TPUT  MESS1,L'MESS1                                      J51
+         JOLRETN RC=4                                             J51
+MESS1    DC    C'Storesym Called'                                 J51
+         LTORG
+         JOLSAVE CSECT=UJZ02GET                                   J51
+         ORG     UJZ02GET                                         J51
+GETSYMZ  EQU     *                                                J51
+         ENTRY   GETSYMZ
+         ORG
+         JOLERR 101,'GETSYM CALLED'                               J60
+*        TPUT  MESS2,L'MESS2                                      J51
+         JOLRETN RC=4                                             J51
+MESS2    DC    C'Getsym Called'                                   J51
+         LTORG
+         JOLSAVE CSECT=UJZ03GET                                   J51
+         ORG     UJZ03GET                                         J51
+GETSYMNM EQU     *                                                J51
+         ENTRY   GETSYMNM
+         JOLRETN RC=0                                             J51
+         ORG
+* DUMMY  CSECT                                                    J51
+         JOLERR 101,'GETSYMNM CALLED'                             J60
+*        TPUT  MESS3,L'MESS3                                      J51
+         JOLRETN RC=0                                             J51
+MESS3    DC    C'GetsymNM Called'                                 J51
+         LTORG
+         END
+         END
+void         store_sym(char *name, char *value, int len_value,int posn)
+/* var name          array of char/(1..8);
+var value          array of char/(1..253) var;
+var posn           INTEGER;        (* Position in table, or 0 *)
+ */
+{
+int          i;
+char *       px;
+char         store_sym/(9/);      /* Name stored and padded with blanks */
+++
+/* int          len_value;
+++
+++  len_value=strlen(value); */
+++
+++
+++  i=strlen(name);
+++  if (i>8) i=8;
+++  mvc(store_sym,"        ",8);
+++  store_sym/(8/) = '\0';
+++
+++  memcpy(store_sym,name,i);
+++
+ /* The value part of the table is stored in a an area set aside
+++  for that purpose. Each time a a value is stored, it is added
+++  at the end of table, and when it fills, it is re-organised.*/
+++
+++
+++  if (len_value + anextsym > maxsvalue) reorg();
+++
+++  if (len_value + anextsym > maxsvalue) {
+++      cpylit(errtext, "Cannot Store Value of '%");
+++      catstr(errtext, name);
+++      catlit(errtext, "' :-Table is Full");
+++      jolerr("P85506");
+++      exit(20);
+++      return;
+++  }
+++  i = posn;
+++
+++  if (i == 0)                            /* Means add name to name table*/
+++  {
+++
+++  if (nosyms + 1 >= maxsyms) {
+++      cpylit(errtext, "Symbolic Name '");
+++      catstr(errtext, store_sym);
+++      catlit(errtext, "' Cannot Be Stored:- Name Table Is Full");
+++      jolerr("P85405");
+++      return -1;
+++  }
+++       nosyms = nosyms + 1;
+++       i = nosyms;
+++  }
+++
+++  px = /*addr(asymvaltbl-> */ symvals;
+++  px = px+anextsym;
+++  symlen =*(unsigned int*)px;
+++
+++  * (int*) px=len_value;
+++  px=px+2;                        /* point past length integer */
+++
+/*    if ((len_value> sizeof(op)) ¦¦ (len_value<0)) int3(); */
+++
+++  memcpy(px,value, len_value);
+++
+++  mvc(symname/(i/), store_sym,8);
+++  if (posn == 0) symlevel/(i/) = level; /* else level already set */
+++  if (external_dcl) symlevel/(i/) = 1; /* set External         */
+++  symoffset/(i/) = anextsym;
+++  anextsym = anextsym + len_value + 2; /*+1 for length of string */
+++                                      /* FIX for IBM/370 */
+++
+++  if (trace ¦¦ pmacros)
+++  {   cpylit(printline,"TRACE: Symbolic '");
+++      catstr(printline,store_sym);
+++      catlit(printline,"' Set to '");
+++      catstr(printline,value);
+++      catchar(printline,'\'');
+++      ujsprnt();
+++  }
+++

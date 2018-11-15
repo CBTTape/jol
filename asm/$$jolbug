@@ -1,0 +1,27 @@
+         GENSAVE CSECT=$$JOLBUG                                         00010000
+         L     R4,0(R1)            LOAD PASSED ADDRESS                  00020000
+UJSN$JOL NOP   UJSO$JOL                                                 00030000
+         TM    FLAG,X'80'                                         J50   00040005
+         BO    UJSOTRMO                                           J50   00050005
+*        OI    UJSN$JOL+1,X'F0'    TURN THIS BRANCH ON                  00060005
+         OI    FLAG,X'80'                                         J50   00070005
+         TM    $JOL$BUG+48,X'10'   IS $JOL$BUG OPEN ??                  00080000
+         BO    UJSO$JOL            YEP---SOMEONE IS USING OUR DD        00090005
+         LA    R1,$JOL$BUG+X'28'   ADDRESS DDNAME WE WANT         87150 00100004
+         CALL  SRCHTIOT            FASTER WAY TO SEE IF DDNAME PRESENT  00110004
+         LTR   R15,R15                                                  00120000
+         BNZ   UJSOTRMO            NOPE  JUST LEAVE                     00130000
+*        OPEN  ($JOL$BUG,(AD))                                          00140000
+         OPEN  ($JOL$BUG,(OUTPUT))                                      00150004
+         TM    $JOL$BUG+48,X'10'   IS IT OPEN NOW ??                    00160000
+         BZ    UJSOTRMO            NOPE  JUST LEAVE                     00170000
+UJSO$JOL DS    0H                                                       00180005
+         PUT   $JOL$BUG,(R4)       OUTPUT ERRORS ONLY                   00190000
+         CLOSE ($JOL$BUG),TYPE=T                                        00200006
+         XI    FLAG,X'80'                                         J50   00210005
+UJSOTRMO GENRETN                                                        00220000
+FLAG     DC    X'00'                                              J50   00230005
+$JOL$BUG DCB   DDNAME=JOLBUG,MACRF=PM,DSORG=PS,RECFM=F,LRECL=80,       *00240000
+               BLKSIZE=80                                               00250000
+CALLAREA DS    2F                                                       00260000
+         END                                                            00270000

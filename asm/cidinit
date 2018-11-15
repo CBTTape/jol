@@ -1,0 +1,333 @@
+         PRINT OFF                                                      00010000
+         COPY  JOLCOM                                                   00020000
+         PRINT ON,DATA                                                  00030000
+         TITLE 'INITIALISE BINARY SEARCH TABLE FOR PREPROCESSOR'        00040000
+         JOLSAVE CSECT=CIDINIT                                          00050001
+         LH    R0,MAXIDS      MAXIMUM NUMBER OF IDENTS ALLOWED    87150 00060001
+         MH    R0,=Y(15*2)    15 LEVELS * TWO BYTES FOR POINTERS  87150 00070000
+         A     R0,=A(TABSIZE) ADD THE CONTROL SECTION OF THE TABLE87150 00080000
+         ST    R0,LIDCNTL     SAVE LENGTH FOR FREE-MAIN LATER     75128 00090001
+         GETMAIN R,LV=(0)                                         75128 00100000
+         ST    R1,AIDCNTL     SAVE POSITION FOR FREE-MAIN LATER   75128 00110001
+* NOW INITIALISE THE TABLES                                             00120000
+         USING TABLCNTL,R1                                              00130000
+         XC    TABLCNTL(TABSIZE),TABLCNTL                         87150 00140000
+         MVC   NOIDS,=H'1'                                              00150001
+         MVC   #POWER2,=H'1'                                            00160000
+         MVC   #ITEMS,=H'1'                                             00170000
+         L     R15,AIDTBL                                         87150 00180001
+         USING IDTABLE,R15                                              00190001
+         MVC   IDNAME,=XL8'FFFFFFFFFFFFFFFF'                            00200001
+         MVC   IDADDR,=A(0)                                             00210001
+         DROP  R15                                                      00210100
+         LA    R15,12          SIZE OF IDENTIFIER NAME AND ADDRESS      00210201
+         MH    R15,MAXIDS                                               00210301
+         A     R15,AIDTBL                                               00210401
+         MVC   0(2,R15),ZERO   INIT TO A NULL VALUE                     00212000
+         LA    R15,2(R15)                                               00213000
+         ST    R15,ANEXTID                                              00214001
+         LH    R15,MAXIDS                                               00230001
+         AR    R15,R15                                                  00240000
+         LA    R15,BINOFFS-2(R15) GET ADDRESS OF LAST ENTRY IN          00250000
+*                             OFFSET TABLE FOR LEVEL 0                  00260000
+         MVC   0(2,R15),=H'0'                                           00270000
+* NOW SET THE CURRENT OFFSET ADDRESS                                    00280000
+         ST    R15,ACUROFFS                                             00290000
+* 1ST IDENTIFIER NAME NOW HAS HEX FF'S                                  00300001
+         LA    R6,15          MAX LEVELS                                00310000
+         LH    R0,MAXIDS                                                00320001
+         AR    R0,R0          DOUBLE IT                                 00330000
+         LA    R15,BINOFFS                                              00340000
+         LA    R14,ABINOFFS   GET ADDRESS OF LEVEL(0) CONTROL TABLE     00350000
+M00IDIN ST     R15,0(R14)                                               00360001
+         AR    R15,R0                                                   00370000
+         LA    R14,4(R14)     POINT TO NEXT HOLE                        00380000
+         BCT   R6,M00IDIN     NO, CONTINUE                              00390001
+         JOLRETN                                                        00400000
+         JOLSAVE CSECT=CIDFREE                                          00410001
+         L     R1,AIDCNTL     FREE IDENTIFIER BINARY SEARCH TABLE 87150 00420001
+         L     R0,LIDCNTL                                         87150 00430001
+         FREEMAIN R,LV=(0),A=(1)                                  87150 00440000
+         JOLRETN                                                        00450000
+         DROP                                                           00460000
+         TITLE 'INSERT IDENTIFIER VARIABLE IN BINARY SEARCH TABLE'      00470001
+         USING JOLCOM,R2                                                00480000
+UJC02INS JOLSAVE BASE=12                                                00490001
+         L     R1,0(R1)        INSERT POINT                             00500000
+         LH    R8,0(R1)        INSERT POINT                             00510000
+*        ST    R8,CALLAREA                                              00520000
+*        JOLERR 101,'P02 INSERTING ',IDENTIFIER,' AT ',CALLAREA         00530001
+         L     R3,AIDCNTL                                               00560001
+         USING TABLCNTL,R3     TELL IEUASM                              00570000
+         LH    R1,#ITEMS       CURRENT NUMBER OF SYMBOLS                00580000
+         LA    R1,1(R1)        INCREMENT                                00590000
+         STH   R1,#ITEMS       RESET IN TABLE                           00600000
+         LH    R1,NOIDS        CURRENT NUMBER OF SYMBOLS                00610001
+         LR    R6,R1                                                    00630000
+         LH    R0,#POWER2      NEAREST POWER OF 2                       00640000
+         CLR   R0,R1                                                    00650000
+         BH    NODOUBL                                                  00660000
+         ALR   R0,R0           NEED NEXT POWER OF TWO                   00670000
+         STH   R0,#POWER2                                               00680000
+NODOUBL  DS    0H                                                       00690000
+         L     R10,ACUROFFS    ADDRESS OFFSET TABLE                     00720000
+         LH    R9,NOIDS        NUMBER OF ITEMS                          00730001
+         SH    R8,=H'1'                                                 00740000
+         BP    MUSTMUV         NOT GOING IN AT STACK TOP                00750000
+         SH    R10,=H'2'       TWO OFF STACK-TOP                        00760000
+         ST    R10,ACUROFFS    STORE NEW ADDRESS                        00770000
+*        JOLERR 102,'P02 ON STACK TOP '                                 00780000
+         LR    R15,R10                                                  00790000
+         B     STOROFF         STORE OFFSET AND LEAVE                   00800000
+MUSTMUV  LA    R9,0(R8,R8)                                              00810000
+         LR    R11,R9          COPIED FOR MVCL                          00830000
+         LR    R8,R10                                                   00840000
+         SH    R8,=H'2'                                                 00850000
+         ST    R8,ACUROFFS     NEW ADDRESS                              00860000
+         LA    R15,0(R8,R9)    TOP+LENGTH IS THE PLACE                  00870000
+         MVCL  R8,R10          MOVEITALONG                              00880000
+STOROFF  LH    R14,NOIDS       MOVE OFFSET INTO TABLE                   00900001
+         BCTR  R14,0                                                    00910000
+         MH    R14,=H'20'                                               00920002
+         STH   R14,0(,R15)     ADDRESS OF NEW ENTRY                     00930000
+         JOLRETN                                                        00940000
+         LTORG                                                          00950000
+         DC    30S(*)                                                   00960000
+         DROP                                                           00970000
+         TITLE 'SEARCH BINARY TABLE FOR IDENTIFIER SYMBOL'              00980001
+         USING JOLCOM,R2                                                00990000
+UJCFID   CSECT                                                          01000001
+         STM   R3,R10,12(R13)                                           01010000
+         LR    R9,R15                                                   01020000
+         LR    R10,R1          GET ADDRESS OF VARAIBLE WE ARE FINDING   01030000
+         USING UJCFID,R9                                                01040001
+         USING JOLCOM,R2       THIS POINTS AT JOL COMMON                01050000
+         L     R3,AIDCNTL      ADDRESS MAIN ATBLE                       01060001
+         USING TABLCNTL,R3     TELL IEUASM                              01070000
+         LH    R6,#ITEMS       LOAD NUMBER OF SYMBOLS                   01080000
+         L     R4,ACUROFFS     OFFSET TABLE                             01090000
+         L     R5,AIDTBL       UNORDERED SYMBOL TABLE                   01100001
+*                                                                       01110000
+         LH    R1,#POWER2      LOAD POWER-OF-TWO NUMBER INFO            01120000
+         SRL   R1,1            MID-POINT                                01130000
+         LTR   R0,R1           COPY, TEST FOR ZERO                      01140000
+         BZ    ISFIRST         FIRST TIME, GO INITIALISE                01150000
+LOOP     SRL   R0,1            DIVIDE AGAIN                             01160000
+         CLR   R1,R6           TOO HIGH?                                01170000
+         BH    TOOHIGH         YEAH                                     01180000
+         LR    R3,R1                                                    01190000
+         BCTR  R3,0            SUBTRACT ONE                             01200000
+         ALR   R3,R3           TIME TWO                                 01210000
+         LH    R15,0(R4,R3)    LOAD OFFSET OF ENTRY                     01220000
+         ALR   R15,R5          GET ADDRESS OF ACTUAL SYMBOL             01230000
+         CLC   0(8,R15),0(R10) Q... IS THIS THE ONE I WANT?             01240000
+         BE    FOUND           A... YES, IT IS.                         01250000
+         BH    TOOHIGH                                                  01260000
+TOOLOW   ALR   R1,R0           LOOK UP                                  01270000
+         B     TESTEND                                                  01280000
+TOOHIGH  SR    R1,R0                                                    01290000
+TESTEND  LTR   R0,R0                                                    01300000
+         BNZ   LOOP                                                     01310000
+NOTFOUND CLC   0(8,R15),0(R10)                                          01320000
+         BH    SUBONE                                                   01330000
+ISFIRST  LA    R1,1(,R1)       THE PLACE TO INSERT                      01340000
+         B     RETRN                                                    01350000
+SUBONE   DS    0H                                                       01360000
+*        BCTR  R1,0                                                     01370000
+RETRN    LA    R15,4                                                    01380000
+         B     DONE                                                     01390000
+FOUND    LR    R0,R15          SAVE THE ADDRESS POINTER TO IDNAME       01400001
+*                              FOR THE CALLER                           01410000
+         SLR   R15,R15                                                  01420000
+DONE     DS    0H                                                       01430000
+         LM    R3,R10,12(R13)                                           01440000
+         BR    R14                                                      01450000
+         LTORG                                                          01460000
+         DC    30S(*)                                                   01470000
+         DROP                                                           01480000
+         TITLE 'COPY OFFSET TABLE UP A LEVEL FOR NEW MACRO'             01490000
+*UJC19CTB COPIES THE OFFSET TABLE SO THAT IT CAN BE RESTORED WHEN       01500001
+* A MACRO 'END' STATEMENT IS F OUND.                                    01510000
+*        AND VALUE OR TO PRINT ONLY SELECTED ONES.                      01520000
+         USING JOLCOM,R2                                                01530000
+         JOLSAVE CSECT=UJC19CTB                                         01540001
+         L     R10,AIDCNTL             R10 POINTS TO ORDERED TABLE      01780001
+         USING TABLCNTL,R10                                             01790000
+         L     R3,ACUROFFS                                              01811000
+         LH    R4,#ITEMS                                                01812000
+         LH    R5,#POWER2                                               01813000
+         LH    R6,NOIDS                                                 01813101
+         LH    R1,LEVEL        LEVEL HAS BEEN INCREMENTED IN 'P53MAC'   01814000
+         SLL   R1,1            MULT BY TWO                              01817000
+         STH   R4,#LEVITEM(R1) SAVE CURRENT NO. OF ITEMS                01818000
+         STH   R5,#LEVPOW2(R1) SAVE #POWER2                             01818100
+         STH   R6,OLDNOSYM(R1) SAVE OLD NO OF SYMS                      01818200
+         SLL   R1,1            MULT BY TWO                              01818300
+         ST    R3,ALEVOFFS(R1) SAVE CURRENT OFFSET ADDRESS              01818400
+         AH    R3,MAXIDS                                                01818501
+         AH    R3,MAXIDS                                                01818601
+         ST    R3,ACUROFFS                                              01818700
+         L     R8,ABINOFFS(R1) GET THE ADDRESS OF WHERE WE WANT TO      01819300
+*                              COPY THE TABLE                           01819400
+         L     R6,ABINOFFS-4(R1) GET THE FROM ADDRESS OF THE TABLE.     01819500
+         LH    R7,MAXIDS                                                01819701
+         SLL   R7,1            MULT BY TWO                              01819800
+         LR    R9,R7                                                    01819900
+         MVCL  R8,R6           SHIFT THE TABLE                          01820000
+         JOLRETN                                                        02100000
+         LTORG                                                          02120000
+         DC    S(*,*,*,*)                                               02130000
+         DC    S(*,*,*,*)                                               02140000
+         DC    S(*,*,*,*)                                               02150000
+         DC    S(*,*,*,*)                                               02160000
+         DC    S(*,*,*,*)                                               02170000
+         DC    S(*,*,*,*)                                               02180000
+         DROP                                                           02181000
+         TITLE 'RESTORE OFFSET TABLE WHEN MACRO END FOUND'              02181100
+         USING JOLCOM,R2                                                02181200
+         JOLSAVE CSECT=UJC19RSM                                         02181301
+*UJC19RSM RESTORES THE OFFSET TABLE AFTER A MACRO END IS FOUND.         02181401
+* IT THEN INSERTS ANY GLOBAL ITEMS THAT MAY HAVE BEEN DECLARED          02181500
+* IN A MACRO.                                                           02181600
+*NOTE THAT 'LEVEL' HAS BEEN DECREMENTED WHEN THIS ROUTINE GETS          02181700
+* CONTROL, AND THAT ALL THE ITEMS WITH LEVEL GREATER THAN THE           02181800
+* CURRENT LEVEL HAVE BEEN DELETED FROM THE UNORDERED IDENTIFIER TABLE   02181901
+*THIS ROUTINE MUST THEN INSERT ANY EXTRA ITEMS IN THE ORDERED           02182000
+* OFFSET TABLE .                                                        02182100
+         L     R10,AIDCNTL             R10 POINTS TO ORDERED TABLE      02182301
+         USING TABLCNTL,R10                                             02182400
+         LH    R1,LEVEL        LEVEL HAS BEEN DECREMENTED IN 'P00MN'    02182800
+         SLL   R1,1            MULT BY TWO                              02182900
+         LH    R4,#LEVITEM+2(R1) GET PREVIOUS CURRENT NO. OF ITEMS      02183100
+         STH   R4,#ITEMS                                                02183200
+         LH    R5,#LEVPOW2+2(R1) GET PREVIOUS #POWER2                   02183300
+         STH   R5,#POWER2                                               02183400
+* NOTE *** R7 IS USED BELOW TO  CALCULATE HOW MANY WERE INSERTED        02183500
+         LH    R7,OLDNOSYM+2(R1) GET PREVIOUS 'NOIDS'                   02183601
+* NOTE *** R7 IS USED BELOW                                             02183700
+         SLL   R1,1            MULT BY TWO                              02183800
+         L     R3,ALEVOFFS+4(R1) SAVE CURRENT OFFSET ADDRESS            02183900
+         ST    R3,ACUROFFS                                              02184000
+*NOW WE MUST INSERT ANY GLOBAL ITEMS THAT WERE DECLARED IN THE          02184100
+* MACRO INTO THE TABLE.                                                 02184200
+*WE KNOW THAT THE 'NOIDS' HAS THE CURRENT NUMBER OF IDENTIFIERS,        02184301
+* AND THAT 'OLDNOSYM' CONTAINS THE NUMBER OF IDENTIFIERS BEFORE THE     02184401
+* MACRO WAS CALLED.                                                     02184500
+*BY A SIMPLE SUBTRACT, WE KNOW HOW MANY WE HAVE TO INSERT IN THE        02184600
+* ORDERED TABLE.                                                        02184700
+         LH    R6,NOIDS                                                 02184801
+         SR    R6,R7                                                    02185000
+         BNP   P19RET          NONE TO INSERT, SO LEAVE                 02185100
+* R6 CONTAINS THE NUMBER TO INSERT                                      02185200
+*NOTE THAT THE INSERT ROUTINE  USES 'NOIDS' AS THE SYMBOL TO INSERT     02185301
+* SO WE MUST CONSTANTLY RESET  IT BEFORE CALLING 'P02INS'.              02185400
+         LH    R1,#ITEMS                                                02185500
+*        ST    R1,CALLAREA                                              02185600
+*        JOLERR 102,'BEFORE STARTING, #ITEMS=',CALLAREA                 02185700
+*        JOLERR 103,'BEFORE STARTING, NOIDS=',NOIDS                     02185801
+         LH    R8,NOIDS        SAVE IT TILL WE END THE INSERTS          02185901
+P19L2    STH   R7,NOIDS                                                 02186001
+         LR    R9,R7           GET READY TO CALCULATE STARTING POINT    02186100
+         MH    R9,=Y(20)       POINT TO OFFSET                          02186202
+         A     R9,AIDTBL               R5 POINTS TO IDENTIFIER TABLE    02186301
+         USING IDTABLE,R9                                               02186401
+*        JOLERR 104,'FINDING : NOIDS=',NOIDS,' SYM=',IDNAME             02186501
+*        MVC   IDENTIFIER,IDNAME ******************* TESTS ONLY         02186601
+         FINDID  IDNAME        SEE IF WE CAN FIND IT.                   02186701
+         LTR   R15,R15         DID WE?                                  02186800
+         BZ    P19ERRX         ERROR                                    02186900
+         STH   R1,CALLAREA+12                                           02187000
+         LH    R1,NOIDS                                                 02187101
+         LA    R1,1(R1)                                                 02187200
+         STH   R1,NOIDS                                                 02187301
+         $CALL UJC02INS,(CALLAREA+12) INSERT IT.                        02187401
+P19INCR  LA    R7,1(R7)        POINT TO NEXT ITEM TO BE INSERTED        02187500
+         CR    R7,R8           DONE THEM ALL?                           02187600
+         BL    P19L2           CONTINUE                                 02187800
+P19RET2  STH   R8,NOIDS        RESTORE NOIDS                            02187901
+         DROP  R10                                                      02188000
+P19RET   JOLRETN                                                        02188100
+P19ERRX  JOLERR 410,'IDENTIFIER ''',IDNAME,''' IS ALREADY         IN TH*02188201
+               E ORDERED IDENTIFIER TABLE'                              02188301
+         B     P19INCR                                                  02188400
+         LTORG                                                          02188500
+         DC    S(*,*,*,*)                                               02188600
+         DC    S(*,*,*,*)                                               02188700
+         DC    S(*,*,*,*)                                               02188800
+         DC    S(*,*,*,*)                                               02188900
+         DC    S(*,*,*,*)                                               02189000
+         DC    S(*,*,*,*)                                               02189100
+         DROP                                                           02189200
+         TITLE 'LIST IDENTIFIER VARIABLES IN ORDER'                     02189301
+*UJC31LST LISTS IDENTIFIER VARIABLES AND THEIR LEVEL,LENGTH & VALUE     02189401
+* MODIFIED TO EITHER PRINT ALL IDENTIFIER VARIABLES AND THEIR LEVEL,    02189501
+* LENGTH AND VALUE OR TO PRINT ONLY SELECTED ONES.                      02189600
+         USING JOLCOM,R2                                                02189700
+         JOLSAVE CSECT=UJC31LST                                         02189801
+         USING TKNX,R3                                                  02189900
+         CLEAR WORK                                                     02190000
+         CLC   TKNNO,=H'1'             LISTID ALONE ?                   02190101
+         BE    TKNSCAN                 YES GO AHEAD                     02190200
+         MVC   TKNCURR,=H'2'           PREPARE TO GET FIRST VARIABLE.   02190300
+NEXTTKN  GETTKN TKNCURR                GET FIRST SYMBOL NAME            02190400
+         STH   R1,TKNCURR                                               02190500
+         CLI   TKN,C','                                                 02190600
+         BE    NEXTTKN                                                  02190700
+         FINDID TKN                    FIND IDENTIFIER                  02190801
+         LTR   R15,R15                                                  02190900
+         BNZ   NOTFND                                                   02191000
+         LR    R4,R0                                                    02191100
+         BAL   R9,OPSYM                                                 02191200
+         B     TEND                                                     02191300
+NOTFND   DS    0H                                                       02191400
+         JOLERR 101,'SYMBOL ''',#TKN,''' NOT IN SYMBOL TABLE'           02191500
+TEND     CLC   TKNCURR,TKNNO           ALL DONE ?                       02191600
+         BH    P31DONE                                                  02191700
+         B     NEXTTKN                                                  02191800
+TKNSCAN  DS    0H              PRINT ENTIRE IDENTIFIER TABLE            02191901
+         L     R5,AIDTBL               R5 POINTS TO IDENTIFIER TABLE    02192001
+         USING IDTABLE,R5                                               02192101
+         L     R10,AIDCNTL             R10 POINTS TO ORDERED TABLE      02192201
+         USING TABLCNTL,R10                                             02192300
+         LH    R6,#ITEMS                                                02192400
+         BCTR  R6,0            LAST ENTRY IS THE X'FF', IGNORE IT       02192500
+         L     R10,ACUROFFS                                             02192600
+         DROP  R10                                                      02192700
+NEXTENT  LH    R5,0(R10)       LOAD OFFSET TO IDNAME                    02192801
+         A     R5,AIDTBL       POINT TO APPROPRIATE ENTRY               02192901
+         BAL   R9,OPSYM                                                 02193000
+         LA    R10,2(R10)      LOOK AT NEXT ENTRY                       02193100
+         BCT   R6,NEXTENT      LOOPS TILL ALL DONE                      02193200
+         JOLRETN                                                        02193300
+OPSYM    LA    R8,WORK                 ADDRESS OF PRINT BUFFER          02193400
+         MVC   5(8,R8),IDNAME          MOVE IN IDENTIFIER NAME          02193501
+         MVC   14(1,R8),IDLEVEL       MOVE IN LEVEL OF IDENTIFIER       02193601
+         OI    14(R8),C'0'             SET SIGN TO X'F' FOR PRINTING    02193700
+         L     R15,IDADDR                                               02193801
+         MVC   DBL(2),0(R15)           MOVE LENGTH OF IDENTIFIER        02193901
+         LH    R1,DBL                  PUT IT IN R1                     02194000
+         CVD   R1,DBL                  CONVERT IT TO DECIMAL            02194100
+         UNPK  17(3,R8),DBL            UNPACK 3 BYTES                   02194200
+         OI    19(R8),C'0'             SET SIGN TO X'F' FOR PRINTING    02194300
+         S     R1,=F'1'                                                 02194400
+         BM    NOVALUE                 -> IF A NULL VALUE               02194500
+         CH    R1,=H'120'              MAX LENGTC FOR PRINTING          02194600
+         BL    *+8                     -> IF LESS THEN MAX LENGTH       02194700
+         LA    R1,120                  SET IT TO 120                    02194800
+         EX    R1,MVC                  MOVE VALUE INTO PRINT LINE       02194900
+NOVALUE  LA    R1,22(R1)               LENGTH OF OUTPUT LINE            02195000
+         LR    R0,R1           LENGTH                                   02195100
+         LA    R1,WORK                                                  02195200
+         SVC   93                                                       02195300
+         BR    R9                      RETURN FOR NEXT IDNAME           02195401
+P31DONE  JOLRETN                                                        02195500
+MVC      MVC   21(*-*,R8),2(R15)       SUBJECT OF EXECUTE               02195600
+         LTORG                                                          02195700
+         DC    S(*,*,*,*)                                               02195800
+         DC    S(*,*,*,*)                                               02195900
+         DC    S(*,*,*,*)                                               02196000
+         DC    S(*,*,*,*)                                               02196100
+         DC    S(*,*,*,*)                                               02196200
+         DC    S(*,*,*,*)                                               02196300
+         DC    S(*,*,*,*)                                               02196400
+         END                                                            02200000

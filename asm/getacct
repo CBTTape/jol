@@ -1,0 +1,36 @@
+         TITLE '&TITLE SAMPLE USER EXIT FOR JOL PARAMETERS'             00010000
+&C       SETC  '&PRE'.'EXT1'                                            00020000
+&C       CSECT                                                          00030000
+         STM   R14,R12,12(R13)     SAVE REGISTERS                       00040000
+         XC    16(4,R13),16(R13)   INDICATE NO DATA (RC=0)              00050000
+         USING &PRE.EXT1,R15       DECLARE BASE REGISTER                00060000
+         L     R02,0(0,R01)        LOAD  REPLY ADDRESS                  00070000
+         MVI   2(R02),C' '                                              00080000
+         MVC   3(255,R02),2(R02)   SET THE AREA TO BLANKS               00090000
+         L     R03,CVTPTR                                               00100000
+         L     R03,0(0,R03)        TCB WORDS                            00110000
+         L     R03,4(0,R03)        MY TCB ADDRESS                       00120000
+         USING TCB,R03                                                  00130000
+         L     R04,TCBJSCB          JSCB ADDRESS                        00140000
+         USING IEZJSCB,R04                                              00150000
+         L     R05,JSCBJCT         JCT: LOAD JSCBSCT FOR SCT            00160000
+         ICM   R06,7,X'038'(R05)   ACT FOR THE JOB                      00170000
+         CLC   =H'0',X'02E'(R06)   ANY ACCOUNTING DATA?                 00180000
+         BE    EXT90               A... NO                              00190000
+         CLI   X'030'(R06),8       Q... FIRST FIELD 8 CHARS?            00200000
+         BNE   EXT90               A... NO                              00210000
+         MVC   2(22,R02),=C'SYSACCT=1111 ROOM=2222' SET UP BASIC DATA   00220000
+         MVC   10(4,R02),X'031'(R06) COPY ACCOUNTING FIELDS             00230000
+         MVC   20(4,R02),X'035'(R06)                                    00240000
+         LA    R00,22              SET LENGTH                           00250000
+         STH   R00,0(0,R02)                                             00260000
+         LA    R15,4               INDICATE DATA RETURNED               00270000
+         ST    R15,16(0,R13)                                            00280000
+         MVI   19(R13),4          RC=4: PROCEED WITH CALL, SYMS PASSED  00290000
+EXT90    LM    R14,R12,12(R13)     RESTORE REGISTERS                    00300000
+         BR    R14                 EXIT                                 00310000
+         SPACE 2                                                        00320000
+         LTORG                                                          00330000
+         DROP                                                           00340000
+         END   &NAME                                                    00350000
+.END     MEND                                                           00360000

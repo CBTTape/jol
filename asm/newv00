@@ -1,0 +1,481 @@
+         COPY   JOLCOM                                                  00000100
+V00DSECT DSECT                                                          00000200
+V00LSTEP DS    CL8       LAST USED STEP NAME OF DATA SET                00000300
+V00LDDNM DS    CL8       LAST USED DDNAME OF DATA SET IN ABOVE STEP     00000400
+V00LEVEL DS    CL1       ORIGINAL LEVEL DATA SET USED AT                00000500
+V00NEST  DS    CL1       ORIGINAL NEST  DATA SET USED AT                00000600
+V00FREE  DS    CL1       THIS BLOCK (OR RECORD) IN THE TABLE IS         00000700
+*                        NOW FREE, AND MAY BE RE-USED FOR NEW DSN'S     00000800
+V00REC1  DS    H         RECORD NUMBER OF LAST USE OF DATA SET (OR 0)   00000900
+V00OLDNM DS    CL44      DECLARED DSNAME                                00001000
+V00NEWNM DS    CL44      DSNAME AFTER CATALOG SEARCHING ETC             00001100
+V00VOLS   DS    CL(L'DDVOLUME) VOLUMES                                  00001200
+V00UNIT  DS    CL8       UNIT                                           00001300
+V00JOLUN DS    CL1       UNIT TYPE (JOL INTERNAL CODE)                  00001400
+V00DISP1 DS    CL1       IF A DISPOSITION INSTRUCTION IS FIRST,         00001500
+*                        THIS WILL CONTAIN %  (CHANGED WHEN FIRST       00001600
+*                        NON-DISP INSTRUCTION FOUND)                    00001700
+V00DLEN  EQU (((*-V00DSECT+1)/2)*2)                                     00001800
+V00SAVE  DSECT                                                          00002000
+         DS    18F                                                      00002100
+V00NODSN DS    H                                                        00002200
+V00REC   DS    H                                                        00002300
+V00STRTB DS    A              BXLE CONSTANTS FOR SEARCHING              00002400
+V00TBLIN DS    A              * TABLE SAVED                             00002500
+V00TBLEN DS    A              *   HERE                                  00002600
+V00CLEV  DS    CL1            CURRENT LEVEL NUMBER                      00002700
+V00STRTS  DS    A             LOOP VARIABLES                            00002701
+          DS    A                                                       00002702
+          DS    A                                                       00002703
+V00SAVEN EQU   *                                                        00002800
+         JOLSAVE CSECT=UJV00MN,SIZE=(V00SAVEN-V00SAVE)                  00002900
+* IN PREVIOUS VERSIONS OF JOL, THE ENTIRE JOB WAS READ INTO             00003000
+*  CORE STORAGE AND CATALOG SEARCHES, VALIDATION ETC PERFORMED          00003100
+*  BY SCANNING OVER THE JOB.                                            00003200
+* THIS REQUIRED A LARGE TABLE (IN THE ORDER OF 60K) FOR A MODERATE      00003300
+*  SIZED JOB TO BE GENERATED, AND THEREFORE JOL NEEDED ABOUT 100K       00003400
+*  TO EXECUTE IN.                                                       00003500
+* IN THIS (AND SUBSEQUENT VERSIONS), A PAGING SYSTEM IS USED.           00003600
+* THIS WILL ALLOW JOL TO RUN IN ABOUT 40K OF MAIN STORAGE AND           00003700
+* (BELIEVE IT OR NOT) EXECUTE CONSIDERABLY FASTER THAN IT               00003800
+* USED TO UP TO VERSION 2.6                                             00003900
+         SPACE                                                          00004000
+* TO ANALYSE THE JOB PROPERLY,AND PASS DATA SETS ETC, WE NEED           00004100
+*  TO DO THE FOLLOWING:-                                                00004200
+*                                                                       00004300
+*        1. PASS ANY DATA SETS FROM ONE STEP TO ANOTHER IF THEY         00004400
+*              ARE REFERENGED IN A LATER JOB STEP                       00004500
+*        2. WORK OUT WHICH ARE TEMPORARY FILES, AND WHICH ARE           00004600
+*              MERELY WORK FILES                                        00004700
+*        3. WHICH ARE INPUT DATA SETS THAT WE HAVE TO SEARCH THE        00004800
+*              SYSTEM CATALOG FOR                                       00004900
+*        4. WHICH DATA SETS NEED TO BE VOL-REFED BACK TO AN EARLIER     00005000
+*              DD STMT IN THE SAME STEP (EG TWO TEMPORARY DATA SETS)    00005100
+*                                                                       00005200
+* WE DO KNOW THE FOLLOWING:-                                            00005300
+*                                                                       00005400
+*        1. THE FILE THAT WE SHALL BE READING BACK AND FORTH            00005500
+*              CONTAINS 'EXEC' RECORDS AND 'DD' RECORDS.                00005600
+*        2. EACH 'DD' RECORD IS:-                                       00005700
+*              A) A REAL DD-CARD WITH A REAL DSNAME                     00005800
+*              B) A DD-CARD WITH A DSN OF &&TEMPNNNN                    00005900
+*                   WE HAVE TO WORK OUT WHETHER TO MAKE IT A            00006000
+*                   WORK FILE, OR PASS IT                               00006100
+*              C) SYSOUT, SYSIN TYPES OF DATA SETS                      00006200
+*                                                                       00006300
+* THIS IS GOING TO TAKE AT LEAST 2 PASSES, DEPENDING ON THE SIZE        00006400
+*  OF THE JOB SUBMITTED.                                                00006500
+         SPACE 3                                                        00006600
+* BASICALLY, THE CODE GOES LIKE THIS:-                                  00006700
+*        READ A RECORD                                                  00006800
+*        IF EXEC, CHANGE STMT NUMBERS FOR ERROR MSSGS, OP, BACK TO READ 00006900
+*        IF OPCNTL BEFORE JOBCARD, COLLECT IT IN A TABLE                00007000
+*        IF^DD, O/P                                                     00007100
+*        IF DD, CHECK IF DSNAME IN TABLE.                               00007200
+*        IF NOT, ENTER IT, SEARCH CATLG ETC AS NEC                      00007300
+*        IF SO, MARK DATA SET AS BEING USED LATER ON (PASS)             00007400
+*                                                                       00007500
+* THEN RE-READ THE FILE AND CREATE THE JCL.....                         00007600
+*                                                                       00007700
+* NOW WE NEED SOME STORAGE FOR THE TABLE                                00007800
+*        CONTAINING THE DSNAMES ETC                                     00007900
+*                                                                       00008000
+         L     R0,=A(100*(V00DLEN))     ALLOW SPACE FOR 100 DATA SETS   00008100
+         ST    R0,LGOTTEN               STORE ADDRESS OF GOTTEN STORAGE 00008200
+         GETMAIN R,LV=(0)                                               00008300
+         ST    R1,AGOTTEN                                               00008400
+         USING V00SAVE,R13                                              00008500
+         ST    R1,V00STRTS                                              00008600
+         ST    R1,V00TBLEN                                              00008700
+         CLEAR V00NODSN,V00REC                                          00008800
+         MVC   V00TBLIN,=A(V00DLEN)                                     00008900
+*                                                                       00009000
+* NOW WE SET TO AND READ THE 'INST' FILE                                00009100
+*                                                                       00009200
+         SPACE                                                          00009300
+*                                                                       00009400
+*        LETS PRIME THE BUFFER SPACE, UNLESS THERE ARE NO RECORDS       00009500
+*                                                                       00009600
+         CLC   INSTTTR1,ZERO                                            00009700
+         BNE   V00ARERC       THERE ARE RECORDS                         00009800
+         JOLERR 401           NO TEXT MESSAGE                           00009900
+         JOLRETN RC=16        AND BAD RETURN CODE                       00010000
+         SPACE 3                                                        00010100
+V00ARERC EQU   *                                                        00010200
+         LH    R0,LINSTBUF    LOAD LENGTH OF BUFFER                     00010300
+         GETMAIN R,LV=(0)                                               00010400
+         ST    R1,AINSTBUF    STORE ADDRESS OF AREA OBTAINED            00010500
+         MVC   0(6,R1),=AL2(4,0,300) SET BUFFER SO NEXT GET RECORD      00010600
+*                             WILL HAVE TO READ A BLOCK                 00010700
+         MVC   INSTLAST,=H'350'                                         00010800
+         MVC   INSTBLKN,ZERO                                            00010900
+         SPACE 3                                                        00011000
+* NOW DOWN TO SERIOUS BUSINESS                                          00011100
+         SPACE 3                                                        00011200
+         LA    R5,#WORK       ANY 'EXEC' CARDS WILL BE MOVED HERE       00011300
+         USING PGMDETS,R5                                               00011400
+         USING DDDSNDET,R4                                              00011500
+*                                                                       00011600
+V00READ  BAL   R12,V00GETRC                                             00011700
+* V00GETRC RETURNS THE ADDRESS OF THE RECORD IN R4, AND R15=4           00011800
+*        IF EOF FOUND                                                   00011900
+* NOTE ****                                                             00012000
+* WHEN THE END OF A BLOCK IS FOUND, THE BLOCK WILL BE RE-WRITTEN,       00012100
+*  AS THE CONTENTS OF THE BLOCK WILL HAVE CHANGED.                      00012200
+*                                                                       00012300
+*                                                                       00012400
+         LTR   R15,R15        EOF ?                                     00012500
+         BNZ   V00EOF1        YES                                       00012600
+         CLI   DDDD1,C'D'     DD ENTRY?                                 00012700
+         BE    V00DD          YES, GO DEAL WITH IT.                     00012800
+         CLI   DDDD1,C'E'     EXEC STMT ?                               00012900
+         BNE   V00TMAC        NO -> TEST MACRO START/END                00013000
+         MVC   #WORK(PGMLEN),PGMDETS-PGMDETS(R4)  SAVE PGM DETS         00013100
+         MVC   STMT,PGMESTMT  SAVE EXEC STMT # FOR ERROR MESSAGES       00013200
+         B     V00READ                                                  00013300
+         SPACE 3                                                        00013400
+V00TMAC  CLI   DDDD1,C'I'     INSTRUCTION                               00013500
+         BNE   V00READ        NO -> IGNORE IT                           00013600
+         CLC   =C'MACRO ',ICOMMAND-INST(R4)  MACRO START ?              00013700
+         BNE   V00TEND                                                  00013800
+         MVC   V00CLEV,ILEVEL-INST(R4)  CHANGE LEVELS                   00013900
+         B     V00READ                  BACK TO READ                    00014000
+         SPACE 3                                                        00014100
+V00TEND  CLC   =C'END ',ICOMMAND-INST(R4) END ?                         00014200
+         BNE   V00READ                  NOPE ->                         00014300
+         CLC   V00CLEV,ILEVEL-ICOMMAND(R4)                              00014400
+         BNH   V00READ                                                  00014500
+         SPACE 2                                                        00014600
+* OK FOLKS, HERE WE HAVE REACHED A MACRO END.                           00014700
+*  THE TABLE WE ARE FORMING UP WILL HOLD A HUNDRED DSN'S                00014800
+*   SO WE WANT TO GET RID OF ANY WORK FILE NAMES                        00014900
+*  IF WE DIDN'T, 20 SORTS WOULD OVERFLOW IT                             00015000
+         SPACE 2                                                        00015100
+         MVC   V00CLEV,ILEVEL-ICOMMAND(R4)                              00015200
+         LM    R7,R9,V00STRTS      LOAD BXLE VARIABLES FOR TABLE SEARCH 00015300
+         USING V00DSECT,R7                                              00015400
+V00BXLE1 BXLE  R7,R8,V00TDELD                                           00015500
+         B     V00READ                                                  00015600
+V00TDELD CLC   V00CLEV,V00LEVEL    IS DS LEVEL > CURRENT LEVEL          00015700
+         BNL   V00BXLE1            NO                                   00015800
+         CLC   V00REC1,ZERO        IS DATA SET REQUIRED LATER ?         00015900
+         BNE   V00BXLE1                                                 00016000
+         CLC   =C'&&&&TEMP',V00OLDNM    TEMPORARY DSN ?                 00016100
+         BNE   V00BXLE1                 NOPE ->                         00016200
+* HERE WE HAVE A NON-PASSED TEMPORARY DATA SET.                         00016300
+*  WE SHALL NOW DELETE IT FROM THE TABLE (THEN NEXT PASS KNOWS          00016400
+*  IT IS ONLY A WORK FILE)                                              00016500
+         MVI   V00FREE,C'1'             MARK RECORD RE-USABLE           00016600
+         B     V00BXLE1                                                 00016700
+         SPACE 3                                                        00016800
+         EJECT                                                          00016900
+V00DD    EQU   *                                                        00017000
+         CLI   DDDSNAME,C'*'  SYSIN ?                                   00017100
+         BE    V00READ        YES -> IGNORE IT                          00017200
+         CLC   =C'SYSOUT=',DDDSNAME  SYSOUT ?                           00017300
+         BE    V00READ        YES -> IGNORE IT                          00017400
+         CLI   DDDSNAME,C'%'  NO DSN CODED ?                            00017500
+         BE    V00READ        YES -> IGNORE IT                          00017600
+* HERE TIS A REAL DSNAME                                                00017700
+         LM    R7,R9,V00STRTS LOAD BXLE VARIABLES FOR TABLE SEARCH      00017800
+V00BXLEZ BXLE  R7,R8,V00FNDSN                                           00017900
+* HERE THE DSNAME IS NOT IN THE TABLE                                   00018000
+V00MAKEN EQU   *                                                        00018100
+         LM    R7,R9,V00STRTS      PREPARE TO SEARCH TABLE AGAIN        00018200
+V00BXLE3 BXLE  R7,R8,V00FINDS                                           00018300
+         L     R15,AGOTTEN         DIDN'T FIND A FREE ENTRY IN TABLE -  00018400
+         A     R15,LGOTTEN         SO WE HAVE TO ADD TO THE END         00018500
+         CR    R7,R15              TEST IF ANY MORE RECORDS WILL FIT    00018600
+         BL    V00WILLF            YES                                  00018700
+         JOLERR 402,'DSNAME TABLE IS FULL'                              00018800
+         FREEMAIN                                                       00018900
+         JOLRETN RC=16                                                  00019000
+V00WILLF ST    R7,V00TBLEN         RESET END TABLE INDICATOR            00019100
+         B     V00NEWDS                                                 00019200
+V00FINDS CLI   V00FREE,C' '        IS THIS ENTRY FREE ?                 00019300
+         BNE   V00BXLE3            NO,LOOK FOR NEXT                     00019400
+V00NEWDS EQU   *                   YES WE HAVE A FREE ENTRY, OR WE -    00019500
+*                                  HAVE ADDED A NEW ENTRY ON THE END    00019600
+* STORE NEW DSNAME IS TABLE                                             00019700
+         MVC   V00OLDNM,DDDSNAME        ORIGINAL DSNAME                 00019800
+         MVC   V00UNIT,DDUNIT           UNIT                            00019900
+         MVC   V00JOLUN,DDUNITYP        UNIT TYPE (JOLS)                00020000
+         MVC   V00LEVEL,DDLEVEL         LEVEL                           00020100
+         MVC   V00NEST,DDNEST           NEST                            00020200
+         MVC   V00LSTEP+2(4),PGMESTMT   STEP NAME                       00020300
+         OC    V00LSTEP(8),=C'$$0000  ' STEP NAME                       00020400
+         MVI   V00FREE,C' '             TURN OFF FREE INDICATOR         00020500
+         MVC   V00REC1,ZERO             PASS INDICATOR = 0              00020600
+         MVI   V00DISP1,C' '            BLANK DISP INDICATOR TEMPORARIL 00020700
+         CLI   DDDDNAME,C'%'            DISPOSITION INSTRUCTION ?       00020800
+         BNE   V00DISPL                                                 00020900
+         CLI   DDDDNAME+1,C'S'          SCRATCH ?                       00021000
+         BE    V00DISPS                 YES, MAKE %                     00021100
+         CLI   DDDDNAME+1,C'D'     DELETE ?                             00021200
+         BE    V00DISPS                                                 00021300
+         CLI   DDDDNAME+1,C'U'     UNCATLG ?                            00021400
+         BNE   V00DISPL                                                 00021500
+V00DISPS MVI   V00DISP1,C'%'       TURN ON DISP INDICATOR               00021600
+V00DISPL EQU   *                                                        00021700
+* NOW WE MAY HAVE TO SEARCH THE CATALOG                                 00021800
+         CLI   DDMBR,C'('     GDG ?                                     00021900
+         BE    V00SRCH        YES -> GO SEARCH ALWAYS                   00022000
+         TM    DDUSE,B'11000000' NEW | MODS?                            00022100
+         BM    V00NEW1        YES, DON'T SEARCH THE CATALOG             00022200
+         CLI   DDVOLUME,C'*'  VOLREF ?                                  00022300
+         BE    V00VREF1       DON'T SEARCH EITHER, BUT GO DOWN TABLE    00022400
+*                             TO SEE IF WE CAN PICK UP A REAL VOLUME    00022500
+         CLI   DDVOLUME,C' '  VOL BLANK ?                               00022600
+         BE    V00SRCH        YES, AND OLD,SO SEARCH                    00022700
+         CLI   DDUNIT,C' '    UNIT CODED ?                              00022800
+         BNE   V00NEW1        NO, SO SEARCH                             00022900
+         CLI   DDUNITYP,C' ' JOL UNIT CODED? (PREFERRED VOL?)           00023000
+         BNE   V00NEW1                                                  00023100
+V00SRCH $CALL  UJS01CAT,DDDSNDET   SEARCH CATALOG THEN                  00023200
+         MVC   V00VOLS,DDVOLUME     SAVE VOLUME RETURNED                00023300
+         MVC   V00UNIT,DDUNIT      AND UNIT                             00023400
+         MVC   V00JOLUN,DDUNITYP   AND UNIT TYPE (JOL INTNL CODE)       00023500
+         MVC   V00NEWNM,DDDSNAME   AND THE DSNAME (MAY HAVE BEEN        00023600
+*                                  CHANGED BECAUSE T'WAS A GDG, OR      00023700
+*                                  INITIATOR DEDICATED DATA SET)        00023800
+         B     V00NEW1             GO CHECK A BIT MORE                  00023900
+         SPACE 3                                                        00024000
+V00VREF1 LR    R1,R7               SAVE POINTER TO NAME                 00024100
+         LM    R7,R9,V00STRTS                                           00024200
+V00BXLE4 BXLE  R7,R8,V00FVRF2                                           00024300
+         B     V00READ        COULDN'T FIND VOLREF DSN, ERROR ? ******* 00024400
+V00FVRF2 CLC   V00OLDNM(43),DDVOLUME+1                                  00024500
+         BNE   V00BXLE4                                                 00024600
+         CLI   V00VOLS,C'*'    VREF ITSELF ?                            00024700
+         BE    V00READ                                                  00024800
+         MVC   V00VOLS-V00DSECT(R1),V00VOLS CHANGE VOL NAME             00024900
+         B     V00READ                                                  00025000
+         SPACE 3                                                        00025100
+V00NEW1  EQU   *                                                        00025200
+* NOW BOTH THE DDUNITYP & DDUNIT FIELDS SHOULD BE SET UP IF POSSIBLE    00025300
+* IF THE CATALOG SEARCH ROUTINE FOUND THE VOLUME, BOTH WOULD BE         00025400
+* SET UP, BUT IF THE USER CODED A PREFERRED VOLUME, OR A UNIT           00025500
+* TYPE, ONE OR TOTHER WOULD (MAY) NOT BE SET UP.                        00025600
+         TM    DDUSE,1        UNIT-AFF ?                                00025700
+         BO    V00LEAVE       IGNORE THIS SECTION                       00025800
+* OK, THINK WE HAVE TO GO SEARCHING THE 'JOLGEN' UNIT TABLES            00025900
+         L     R1,AJOLGEN     LOAD ADDRESS OF 'JOLGEN' DETAILS          00026000
+         L     R1,AGENUNIT     LOAD UNIT TABLE ADDRESS                  00026100
+         LR    R15,R7         SAVE POSITION IN TABLE:WE WILL USE R7 NOW 00026200
+         LM    R7,R9,0(R1)    LOAD TABLE ADDRESSES FOR BXLE             00026300
+         CLI   DDUNITYP,C' '  IS JOL INTERNAL UNIT TYPE SET UP YET ?    00026400
+         BNE   V00FIXUN       YES, ->                                   00026500
+* HERE THE DDUNIT FIELD IS NOT BLANK, BUT THE DDUNITYP FIELD IS,SO FIX  00026600
+V00FUN9  CLC   DDUNIT,0(R7)   IS USER CODED UNIT IN TABLE               00026700
+         BE    V00GOTUN       YES                                       00026800
+         BXLE  R7,R8,V00FUN9  TRY NEXT ENTRY IN TABLE                   00026900
+         JOLERR 203,'UNIT ''',DDUNIT,''' IS NOT KNOWN TO JOL'           00027000
+         B     V00NEWEN                                                 00027100
+V00GOTUN MVC   DDUNITYP,10(R7) SHIFT IN INTERNAL CODE                   00027200
+         LR    R7,R15          AND RELOAD TABLE ENTRY ADDRESS           00027300
+         MVC   V00JOLUN,DDUNITYP PUT JOL UNIT TYPE IN TABLE AS WELL     00027400
+         B     V00NEWEN                                                 00027500
+         SPACE 3                                                        00027600
+V00FIXUN EQU   *                                                        00027700
+* HERE THE DDUNITYP FIELD IS NOT BLANK, BUT THE UNIT IS, SO PUT IN A    00027800
+*  PROPER UNIT                                                          00027900
+         LA    R1,X'FF'-B'01100000' DROP PERM BITS ETC                  00028000
+         IC    R14,DDUNITYP        LOAD DDUNIT TYPE                     00028100
+         NR    R14,R1              DROP PERM BITS                       00028200
+         STC   R14,DBL             STORE TEMPORARILY                    00028300
+V00FTYP3 CLC   DBL(1),16(R7)       IS IT IN TABLE ?                     00028400
+         BE    V00GOTYP            YEP ->                               00028500
+         BXLE  R7,R8,V00FTYP3      TRY NEXT ENTRY                       00028600
+         JOLERR 404,'PREFERRED VOLUMES ''',DDVOLUME,''' HAVE UNKNOWN UN*00028700
+               IT TYPE'                                                 00028800
+         B     V00NEWEN                                                 00028900
+V00GOTYP MVC   DDUNIT,8(R7)        OK, PUT IN UNIT TYPE                 00029000
+         LR    R7,R15              RELOAD R7 TO -> V00DSECT TABLE ENTRY 00029100
+         MVC   V00UNIT,DDUNIT      SHIFT UNIT IN THERE ALSO             00029200
+         B     V00NEWEN                                                 00029300
+V00NEWEN B     V00READ             GET NEXT RECORD FROM FILE            00029400
+         SPACE 3                                                        00029500
+V00FNDSN CLC   DDDSNAME,V00OLDNM   IS THE DSNAME ALREADY IN TABLE ?     00029600
+         BNE   V00BXLEZ            NOT THIS ENTRY ANYWAY, GO TRY NEXT   00029700
+* HERE THE DSNAME IS ALREADY IN THE TABLE.                              00029800
+* IF THE DSNAME IN THE TABLE WAS PLACED THERE BECAUSE OF A              00029900
+*  DISPOSITION INSTRUCTION, AND THIS IS NOT A DISPOSITION INSTRUCTION,  00030000
+*  WE WILL IGNORE THIS ENTRY, AND START ALL OVER                        00030100
+* THIS IS BECAUSE SOMEONE MAY HAVE SAID SCRATCH A DATA SET,             00030200
+*  AND THIS DD CARD HERE WANTS TO RE-CREATE IT.                         00030300
+*** NOTE: IF THIS IS A NEW DD ENTRY (OUTPUT), AND THE ONE EARLIER       00030400
+* IS A SCRATCH, ALL IS WELL, OTHERWISE WE'LL GIVE AN ERROR AND MAKE     00030500
+*  IT 'RECREATES'                                                       00030600
+         CLI   DDDDNAME,C'%'  IS THIS ENTRY A DISPOSITION ?             00030700
+         BE    V00OLDOK                                                 00030800
+* OK,IF THE ONE IN THE TABLE IS A DISP, OVER-WRITE IT                   00030900
+         CLI   V00DISP1,C'%'                                            00031000
+         BNE   V00OLDOK                                                 00031100
+         MVI   V00FREE,C'1'        MARK ENTRY AS 'FREE'                 00031200
+         B     V00MAKEN            MAKE A NEW ENTRY                     00031300
+         SPACE 3                                                        00031400
+V00OLDOK EQU   *                                                        00031500
+* NOW TEST IF THIS IS NEW, AND IF SO GIVE AN ERROR MSSG                 00031600
+         TM    DDUSE,X'40'    NEW ?                                     00031700
+         BZ    V00OLD                                                   00031800
+         TM    DDUSE,X'80'    RE-CREATES (USES)                         00031900
+         BO    V00OLD                                                   00032000
+         JOLERR 205,'DSID ''',DDDSID,''' DSNAME ''',DDDSNAME,          *00032100
+               ''' DECLARED AT ',DDSTMT,' IS ALSO OUTPUT EARLIER:- NOW *00032200
+               ''USES'''                                                00032300
+         MVI   DDUSE,X'C0'    USES                                      00032400
+         MVC   DDDSNAME,V00NEWNM   CHANGE DSN'S (MAY HAVE BEEN A GDG)   00032500
+         MVC   V00REC1,V00REC      MOVE IN 'PASS' RECORD NUMBER         00032600
+V00OLD   IFVALUE DDVOLUME,V00LVOL1                                      00032700
+         MVC   DDVOLUME,V00VOLSS                                        00032800
+V00LVOL1 IFVALUE DDUNIT,V00LUNIT                                        00032900
+         MVC   DDUNIT,V00UNIT                                           00033000
+         MVC   DDUNITYP,V00JOLUN                                        00033100
+V00LUNIT EQU   *                                                        00033200
+* NOW WE ARE NOT QUITE FINISHED YET.                                    00033300
+*  IF THIS DSNAME HAS NO VOLUME, OR IS A VREF, AND IT IS THE SECOND     00033400
+* SUCH REFERENCE IN THE SAME OS STEP,WE HAVE TO MAKE A VREF TO THE      00033500
+* DDNAME                                                                00033600
+         CLI   DDVOLUME,C' '  VOL ''                                    00033700
+         BE    V00CHKRF       YES, CHECK IF USED ALREADY THIS STEP      00033800
+         CLI   DDVOLUME,C'*'       VREF ?                               00033900
+         BNE   V00CHNGR            NO, CHANGE LATEST STEP NUMBER THOUGH 00034000
+V00CHKRF EQU   *                                                        00034100
+         CLC   V00LSTEP+1(4),PGMESTMT ALREADY USED IN THIS STEP ?       00034200
+         BNE   V00CHNGR            NO                                   00034300
+* SET UP VREF TO DDNAME THEN                                            00034400
+         CLEAR DDVOLUME                                                 00034500
+         MVC   DDVOLUME(3),=C'**.' VREF INDICATOR                       00034600
+         MVC   DDVOLUME+3(8),V00LSTEP                                   00034700
+         MVI   DDVOLUME+12,C'.'                                         00034800
+         MVC   DDVOLUME+13(8),V00LDDNM                                  00034900
+         NI    DDDISP,1       MAKE SHR (OLD)                            00035000
+         B     V00READ                                                  00035100
+V00CHNGR MVC   V00LSTEP+1(4),PGMESTMT                                   00035200
+         OC    V00LSTEP+1(4),=C'0000'                                   00035300
+         MVC   V00LDDNM,DDDDNAME                                        00035400
+         B     V00READ                                                  00035500
+         TITLE ' PASS2, FIX PASS INDICS ETC'                            00035600
+V00EOF1  EQU   *                                                        00035700
+         BAL   R12,V00PRIM    PRIME THE BUFFERS                         00035800
+V00READ2 BAL   R12,V00GETRC   READ A RECORD                             00035900
+         LTR   R15,R15                                                  00036000
+         BNZ   V00EOF2        2ND EOF, END PASS 2, RETURN               00036100
+         CLI   DDDD1,C'E'     EXEC RECORD ?                             00036200
+         BNE   V00NEXE2       NOPE                                      00036300
+         MVC   #WORK(PGMLEN),PGMDETS-PGMDETS(R4)  SAVE PGM DETS         00036400
+         MVC   STMT,PGMESTMT                                            00036500
+         ZAP   WORKDS,=P'0'   RESET &&UT NUMBER                         00036600
+         B     V00READ2                                                 00036700
+V00NEXE2 CLI   DDDD1,C'D'     DD ENTRY OR RECORD ?                      00036800
+         BE    V00DD2         YES, GO FIX                               00036900
+         CLI   DDDD1,C'I'     INSTRUCTION ?                             00037000
+         BNE   V00READ2       NOPE -> IGNORE IT FOR NOW                 00037100
+         CLC   ICOMMAND-INST(,R4),=CL8'OPCNTA' OPCNTL AFTER JOBCARD ?   00037200
+         L     R1,ACNTNLA     LOAD A TABLE FOR OP AFTER                 00037300
+         LH    R14,0(R1)      LOAD CURRENT NUMBER OF CARDS THERE        00037400
+         LA    R14,1(R14)     ADD 1                                     00037500
+         CH    R14,2(R1)      TOO MANY ?                                00037600
+         BL    V00AFTOK                                                 00037700
+         JOLERR 206,'TOO MANY OPCNTL CARDS'                             00037800
+         B     V00READ        IGNORE IT                                 00037900
+V00AFTOK EQU   *                                                        00038000
+         STH   R14,0(R1)      RESET # OPCNTLA                           00038100
+         MH    R14,=H'80'     MULT * 80                                 00038200
+         AR    R14,R1         POINT TO AVAILABLE HOLE                   00038300
+         MVC   0(80,R14),IBODY-INST(R4) SHIFT CARD IN                   00038400
+         B     V00READ2       BACK FOR NEXT RECORD                      00038500
+V00DD2   EQU   *                                                        00038600
+         LM    R7,R9,V00STRTB      LOAD TABLE BXLE VARIABLES            00038700
+V00BXLES BXLE  R7,R8,V00FDS2                                            00038800
+* HERE THE DSNAME WAS NOT FOUND.                                        00038900
+*  IT SHOULD ONLY BE A TEMPORARY DATA SET.                              00039000
+         CLC   =C'&&&&TEMP',DDDSNAME                                    00039100
+         BE    V00MAKUT                                                 00039200
+         JOLERR 407,'INTERNAL ERROR,DSN ''',DDDSNAME,''' MISSING'       00039300
+         B     V00READ2                                                 00039400
+V00MAKUT EQU   *                                                        00039500
+* HERE WE MAKE THE DSNAME &UTN WHERE N GOES FOR 1 TO 9, OR  9-99        00039600
+         AP    WORKDS,=P'1'   ADD 1 TO CURRENT NUMBER                   00039700
+         CLEAR DDDSNAME            CLEAR DSNAME                         00039800
+         MVC   DDDSNAME(3),=C'&&UT' MAKE '&UT'                          00039900
+         CP    WORKDS,=P'9'                                             00040000
+         BH    V00UTBIG                                                 00040100
+         UNPK  DDDSNAME+3(1),WORKDS                                     00040200
+         OI    DDDSNAME+3,C'0'                                          00040300
+V00WKDEL MVI   DDDISP+1,C'D'       MAKE 'DELETE'                        00040400
+         B     V00READ2                                                 00040500
+V00UTBIG UNPK  DDDSNAME+3(2),WORKDS                                     00040600
+         OI    DDDSNAME+4,C'0'                                          00040700
+         B     V00WKDEL                                                 00040800
+V00FDS2  CLC   DDDSNAME,V00NEWNM                                        00040900
+         BNE   V00BXLE5                                                 00041000
+* HERE WE HAVE A DSNAME.                                                00041100
+* WHAT WE HAVE TO DO NOW IS WORK OUT WHERE TO PASS IT TO.               00041200
+         CLC   V00REC1,V00REC                                           00041300
+         BH    V00PASS                                                  00041400
+* DATA SET NOT REQUIRED LATER, MARK 'L'                                 00041500
+         MVI   DDDISP+1,C'L'                                            00041600
+         B     V00READ2                                                 00041700
+V00PASS  MVI   DDDISP+1,C'P'                                            00041800
+         B     V00READ2                                                 00041900
+V00GETRC EQU   *                                                        00042000
+* THIS SUBROUTINE IS CALLED WHEN WE WANT A NEW RECORD                   00042100
+* ON RETURN, R15=4 IF NO RECORDS LEFT,  OR                              00042200
+*        R15=0 AND R4 POINTS TO THE RECORD FOUND                        00042300
+*** NOTE ***  IF A NEW BLOCK IS REQD, THE CURRENT ONE IS                00042400
+*        RE-WRITTEN (LOS INFORMATION WILL HAVE BEEN CHANGED IN          00042500
+*        THE BLOCK)                                                     00042600
+         SPACE 3                                                        00042700
+* INSTLAST CONTAINS THE CURRENT OFFSET OF THE CURRENT RECORD            00042800
+*        SO WE CAN EASILY CALCULATE WHERE THE NEXT RECORD IS TO         00042900
+*        START BY ADDING THE OFFSET + THE LENGTH OF THE CURRENT         00043000
+*        RECORD.                                                        00043100
+         L     R1,AINSTBUF    LOAD ADDRESS OF THE BUFFER                00043200
+         LH    R15,INSTLAST   LOAD OFFSET TO CURRENT RECORD             00043300
+         AH    R15,0(R1,R15)  ADD OFFSET + CURRENT RECORD LENGTH        00043400
+         B     *+4                                                      00043500
+         B     *+4                                                      00043600
+         CH    R15,0(R1)      WILL THIS RUN OVER BLOCK LENGTH           00043700
+         BL    V00SETR4       NOPE                                      00043800
+* NOW HERE WE HAVE TO WRITE THE CURRENT BLOCK AND RESET THE TTR         00043900
+*        IN THE CONTROL SECTION                                         00044000
+         MVI   SYS1NEXT+3,1   POINT TO BLOCK PAST LAST                  00044100
+         L     R15,AWORKFIL   LOAD A(DCB) WORKFILE                      00044200
+         POINT (R15),SYS1NEXT POINT TO NEXT AVAILABLE TTR               00044300
+         L     R1,AINSTBUF                                              00044400
+         WRITE WORKDECB,SF,,(1),MF=E    RE-WRITE THE BLOCK              00044500
+         CHECK WORKDECB       CHECK ALL IS WELL                         00044600
+         L     R1,AWORKFIL    RELOAD DCB ADDRESS                        00044700
+         NOTE  (R1)           NOTE WHERE THE BLOCK WENT TO              00044800
+         ST    R1,SYS1NEXT    STORE TTR -                               00044900
+         MVI   SYS1NEXT+3,1   * +1 FOR NEXT OP                          00045000
+         LH    R14,INSTBLKN   LOAD CURRENT BLOCK NUMBER COUNTER         00045100
+         LR    R15,R14        SAVE IT                                   00045200
+         SLL   R14,2                                                    00045300
+         ST    R1,INSTTTR1-4(R14)  RESET NEW TTR NUMBER                 00045400
+* CHECK IF MORE BLOCKS ON DATA SET                                      00045500
+         LA    R15,1(R15)     SEE NEXT BLOCK-NUMBER                     00045600
+         CH    R15,INSTMAXB   > MAXIMUM                                 00045700
+         BH    V00REOF        YES, EOF EFFECTIVELY                      00045800
+         STH   R15,INSTBLKN   RESET CURRENT BLOCK NUMBER                00045900
+         SLL   R15,2          * 4                                       00046000
+         LA    R15,INSTTTR1-4(R15)                                      00046100
+         CLC   0(R15),ZERO    MORE BLOCKS ?                             00046200
+         BE    V00REOF        NO, EOF EFFECTIVELY                       00046300
+         L     R14,AWORKFIL   LOAD DCB ADDRESS                          00046400
+         POINT (R14),(R15)    POINT TO REQUIRED BLOCK                   00046500
+         L     R15,AINSTBUF   LOAD BUFFER ADDRESS                       00046600
+         READ  WORKINDB,SF,,(R15),MF=E                                  00046700
+         CHECK WORKINDB                                                 00046800
+         CLEAR INSTLAST                                                 00046900
+         B     V00GETRC                                                 00047000
+V00SETR4 STH   R15,INSTLAST                                             00047100
+         LA    R4,0(R15,R1)   SET  R4= A(BUFFER) + OFFSET               00047200
+         B     *+4                                                      00047300
+         SR    R15,R15        SET  RETURN CODE                          00047400
+         BR    R12            RETURN TO CALLER                          00047500
+V00REOF  SR    R4,R4          CLEAR R4                                  00047600
+         LA    R15,4          SET 15=4                                  00047700
+         BR    R12            RETURN                                    00047800
+         END                                                            00047900

@@ -1,0 +1,270 @@
+         PRINT  OFF                                               J51   00010000
+         COPY  JOLCOM                                             J51   00020000
+         PRINT ON,DATA                                            J51   00030000
+P04SWORK DSECT                                                          00040000
+         DS    18F            REGISTER SAVE AREA FOR ROUTINE            00050000
+SYMFOUND DS    CL1                                                      00060000
+PGMFOUND DS    CL1                                                      00070000
+K        DS    H                                                  J51   00080000
+ENDIF    DS    H                                                  J51   00090000
+CNTR     DS    H                                                  J51   00100000
+I        DS    H                                                  J51   00110000
+P04SAVE9 EQU   *-P04SWORK     LENGTH OF SAVE + WORK AREA                00120000
+         SPACE 3                                                        00130000
+UJP04IF2 JOLSAVE CSECT=UJP04IF2,SIZE=P04SAVE9 (char *name)              00140000
+         ORG   UJP04IF2                                           J50   00150000
+IF@TEST  EQU        *                                                   00160000
+         ENTRY IF@TEST                                            J50   00170000
+         ORG                                                            00180000
+         USING P04SWORK,R13                                       J51   00190000
+* Test an IF statement                                            J51   00200000
+*int         if_test()                                                  00210000
+*                                                                       00220000
+*                                                                       00230000
+*{ int         k;                                                       00240000
+*                                                                       00250000
+*byte        symfound;                                                  00260000
+*byte        pgmfound;                                                  00270000
+*int         Tkncurr;                                                   00280000
+*                                                                       00290000
+*                                                                       00300000
+* /* Proper Parsing/Expression Handling added Jan 22 or so, 1988. */    00310000
+*                                                                       00320000
+* /* Heavily modified, particulary July 1985 to make the same           00330000
+*   as the Mainframe Version */                                         00340000
+*                                                                       00350000
+* As we  all know'if' statements are terribly easy to write.            00360000
+*                                                                       00370000
+*  Why then do we have to goto this terrible amount of                  00380000
+*  trouble to decode them ?                                             00390000
+*                                                                       00400000
+*  This procedure handles the following type of ifstatement             00410000
+*  in the following way:-                                               00420000
+*                                                                       00430000
+*    IF (andA=1 OR andC='A' OR andD='C') and A=0 OR B=16                00440000
+*                                                                       00450000
+*  1) All symbolic parameters are replaced by their real                00460000
+*     values   (simple)                                                 00470000
+*                                                                       00480000
+*  2) As many as possible comparisons are carried out                   00490000
+*     ie IF andA=1 then if anda=1 then we end up with 'T' because       00500000
+*     obviously the expression is true                                  00510000
+*                                                                       00520000
+*  So for the above expression we will have in out little               00530000
+*  stack'x' the followingOR (combining a=0 to one x)                    00540000
+*       (                                                               00550000
+*       T                                                               00560000
+*       OR                                                              00570000
+*       F                                                               00580000
+*       OR                                                              00590000
+*       T                                                               00600000
+*       )                                                               00610000
+*       A=0                                                             00620000
+*       OR                                                              00630000
+*       B=16                                                            00640000
+*/                                                                      00650000
+*                                                                       00660000
+*int         endif;                                                     00670000
+*int         cntr;                                                      00680000
+*int         i;                                                         00690000
+*                                                                       00700000
+*                                                                       00710000
+*   endif = stackno;                                                    00720000
+         MVC   ENDIF,TKNNO                                        J51   00730000
+*                                                                       00740000
+** Now I intend to put quotes around any symbolics so that the user     00750000
+*  doesn't have to code IF '%A'=10 but simply IF %A=10                  00760000
+*/                                                                      00770000
+*                                                                       00780000
+*   this_is_an_if = true; /* Saves character testing later */           00790000
+         MVI   THISIF,1                                           J51   00800000
+*                                                                       00810000
+*/* NEW AUGUST 1988.                                                    00820000
+*                                                                       00830000
+*   Check if execution IF, and issue message if combination of          00840000
+*   SYMBOLIC and EXECUTION time IF's.  PC Jol can't handle it           00850000
+*   at the moment !!! */                                                00860000
+*                                                                       00870000
+*   if (personal_jol) goto  persif; /* Skip these tests */              00880000
+*                                                                       00890000
+*   symfound = 0;                                                       00900000
+*   pgmfound = 0;                                                       00910000
+         MVC   SYMFOUND,ZERO                                      J51   00920000
+         MVC   PGMFOUND,ZERO                                      J51   00930000
+*                                                                       00940000
+*   Tkncurr = 1;                                                        00950000
+         MVC   TKNCURR,=H'1'                                      J51   00960000
+*   if (gettkn(Tkncurr) == 0) ;                                         00970000
+P04LUP1  DS    0H                                                 J51   00980000
+         GETTKN TKNCURR                                           J51   00990000
+         CLI   TKN,C' '                                           J51   01000000
+         BE    P04TESTV                                           J51   01010000
+*                                                                       01020000
+*                                                                       01030000
+*   while (Tkn/(0/) != '\0')                                            01040000
+*   {                                                                   01050000
+*                                                                       01060000
+*   if (Tkn/(0/) == '%')                                                01070000
+*       symfound = 1;                                                   01080000
+         CLI   TKN,C'%'                                           J51   01090000
+         BNE   P04NSYM1                                           J51   01100000
+         MVI   SYMFOUND,1                                         J51   01110000
+         B     P04DUN1                                            J51   01120000
+*   if (Tkn/(0/) == '\'')                     /*  Literal String ?  */  01130000
+*       symfound = 1;                                                   01140000
+P04NSYM1 DS    0H                                                 J51   01150000
+         CLI   TKN,C''''                                          J51   01160000
+         BNE   P04NSYM2                                           J51   01170000
+         MVI   SYMFOUND,1                                         J51   01180000
+         B     P04DUN1                                            J51   01190000
+*   else                                                                01200000
+*   if ((*Tkn > '@')                          /* Identifier ? */        01210000
+*      && ((*Tkn < 'Z')                                                 01220000
+*      ¦¦ (*Tkn < '$')))                                                01230000
+*   {                                                                   01240000
+P04NSYM2 DS    0H                                                 J51   01250000
+         CLI   TKN,C'$'                                           J51   01260000
+         BE    P04ISID1                                           J51   01270000
+         CLI   TKN,C'A'                                           J51   01280000
+         BL    P04DUN1                                            J51   01290000
+         CLI   TKN,C'Z'                                           J51   01300000
+         BH    P04DUN1                                            J51   01310000
+* An Identifier here                                              J51   01320000
+*      if ((strcmp(Tkn, "LASTCC") == 0)) pgmfound = 1;                  01330000
+*      else if ((strcmp(Tkn, "MAXCC") == 0)) pgmfound = 1;              01340000
+P04ISID1 DS    0H                                                 J51   01350000
+         CLC   =C'LASTCC ',TKN                                    J51   01360000
+         BE    P04SETPM                                           J51   01370000
+         CLC   =C'MAXCC ',TKN                                     J51   01380000
+         BE    P04SETPM                                           J51   01390000
+         B     P04TSYM2                                           J51   01400000
+P04SETPM MVI   PGMFOUND,1                                         J51   01410000
+         B     P04DUN1                                            J51   01420000
+*      else if (getsymname(Tkn) > 0) symfound = 1;                      01430000
+P04TSYM2 DS    0H                                                 J51   01440000
+         FINDSYM TKN                                              J51   01450000
+         LTR   R15,R15                                            J51   01460000
+         BNZ   P04TPGM2                                           J51   01470000
+         MVI   SYMFOUND,1                                         J51   01480000
+         B     P04DUN1                                            J51   01490000
+P04TPGM2 DS    0H                                                 J51   01500000
+*      else {                                                           01510000
+*           strlwr(Tkn);                                                01520000
+*           if (getrcname(Tkn) > 0) pgmfound = 1;                       01530000
+*        MEMLWR TKN                                              J51    01540000
+         FIX   'DO RC TEST'                                       J51   01550000
+*      }                                                                01560000
+*   }                                                                   01570000
+P04DUN1  DS    0H                                                 J51   01580000
+*   Tkncurr = Tkncurr + 1;                                              01590000
+         LH    R1,TKNCURR                                         J51   01600000
+         LA    R1,1(R1)                                           J51   01610000
+         STH   R1,TKNCURR                                         J51   01620000
+*        GETTKN  TKNCURR                                          J51   01630000
+*        CLI   TKN,C' '                                           J51   01640000
+         B     P04LUP1                                            J51   01650000
+*   if (gettkn(Tkncurr) == 0) ;                                         01660000
+*}                                                                      01670000
+*                                                                       01680000
+P04TESTV DS    0H                                                 J51   01690000
+*if (pgmfound ^= 0) {                                                   01700000
+         CLI   PGMFOUND,0                                         J51   01710000
+         BE    P04SYMS                                            J51   01720000
+*                                                                       01730000
+*    if (symfound == 0) {                                               01740000
+         CLI   SYMFOUND,0                                         J51   01750000
+         BNE   P04ERR1                                            J51   01760000
+*        stackno = stackno + 1;                                         01770000
+*        x/(stackno/)= "THEN";                                          01780000
+         JOLRETN RC=8                                             J51   01790000
+P04RET0  JOLRETN RC=0                                             J51   01800000
+P04RET4  JOLRETN RC=4                                             J51   01810000
+*        return 8;                                                      01820000
+*    }                                                                  01830000
+*}                                                                      01840000
+*else goto persif; /* Do symbolic Only */                               01850000
+*                                                                       01860000
+*                                                                       01870000
+P04ERR1  DS    0H                                                 J51   01880000
+         JOLERR 321,                                                   *01890000
+               'Implementation Restriction:'                            01900001
+         JOLERR 322,                                                   *01901001
+               'Because Jol now has full Arithmetic Parsing ',    J51  *01910000
+               'You cannot mix Symbolic and Execute Tests'              01920000
+         JOLERR 323,                                                   *01930001
+               'Rearrange Your Tests like this: '                       01940001
+         JOLERR 324,                                                   *01941001
+               ' ''IF SYMBOLIC test THEN IF PROGRAM Tests'''            01950000
+*                                                                       01960000
+*return 16;                                                             01970000
+         JOLRETN RC=16                                            J51   01980000
+*                                                                       01990000
+*                                                                       02000000
+*persif:                                                                02010000
+P04SYMS  DS    0H                                                 J51   02020000
+*        fix_parse_dsn();                                               02030000
+*        ujs20rep(); /* Replace values of symbolics, re-split tokens */ 02040000
+*        CALL$ UJS20REP                                           J51   02050000
+          $CALL UJS20REP,(#TKNSTRG)                               74303 02060000
+         CALL$ UJP18PAR                                           J51   02070000
+*        parse();                                                       02080000
+*                                                                       02090000
+*        this_is_an_if = false;                                         02100000
+         MVI   THISIF,0                                           J51   02110000
+*                                                                       02120000
+*        if (clc(op , "0", 2)) return 4;                                02130000
+         CLC   =C'0',OP                                           J52   02140002
+         BE    P04RET4                                            J51   02150000
+*        if (clc(op , "-1", 3)) return 0;                               02160000
+         CLC   =C'-1',OP                                          J52   02170002
+         BE    P04RET0                                            J51   02180000
+*        else if (length(op) == 0) return 4;                            02190000
+         CLC   #OP,ZERO                                           J51   02200000
+         BE    P04RET4                                            J51   02210000
+*        else if ((strcmp(op, "''") == 0)) return 4;                    02220000
+         CLC   =C'''',OP                                          J51   02230000
+         BE    P04RET4                                            J51   02240000
+*        else                                                           02250000
+*        {                                                              02260000
+** If we get here, we made it because some coded 'if x then' to see if  02270000
+*  it was defined.  We will see if it was, and take appropriate action. 02280000
+*           i = getsymname(op);                                         02290000
+         FINDSYM OP                                               J51   02300000
+*           if (!(i > 0))                                               02310000
+         LTR   R15,R15                                            J51   02320000
+         BNZ   P04RET4                                            J51   02330000
+*              return 4;                                                02340000
+*           else return 0;                                              02350000
+         B     P04RET0                                            J51   02360000
+*        }                                                              02370000
+         B     P04RET0                                            J51   02380000
+*                                                                       02390000
+*#if 0                                                                  02400000
+*        if (parse() == 4)      /* do the if statement (4 = error */    02410000
+*        {                                                              02420000
+** If we get here, we made it because some coded 'if x then' to see if  02430000
+*  it was defined.  We will see if it was, and take appropriate action. 02440000
+*           i = getsymname(op);                                         02450000
+*           if (!(i > 0))                                               02460000
+*              return 4;                                                02470000
+*           else return 0;                                              02480000
+*        }                                                              02490000
+**       if (parse() == 0) ; / * do the if statement                    02500000
+*        if (strcmp(op , "0")==0) return 4;                             02510000
+*        else if (length(op) == 0) return 4;                            02520000
+*        else if ((strcmp(op, "''") == 0)) return 4;                    02530000
+*        else return 0;                                                 02540000
+*endif                                                                  02550000
+*                                                                       02560000
+*                                                                       02570000
+*                                                                       02580000
+*                                                                       02590000
+*                                                                       02600000
+*int         ujp04if()                                                  02610000
+*{ int         i;                                                       02620000
+*                                                                       02630000
+*   i = if_test();                                                      02640000
+*   return i;                                                           02650000
+*}                                                                      02660000
+*                                                                       02670000
+         END                                                            02680000

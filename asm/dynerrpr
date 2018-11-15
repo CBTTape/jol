@@ -1,0 +1,33 @@
+         DROP                                                           00010000
+         TITLE '&TITLE DYNAMIC ALLOCATION ERROR MESSAGE ROUTINE'        00020000
+S99MSG   ST    R14,S99MRET                                              00030000
+         LA    R01,S99RB                                                00040000
+         ST    R01,DFLIST          STORE S99 REQ BLK ADDR               00050000
+         OC    DFLIST+4(4),DFLIST+4 Q... BEEN HERE BEFORE?              00060000
+         BNZ   S99010              A... YES                             00070000
+         ST    R15,S99RC           SAVE RETURN CODE FROM SVC 99         00080000
+         LA    R00,S99RC           SET POINTER                          00090000
+         ST    R00,DFLIST+4                                             00100000
+         LOAD  EP=IKJEFF02                                              00110000
+         ST    R00,DFEFF02         STORE ADDRESS OF MSG ISSUER          00120000
+         LA    R00,DFEFF02                                              00130000
+         ST    R00,DFLIST+8                                             00140000
+         LA    R00,DFFLAGS         ADDRESS OF FLAGS                     00150000
+         ST    R00,DFLIST+12                                            00160000
+         MVI   DFFLAGS+1,X'32'     SET CALLER ID                        00170000
+         L     R01,4(0,R13)                                             00180000
+         MVC   DFLIST+16(4),24(R01) CPPL ADDRESS                        00190000
+S99010   DS    0H                                                       00200000
+         LINK  EP=IKJEFF18,MF=(E,DFLIST) CALL DAIRFAIL                  00210000
+         LTR   R15,R15             Q... OK?                             00220000
+         BZ    S99020               A... YES                            00230000
+         CVD   R15,DOUBLE          ISSUE ERROR MSG                      00240000
+         OI    DOUBLE+7,X'0F'                                           00250000
+         MVC   DFMSG,=C'DAIRFAIL RETURN CODE NN'                        00260000
+         UNPK  DFMSG+21(2),DOUBLE                                       00270000
+         LA    R01,DFMSG                                                00280000
+         LA    R00,L'DFMSG                                              00290000
+         SVC   93                                                       00300000
+S99020   DS    0H                                                       00310000
+         L     R14,S99MRET                                              00320000
+         BR    R14                                                      00330000

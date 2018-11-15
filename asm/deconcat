@@ -1,0 +1,26 @@
+         TITLE '&TITLE DYNAMIC DECONCATENATION SUBROUTINE'              00010000
+DECONC   STM   R02,R14,DCONCRGS    SAVE RETURN ADDRESS                  00020000
+         LA    R01,ADDNAME                                              00030000
+         BAL   R14,SCHTIOT         Q... DDNAME ALLOCATED?               00040000
+         BNE   DNC090              A... NO                              00050000
+         SLR   R00,R00                                                  00060000
+         IC    R00,24(,R15)        LENGTH OF THIS DD ENTRY              00070000
+         AR    R15,R00             ADDRESS OF THE NEXT                  00080000
+         CLC   =C'        ',28(R15)                                     00090000
+         BNE   DNC090              IS NOT CONCATENATED                  00100000
+         BAL   R14,INITS99R        INITIALISE THE REQ BLK               00110000
+         MVI   S99VERB,X'04'       INDICATE DECONCATENATION             00120000
+         MVC   TUDDN(6),=X'000100010008' BUILD TEXT UNIT                00130000
+         MVC   TUDDN+6(8),0(R01)                                        00140000
+         LA    R00,TUDDN           BUILD TEXT UNIT LIST                 00150000
+         ST    R00,S99TUPL                                              00160000
+         MVI   S99TUPL,X'80'       MARK ITS END                         00170000
+         LA    R01,S99RBPTR                                             00180000
+SVC99C   SVC   99                  ISSUE THE REQUEST                    00190000
+         LTR   R15,R15             Q... OK?                             00200000
+         BZ    DNC090              A... YES                             00210000
+         BAL   R14,S99MSG          ISSUE AN ERROR MSG                   00220000
+DNC090   DS    0H                                                       00230000
+         LM    R02,R14,DCONCRGS                                         00240000
+         BR    R14                                                      00250000
+         LTORG                                                          00260000

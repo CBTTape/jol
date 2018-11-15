@@ -1,0 +1,843 @@
+* JOL COPYRIGHT CCS 1976                                          76200 00020000
+* COPYRIGHT CCS 1975,1976                                               00030000
+* COPYRIGHT JOL DEVELOPMENT AND MARKETING 1983.                         00040000
+* COPYRIGHT CCS-JOL P/L                   1986.                         00050000
+*                                                                       00060000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00070000
+           SPACE 3                                                      00080000
+*                   J             000000            L                   00090000
+*                   J            0      0           L                   00100000
+*                   J           0        0          L                   00110000
+*                   J          0          0         L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0            0        L                   00160000
+*                   J         0            0        L                   00170000
+*                   J         0            0        L                   00180000
+*                   J         0            0        L                   00190000
+*        J          J         0            0        L                   00200000
+*         J        J           0          0         L                   00210000
+*          J      J             0        0          L                   00220000
+*           J    J               0      0           L                   00230000
+*            JJJJ                 000000            LLLLLLLLLLL         00240000
+         EJECT                                                          00250000
+         IEFZB4D0                                                       00310000
+         IEFZB4D2                                                       00320000
+         TITLE 'DYNAMIC ALLOCATE WITH GETMAIN FOR WORK AREA'      76200 00330000
+         JOLSAVE CSECT=UJD03DS1                                         00332100
+*        USING JOLCOM,R2                                                00350000
+         USING DDDSNDET,R8                                              00360000
+         L     R8,0(R1)                                           76200 00380000
+         LA R0,((DALEND-DALSTART)+(S99RBEND-S99RB)+16)                  00390000
+         GETMAIN R,LV=(0)                                               00400000
+         LR    R9,R1          SAVE AREA ADDRESS                   76200 00410000
+         CALL  UJD03DS2,((8),(1))                                 76200 00420003
+         LR    R8,R15         SAVE RETURN                         76200 00430000
+         LA R0,((DALEND-DALSTART)+(S99RBEND-S99RB)+16)                  00440000
+         FREEMAIN R,LV=(0),A=(9)                                        00450000
+         LR    R15,R8                                             76200 00460000
+         JOLRETN RC=(15)                 RETURN                   76200 00470000
+           DC   50S(*)                                                  00480000
+            LTORG                                                       00490000
+            ORG *+X'30'         TO ALIGN AT +100 ONLY                   00500000
+         TITLE 'ALLOCATE DSNAME,SYSOUT USING WORK AREAS SUPPLIED' 76200 00510000
+         JOLSAVE CSECT=UJD03DS2,BASE=(5,11)                             00520002
+         LM    R8,R9,0(R1)    LOAD DDDSNET AREA,+WORK AREA        76200 00530000
+         USING S99RB,R9                                                 00540000
+         LA    R7,S99RBEND                                        76200 00550000
+         LA    R7,8(R7)       BUMP UP 8                                 00560000
+         SRL   R7,3                                                     00570000
+         SLL   R7,3           R7 ON DOUBLE WORD NOW.                    00580000
+         USING DYNCON,R7                                                00590000
+         L     R0,=V(DYNCON)    GET ADDRESS OF DYN CONSTANT AREA        00600000
+         LA    R1,DALEND-DALSTART  GET LENGTH TO MOVE                   00610000
+         LR    R14,R7         ARE TO GO TO                              00620000
+         LA    R15,0(R1)      AND TO LENGTH                             00630000
+         MVCL  R14,R0                                                   00640000
+         XC    S99RB(S99RBEND-S99RB),S99RB SET PARMS TO 0      76200    00650000
+           USING DDDSNDET,R8                                            00660000
+*MOVE THE DDRECORD IS NOW MOVED TO 'TRANS' AND GENERAT FROM THERE.      00670000
+        SPACE 2                                                         00680000
+D03XC    CLEAR TRANS                                              75128 00690000
+         XC  DDSPECTP(2),DDSPECTP                                 75128 00691000
+         MVC  TRANS(256),DDDSNDET                                       00692000
+         LA   R8,TRANS                                            75128 00710000
+         SPACE 3                                                        00750000
+         LA    R10,WORK+8                                               00760000
+         SRL  R10,3                                                     00770000
+         SLL   R10,3                                                    00780000
+         ST    R10,S99TXTPP                                             00790000
+         CLC =C'*&&',DDVOLUME REF TO VOL=&& DSNAME       C-0033 74191   00800000
+         BNE D03TDSN         NO,SO GO THROUGH NORMAL PROCC-0033 74191   00810000
+* NOW HERE WE HAVE A VOLREF TO A TEMPORARY DSNAME.         C-0033 74191 00820000
+*** THATS NOT ALLOWED,SO WE'LL PUMP OUT A CARD,AND THE NEXTC-0033 74191 00830000
+*   DDCARD GENERATED CAN REFER BACK TO THE DSNAME          C-0033 74191 00840000
+         FIX   'TEST UNDER MVS'                                         00850000
+           SPACE 3                                                      00860000
+D03TDSN    EQU *                                           C-0033 74191 00870000
+           CLI DDDSNAME,C' '                                            00880000
+           BE NODSN                                                     00890000
+           CLI DDDSNAME,C'%'                                            00900000
+           BE NODSN                                                     00910000
+           CLC =C'*DUMMY',DDDSNAME                                      00920000
+           BNE TRYSYS                          SEE IF A PRINTER REQD    00930000
+           SETUP DAPDUMMY                                         76200 00940000
+           B  D03TDISP                                                  00950000
+           SPACE 3                                                      00960000
+TRYSYS   EQU   *                                                  75128 00970000
+        FIX 'SET UP NORMAL JOB SYSOUT PRINTING TIME'                    00980000
+           CLI DDTYPE,DDPUNCH                                     75311 00990000
+           BE  D03NORMS                                           75311 01000000
+           CLI  DDTYPE,DDSPECOU   SPECIAL SYSOUT???               75128 01010000
+         BNE   D03NSPCS       NOPE ->                             75128 01020000
+D03DOSYS   EQU *                                                  75311 01030000
+         JOLERR 410,'SYSOUT=''ANYTHING'' NOT SUPPORTED WITH DYNAMIC ALL*01040000
+               OCATION'                                                 01050000
+          MVI DDSYSCLS,C'A'                                             01060000
+D03NSPCS CLI   DDTYPE,5       IS THIS NORMAL SYSOUT PROCESSING ?  75128 01070000
+         BNE   ISDSN                                              75128 01080000
+         SPACE 2                                                  75128 01090000
+* HERE WE HAVE NORMAL SYSOUT PROCESSING                           75128 01100000
+D03NORMS SETUP DAPSYSOU,DDSYSCLS                                  76200 01110000
+         IFNULL DDSYSPGM,D03NPGM                                  76200 01120000
+         SETUP DAPSPGNM,DDSYSPGM                                  76200 01130000
+D03NPGM  IFNULL DDSYSFRM,D03NFORM                                 76200 01140000
+         SETUP DAPSFMNO,DDSYSFRM                                  76200 01150000
+D03NFORM EQU   *                                                  76200 01160000
+* NOW TEST OTHER SYSOUT PARAMETERS                                75128 01170000
+         IFNULL DDCOPIES,D03NCOPY                                 75128 01180000
+         SETUP DAPCOPYS,DDCOPIES                                  76200 01190000
+D03NCOPY EQU  *                                                   75311 01200000
+         CLC DDOUTLIM,ZERO   ANY OUTLIM ?                               01210000
+         BE   D03NOUTL       NOPE                                       01220000
+         SETUP DAPOUTLM,DDOUTLIM                                  76200 01230000
+D03NOUTL IFNULL DDUCS,DDFOLD,DDVERIFY,D03NUCS                     75311 01240000
+         SETUP DAPUCS,DDUCS                                       76200 01250000
+         IFNULL DDVERIFY,DDFOLD,ND03VERI                          75311 01260000
+         IFNULL DDFOLD,D03NFOLD                                         01270000
+         SETUP DAPUFOLD                                           76200 01280000
+         B     D03EFOLD                                                 01290000
+D03NFOLD EQU   *                                                        01300000
+D03EFOLD IFNULL DDVERIFY,ND03VERI                                 75128 01310000
+         SETUP DAPUVRFY                                           76200 01320000
+         B   D03ENFCB      POP ')' ON NOW                         75311 01330000
+ND03VERI EQU   *                                                  76200 01340000
+D03NUCS  IFNULL DDFCB,DDVERIFY,DDALIGN,D03NFCB                    75128 01350000
+         SETUP DAPFCBIM,DDFCB                                     76200 01360000
+         IFNULL DDVERIFY,D03TAL                                   75128 01370000
+         MVI  DAPFCBAV,X'04'   TURN ON VERIFY                           01380000
+D03SETFV SETUP DAPFCBAV                                           76200 01390000
+         B     D03ENFCB                                           75128 01400000
+D03TAL   IFNULL DDALIGN,D03ENFCB                                  75128 01410000
+         MVI  DAPFCBAV,X'08'  TURN ON 'ALIGN'                           01420000
+         B  D03SETFV                                                    01430000
+D03ENFCB EQU   *                                                  76200 01440000
+         SPACE 3                                                  75128 01450000
+D03NFCB  IFNULL DDROUTE,D03NROUT                                  75128 01460000
+         SETUP DAPSUSER,DDROUTE                                   76200 01470000
+D03NROUT EQU   *                                                  75128 01480000
+          TM DDSPECT2,X'04'      HOLD SPECIFIED?                        01490000
+          BZ  D03TDCB            NOPE                                   01500000
+          SETUP DAPSHOLD                                          76200 01510000
+          B     D03TDCB                                           75128 01520000
+ISDSN      EQU *                                                        01530000
+          CLI DDTYPE,DDSYSIN  SYSIN CARD FILE?                          01540000
+           BNE D03ORDSN                                                 01550000
+           FIX 'CHECK CARD FILES'                                       01551011
+* SYSIN CARDS HERE                                                      01560000
+           MVC DDMBR,DDDSNAME+2 SHIFT MEMBER NAME TO MBR                01570000
+           MVC DDDSNAME(10),=C'&&&&$$JOLIN '                            01580000
+           MVC DDVOLUME(9),=C'**.$$INST'                                01590000
+* NOW MAKE THE TYPE LOOK LIKE A DISK SO THAT LABEL IN IS GENERATED      01600000
+           MVI DDUNITYP,B'10000000'   DISK                        75311 01610000
+           IFVALUE DDRECFM,D03LRECF                                     01620000
+           MVC DDRECFM(2),=C'FB'                                        01630000
+D03LRECF   IFVALUE DDLRECL,D03LRECL                                     01640000
+           MVC DDLRECL(2),=C'80'                                        01650000
+D03LRECL   IFVALUE DDBLKSZE,D03LBLKS                                    01660000
+*        L     R1,AJOLGEN                                         75128 01670001
+*        USING GENDETS,R1                                         75128 01680001
+*          MVC DDBLKSZE,PARMSYSB                                        01690001
+*        DROP  R1                                                 75128 01700001
+D03LBLKS   EQU  *                                                       01710000
+D03ORDSN   EQU  *                                                       01720000
+         SPACE  3                                                       01720112
+* CHECK FOR GENERATION DATA SETS                                        01721012
+         SPACE  3                                                       01731012
+*    NOW, THE GDG NUMBER IS IN THE DDMBR FIELD, AND NOW WE HAVE TO      01780012
+*    POP THE BRACKETS IN THERE.                                         01790012
+         CLI   DDMBR,C'('      GDG ?                              75311 01800012
+         BE    D03GDG0        YES                        JOL30061 76200 01810000
+         CLI   DDMBR,C'+'      GDG ?                              75311 01820012
+         BE    D03GDG1         YES                                75311 01830012
+* NOT GDG, NO MEMBER, SO SET UP DSNAME PARAMETER                  86230 01830112
+         SETUP DAPDSNAM,DDDSNAME                                  86230 01831012
+         B     D03TMBR         NO, TEST IF MEMBER SPECIFIED       75311 01840012
+         SPACE  3                                                       01841012
+D03GDG0  CLI   DDMBR+1,C' '   =' '                       JOL30061 76200 01850000
+         BNE   D03GDG1        NOPE, MUST BE REL & NOCAT  JOL30061 76200 01860000
+         CLC   DDMBR+2(4),=C'0000' REL(0) ?              JOL30061 76200 01870000
+         BE    D03GDG1        YES, NORMAL PROCESSING.    JOL30061 76200 01880000
+         CLC   DDMBR+2(4),BLANKS                         JOL30061 76200 01890000
+         BE    D03GDG1                                   JOL30061 76200 01900000
+* HERE GDG ABSOLUTE .                                    JOL30061 76200 01910000
+         LH    R15,#DSN        GET LENGTH OF DSNAME               86230 01911012
+         LA    R15,DDDSNAME(R15) POINT TO END OF DSNAME           86230 01912012
+         MVC   0(9,R15),=C'.G0000V00'                             86230 01930012
+         MVC   2(4,R15),DDMBR+2                                   86230 01940012
+D03SETDS SETUP DAPDSNAM,DDDSNAME                                  86230 01950012
+         B     D03TDISP       CONTINUE AS NORMAL(DISP...)               01960000
+D03GDG1  MVI   DDMBR,C' '      BLANK '+' | '('                    75311 01970012
+         IFNULL DDMBR,D03TDISP    BLANK GDGD NUMBER SOMEHOW ?     86230 01980012
+* HERE WE HAVE A RELATIVE GDG NUMBER.                                   01980112
+         LH    R15,#DSN        GET LENGTH OF DSNAME               86230 01980212
+         LA    R15,DDDSNAME(R15) POINT TO END OF DSNAME           86230 01980312
+         MVI   0(R15),C'('                                        86230 01980412
+         MVC   1(1,R15),DDMBR+1   + OR - RELATIVE NUMBER          86230 01980512
+         CLI   DDMBR+2,C'0'      XA WON'T ACCEPT (+0001)          86230 01980612
+         BE    D03TST2           TEST IF ANOTHER ZERO             86230 01980712
+         CLI   DDMBR+3,C'0'      XA WON'T ACCEPT (+001)           86230 01980812
+         BE    D03TST3           TEST IF ANOTHER ZERO             86230 01980912
+         CLI   DDMBR+4,C'0'      XA WON'T ACCEPT (+01)            86230 01981012
+         BE    D03TST4           TEST IF ANOTHER ZERO             86230 01981112
+* HERE, 0001 SAY                                                        01981212
+         MVC   2(1,R15),DDMBR+5   + OR - RELATIVE NUMBER          86230 01981312
+         MVI   3(R15),C')'                                        86230 01981412
+         B     D03SETDS           SET DSNAME PARAMETER            86230 01981612
+         SPACE                                                          01981712
+D03TST4  DS    0H                                                       01981812
+* HERE, 0011 SAY                                                        01981912
+         MVC   2(2,R15),DDMBR+4   + OR - RELATIVE NUMBER          86230 01982012
+         MVI   4(R15),C')'                                        86230 01982112
+         B     D03SETDS           SET DSNAME PARAMETER            86230 01982212
+         SPACE                                                          01982312
+D03TST3  DS    0H                                                       01982412
+* HERE, 0111 SAY                                                        01982512
+         MVC   2(3,R15),DDMBR+3   + OR - RELATIVE NUMBER          86230 01982612
+         MVI   5(R15),C')'                                        86230 01982712
+         B     D03SETDS           SET DSNAME PARAMETER            86230 01982812
+         SPACE                                                          01982912
+D03TST2  DS    0H                                                       01983012
+* HERE, 0111 SAY                                                        01983112
+         MVC   2(4,R15),DDMBR+2   + OR - RELATIVE NUMBER          86230 01983212
+         MVI   6(R15),C')'                                        86230 01983312
+         B     D03SETDS           SET DSNAME PARAMETER            86230 01983412
+         SPACE                                                          01983512
+D03TMBR  IFNULL DDMBR,D03TDISP               MEMBER NAME ?        75311 01983612
+D03GDG2  EQU *                                                    75311 01990000
+         SETUP DAPMEMBR,DDMBR                                     76200 02000000
+NODSN    EQU *                                                          02010000
+D03TDISP DS  0H                                                         02020000
+* IF DDDISP(1)=' 'THEN IT WASN'T INITIALISED PROPERLY. WE WILL          02030000
+* (LIKE TSO) DEFAULT IT TO OLD.                                         02040000
+         CLI  DDDISP,C' '                                               02050000
+         BNE  D03DISPA                                                  02060000
+         MVI  DDDISP,B'00010000'     SET TO OLD                         02070000
+D03DISPA DS   0H                                                        02080000
+         IFNULL DDDISP,D03TDCB          NO DISP FIELDS ?                02090000
+* EXTRA CHECKS ARE REQUIRED FOR OLD OR SHARED DATA SETS                 02091009
+*                                                                       02092009
+* IF THE UNIT IS SPECIFIED, BUT NO VOLUME THEN WE CANCEL THE            02093009
+*   UNIT, OTHERWISE SVC 99 GETS UPSET, UNLIKE JCL, WHICH GOES           02094009
+*   TO THE PASSED DATA SET QUEUE.                                       02095009
+         TM   DDDISP,B'11000000' TEST FOR ZEROS FOR OLD DATA SET        02096009
+         BM   DODISP1            NOT AN OLD ALLOCATION                  02097009
+         IFVALUE DDVOLUME,DODISP1 HAS A VOLUME, SO LEAVE UNIT           02098009
+         CLEAR DDUNIT            SET UNIT TO BLANKS, PRESS ON.          02099009
+DODISP1  EQU *                                                          02100000
+         TM   DDDISP,X'C0'       USES?                                  02110000
+         BO   D03USES            YES, GO FIX IT UP                      02120000
+         TM   DDDISP,B'01000000' NEW ?                                  02130000
+         BO   D03NEW                                                    02140000
+         TM   DDDISP,B'10000000' MOD ?                                  02150000
+         BO   D03MOD                                                    02160000
+         TM   DDDISP,B'00010000' OLD ?                                  02170000
+         BO   D03OLD                                                    02180000
+         MVI   DAPSTATS,X'08' SHR                                       02190000
+         TM    DDDISP,B'11000000'  USES ?                         75128 02200000
+         BO    D03USES             YES                            75128 02210000
+         B     DDDISP2                                                  02220000
+D03MOD   MVI   DAPSTATS,X'02' MOD                                       02230000
+         B     DDDISP2                                                  02240000
+D03NEW   MVI   DAPSTATS,X'04' NEW                                       02250000
+         B     DDDISP2                                                  02260000
+D03OLD   MVI   DAPSTATS,X'01' OLD                                       02270000
+         B     DDDISP2                                                  02280000
+D03USES  EQU   *                                                  75128 02290000
+         FIX   'THIS SECTION*MAY** HAVE TO BE CHANGED FOR || DS'  75128 02300000
+* HERE WE HAVE TO GENERATE A MOD CARD FOR THE DATA SET,           75128 02310000
+*  THEN  ANOTHER CARD POINTING BACK TO IT WITH A DISP OF OLD      75128 02320000
+         CONCAX 'MOD'         MAKE DISP 'MOD' FOR USES            75128 02330000
+         MVC   LABEL,DDDDNAME SAVE DDNAME IN LABEL                75128 02340000
+DDDISP2  EQU  *                                                         02350000
+         SETUP DAPSTATS,DAPSTATS                                        02360000
+DODISP2  CLC DDDISP+1(2),BLANKS                                         02370000
+         BE ENDDISP                                                     02380000
+         MVI   CALLAREA,0     SET TO ZERO                               02381000
+         LA R6,DDDISP+1                                                 02390000
+         BAL R4,FIXDISP                                                 02400000
+         CLI   CALLAREA,0     STILL = 0                                 02401000
+         BE ENDDISP                                                     02402000
+         MVC   DAPNDISP,CALLAREA                                        02410000
+         SETUP DAPNDISP                                                 02420000
+         SPACE 2                                                        02430000
+         CLI DDDISP+2,C' '              3 RD DISP=''                    02440000
+         BE ENDDISP                                                     02450000
+         LA R6,DDDISP+2                                                 02460000
+         BAL R4,FIXDISP                                                 02470000
+         MVC   DAPCDISP,CALLAREA                                        02480000
+         SETUP DAPCDISP                                                 02490000
+         B ENDDISP                                                      02500000
+FIXDISP  CLI 0(R6),C' '                                                 02510000
+         BNE DELETE                                                     02520000
+         CONCAX ','                                                     02530000
+         B   ELOOP                                                      02540000
+         SPACE 1                                                        02550000
+DELETE   CLI 0(R6),C'D'                                                 02560000
+         BNE KEEP                                                       02570000
+         MVI   CALLAREA,X'04' DELETE                                    02580000
+         B   ELOOP                                                      02590000
+KEEP     CLI 0(R6),C'K'                                                 02600000
+         BNE PASS                                                       02610000
+         MVI   CALLAREA,X'08' KEEP                                      02620000
+         B   ELOOP                                                      02630000
+PASS     CLI 0(R6),C'P'                                                 02640000
+         BNE CATLG                                                      02650000
+         CONCAX ',PASS'                                                 02660000
+         B   ELOOP                                                      02670000
+CATLG    CLI 0(R6),C'C'                                                 02680000
+         BNE UNCATLG                                                    02690000
+         MVI   CALLAREA,X'02' CATLG                                     02700000
+         B   ELOOP                                                      02710000
+UNCATLG  EQU  *                                                         02720000
+         CLI 0(R6),C'L'      INDICATOR FOR LAST DDCARD ?                02730000
+         BE  TEMPDSN                                                    02740000
+         MVI   CALLAREA,X'01' UNCATLG                                   02750000
+ELOOP    BR R4                          RETURN                          02760000
+TEMPDSN  EQU *                                                          02770000
+         CLC =C'&&&&',DDDSNAME   TEMPORARY DSN?                         02780000
+         BNE 0(R4)              -> NO                                   02790000
+         MVI   CALLAREA,X'04' DELETE                                    02800000
+         BR  R4          RETURN                                         02810000
+         SPACE                                                          02820000
+DISPERR  EQU *                                                          02830000
+         JOLERR 405,'INVALID DISPOSTION FOUND :- ',DDDISP               02840000
+         SPACE 3                                                        02850000
+ENDDISP  EQU *                                                          02860000
+D03TDCB  EQU   *                                                        02870000
+         CLC DDOSVB,=AL2(DDCATLGS-DDOSVB+2) SHORT RECORD ?              02880000
+         BNH NODCB                                                      02890000
+         TM    DDSPECT2,X'01' VSAM ? DONE MUCH,MUCH LATER         75128 02900000
+         BO    NODCB                                              75128 02910000
+         CLI DDRECFM,C'%'               IF SO,NODCB WAS SPECIFIED       02920000
+         BE NODCB                                                       02930000
+*                                                                 75128 02940000
+* NEW FEATURE VERSION 3.0. IF DCBEXTRA IS CODED, ANY              75128 02950000
+*  INFORMATION CODED IS ADDED TO THE DCB (OR DCB IS CREATED)      75128 02960000
+         CLC   DDOSVB,=AL2(DDLEN)                        JOL30047 76200 02970000
+         BH    D03ISDCB                                           75128 02980000
+         FIX 'DCBEXTRA'                                                 02990000
+*                                                                 75128 03000000
+D03ISDCB EQU   *                                                        03010000
+         CLI   DDTYPE,DDGDG   IS THIS A GDG?                            03020000
+         BL    D03NGDG9       NO                                        03030000
+         TM    DDUSE,X'C0'    NEW OR MOD?                               03040000
+         BZ    D03NGDG9       NO,SO DON'T PUT IN GDG DCB                03050000
+         CLI DDDSNAME,C'*'   DUMMY DATA SET ?                           03060000
+         BE  D03NGDG9        YES, NO NO 'JOLDCB' EITHER                 03070000
+* TEST IF NAME IS + WITH NOCAT (IE +GDG ON DSNAME)                      03080000
+         CLI   DDMBR+1,C'+'                                             03090000
+         BNE   D03NGDG9                                                 03100000
+*        L   R1,AJOLGEN                                                 03110001
+*        USING GENDETS,R1                                               03120001
+********* CONCAX MACRO WONT WORK FOR MACRO GENERATED NAMES ***          03130000
+*        MVC   DAPDCBDS(L'GDGDCB),GDGDCB                                03140001
+*        SETUP DAPDCBDS                                                 03150001
+*        MVI L'GDGDCB(R10),C','                                         03160001
+*        LA  R10,L'GDGDCB+1(R10)                                        03170001
+*        DROP R1                                                75311   03180001
+D03NGDG9 EQU   *                                                        03190000
+         IFNULL DDRECFM,NORECFM                                         03200000
+         SETSPEC DDRECFM,DAPRECFM,                                     *03210000
+               (M,02),(A,04),(S,08),(B,10),(T,20),(V,40),              *03220000
+               (F,80),(0,C0)                                            03230000
+         IFNULL DDRECFM,D03RECOK                                        03240000
+         JOLERR 401,'INVALID RECFM ''',DDRECFM,''' FOUND'               03250000
+         FIX                                                            03260000
+D03RECOK EQU   *                                                        03270000
+         SETUP DAPRECFM                                                 03280000
+NORECFM  IFNULL DDBLKSZE,NOBLKSZE                                       03290000
+         SETUP DAPBLKSZ,DDBLKSZE                                  76200 03300000
+NOBLKSZE IFNULL DDLRECL,NOLRECL                                         03310000
+         SETUP DAPLRECL,DDLRECL                                   76200 03320000
+NOLRECL  IFNULL DDBUFNO,NOBUFNO                                         03330000
+         SETUP DAPBUFNO,DDBUFNO                                   76200 03340000
+NOBUFNO  DS    0H                                                       03350000
+         IFNULL DDOPTCD,D03OPTOK                                        03360000
+NOBUFNO  SETSPEC DDOPTCD,DAPOPTCD,                                     *03370000
+               (R,01),(T,02),(Z,04),(A,08),(Q,08),(F,10),              *03380000
+               (H,10),(O,10),(C,20),(E,20),(B,40),(U,40),              *03390000
+               (W,80)                                                   03400000
+         IFNULL DDOPTCD,D03OPTOK                                        03410000
+         JOLERR 402,'OPTCD INVALID:-',DDOPTCD                           03420000
+D03OPTOK EQU   *                                                        03430000
+*        SETUP DALOPTCD                                                 03440008
+NOOPTCD  IFNULL DDRKP,NORKP                                             03450000
+         JOLERR 403,'DYNAMIC ALLOCATION WILL NOT ALLOW RKP'             03460000
+NORKP    IFNULL DDKEYLEN,NOKEYLEN                                       03470000
+         SETUP DAPKYLEN,DDKEYLEN                                  76200 03480000
+NOKEYLEN IFNULL DDOVERFL,NOOVERFL                                       03490000
+         JOLERR 404,'DYNAMIC ALLOCATION WILL NOT ALLOW CYLOFL'          03500000
+NOOVERFL IFNULL  DDDENS,NODENS                                          03510000
+         SR    R15,R15                                                  03520000
+         IC    R15,DDDENS                                               03530000
+         SH    R15,=XL2'00F0' MAKE FULL NUMERIC                         03540000
+         LA    R1,=X'034383C3D3'                                        03550000
+         IC    R14,0(R1,R15)                                            03560000
+         STC   R14,DAPDEN                                               03570000
+         SETUP DAPDEN                                                   03580000
+NODENS   EQU *                                                          03590000
+           IFNULL DDDSORG,NODSORG                                       03600000
+         SETSPEC DDDSORG,DAPDSORG,                                     *03610000
+               (TC,0004),          TCAM  3705                          *03620000
+               (VS,0008),          VSAM                                *03630000
+               (TQ,0020),          TQ  MESSAGE QUEVE                   *03640000
+               (TX,0040),          TX  LINE GROUP                      *03650000
+               (GS,0080),          GRAPHICS                            *03660000
+               (PO,0200),(POU,0300),                                   *03670000
+               (MQ,0400),(CQ,0800),(CX,1000),                          *03680000
+               (DA,2000),(DAU,2100),                                   *03690000
+               (PS,4000),(PSU,4100)                                     03700000
+         IFNULL DDDSORG,D03DSOOK                                        03710000
+         JOLERR 407,'DDSORG.INVALID',DDDSORG                            03720000
+D03DSOOK SETUP DAPDSORG                                                 03730000
+NODSORG  EQU   *                                                        03740000
+         IFNULL  DDCODE,D03NCODE                                        03750000
+         SETSPEC DDCODE,DAPCODE,                                       *03760000
+               (T,02),(A,04),(C,08),(B,10),                            *03770000
+               (F,20),(I,40),(N,80)                                     03780000
+         IFNULL DDCODE,D03CDEOK                                         03790000
+         JOLERR 405,'CODE INVALID',DDCODE                               03800000
+D03CDEOK SETUP DAPCODE                                                  03810000
+D03NCODE EQU  *                                                         03820000
+         IFNULL  DDBUFL,D03NBUFL                                        03830000
+         SETUP DAPBUFL,DDBUFL                                     76200 03840000
+D03NBUFL EQU  *                                                         03850000
+         IFNULL  DDFUNC,D03NOFUN                                        03860000
+         SETSPEC DDFUNC,DAPFUNC,(I,80),(P,20),(R,40),(W,10)             03870000
+D03NOFUN EQU  *                                                         03880000
+         TM   DDSPECT2,X'10'      TRACE?                                03890000
+         BZ   D03NTRAC                                                  03900000
+         SETUP DAPDIAGN                                                 03910000
+D03NTRAC TM   DDSPECTP,X'C0'      ACCEPT OR SKIP ERRORS?                03920000
+         BZ   D03NOERR                                                  03930000
+         TM   DDSPECTP,X'80' SKIP? GIVE IT PRECEDENCE...                03940000
+         BZ   D03ACC                                                    03950000
+         MVI   DAPEROPT,X'40'      SKIP                                 03960000
+D03SETER SETUP DAPEROPT                                                 03970000
+         B    D03NOERR                                                  03980000
+D03ACC   MVI   DAPEROPT,X'80'      ACCEPT                               03990000
+         B     D03SETER                                                 04000000
+D03NOERR EQU  *                                                         04010000
+         CLC   DDOSVB,=AL2(DDLEN) STILL GOT 'DCBEXTRA' TO GO IN ? 75311 04020000
+         BNH   D03NEXTR       NOPE                                75128 04030000
+         JOLERR 408,'DCB-EXTRA NOT SUPPORTED WITH DYNAMIC ALLOCATION'   04040000
+D03NEXTR EQU   *                                                  75128 04050000
+ENDDCB   EQU *                                                          04060000
+           EJECT                                                        04070000
+         TM  DDSPECT2,X'08'     FREE AT CLOSE??                         04080000
+         BZ  D03NOCLS                                                   04090000
+         SETUP DAPCLOSE                                                 04100000
+D03NOCLS EQU  *                                                         04110000
+NODCB    EQU *                                                          04120000
+         CLC DDOSVB,=AL2(DDCATLGS-DDOSVB+2) SHORT RECORD ?              04130000
+         BNH NOSPACE                                                    04140000
+         IFNULL DDPRIM,DDSEC,DDDIRECT,NOSPACE                           04150000
+         CLI   DDCYLTRK,C'B'  BLOCK ALLOCATION ?         JOL30078 76200 04160000
+         BNE   D03SPCNM       NORMAL SPACE ALLOC (C | T) JOL30078 76200 04170000
+         IFNULL DDBLKSZE,NOSPACE IF NO BLK -> OUT        JOL30078 76200 04180000
+D03SPCNM EQU   *                                         JOL30078 76200 04190000
+         FIX   'USE SPECIAL NEW (3.1) BLK SIZE)'         JOL30078 76200 04200000
+         IFNULL DDCYLTRK,TRYPRIM                                        04210000
+         CLI   DDCYLTRK,C'T'                                            04220000
+         BNE   D03TCYL                                                  04230000
+         SETUP DAPTRK                                             76200 04240000
+         B     TRYPRIM                                                  04250000
+D03TCYL  CLI DDCYLTRK,C'C'              CYLS SPECIFIED ?                04260000
+         BNE   D03TABS                                                  04270000
+         SETUP DAPCYL                                             76200 04280000
+         B     TRYPRIM                                                  04290000
+D03TABS  CLI   DDCYLTRK,C'A'  ABSTRACK                            75128 04300000
+         BNE   D03TBLK                                            75128 04310000
+         JOLERR 406,'ABSTRK NOT SUPPORTED IN DYNAMIC ALLOCATION'        04320000
+         B     TRYPRIM                                            75128 04330000
+D03TBLK  CLI DDCYLTRK,C'B'                   BLOCKS SPECIFIED           04340000
+         BNE   D03SERR                                                  04350000
+         SETUP DAPBLKLN,DDBLKSZE                                  76200 04360000
+         B     TRYPRIM                                                  04370000
+D03SERR  JOLERR 402,'INVALID SPACE ALLOCATION:-',DDCYLTRK               04380000
+         B     TRYPRIM                                                  04390000
+TRYPRIM  EQU *                                                          04400000
+         IFNULL DDPRIM,D03TSEC                                          04410000
+         SETUP DAPPRIME,DDPRIM                                          04420000
+D03TSEC  IFNULL DDSEC,D03TDIR                                           04430000
+         SETUP DAPSECND,DDSEC                                     76200 04440000
+D03TDIR  IFNULL DDDIRECT,D03TRLSE                                       04450000
+         SETUP DAPDIR,DDDIRECT                                    76200 04460000
+D03TRLSE TM    DDSPECT2,X'02' NORLSE CODED ?                      75128 04470000
+         BO    D03TCONT         NORLSE CODED, TEST IF CONTIG            04480000
+         CLI   DDCYLTRK,C'A'   ABSTR CANT HAVE RLSE                     04490000
+         BE    D03TCONT                                                 04500000
+         SETUP DAPRLSE                                            76200 04510000
+D03TCONT EQU  *                                                         04520000
+         TM    DDSPECT2,X'80' CONTIG CODED ?                      75128 04530000
+         BZ    D03TMXIG       TEST IF MXIG WAS                    75128 04540000
+         MVI   DAPSPFRM,X'08'      CONTIG                               04550000
+D03SPCF  SETUP DAPSPFRM                                                 04560000
+         B     D03COMM1       TEST ROUND NOW                      75128 04570000
+         SPACE 3                                                  75128 04580000
+D03TMXIG TM    DDSPECTP,X'04' MXIG ON ?                           75128 04590000
+         BZ    D03TALX                                            75128 04600000
+         MVI   DAPSPFRM,X'04'      MXIG                                 04610000
+         B     D03SPCF                                                  04620000
+         SPACE 3                                                  75128 04630000
+D03TALX  TM    DDSPECTP,X'02' ALX ?                               75128 04640000
+         BZ    D03COMM1                                                 04650000
+         MVI   DAPSPFRM,X'02'      ALX                                  04660000
+         B     D03SPCF                                                  04670000
+D03COMM1 EQU   *                                                        04680000
+D03TROUN TM    DDSPECTP,X'01'  ROUND ?                                  04690000
+         BZ    D03NOTRN                                           75128 04700000
+         SETUP DAPROUND                                                 04710000
+D03NOTRN EQU   *                                                        04720000
+NORLSE   EQU   *                                                  76200 04730000
+NOSPACE    EQU *                                                        04740000
+TUNIT      EQU *                                                        04750000
+           TM  DDUSE,X'02'     DEFER ON ?                         75311 04760000
+           BO  D03ISUST        YES,UNIT MUST BE OUTPUT THEN       75311 04770000
+           FIX PASSWORD  UP MUCH HIGHER                                 04780000
+           IFNULL DDUNIT,DDUNITNO,NOUNIT                          75311 04790000
+D03ISUST   EQU *                                                  75311 04800000
+           SPACE                                                        04810000
+           TM DDUSE,1          UNIT AFFINITY ?                          04820000
+           BZ NOTAFF                      NO,SO PROCESS REST OF UNIT    04830000
+D03AFF     EQU  *                                                       04840000
+           CONCAX ',UNIT=AFF=',DDUNIT                             74303 04850000
+           B  ENDUNIT                                                   04860000
+NOTAFF     EQU *                                                        04870000
+*        L     R1,AGENDETS                                        75128 04880001
+*        USING GENDETS,R1                                         75128 04890001
+*        L     R1,ASWAPUNI                                        75128 04900001
+*        DROP  R1                                                 75128 04910001
+*        LM  R14,R15,4(R1)                                              04920001
+*        L  R1,0(R1)                                                    04930001
+*        CLC DDUNIT,0(R1)                                               04940001
+*        BE  D03SWAP                                                    04950001
+*        BXLE R1,R14,*-10                                               04960001
+*        B  D03NOSWP                                                    04970001
+*D03SWAP  MVC  DDUNIT,8(R1)                                             04980004
+D03NOSWP EQU  *                                                         04990000
+         SETUP DAPUNIT,DDUNIT                                     76200 05000000
+         SPACE                                                          05010000
+******* VETS WILL DO THIS LATER ***** **************                    05020000
+         CLC =C'IS ',DDDSORG                                            05030000
+         BNE D03NIS          NOT AN IS DATA SET                         05040000
+         MVI DDUNITNO,C'P'    SET UP PARALLEL MOUNTING                  05050000
+D03NIS   EQU  *                                                         05060000
+* NOW TEST THE UNIT COUNT                                               05070000
+         IFVALUE DDUNITNO,D03UNO UNIT NUMBER -> YES, PUT IT IN  75311   05080000
+         TM  DDUSE,X'02'         WELL, IS DEFER ON ?            75311   05090000
+         BZ  UNITLEFT                                                   05100000
+         SPACE 1                                                75311   05110000
+D03UNO   EQU *                                                  75311   05120000
+         CLI   DDUNITNO,C'P'  PARALLEL ?                          76200 05130000
+         BE    D03PARXX                                           76200 05140000
+         SETUP DAPUNCNT,DDUNITNO                                  76200 05150000
+         B     ENDUNIT                                            76200 05160000
+D03PARXX SETUP DAPPARAL       SETUP PARALLEL                      76200 05170000
+NOUNITNO TM    DDUSE,X'02'    DEFER ?                             75128 05180000
+         BZ    UNITLEFT       NO,ADD ')'                          75128 05190000
+         CONCAX ',DEFER'                                                05200000
+UNITLEFT EQU   *                                                  76200 05210000
+ENDUNIT  EQU *                                                          05220000
+NOUNIT   EQU *                                                          05230000
+* THIS NEXT SECTION OF CODE ADDS THE LABEL PARAMETER.             75128 05240000
+         SPACE 1                                                        05250000
+         CLI   DDTYPE,DDSYSIN SYSIN? ALWAYS PUT 'IN'     JOL30056 76200 05260000
+         BNE   D03TPUN                                                  05270000
+         MVI   DAPINOUT,X'40'                                           05280000
+         SETUP DAPINOUT                                                 05290000
+         B     NOLABEL                                                  05300000
+D03TPUN  CLI   DDTYPE,DDPUNCH SYSOUT OR SOMESUCH ?                76200 05310000
+         BNH   NOLABEL        YES, DON'T PUT A LABEL IN           75128 05320000
+* IF ANY OF THE LABEL PARAMETERS ARE SPECIFIED, WE MUST OUTPUT    75128 05330000
+*  THE LABEL PARAMETER, BUT FURTHERMORE, WE MUST ADD 'IN' / 'OUT' 75128 05340000
+*  UNDER SPECIAL CIRCUMSTANCES, EG IF A TAPE ETC FOR FORTRAN      75128 05350000
+         IFVALUE DDLABEL,DDLABTYP,MAKELAB                JOL30056 76200 05360000
+         TM    DDSPECTP,B'00110000' PASSWORD | NOPREAD?  JOL30056 76200 05370000
+         BM    MAKELAB                                   JOL30056 76200 05380000
+* NOW IF INPUT, PUT LABEL IN, UNLESS IT IS '&&UT'; THIS  JOL30056 76200 05390000
+*  MAY BE A PASSED WORK DATA SET.                        JOL30056 76200 05400000
+         CLC   =C'&&UT',DDDSNAME                         JOL30056 76200 05410000
+         BE    NOLABEL                                   JOL30056 76200 05420000
+* NOW TEST INPUT                                         JOL30056 76200 05430000
+         TM    DDDISP,B'11010000'                                       05440000
+         BZ    MAKELAB             YES                   JOL30056 76200 05450000
+* WE USED TO PUT LABEL OUT ESPECIALLY FOR TAPES.         JOL30056 76200 05460000
+* THERE APPEARS TO BE NO REASON TO DO THIS AT ALL,       JOL30056 76200 05470000
+*  BECAUSE QSAM WILL OPEN IT HOWEVER THE PROGRAMMER      JOL30056 76200 05480000
+*  SPECIFIES, AND BSAM (FORTRAN) WILL OPEN IT AS OUT/IN  JOL30056 76200 05490000
+*  WHICH WILL BE OK ANYWAY                               JOL30056 76200 05500000
+         B     NOLABEL                                   JOL30056 76200 05510000
+MAKELAB  EQU *                                                          05520000
+         IFNULL DDLABEL,NOFLSEQ                                         05521008
+         SETUP DAPDSSEQ,DDLABEL                                         05530000
+NOFLSEQ  DS    0H                                                       05531008
+         IFNULL DDLABTYP,D03TPROT  NO LABEL TYPE, GO TEST PROTECT 75128 05540008
+         SETSPEC DDLABTYP,DAPLABEL,                                    *05550000
+               (0,02),        SL                                       *05560000
+               (1,01),        NL                                       *05570000
+               (2,10),        BLP                                      *05580000
+               (3,08),        SUL                                      *05590000
+               (4,04),        NSL                                      *05600000
+               (5,40),        AL                                       *05610000
+               (6,21),        LTM                                      *05620000
+               (7,48)         AUL                                       05630000
+         SETUP DAPLABEL                                                 05640000
+D03TPROT EQU   *                                                        05650000
+         TM    DDSPECTP,X'20' 'PASSWORD' ?                        75128 05660000
+         BZ    D03TREAD       -> NO, CHECK 'NOPWREAD'             75128 05670000
+         MVI   DAPPASPR,X'30' READ,NOWRITE                              05680000
+D03SETPW SETUP DAPPASPR                                                 05690000
+         B     D03TINOU       NOW TEST IN,OUT REQD                75128 05700000
+D03TREAD TM    DDSPECTP,X'10' 'NOPWREAD'                          75128 05710000
+         BZ    D03TINOU       NOPE                                75128 05720000
+         MVI   DAPPASPR,X'10' NOREAD/WRITE WITHOUT PASSWORD             05730000
+         B     D03SETPW                                                 05740000
+D03TINOU EQU   *                                                        05750000
+         TM  DDDISP,B'11010000'     OLD OR NEW?                         05760000
+         BNZ   D03OUT                                             75128 05770000
+         MVI   DAPINOUT,X'40' IN                                        05780000
+         B     D03SETIN                                                 05790000
+D03OUT   B     D03TRETP       *********                  JOL30056 76200 05800000
+          FIX                                                           05810000
+         TM    DDUNITYP,X'80' TEST IF TAPE               JOL30056 76200 05820000
+         BO    D03TRETP       NO, DON'T PUT OUT ON LABEL.JOL30056 76200 05830000
+         MVI   DAPINOUT,X'80' OUT                                       05840000
+D03SETIN SETUP DAPINOUT                                                 05850000
+D03NOIN  EQU   *                                                  75128 05860000
+D03TRETP EQU   *                                                        05870000
+         CLI   DDRETPD,C'R'   RETENTION PERIOD ?                        05880000
+         BNE   D03TEXPD       NO,TRY EXPIRY DATE THEN                   05890000
+         SETUP DAPRETPD,DDEXPDT                                         05900000
+         B  D03ENDLB                                                    05910000
+D03TEXPD IFNULL DDEXPDT,D03ENDLB                                        05920000
+D03EXPDT SETUP DAPEXPDT,DDEXPDT                                   76200 05930000
+         B     D03ENDLB                                           75128 05940000
+D03ENDLB EQU  *                                                         05950000
+NOLABEL  DS   0H                                                        05960000
+         TM    DDSPECTP,X'08' PRIVATE EXPLICITY CODED?            75128 05970000
+         BO    D03PRIV                                            75128 05980000
+         TM DDUNITYP,B'01100000' PERM OR PREFERRED TO STAY MOUNTED?     05990000
+         BNZ   D03PREF                                            75128 06000000
+         IFNULL DDVOLUME,D03PREF                                  75128 06010000
+         CLI DDDSNAME,C'&&'    TEMPORARY CAN HAVE PRIVATE ??            06020000
+         BE  D03PREF                                                    06030000
+* NOW CHECK IF THE VOLUME IS IN THE 'RETVOLS' CSECT                     06040000
+*        L  R1,AGENDETS                                                 06050001
+*        USING GENDETS,R1                                               06060001
+*        L   R1,ARETVOLS                                                06070001
+*        LM  R14,R15,4(R1)   LOAD BXLE CONSTANTS                        06080001
+*        DROP  R1                                                       06090001
+*        L   R1,0(R1)        LOAD START OF TABLE                        06100001
+*        CLC   =C'ALL ',0(R1)                                     75128 06110001
+*        BE    D03PREF                                            75128 06120001
+*        CLC   =C'NONE ',0(R1)                                    75128 06130001
+*        BE    D03PRIV                                            75128 06140001
+*D03TRET  CLC DDVOLUME(6),0(R1) VOLUME IN TABLE ?                       06150001
+*         BE  D03PREF         YES,DON'T PUT PRIVATE ON DDCARD           06160001
+*         BXLE R1,R14,D03TRET                                           06170001
+D03PRIV  SETUP DAPPRIVT                                           76200 06180000
+D03PREF  EQU   *                                                  76200 06190000
+         CLI  DDDISP+1,C'P'   PASS ON ?                           75128 06200000
+         BNE   NORETAIN                                           75128 06210000
+         CONCAX 'RETAIN,'                                               06220000
+         B     D03TSEQ                                            75128 06230000
+NORETAIN EQU   *                                                        06240000
+D03TSEQ  CLC DDOSVB,=AL2(DDCATLGS-DDOSVB+2) SHORT RECORD ?      75128   06250000
+         BNH  D03NCXX                                           75128   06260000
+         IFNULL DDVOLSEQ,D03TMAX                                        06270000
+         SETUP DAPVLSEQ,DDVOLSEQ                                  76200 06280000
+D03TMAX  IFNULL DDMAXVOL,D03NCXX                                        06290000
+         SETUP DAPVLCNT,DDMAXVOL                                  76200 06300000
+D03NCXX  EQU  *                                                         06310000
+         CLI   DDVOLUME,C'*'  VOLREF ?                            75128 06320000
+         BE VOLREF                                                      06330000
+         IFNULL  DDVOLUME,ENDVOL                                        06340000
+         MVC   DAPVLSE1,DDVOLUME                                        06350000
+         MVI   DA#VLSER+1,1  SETUP 1 VOLUME                             06360000
+         CLC   DDVOLUME+6(6),BLANKS                                     06370000
+         BE    D03EVOLS                                                 06380000
+         MVC   DAPVLSE2,DDVOLUME+6                                      06390000
+         MVI   DA#VLSER+1,2   SETUP 2 VOLUMES                           06400000
+         CLC   DDVOLUME+12(6),BLANKS                                    06410000
+         BE    D03EVOLS                                                 06420000
+         MVC   DAPVLSE3,DDVOLUME+12                                     06430000
+         MVI   DA#VLSER+1,3                                             06440000
+         CLC   DDVOLUME+18(6),BLANKS                                    06450000
+         BE    D03EVOLS                                                 06460000
+         MVC   DAPVLSE4,DDVOLUME+18                                     06470000
+         MVI   DA#VLSER+1,4                                             06480000
+         CLC   DDVOLUME+24(6),BLANKS                                    06490000
+         BE    D03EVOLS                                                 06500000
+         MVC   DAPVLSE5,DDVOLUME+24                                     06510000
+         MVI   DA#VLSER+1,5                                             06520000
+         CLC   DDVOLUME+30(6),BLANKS                                    06530000
+         BE    D03EVOLS                                                 06540000
+         MVC   DAPVLSE6,DDVOLUME+30                                     06550000
+         MVI   DA#VLSER+1,6                                             06560000
+         CLC   DDVOLUME+36(6),BLANKS                                    06570000
+         BE    D03EVOLS                                                 06580000
+*        MVC   DAPVLSE7,DDVOLUME+36                                     06590000
+*        MVI   DA#VLSER+1,7                                             06600000
+D03EVOLS SETUP DAPVLSER                                                 06610000
+         B  ENDVOL                                                      06620000
+VOLREF   EQU   *                                                        06630000
+         MVC 0(L'DDVOLUME-1,R10),DDVOLUME+1 SHIFT VOLREF DSN            06640000
+         LA R10,L'DDVOLUME-1(R10)                                       06650000
+         SETUP DAPVLRDS,DDVOLUME+1                                76200 06660000
+D03TPASS CLI   DDDISP+1,C'P'  PASS ON ? -> MAKE RETAIN            75128 06670000
+         BNE   ENDVOL                                           75128   06680000
+ENDVOL   EQU *                                                          06690000
+         CLI DDDDNAME,C'%'   DISPOSITION PROCESSING INSTRUCTION?        06700000
+         BNE D03ORDDD                                                   06710000
+         MVC WORK+2(5),DDDDNAME+1                                       06720000
+         B   D03OPOP                                                    06730000
+D03ORDDD EQU  *                                                         06740000
+         TM  DDUSE,X'C0'   USES?                              75128     06750000
+         FIX   'BO  D03$VU'                                       75128 06760000
+         IFNULL DDDDNAME,D03NDD                                         06770000
+         SETUP DAPDDNAM,DDDDNAME                                        06780000
+D03NDD   DS   0H                                                        06790000
+D03OPOP  EQU  *                                                         06800000
+*        SETUP DAPPERMA                                         76200   06801007
+* TELL DYNALLOC TO RETURN THE DSNAME AND DDNAME TOO.                    06802011
+         SETUP DAPRTDDN                                                 06803011
+         SETUP DAPRTDSN                                                 06804011
+         MVC   DAVRTDDN,=H'8'    REINTIALISE MAX LENGTH OF DDNAME       06805011
+         MVC   DAVRTDSN,=H'44'   REINTIALISE MAX LENGTH OF DSNAME       06806011
+         MVC   #ERETDDN,=H'0'    SET RETURN LENGTH TO ZERO              06807011
+         MVC   #ERETDSN,=H'0'    SET RETURN LENGTH TO ZERO              06808011
+         SPACE 2                                                        06810000
+* THE PARAMETER LIST HAS BEEN SET-UP, APART FORM THE PARAMETERS         06820000
+*  TO SVC 99 PROPER.                                                    06830000
+* LEST DO THEM                                                          06840000
+         SH    R10,=H'4'       BACK OFF 4 BYTES FOR LAST PARM           06850000
+         MVI   0(R10),X'80' -4 SET END                                  06860000
+         LA    R1,S99RB                                                 06870000
+         ST    R1,CALLAREA                                              06880000
+         MVI   CALLAREA,S99RBPND                                        06890000
+         SPACE 2                                                        06900000
+         MVI   S99RBLN,20     LENGTH OF REQUEST BLOCK                   06910000
+         MVI   S99VERB,S99VRBAL ALLOCATION VERB                         06920000
+         SPACE 2                                                        06930000
+         TESTAUTH                                                       06940000
+         CH    R15,=AL2(1)                                              06950000
+         BNE   D03NOTAU                                                 06960000
+S99AUTH  EQU   S99WTVOL+S99WTDSN+S99WTUNT+S99OFFLN+S99MOUNT             06970000
+         MVI   S99FLG21,S99AUTH                                         06980000
+D03NOTAU EQU   *                                                        06990000
+         LA    R1,S99RB                 REQUEST BLOCK POINTER           07001000
+         L     R15,=V(DYNDUMP)          GET DUMP ROUTINE                07002000
+         LTR   R15,R15                                                  07003000
+         BZ    D03REALA                                                 07004010
+         WXTRN DYNDUMP                                                  07005000
+         BALR  R14,R15                  GO TO IT                        07006000
+D03REALA LA    R1,CALLAREA                                              07007010
+         DYNALLOC                                                       07010000
+*                                                                       07020000
+*  CHECK TO SEE IF ERRORS OCCURED.                                      07030000
+*                                                                       07040000
+         ST    R15,CALLAREA+12          SAVE DYNALLOC RETURN CODE       07050000
+         LTR   R15,R15                                                  07060000
+         BNZ   D03ERR                RETURN CODE ZERO                   07070000
+         L     R0,S99ERROR           TEST ERR AND INFO CODE             07080000
+         LTR   R0,R0                 ERROR ?                            07090000
+         BZ    D0399OK                                                  07100000
+D03ERR   EQU   *                                                        07110000
+         B     NODYNDMP                                                 07120000
+         LA    R1,S99RB                 REQUEST BLOCK POINTER           07130000
+         L     R15,=V(DYNDUMP)          GET DUMP ROUTINE                07140000
+         LTR   R15,R15                                                  07150000
+         BZ    NODYNDMP                                                 07160000
+         WXTRN DYNDUMP                                                  07170000
+         BALR  R14,R15                  GO TO IT                        07180000
+         SPACE  3                                                       07190000
+NODYNDMP DS    0H                                                       07200000
+         L     R1,CALLAREA+12          ADDR OF ERROR AND INFO CODES     07210000
+         LR    R15,R1                                                   07220000
+         O     R1,=XL4'40F0'        (CONVERT                            07230000
+         C     R15,=F'12'            CODES                              07240000
+         BNE   *+8                      TO                              07250000
+         LH    R1,=X'F1F2'                EBCDIC                        07260000
+         STH   R1,D03MSGH                   FOR                         07270000
+         UNPK  D03MSGI(9),S99ERROR            THE                       07280000
+         NC    D03MSGI(8),=8X'0F'                ERROR                  07290000
+         TR    D03MSGI(8),=C'0123456789ABCDEF'     MESSAGE)             07300000
+         LA    R1,D03MSG                                                07310000
+         SVC   35               WTO, ROUTCDE=11                         07320000
+         LINK  EP=IKJEFF18,PARAM=(S99RB,CALLAREA+12,TSOADR,    +++++++++07330000
+               TSOADR+4),MF=(E,CALLAREA+16)                             07340000
+         LA    R0,D03MSGL                                               07350000
+         LA    R1,D03MSG                                                07360000
+         SVC   93               TPUT MESSAGE                            07370000
+         JOLRETN  RC=16                                                 07380000
+*        L     R1,&CPPL          GET CPPL ADDRESS                       07390000
+* NOW LINK TO TSO ERROR MESSAGE ROUTINE                                 07400000
+*.RT1    LINK  EP=IKJEFF18,PARAM=(CALLAREA,CALLAREA+12,TSOADR,     **   07410000
+*              TSOADR+4,&C)                                             07420000
+D03MSG   EQU   *                                                        07430000
+         DC    AL2(D03MSGL),X'8000'    LENGTH AND FLAGS                 07440000
+         DC    C' DYNALLOC RETURN CODE '                                07450000
+D03MSGH  DS    H                                                        07460000
+         DC    C', ERROR AND INFO CODE '                                07470000
+D03MSGI  DS    XL8                 SPACE FOR ERROR AND INFO CODES       07480000
+D03MSGL  EQU   *-D03MSG            LENGTH OF MESSAGE                    07490000
+         DC    XL4'20'             ROUTING CODE                         07500000
+TSOADR   DC    F'0'        DON'T KNOW ADDR OF IKJEFF02                  07510000
+         DC    X'80'      '80' WANT WTO, '00' WANT PUTLINE              07520000
+         DC    X'32'      '32' IF SVC99 USED, '01' IF DAIR USED         07530000
+         DC    C'JL'                                                    07540000
+D0399OK  L     R15,CALLAREA+12      RESTORE DYNALLOC RETURN CODE        07550000
+         MVC   #ERETDDN(10),DAVRTDDN COPY RETURNED DDNAME               07553011
+         MVC   #ERETDSN(46),DAVRTDDN COPY RETURNED DSNAME               07554011
+         JOLRETN                                                        07560000
+         DC H'0'    ABEND                                               07570000
+         SPACE 1                                                        07580000
+* NOW CHECK IF THE JCL CARD WE GENERATED WAS ONE FOR 'USES'       75128 07590000
+*  AND IF SO WE ALTER THE DISPOSITION, PUT IN A VREF, AND         75128 07600000
+*  GENERATE IT AGAIN.                                             75128 07610000
+         TM    DDDISP,X'C0'   USES ?                              75128 07620000
+         BO    D03USE2        YES                                 75128 07630000
+         JOLRETN RC=0         NO, FINISHED, SO RETURN NOW         75128 07640000
+D03USE2  NI    DDUSE,X'3F'    MAKE OLD NOW                        75128 07650000
+         MVC   DDDDNAME,LABEL (WHERE WE SAVED THE REAL DDNAME)    75128 07660000
+         CLEAR DDVOLUME                                           75128 07670000
+         MVC   DDVOLUME(7),=C'**.$$VU'                            75128 07680000
+         MVC   DDVOLUME+7(4),DDSTMT                               75128 07690000
+         OC    DDVOLUME+7(4),=C'0000'                                   07700000
+         MVI   DDRECFM,C'%'     MAKE NODCB, COS IF THE DATASET          07710000
+*                                     IS OLD, WE DONT WANT TO DESTROY   07720000
+*                             THE OLD DCB IN THE LABEL                  07730000
+         XC    #WORK(18),#WORK                                    75128 07740000
+         LA    R10,WORK+15                                        75128 07750000
+         B     D03TDSN                                            75128 07760000
+         JOLRETN                                                        07770000
+         AIF   ('&TYPE' NE 'SCHED').COMPAL1                             07771000
+TRANS    DS    CL300                                                    07773000
+.COMPAL1 ANOP                                                           07774000
+         DC  100S(*)                                                    07780000
+         LTORG                                                          07790000
+DYNCON    CSECT                                                         07800000
+          COPY    DYNAREAS                                              07810000

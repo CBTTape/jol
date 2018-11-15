@@ -1,0 +1,537 @@
+P27GETXT TITLE 'UJP27TXT, UJP27ATR '                             J51    00010000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1980.                          00020000
+* JOL COPYRIGHT CCS-JOL 1988      1991                                  00030000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00040000
+           SPACE 3                                                      00050000
+*                   J             000000            L                   00060000
+*                   J            0      0           L                   00070000
+*                   J           0        0          L                   00080000
+*                   J          0          0         L                   00090000
+*                   J         0            0        L                   00100000
+*                   J         0  ¨     ¨   0        L                   00110000
+*                   J         0  O     O   0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0     V      0        L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0   <____>   0        L                   00160000
+*        J          J         0            0        L                   00170000
+*         J        J           0          0         L                   00180000
+*          J      J             0        0          L                   00190000
+*           J    J               0      0           L                   00200000
+*            JJJJ                 000000            LLLLLLLLLLL         00210000
+         SPACE 3                                                        00220000
+         PRINT OFF                                                J50   00230000
+         COPY  JOLCOM                                                   00240000
+*      COPY CPY/JOLCOMD.CPY                                             00250000
+         PRINT ON                                                 J50   00260000
+*        COPY  P28PARMS                                           J50   00270000
+*                                                                       00280000
+* This routine simply gets the next text item in PANEL (UJP27PNL)       00290000
+*      or POPUP (P29), and sets various attributes and colors as        00300000
+*      necessary.                                                       00310000
+*                                                                       00320000
+XX3      DSECT                                                          00330000
+UJP27TXT JOLSAVE CSECT=UJP27TXT                                         00340000
+         TITLE 'UJP27TXT  GET TEXT, FIX ATTRS'                   J51    00350000
+* void         p27gettext()                                             00360000
+* {                                                                     00370000
+*                                                                       00380000
+* /* Get the text and attributes and store in "default" */              00390000
+* /* On exit, Tkn will point 1 past the comma. */                       00400000
+*                                                                       00410000
+        L       R10,P27GBL                                              00420000
+        USING   PANELWRK,R10                                            00430000
+*       WTO     'P27GETXT Called'                                       00440000
+*                                                                       00450000
+*     if (Tkn›0® == '(') gettkn(Tkncurr); /* Get next token */          00460000
+        CLI      TKN,C'('                                               00470000
+        BNE      P@1                                                    00480000
+        GETTKN   TKNCURR                                                00490000
+        STH      R1,TKNCURR                                             00500000
+P@1     DS       0H                                                     00510000
+*                                                                       00520000
+*     if (Tkn›0® == ',') gettkn(Tkncurr); /* Get next token */          00530000
+*                                                                       00540000
+        CLI      TKN,C','                                               00550000
+        BNE      P@2                                                    00560000
+        GETTKN   TKNCURR                                                00570000
+        STH      R1,TKNCURR                                             00580000
+P@2     DS       0H                                                     00590000
+*                                                                       00600000
+* internal_loop:                                                        00610000
+*                                                                       00620000
+PINTLUP DS       0H                                                     00630000
+*                                                                       00640000
+*     if (Tkncurr > stackno) return;/* end of parameters */             00650000
+*                                                                       00660000
+         CLC     TKNCURR,TKNNO                                          00670000
+         BNH     P@3                                                    00680000
+P@RET0   JOLRETN RC=0                                                   00690000
+P@3      DS      0H                                                     00700000
+*                                                                       00710000
+*     if (Tkn_type is numeric                                           00720000
+*                                                                       00730000
+        CLI      TKNTYPE,0            Numeric                           00740000
+        BE       P@RET0                                                 00750000
+*                                                                       00760000
+*     if (Tkn›0® == ')') return;                                        00770000
+*                                                                       00780000
+        CLI      TKN,C')'                                               00790000
+        BE       P@RET0                                                 00800000
+*                                                                       00810000
+*     if (Tkn›0® == '(') goto  backup;                                  00820000
+*                           /* In  someone leaves a bracket off !! */   00830000
+*                                                                       00840000
+        CLI      TKN,C'('                                               00850000
+        BE       P@BACK                                                 00860000
+*                                                                       00870000
+*     if (Tkn›0® == '/')   /* In  someone leaves a bracket off !! */    00880000
+*     {                                                                 00890000
+*                                                                       00900000
+        CLI      TKN,C'/'                                               00910000
+        BE       P@BACK                                                 00920000
+        B        P@4                                                    00930000
+*                                                                       00940000
+* backup:                                                               00950000
+*         Tkncurr = Tkncurr - 1;                                        00960000
+*                                                                       00970000
+P@BACK  DS       0H                                                     00980000
+        LH       R1,TKNCURR                                             00990000
+        SH       R1,=H'1'                                               01000000
+        STH      R1,TKNCURR                                             01010000
+*                                                                       01020000
+*         cpychar(Tkn,')');                                             01030000
+        MVC      #TKN,=H'1'                                             01040000
+        MVC       TKN(2),=C') '                                         01050000
+        JOLRETN   RC=0                                                  01060000
+*         return;                                                       01070000
+*     }                                                                 01080000
+*                                                                       01090000
+P@4     DS       0H                                                     01100000
+*                                                                       01110000
+*     if (Tkn›0® == ',')                                                01120000
+*     {                                                                 01130000
+*                                                                       01140000
+        CLI      TKN,C','                                               01150000
+        BNE      P@5                                                    01160000
+*                                                                       01170000
+*         gettkn(Tkncurr);                /* Skip ',' */                01180000
+        GETTKN   TKNCURR                                                01190000
+        STH      R1,TKNCURR                                             01200000
+        JOLRETN  RC=0                                                   01210000
+*         return;                                                       01220000
+*     }                                                                 01230000
+*                                                                       01240000
+P@5     DS       0H                                                     01250000
+*                                                                       01260000
+*     if (Tkn›0® == '\'')                                               01270000
+        CLI      TKN,C''''                                              01280000
+        BNE      P@6                                                    01290000
+*                                                                       01300000
+*     {   if ((clclit(Tkn, "''") == 0))                                 01310000
+*              clear(Tkn)                                               01320000
+*         else dropquotes(Tkn);                                         01330000
+*                                                                       01340000
+        DROPQUSR #TKN                                                   01350000
+*                                                                       01360000
+*         cat(default_txt , Tkn);                                       01370000
+          CAT DEFTXT,TKN                                                01380000
+*         cat(default_with_attrs , Tkn);                                01390000
+          CAT DEFTXTA,TKN                                               01400000
+*         gettkn(Tkncurr);                /* Get next token */          01410000
+P29SKPTK  DS     0H                                                     01420000
+        GETTKN   TKNCURR                                                01430000
+        STH      R1,TKNCURR                                             01440000
+*         goto internal_loop;                                           01450000
+        B        PINTLUP                                                01460000
+*     }                                                                 01470000
+*                                                                       01480000
+*                                                                       01490000
+P@6     DS       0H                                                     01500000
+*                                                                       01510000
+*                                                                       01520000
+*     if (!t_attrib()) {                                                01530000
+        CALL    UJP27ATR                                                01540000
+        LTR     R15,R15                                                 01550000
+        BZ      P29SKPTK                                                01560000
+*           {                                                           01570000
+*       jolerr  'P27412','Symbol ''',#TKN,''' Invalid in POPUP'         01580000
+        JOLERR  415,'Symbol ''',#TKN,''' Invalid in POPUP'              01590000
+*       WTO      TKN                                                    01600000
+*                                                                       01610000
+*     gettkn(Tkncurr); /* get real text */                              01620000
+        GETTKN   TKNCURR                                                01630000
+        STH      R1,TKNCURR                                             01640000
+*     goto internal_loop;                                               01650000
+*  } /* Procedure */                                                    01660000
+*                                                                       01670000
+        B        PINTLUP                                                01680000
+        JOLRETN                                                         01690000
+        LTORG                                                           01700000
+         DC   140S(*)                                                   01710000
+*                                                                       01720000
+*                                                                       01730000
+XX4      DSECT                                                          01740000
+UJP27ATR JOLSAVE CSECT=UJP27ATR                                         01750000
+         TITLE 'UJP27TXT  CHECK ATTRIBUTES (BOLD, RED ETC)'      J51    01760000
+        L       R10,P27GBL                                              01770000
+        USING   PANELWRK,R10                                            01780000
+*       WTO     'UJP27ATR Called'                                       01790000
+*char         t_attrib(void)                                            01800000
+*                                                                       01810000
+* /* Test Attributes */                                                 01820000
+*{                                                                      01830000
+*      static char        * attr_txt›® = {                              01840000
+*                          "BRIGHT",                                    01850000
+*                          "BOLD",                                      01860000
+*                          "DARK",                                      01870000
+*                          "",                                          01880000
+*                          "UNDERLINE",                                 01890000
+*                          "FLASH",                                     01900000
+*                          "REVERSE",                                   01910000
+*                          "INVISIBLE"};                                01920000
+*                                                                       01930000
+*      static char        * color_txt›® = {                             01940000
+*                          "BLACK",                                     01950000
+*                          "RED",                                       01960000
+*                          "GREEN",                                     01970000
+*                          "YELLOW",                                    01980000
+*                          "BLUE",                                      01990000
+*                          "MAGENTA",                                   02000000
+*                          "CYAN",                                      02010000
+*                          "WHITE"};                                    02020000
+*      int          kk;                                                 02030000
+*                                                                       02040000
+*    for (kk = 0; kk <= 7; kk++)                                        02050000
+*    {                                                                  02060000
+*         if (memcmp(Tkn , attr_txt›kk®, length(Tkn)) ==0)              02070000
+*         {                                                             02080000
+*              if ((kk==0 ) || (kk==1))   /* Bold or Bright ? */        02090000
+*                  bold_specified = true;                               02100000
+*                                                                       02110000
+*              if (kk >= 2) kk = kk - 1;                                02120000
+*              catlit(default_with_attrs, "\033›");                     02130000
+*              catchar(default_with_attrs, kk + 49);                    02140000
+*              catchar(default_with_attrs, 'm');                        02150000
+*              return true;                                             02160000
+*         }                                                             02170000
+*    }                                                                  02180000
+*                                                                       02190000
+*/*  fix - was commented * /                                            02200000
+*  else;                                                                02210000
+*    if ((strcmp(Tkn, "BRIGHT") == 0))          p27fixattr('1');        02220000
+*    else  if ((strcmp(Tkn, "BOLD") == 0))      p27fixattr('1');        02230000
+        CLC     =C'BRIGHT ',TKN                                         02240000
+        BE      A@BOLD                                                  02250000
+        CLC     =C'HI ',TKN                                             02260000
+        BE      A@BOLD                                                  02270000
+        CLC     =C'BOLD ',TKN                                           02280000
+        BNE     A@1                                                     02290000
+*A@BOLD  P27FXATR X'F4'                                                 02300000
+A@BOLD  DS      0H                                                      02310000
+         CLI   VIDSFE,0         Does this Terminal take colors ?  J51   02320001
+         BE    CANTBOLD         No, so ignore colours, attributes J51   02330000
+         LH    R1,#DEFTXTA             GET CURRENT LENGTH OF STRING     02340000
+         LA    R1,3(R1)                ADD 3 FOR COLOR RESET            02350000
+         STH   R1,#DEFTXTA             RESET                            02360000
+         LA    R1,DEFTXTA-3(R1)        POINT TO END OF STRING           02370000
+         MVC   0(1,R1),VIDSA           Fujitsu OR IBM Set Attribute     02380000
+         MVI   1(R1),X'42'             SET COLOUR TYPE                  02390000
+         MVC   2(1,R1),VIDHICLR        SET THE Default 'hi' COLOUR      02400000
+        B       ATRDUN1                                           J52   02410000
+CANTBOLD DS     0H                                                      02420000
+         LH    R1,#DEFTXTA             GET CURRENT LENGTH OF STRING52   02430000
+         LA    R1,2(R1)                ADD 2 FOR Mono BOLD        J52   02440000
+         STH   R1,#DEFTXTA             RESET                      J52   02450000
+         LA    R1,DEFTXTA-2(R1)        POINT TO END OF STRING     J52   02460000
+         MVC   0(1,R1),VIDSF           Fujitsu OR IBM Set Attribute52   02470000
+         MVI   1(R1),X'E8'             Make BOLD                  J52   02480000
+        B       ATRDUN1                                                 02490000
+A@1     DS      0H                                                      02500000
+*    else  if ((strcmp(Tkn, "NORMAL") == 0))    p27fixattr('2');        02510000
+        CLC     =C'NORMAL ',TKN                                         02520000
+        BNE     A@2                                                     02530000
+        P27FXATR X'00'                                                  02540000
+         CLI   VIDSFE,0         Does this Terminal take colors ?  J51   02550001
+         BE    CANTNORM         No, so ignore colours, attributes J51   02560000
+         LH    R1,#DEFTXTA             GET CURRENT LENGTH OF STRING     02570000
+         LA    R1,3(R1)                ADD 3 FOR COLOR RESET            02580000
+         STH   R1,#DEFTXTA             RESET                            02590000
+         LA    R1,DEFTXTA-3(R1)        POINT TO END OF STRING           02600000
+         MVC   0(1,R1),VIDSA           Fujitsu OR IBM Set Attribute     02610000
+         MVI   1(R1),X'42'             SET COLOUR TYPE                  02620000
+         MVC   2(1,R1),VIDLOCLR        SET THE Default 'lo' COLOUR      02630000
+        B       ATRDUN1                                           J52   02640000
+CANTNORM DS     0H                                                      02650000
+         LH    R1,#DEFTXTA             GET CURRENT LENGTH OF STRING52   02660000
+         LA    R1,2(R1)                ADD 2 FOR Mono BOLD        J52   02670000
+         STH   R1,#DEFTXTA             RESET                      J52   02680000
+         LA    R1,DEFTXTA-2(R1)        POINT TO END OF STRING     J52   02690000
+         MVC   0(1,R1),VIDSF           Fujitsu OR IBM Set Attribute52   02700000
+         MVI   1(R1),X'60'             Make NORMAL                J52   02710000
+        B       ATRDUN1                                                 02720000
+A@2     DS      0H                                                      02730000
+*    else  if ((strcmp(Tkn, "UNDERLINE") == 0)) p27fixattr('4');        02740000
+        CLC     =C'UNDERLINE ',TKN                                      02750000
+        BNE     A@3                                                     02760000
+        P27FXATR X'F4'                                                  02770000
+        B       ATRDUN1                                                 02780000
+A@3     DS      0H                                                      02790000
+*    else  if ((strcmp(Tkn, "FLASH") == 0))     p27fixattr('5');        02800000
+        CLC     =C'FLASH ',TKN                                          02810000
+        BE      P@FLASH                                                 02820000
+        CLC     =C'BLINK ',TKN                                          02830000
+        BNE     A@4                                                     02840000
+P@FLASH P27FXATR X'F1'                                                  02850000
+        B       ATRDUN1                                                 02860000
+A@4     DS      0H                                                      02870000
+*    else  if ((strcmp(Tkn, "REVERSE") == 0))   p27fixattr('7');        02880000
+        CLC     =C'REVERSE ',TKN                                        02890000
+        BNE     A@5                                                     02900000
+        P27FXATR X'F2'                                                  02910000
+        B       ATRDUN1                                                 02920000
+A@5     DS      0H                                                      02930000
+*    else  if ((strcmp(Tkn, "INVISIBLE") == 0)) p27fixattr('8');        02940000
+        CLC     =C'INVISIBLE ',TKN                                      02950000
+        BNE     A@6                                                     02960000
+        P27FXATR X'00'                                                  02970000
+        B       ATRDUN1                                                 02980000
+A@6     DS      0H                                                      02990000
+*/ *  fix - was commented */                                            03000000
+*                                                                       03010000
+*                                                                       03020000
+*                                                                       03030000
+* /* Test Colours */                                                    03040000
+*                                                                       03050000
+*    for (kk = 0; kk <= 7; kk++)                                        03060000
+*    {                                                                  03070000
+*         if (memcmp(Tkn , color_txt›kk®, length(Tkn))==0)              03080000
+*         {                                  /* Overriding attribute */ 03090000
+*                                                                       03100000
+*              if (bold_specified == false)     /* ANSI doesn't have a  03110000
+*                                                OFF, unfortunately */  03120000
+*              {                                                        03130000
+*                 catlit (default_with_attrs , "\033›0;");              03140000
+*                 cat    (default_with_attrs,  videobackground);        03150000
+*                 catchar(default_with_attrs , 'm');                    03160000
+*              }                                                        03170000
+*                                                                       03180000
+*              catlit(default_with_attrs , "\033›3");                   03190000
+*              catchar(default_with_attrs,kk + 48);                     03200000
+*              catchar(default_with_attrs , 'm');                       03210000
+*              return true;                                             03220000
+*         }                                                             03230000
+*    }                                                                  03240000
+*                                                                       03250000
+*                                                                       03260000
+* /*  fix - was commented * /                                           03270000
+*                                                                       03280000
+*    else    if ((strcmp(Tkn, "BLACK") == 0))   p27fixcolour('0');      03290000
+        CLC     =C'BLACK ',TKN                                          03300000
+        BNE     C@1                                                     03310000
+        P27FXCOL X'00'                                                  03320000
+        B       COLRDUN1                                                03330000
+C@1     DS      0H                                                      03340000
+*    else    if ((strcmp(Tkn, "RED") == 0))     p27fixcolour('1');      03350000
+        CLC     =C'RED ',TKN                                            03360000
+        BNE     C@2                                                     03370000
+        P27FXCOL X'F2'                        F2 ?                J51   03380000
+        B       COLRDUN1                                                03390000
+C@2     DS      0H                                                      03400000
+*    else    if ((strcmp(Tkn, "GREEN") == 0))   p27fixcolour('2');      03410000
+        CLC     =C'GREEN ',TKN                                          03420000
+        BNE     C@3                                                     03430000
+        P27FXCOL X'F4'                        F4 ?                      03440000
+        B       COLRDUN1                                                03450000
+C@3     DS      0H                                                      03460000
+*    else    if ((strcmp(Tkn, "YELLOW") == 0))  p27fixcolour('3');      03470000
+        CLC     =C'YELLOW ',TKN                                         03480000
+        BNE     C@4                                                     03490000
+        P27FXCOL X'F6'                        F6 ?                J51   03500000
+        B       COLRDUN1                                                03510000
+C@4     DS      0H                                                      03520000
+*    else    if ((strcmp(Tkn, "BLUE") == 0))    p27fixcolour('4');      03530000
+        CLC     =C'BLUE ',TKN                                           03540000
+        BNE     C@5                                                     03550000
+        P27FXCOL X'F1'                        F1 ?                      03560000
+        B       COLRDUN1                                                03570000
+C@5     DS      0H                                                      03580000
+*    else    if ((strcmp(Tkn, "MAGENTA") == 0)) p27fixcolour('5');      03590000
+*    else    if ((strcmp(Tkn, "MAG") == 0))     p27fixcolour('5');      03600000
+        CLC     =C'MAGENTA ',TKN                                        03610000
+        BNE     C@6                                                     03620000
+        P27FXCOL X'F3'                        F3 ?                J51   03630000
+        B       COLRDUN1                                                03640000
+C@6     DS      0H                                                      03650000
+*    else    if ((strcmp(Tkn, "CYAN") == 0))    p27fixcolour('6');      03660000
+        CLC     =C'CYAN ',TKN                                           03670000
+        BNE     C@7                                                     03680000
+        P27FXCOL X'F5'                        F5 ?                J51   03690000
+        B       COLRDUN1                                                03700000
+C@7     DS      0H                                                      03710000
+*    else    if ((strcmp(Tkn, "WHITE") == 0))   p27fixcolour('7');      03720000
+        CLC     =C'WHITE ',TKN                                          03730000
+        BNE     C@8                                                     03740000
+        P27FXCOL X'F7'                        F7 ?                      03750000
+        B       COLRDUN1                                                03760000
+C@8     DS      0H                                                      03770000
+        B       THI@LITE                                                03780000
+*  / *  fix - was commented */                                          03790000
+*                                                                       03800000
+*                                                                       03810000
+ATRDUN1  B     AT@DONE                                                  03820000
+COLRDUN1 B     CL@DONE                                                  03830000
+AT@DONE  DS    0H                                                       03840000
+CL@DONE  DS    0H                                                       03850000
+         JOLRETN RC=0                                                   03860000
+*                                                                       03870000
+*                                                                       03880000
+*                                                                       03890000
+THI@LITE DS    0H                                                       03900000
+*                                                                       03910000
+*    if (((clclit(Tkn, "HIGHLIGHT") == 0))                              03920000
+*    ||  ((clclit(Tkn, "HI") == 0)))                                    03930000
+*    {                                                                  03940000
+*        catlit (default_with_attrs,"\033›0;");                         03950000
+*        cat    (default_with_attrs,videobackground);                   03960000
+*        catchar(default_with_attrs,';');                               03970000
+*        cat    (default_with_attrs , videohighlight);                  03980000
+*        catchar(default_with_attrs , 'm');                             03990000
+*    }                                                                  04000000
+*                                                                       04010000
+*    else if (clclit(Tkn, "NORMAL") == 0)                               04020000
+*    {                                                                  04030000
+*        catlit (default_with_attrs,"\033›0;");                         04040000
+*        cat    (default_with_attrs,videobackground);                   04050000
+*        catchar(default_with_attrs,';');                               04060000
+*        cat    (default_with_attrs , videolowlight);                   04070000
+*        catchar(default_with_attrs , 'm');                             04080000
+*    }                                                                  04090000
+*    else    if ((clclit(Tkn, "CTR") == 0)) centre = true;              04100000
+        CLC     =C'CTR ',TKN                                            04110000
+        BE      TISCTR                                            J52   04120000
+        CLC     =C'CENTRE ',TKN                                   J52   04130000
+        BE      TISCTR                                            J52   04140000
+        CLC     =C'CENTER ',TKN                                   J52   04150000
+        BNE     T@1                                               J52   04160000
+TISCTR  DS      0H                                                J52   04170000
+        OI     P27FLAGS,P27F1CTR CENTRE THE LINE                  J40B  04180000
+        B       SPECDUN1                                                04190000
+T@1     DS      0H                                                      04200000
+*    else    if ((clclit(Tkn, "MENUBAR") == 0))                         04210000
+        CLC     =C'MENUBAR ',TKN                                        04220000
+        BNE     T@2                                                     04230000
+*    {                                                                  04240000
+*        if (currrow < 3)                                               04250000
+        CLC    CURRROW,=H'3'                                            04260000
+        BH     P27MENER                                                 04270000
+*        {                                                              04280000
+        MVI    P27MENUB,1         Specify MenuBar Flag                  04290000
+        OI     P27FLAGS,P27F1CTR CENTRE THE LINE                        04300000
+        B       SPECDUN1                                                04310000
+*            menubar = true;                                            04320000
+*            centre = true;                                             04330000
+*        }                                                              04340000
+*        else                                                           04350000
+P27MENER DS    0H                                                       04360000
+*        {                                                              04370000
+*            jolerrlit("P27325", "MENUBAR must be specified first");    04380000
+         JOLERR 325,'MENUBAR must be specified first'                   04390000
+         JOLRETN  RC=4                                                  04400000
+*            return false;                                              04410000
+*        }                                                              04420000
+*    }                                                                  04430000
+*                                                                       04440000
+T@2     DS      0H                                                      04450000
+*                                                                       04460000
+        CLC     =C'BOX ',TKN                                            04470000
+        BNE     THELPL                                                  04480000
+         JOLRETN  RC=0                                                  04490000
+*    else    if ((clclit(Tkn, "HELPLINE") == 0))                        04500000
+THELPL  CLC     =C'HELPLINE ',TKN                                       04510000
+        BNE     T@3                                                     04520000
+*    {                                                                  04530000
+*            helpline = true;                                           04540000
+*            centre = true;                                             04550000
+        MVI    P27HELPL,1         Specify Help Flag                     04560000
+        OI     P27FLAGS,P27F1CTR CENTRE THE LINE                        04570000
+        B       SPECDUN1                                                04580000
+*    }                                                                  04590000
+*                                                                       04600000
+T@3     DS     0H                                                       04610000
+*                                                                       04620000
+* /* else if Tkn='TEXT'    then txt_mode:='1'b; */                      04630000
+* /* else if Tkn='ENDTEXT' then txt_mode:='0'b; */                      04640000
+*    else if ((clclit(Tkn, "BOX") == 0)) draw_box = true;               04650000
+*    else if ((clclit(Tkn, "NOCLS") == 0)) clscr = false;               04660000
+*    else                                                               04670000
+*    if ((clclit(Tkn, "LM") == 0)) {                                    04680000
+        CLC     =C'LM ',TKN                                             04690000
+        BNE     T@4                                                     04700000
+*        p27getnum(); /* get LHS Margin  */                             04710000
+        GETTKN  TKNCURR                                                 04720000
+        STH     R1,TKNCURR                                              04730000
+        TNUM    #TKN                                                    04740000
+        LTR     R15,R15                                                 04750000
+        BZ      LM@OK                                                   04760000
+*                                                                       04770000
+*        if (number == 0)                                               04780000
+*        {                                                              04790000
+         JOLERR 316,'LM ''',#TKN,''' Incorrect'                         04800000
+*            cpylit(errtext, "LM incorrect:");                          04810000
+*            cat   (errtext, Tkn);                                      04820000
+*            jolerr("P27315");                                          04830000
+*            return false;                                              04840000
+         JOLRETN RC=4                                                   04850000
+*        }                                                              04860000
+LM@OK    DS     0H                                                      04870000
+         STH    R1,LHSMARG                                              04880000
+*        lhs_margin = number;                                           04890000
+*        if (draw_box)                                                  04900000
+*             screen_width = 78 - (lhs_margin + rhs_margin);            04910000
+*        else screen_width = 80 - (lhs_margin + rhs_margin);            04920000
+*        return true;                                                   04930000
+         JOLRETN RC=0                                                   04940000
+*    }                                                                  04950000
+*    else                                                               04960000
+T@4     DS     0H                                                       04970000
+*    if ((clclit(Tkn, "RM") == 0))                                      04980000
+        CLC     =C'RM ',TKN                                             04990000
+        BNE     T@5                                                     05000000
+*    {                                                                  05010000
+        GETTKN  TKNCURR                                                 05020000
+        STH     R1,TKNCURR                                              05030000
+        TNUM    #TKN                                                    05040000
+        LTR     R15,R15                                                 05050000
+        BZ      RM@OK                                                   05060000
+*        p27getnum(); /* get LHS Margin  */                             05070000
+*                                                                       05080000
+*        if (number == 0) {                                             05090000
+         JOLERR 317,'RM ''',#TKN,''' Incorrect'                         05100000
+*            cpylit(errtext, "RM incorrect:");                          05110000
+*            cat   (errtext, Tkn);                                      05120000
+*            jolerr("P27316");                                          05130000
+*            return false;                                              05140000
+         JOLRETN RC=4                                                   05150000
+*        }                                                              05160000
+*        rhs_margin = number;                                           05170000
+RM@OK    DS     0H                                                      05180000
+         STH    R1,RHSMARG                                              05190000
+*        if (draw_box)                                                  05200000
+*        screen_width = 78 - (lhs_margin + rhs_margin);                 05210000
+*        else screen_width = 80 - (lhs_margin + rhs_margin);            05220000
+*        return true;                                                   05230000
+         JOLRETN RC=0                                                   05240000
+*    }                                                                  05250000
+*    else if ((clclit(Tkn, "NOWAIT") == 0)) nowait = true;              05260000
+*    else {                                                             05270000
+*        return false;                                                  05280000
+*    }                                                                  05290000
+T@5      DS      0H                                                     05300000
+         JOLRETN RC=4                                                   05310000
+SPECDUN1 DS      0H                                                     05320000
+         JOLRETN RC=0                                                   05330000
+*    return true;                                                       05340000
+*} /* Procedure */                                                      05350000
+         LTORG                                                          05360000
+         DC   140S(*)                                                   05370000

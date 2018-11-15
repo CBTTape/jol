@@ -1,0 +1,72 @@
+           MACRO                                                        00010000
+&NAME      GENSAVE &AREA=,&CSECT=,&BASE=11                              00020000
+           GBLA &REGEQU                                                 00030000
+.* SEE IF EQUATES SET UP FOR THIS RUN YET OR NOT                        00040000
+           AIF (&REGEQU NE 0).NOEQU                                     00050000
+&CSECT     CSECT                                                        00060000
+R0         EQU 0                                                        00070000
+R1         EQU 1                                                        00080000
+R2         EQU 2                                                        00090000
+R3         EQU 3                                                        00100000
+R4         EQU 4                                                        00110000
+R5         EQU 5                                                        00120000
+R6         EQU 6                                                        00130000
+R7         EQU 7                                                        00140000
+R8         EQU 8                                                        00150000
+R9         EQU 9                                                        00160000
+R10        EQU 10                                                       00170000
+R11        EQU 11                                                       00180000
+R12        EQU 12                                                       00190000
+R13        EQU 13                                                       00200000
+R14        EQU 14                                                       00210000
+R15        EQU 15                                                       00220000
+&REGEQU    SETA 1                                                       00230000
+           AGO .NOCSECT                                                 00240000
+.NOEQU     ANOP                                                         00250000
+           AIF ('&CSECT' EQ '').NOCSECT                                 00260000
+           LTORG                                                        00270000
+&CSECT     CSECT                                                        00280000
+.NOCSECT   ANOP                                                         00290000
+&NAME      SAVE (14,12),,&CSECT..&SYSDATE..&SYSTIME               76200 00300000
+           AIF (N'&BASE EQ 1).ONEBASE                                   00310000
+           USING  &CSECT,&BASE(1),&BASE(2)                              00320000
+           LR  &BASE(1),15                                              00330000
+           LA  &BASE(2),2048(15)                                        00340000
+           LA  &BASE(2),2048(&BASE(2))                                  00350000
+           AGO .HOUSE                                                   00360000
+.ONEBASE   ANOP                                                         00370000
+           USING  &CSECT,&BASE                                          00380000
+           LR  &BASE,15                                                 00390000
+.HOUSE     AIF ('&AREA' EQ '').GENAREA                                  00400000
+           MNOTE 12,'AREA NOW UNSUPPORTED'                              00410000
+           AGO .HOUSE2                                                  00420000
+.GENAREA   CNOP 0,4                                                     00430000
+           BAL 15,*+76         BRANCH AROUND SAVE AREA                  00440000
+           DC  18F'0'                                                   00450000
+.HOUSE2    ST  15,8(,13)                                                00460000
+           ST  13,4(,15)                                                00470000
+           LR  13,15                                                    00480000
+           MEND                                                         00490000
+     TITLE 'XA/AE : CHECK ROUTINES FUNCTIONS'                           00500000
+           PRINT DATA                                             75311 00510000
+           SPACE                                                        00520000
+           GENSAVE CSECT=XAUNIT                                         00530000
+*          LOAD EP=IEFAB4UV                                             00540005
+*          ST   R0,AUNITRTN                                             00550005
+*          LR   R6,R0                                                   00560005
+*          DELETE EP=IEFAB4UV                                           00570004
+*          LR   R15,R6                                                  00580005
+           LA   R1,A121                                                 00590000
+           LINK EP=IEFAB4UV                                             00600007
+*          LINK EP=IEFEB4UV                                             00610008
+*          BALR R14,R15                                                 00620005
+           DC   H'0'                                                    00630000
+AUNITRTN   DC   A(0)                                                    00640000
+A121       DC   A(UNITTABL)                                             00650000
+           DC   A(FLAGS)                                                00660000
+UNITTABL   DC   CL8'SYSDA'                                              00670000
+           DC   F'1'                                                    00680000
+           DC   A(ABC)                                                  00690000
+FLAGS      DC   B'1000000001000000'                                     00700000
+ABC        DC   CL32' '                                                 00710000
+           END                                                          00720000

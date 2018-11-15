@@ -1,0 +1,94 @@
+         MACRO                                                    J50   00001010
+&L       HEX   &FROM,&TO                                          J50   00002010
+         UNPK  HEXCONV,&FROM.(5)                                  J50   00002110
+         TR    HEXCONV,HEXTAB                                     J50   00002210
+         MVC   &TO,HEXCONV                                        J50   00002310
+         MEND                                                     J50   00003010
+         COPY  JOLGLOBL                                          88036  00010005
+         LCLC  &C                                                       00030000
+         $UJEPARM                                                       00040000
+         PUNCH '                 PAGE @@@JOBQ'                    J50   00050008
+         GENSAVE CSECT=@@@JOBQ                                          00070001
+         SPACE 1                                                        00320000
+* ON ENTRY,R1 POINTS TO :-                                              00340000
+*     1.  A(AREA TO READ/WRITE DATA TOO)                                00350000
+*     2.  A(TTR OF RECORD REQUIRED)                                     00360000
+*     3.  INDIC TO SAY READ/WRITE ETC (SEE QMPA INDICATORS)             00370000
+*     4.  ADDRESS OF IEFQMRAW                                           00380000
+         ST    R1,APARMS                                          J50   00401008
+         MVC   OURPARMS,0(R1)                                     J50   00402007
+CHEK3    NOP   DUMMY                                              J50   00420001
+CHEK     NOP   CHEKKED                                            J50   00430001
+         OI    CHEK+1,X'F0'                                       J50   00440001
+* NOW CHECK IF THE 'OFILE' DCB IS OPEN, AND IF SO RECORD THE RECORD     00450001
+         TM    OFILE+48,X'10'  OPEN                               ***** 00460001
+CHEK2    BO    OPENED          NO, TEST 'SWA' THEN                ***** 00470001
+         OI    CHEK2+1,X'F0'                                      J50   00480001
+         OPEN  (OFILE,OUTPUT)                                     J50   00490001
+         LTR   R15,R15                                            J50   00500001
+         BZ    OPENED                                             J50   00510001
+         OI    CHEK3+1,X'F0'                                      J50   00520001
+         B     DUMMY                                              J50   00530001
+         SPACE 1                                                        00540001
+CHEKKED  DS    0H                                                 J50   00550002
+OPENED   DS    0H                                                 J50   00551002
+         HEX   TTRREQD,OPTTR                                      J50   00560010
+         HEX   AREAADDR,OPAREA                                    J50   00570011
+         HEX   RETADDR,OPRETN                                     J50   00580010
+         CLI   QMPOP+3,3         WRITE FUNCTION ?                 ***** 00600012
+         BE    JOBQWRIT        YES.                               ***** 00610001
+         L     R1,APARMS                                          J50   00620008
+         CALL  OLDJOBQ                                            J50   00630001
+         LTR   R15,R15                                            J50   00640001
+         BNZ   UJERETN                                            J50   00660001
+         MVI   OPTYPE,C'I'                                        J50   00670001
+         L     R1,AREAADDR                                        J50   00680008
+         MVC   OPDATA,0(R1)                                       J50   00690001
+         WRITE JOBQDECB,SF,MF=E                                   ***** 00700001
+         CHECK JOBQDECB                                           ***** 00710001
+UJERETN  GENRETN                                                        00720001
+JOBQWRIT DS    0H                                                 J50   00730001
+         MVI   OPTYPE,C'O'                                        J50   00740001
+         L     R1,AREAADDR                                        J50   00750001
+         MVC   OPDATA,0(R1)                                       J50   00760001
+         WRITE JOBQDECB,SF,MF=E                                   ***** 00770001
+         CHECK JOBQDECB                                           ***** 00780001
+         OC    TTRREQD,TTRREQD                                    J50   00790013
+         BNE   DUMMY                                              J50   00800013
+         EX    0,*                                                J50   00810013
+         DC    C'WRITING RECORD AT TTR=0'                      J50      00820013
+DUMMY    DS    0H                                                 J50   00840001
+         L     R15,=V(OLDJOBQ)   ADDRESS THE REAL ONE             J50   00850003
+         L     R13,4(,R13)                                        J50   00860001
+         L     R14,12(,R13)                                       J50   00870001
+         LM    R0,R12,20(R13)                                     J50   00880001
+         BR    R15                                                J50   00890001
+         LTORG                                                          00900001
+         DS    0D                                                 J50   00900109
+         DC    2CL8'OPREC'                                        J50   00901009
+OURPARMS DS    0XL40                                                    00902012
+AREAADDR DS    A                                                        00903010
+TTRREQD  DS    A              TTR WE WANT TO READ OR WRITE              00904010
+QMPOP    DS    A              LAST BYTE =3/4                            00905010
+AIEFQMRA DS    A              IEFQMRAW IS LOADED BY THE MONITOR         00906010
+         DS    5F                                                       00909011
+RETADDR  DS    A                                                        00909110
+OPREC    DS    0D                                                       00910001
+OPTYPE   DC    C'O='             I¦O                                    00920001
+OPTTR    DC    C'00000000',C'  A='                                      00930011
+OPAREA   DC    CL8' ',C' R='                                      J50   00930111
+OPRETN   DS    CL8' ',C' '                                        J50   00930210
+APARMS   DS    A                                                  J50   00930310
+         DS    0F                                                 J50   00939007
+OPDATA   DC    XL176'00'                                                00940001
+OPRECLEN EQU   *-OPREC                                            J50   00950001
+TEMP     DS    XL5                                                J50   00960001
+         DS    0D                                                       00970001
+HEXCONV  DS    CL9                                                J50   00980001
+HEXTAB   EQU   *-240                                              J50   00990001
+         DC    C'0123456789ABCDEF'                                J50   01000001
+         READ  JOBQDECB,SF,OFILE,OPREC,OPRECLEN,MF=L                    01010004
+OFILE    DCB   DDNAME=$JOLJOBQ,DSORG=PS,MACRF=W,LRECL=OPRECLEN,   J50  .01020001
+               RECFM=F,BLKSIZE=OPRECLEN                                 01030001
+         SPACE 3                                                        01040001
+         END                                                            01130001

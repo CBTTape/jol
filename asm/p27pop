@@ -1,0 +1,1925 @@
+P27POP   TITLE 'UJP27TXT, UJP27ATR '                             J51    00010000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1980.                          00020000
+* JOL COPYRIGHT CCS-JOL 1988      1991                                  00030000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00040000
+           SPACE 3                                                      00050000
+*                   J             000000            L                   00060000
+*                   J            0      0           L                   00070000
+*                   J           0        0          L                   00080000
+*                   J          0          0         L                   00090000
+*                   J         0            0        L                   00100000
+*                   J         0  ¨     ¨   0        L                   00110000
+*                   J         0  O     O   0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0     V      0        L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0   <____>   0        L                   00160000
+*        J          J         0            0        L                   00170000
+*         J        J           0          0         L                   00180000
+*          J      J             0        0          L                   00190000
+*           J    J               0      0           L                   00200000
+*            JJJJ                 000000            LLLLLLLLLLL         00210000
+         SPACE 3                                                        00220000
+*                                                                       00230000
+*********************************************************************** 00240000
+*                                                                     * 00250000
+*                                                                     * 00260000
+*                                                                     * 00270000
+*                                                                     * 00280000
+*                   DO JOL POPUP                                      * 00290000
+*                                                                     * 00300000
+*                                                                     * 00310000
+*         Note: Mainframes don't have rodents (yet!)                  * 00320000
+*                                                                     * 00330000
+*                                                                     * 00340000
+*                                                                     * 00350000
+*   Now, the PC version saves the part of the screen that is          * 00360000
+*   about to be over-written, then calls the Jol Panel Routine.       * 00370000
+*                                                                     * 00380000
+*   What this means is that Jol itself protects what would normally   * 00390000
+*   be 3270 non-protected fields.                                     * 00400000
+*                                                                     * 00410000
+*                                                                     * 00420000
+*   We can't do this on a 3270, so we will resend the screen          * 00430000
+*   with only enough unprotected fields for the "pop-up".             * 00440000
+*                                                                     * 00450000
+*                                                                     * 00460000
+*                                                                     * 00470000
+*                                                                     * 00480000
+*********************************************************************** 00490000
+*                                                                       00500000
+*        PRINT OFF                                                J50   00510000
+         COPY  JOLCOM                                                   00520000
+*      COPY CPY/JOLCOMD.CPY                                             00530000
+         PRINT ON                                                 J50   00540000
+         COPY  P28PARMS                                           J50   00550000
+POPCOLOR EQU   VCYAN             Set default color of CYAN        J51   00560000
+*                                                                       00570000
+* This is the Jol popup.                                                00580000
+*                                                                       00590000
+* It differs from the PC version in a number of ways - due to the       00600000
+*    totally different method needed to get data to and from the        00610000
+*    3270 type screens.                                                 00620000
+*                                                                       00630000
+* For example, on a PC it is quite easy to write bits of data to        00640000
+*    the screen, whereas a 3270 requires that you do it all in one      00650000
+*    write, otherwise severe inefficencies will result.                 00660000
+*                                                                       00670000
+* Also, on the PC we simulate a 3270 screen.  We make the protected     00680000
+*    fields whereas they are all done for us on a 3270.                 00690000
+*                                                                       00700000
+* Finally, there are two main types of 3270's - those will accept       00710000
+*    colors, and those that won't.                                      00720000
+* The ones that won't have further limitations - the attribute byte     00730000
+*    for highlighting etc cannot be adjacent to any text, so if         00740000
+*    we put out a BOLD, we MUST have a blank before the next character. 00750000
+*                                                                       00760000
+* This means that the screen must be a little different.                00770000
+*                                                                       00780000
+* Now, to the nittyy gritty.                                            00790000
+*                                                                       00800000
+* We have saved away the parameters that were used to create the        00810000
+*    original screen.  These parameters have the row and color          00820000
+*    attributes of each part of the text.                               00830000
+* Additionally (for the PANEL REREAD feature), we have the names        00840000
+*    of the symbolic variables that were written to the screen.         00850000
+*    Thus, when we have a PANEL REREAD, we can clear out all the        00860000
+*    unprotected fields, and simply write out the current values        00870000
+*    of the symbolic variables.                                         00880000
+*                                                                       00890000
+* SO.....                                                               00900000
+*                                                                       00910000
+* Popup simply writes the POPUP to the screen, and waits for a          00920000
+*    reply to come back to us.                                          00930000
+*                                                                       00940000
+* If the cursor is not within the POPUP, we simply throw the entire     00950000
+*    PANEL back up on the screen - in other words we will ignore        00960000
+*    all input if we are in a popup, and the user enters data           00970000
+*    out of the popup area!                                             00980000
+*                                                                       00990000
+* First, we will analyse the POPUP and try and work out where           01000000
+*    it goes on the screen etc, and the maximum width of the box.       01010000
+*                                                                       01020000
+*                                                                       01030000
+*                                                                       01040000
+*                                                                       01050000
+*       void         reverse_pop(int row, int col, int width)           01060000
+*                                                                       01070000
+*                                                                       01080000
+*                                                                       01090000
+********************************************************************    01100000
+*                                                                       01110000
+*                                                                       01120000
+*       int          ujp27pop()                                         01130000
+*                                                                       01140000
+         AGO   .INCOMP                                            J52   01141000
+P29POPWK  DATASECT                                                      01150000
+MAXROW    DC  H'0'                                                      01160000
+*         ENTRY MAXROW                                                  01170000
+MAXWIDTH  DC  H'0'                                                      01180000
+*         ENTRY MAXWIDTH                                                01190000
+#RETALTF  DC  H'0'                                                      01200000
+RETALTFL  DC  CL30' '                                                   01210000
+MENUCOLX  DC  H'10'        *** NOT USED - in JOLCOM now Feb 92.         01220000
+*                                                                       01230000
+#MENBART  DC       H'0'                                                 01240000
+MENBARTX  DS  CL400                                                     01250000
+MENBARIT  DS  30A  /* POINTS TO START OF MENU ITEM */                   01260000
+*                                                                       01270000
+#MENUTKN  DS  H      /* Count of below                                  01280000
+*         ENTRY #MENUTKN                                                01290000
+MENUTKN   DS  30H  /* TOKEN NUMBER OF MACRO                             01300000
+*                                                                       01310000
+#MENUTXT  DS  H      /* Count of below                                  01320000
+          ENTRY #MENUTXT                                                01330000
+MENUTXT   DS  CL400              was 250                                01340000
+*                                                                       01350000
+ALTKEYS   DS  CL40                                                      01360000
+*         ENTRY ALTKEYS                                                 01370000
+*                                                                       01380000
+ALTFLDS   DS  CL20                                                      01390000
+ALTPOSN   DS  A                                                         01400000
+*                                                                       01410000
+I29       DC  H'0'                                                      01420000
+*J29      DC  H'0'                                                      01430000
+K29       DC  H'0'                                                      01440000
+*LEN@TXT  DC  H'0'                                                      01450000
+TROW      DC  H'0'                                                      01460000
+*LCOL      DC  H'0'                                                     01470000
+*                                                                       01480000
+BLANKPOS  DC  A(0)                                                      01490000
+FLDPOSN   DC  A(0)                                                      01500000
+ALT@POSN  DC  A(0)                                                      01510000
+TESTBRAK  DC  A(0)                                                      01520000
+TMPCHAR   DC  CL2' '                                                    01530000
+TMPCHAR2  DC  CL2' '                                                    01540000
+TXT       DC  A(0)                                                      01550000
+ALTCOL    DC  H'0'                                                      01560000
+TALTKEY   DC  A(0)                                                      01570000
+POPSTRM   DS  CL9000                                                    01580000
+.INCOMP  ANOP                                                     J52   01581000
+********************************************************************    01590000
+TGETREAD DSECT          We base this over TGETAREA to see what came*    01600000
+AID      DS    CL1      in from the terminal                       *    01610000
+CURSOR   DS    CL2                                                 *    01620000
+ISBA     DS    CL1                                                 *    01630000
+IADD1    DS    CL1                                                 *    01640000
+IADD2    DS    CL1                                                 *    01650000
+ITEXTI   DS    CL100                                               *    01660000
+*                                                                  *    01670000
+********************************************************************    01680000
+*                                                                       01690000
+*                                                                       01700000
+*         extern        char transalt›54® ;                             01710000
+*      /*   ={' ','1','2','3','4','5','6','7','8','9','0','-','=',' ',  01720000
+*             ' ',' ','Q','W','E','R','T','Y','U','I','O','P','›','®',  01730000
+*             ' ',' ','A','S','D','F','G','H','J','K','L',';','\'',' ', 01740000
+*             ' ',' ','Z','X','C','V','B','N','M',',','.','/'};         01750000
+*         */                                                            01760000
+*                                                                       01770000
+*         extern int     Ret_Alt_Field_Col;   /* Set in PANELUN.c */    01780000
+*                                                                       01790000
+********************************************************************    01800000
+*                                                                       01810000
+XX1      DSECT                                                          01820000
+UJP27POP JOLSAVE CSECT=UJP27POP                                         01830000
+         TITLE 'UJP27POP : DO POPUP'                             J51    01840000
+*       WTO     'UJP27POP Called'                                       01850000
+*                                                                       01860000
+********************************************************************    01870000
+*                                                                       01880000
+*    /*                                        Pop up Menu */           01890000
+*   { int  dr, dc;/* Work locs only */                                  01900000
+*    int  max_width=25;    /* Calculate max width of pop_up (15 min) */ 01910000
+*                                                                       01920000
+         L    R10,P27GBL                                                01930000
+         USING PANELWRK,R10                                             01940000
+         B       P27GO                                                  01950000
+         TOMASM ' .data'                                                01960000
+P27SELE  DS    0H                                                       01970007
+         DC    X'1DF0'           BOLD, PROTECTED                  J60   01980009
+         DC    C'Select'                                                01981007
+         DC    C'<'                                               J50   01990000
+         DC    X'1DC8'           BOLD, UN-PROTECTED               J50   02000000
+*        DC    C' '              SPACE FOR attribute              J50   02010000
+         DC    C' '              SPACE FOR USER TO ENTER          J50   02020000
+         DC    X'1DF0'           BOLD, PROTECTED, Autoskip        J60   02030008
+*        DC    C' '              SPACE FOR attribute              J50   02040000
+         DC    C'>'                                               J50   02050000
+         DC    X'1D60'           NORMAL                           J50   02060000
+*        DC    X'1D',C'›'        NORMAL                           J50   02070000
+         DC    C'or Move Cursor  __'                                    02080000
+*        DC    C'or Use Arrow Keys '                                    02090000
+         DC    C'___'                                             cvc   02100000
+P27SELEL EQU   *-P27SELE -4      -4 FOR 4 SF'S IN FIELDS                02110000
+P27SCRNL EQU   *-P27SELE-4       -4 FOR 4 SF'S IN FIELDS          cvc   02120000
+         TOMASM ' .code'                                                02130000
+P27GO    DS     0H                                                      02140000
+*       L       R10,=V(PANELWRK)                                        02150000
+*       L       R6,=V(P29POPWK)                                         02160000
+        L       R6,AP29PWK       Get address of POPWK in JOLCOM   J52   02161000
+        USING   P29POPWK,R6                                             02170000
+        MVC    MAXWIDTH,=AL2(P27SCRNL)                                  02180000
+*                                                                       02190000
+*         int           max_row;                                        02200000
+*                                                                       02210000
+*         int           Ret_Alt_Field_Len;                              02220000
+*         char          Ret_Alt_Field›30®;                              02230000
+*                                                                       02240000
+*         int           Menu_Bar_Text_Len;                              02250000
+*         char          Menu_Bar_Text›400®;                             02260000
+*  char         *Menu_Bar_Items›30®;  /* ->  Start of Menu Item */      02270000
+*                                                                       02280000
+*                                                                       02290000
+*       int           Menu_Macro_Tknno›30®; /* Token Number of Macro    02300000
+*                                              to execute for POPUP */  02310000
+*                                                                       02320000
+*         char          Alt_Keys›40®;                                   02330000
+*                                                                       02340000
+*         char          Alt_Fields›20®;                                 02350000
+*                                                                       02360000
+*         int           i;                                              02370000
+*         int           j,k;                                            02380000
+*         int           len_Text;                                       02390000
+*                                                                       02400000
+*         char          *blank_posn;                                    02410000
+*         char          *field_posn;                                    02420000
+*         char          *alt_posn;                                      02430000
+*         char          *test_bracket;                                  02440000
+*         static char   TMPCHAR›2®;                                     02450000
+*         static char   temp_char2›2®;                                  02460000
+*         char          *Text;                                          02470000
+*         int           alt_column;                                     02480000
+*         char          *taltkey;                                       02490000
+*         extern        char transalt›54® ;                             02500000
+*      /*   ={' ','1','2','3','4','5','6','7','8','9','0','-','=',' ',  02510000
+*             ' ',' ','Q','W','E','R','T','Y','U','I','O','P','›','®',  02520000
+*             ' ',' ','A','S','D','F','G','H','J','K','L',';','\'',' ', 02530000
+*             ' ',' ','Z','X','C','V','B','N','M',',','.','/'};         02540000
+*       */                                                              02550000
+*                                                                       02560000
+*         extern int     Ret_Alt_Field_Col;   /* Set in PANELUN.c */    02570000
+*                                                                       02580000
+*           if (Mouse_avail)                                            02590000
+*                                                                       02600000
+         MVC   CURRROW,=H'2'  SET THE CURRENT ROW NUMBER COUNTER        02610000
+*        MVC   CURRROW,=H'1'  SET THE CURRENT ROW NUMBER COUNTER 88036  02620000
+         MVC   CURRCOL,=H'1'  SET THE CURRENT COLUMN NUMBER COUNTER     02630000
+         MVC   #MENUTXT,ZERO  Clear the text area                 cvc   02640000
+         ICM   R4,15,SCRNROWS Terminal Area been initialised ?    J50   02650000
+         BNZ   P29NOGTM                                           J50   02660000
+         CALL  P27INIT        Find terminal type etc.             J50   02670000
+P29NOGTM DS    0H                                                 J50   02680000
+         LA    R4,POPSTRM     Point to work area                        02690000
+         USING #PARM,R4                                                 02700000
+         MVC   #LINES,SCRNROWS                                          02710000
+         MVC   #COLUMNS,SCRNCOLS                                        02720000
+         MVC   #COLUMNS,=F'80'                                    J60   02721003
+         MVC   #TERMFLG,SCRNTYPE                                        02730000
+         LA    R5,#ITEMDSC                                              02740000
+         USING DITEM,R5                                                 02750000
+         XC    #SCITEMS(LFIXED+3),#SCITEMS                              02760000
+         LA    R7,4000(R4)    POINT TO END OF WORK AREA                 02770000
+         MVI   P27COLOR,POPCOLOR DEFAULT COLOUR (see POPCOLO EQU) J51   02780000
+         MVI   P27HI,0           TURN OFF HIGHLIGHTS              J50   02790000
+*   nowait = false;                                                     02800000
+*   clscr = true;                                                       02810000
+*   txt_mode = false;                                                   02820000
+*   re_read_addr = NULL;                                                02830000
+*       CLC     MOUSE_AVAIL,=H'0'                                       02840000
+*       BE      @16@122                                                 02850000
+*                                                                       02860000
+*               show_cursor();              /* Show Mouse */            02870000
+*                                                                       02880000
+*       CALL    SHOW_CURSOR                                             02890000
+@16@122 DS      0H                                                      02900000
+*                                                                       02910000
+*                                                                       02920000
+*           mvc(icommand, "MACRO   ",8);                                02930000
+*                                                                       02940000
+        MVC ICOMMAND,=CL8'MACRO'                                        02950000
+*                                                                       02960000
+*           mvc(symbolic, "SYSPOP  ",8);                                02970000
+*                                                                       02980000
+        MVC SYMBOLIC,=CL8'SYSPOP'                                       02990000
+*                                                                       03000000
+*           x›1® = "";                                                  03010000
+*                                                                       03020000
+        MVC     #WORK,=H'0'                                             03030000
+*                                                                       03040000
+*           ujp85asn();                                                 03050000
+*                                                                       03060000
+        CALL$   UJP85ASN                                                03070000
+*                                                                       03080000
+*           memset(Menu_Macro_Tknno,0, sizeof(Menu_Macro_Tknno) *2);    03090000
+*                                                                       03100000
+* size  XC      MENUTKN(L'MENUTKN),MENUTKN                              03110000
+* size  XC      MENBARIT(L'MENBARIT),MENBARIT                           03111000
+        XC      MENUTKN(30*2),MENUTKN                                   03112000
+        XC      MENBARIT(30*4),MENBARIT                                 03113000
+        XC      ALTKEYS,ALTKEYS                                         03120000
+*                                                                       03130000
+*           Menu_Bar_Text_Len=0;                                        03140000
+*                                                                       03150000
+        MVC     #MENBART,=H'0'                                          03160000
+*                                                                       03170000
+*           disp_peekbox(scrn_save,0,0,24,79);                          03180000
+*                                                                       03190000
+*      NO need to read the current screen on mainframes !!!             03200000
+*                                                                       03210000
+*           display_str(blue_ascii);                                    03220000
+*                                                                       03230000
+*       blue_ascii                                                      03240000
+*       CALL    display_str                                             03250000
+*                                                                       03260000
+*                                                                       03270000
+*           Alt_Keys›0®='\0';                                           03280000
+*                                                                       03290000
+*      NO ALT keys on 3270's !!!                                        03300000
+*                                                                       03310000
+*           currrow = 1;                                                03320000
+*                                                                       03330000
+*       MVC     CURRROW,=H'1'                                           03340000
+        MVC     CURRROW,=H'2'                                           03350000
+*                                                                       03360000
+*           GETTKN(2);                                                  03370000
+*                                                                       03380000
+        MVC     TKNCURR,=H'2'                                           03390000
+        GETTKN  TKNCURR                                                 03400000
+        STH     R1,TKNCURR                                              03410000
+*                                                                       03420000
+*       lhs_margin= Ret_Alt_Field_Col;          /* Set in PANELUN.c */  03430000
+*                                                                       03440000
+         CLC   MENUCOL,ZERO                                       J52   03441000
+         BNE   P29COLOK                                           J52   03442000
+         MVC   MENUCOL,=H'1'                                      J52   03443000
+P29COLOK DS    0H                                                 J52   03444000
+        MVC     LHSMARG,MENUCOL      cvc fix from menu                  03450000
+*                                                                       03460000
+*           if ((clclit(x›2®, "AT") == 0))                              03470000
+*                                                                       03480000
+        CLC     =C'AT ',TKN                                             03490000
+        BNE     @16@170                                                 03500000
+*                                                                       03510000
+*           {                                                           03520000
+*               p27getnum();                                            03530000
+*                                                                       03540000
+        GETTKN  TKNCURR                                                 03550000
+        STH     R1,TKNCURR                                              03560000
+*       CALL    P27GETNO                                                03570000
+*                                                                       03580000
+*               lhs_margin=number;                /* Save number */     03590000
+*                                                                       03600000
+        TNUM    #TKN                                                    03610000
+        STH     R1,LHSMARG                                              03620000
+*                                                                       03630000
+*      i = gettkn(Tkncurr); /* gettkn;  (* get current token number *)  03640000
+*                                                                       03650000
+        GETTKN  TKNCURR                                                 03660000
+        STH     R1,TKNCURR                                              03670000
+*                                                                       03680000
+*           }                                                           03690000
+*                                                                       03700000
+@16@170 DS      0H                                                      03710000
+*                                                                       03720000
+*           fsmode = true;                                              03730000
+*                                                                       03740000
+*       MVI     fsmode,1                                                03750000
+P29MAIN DS      0H                                                      03760000
+*                                                                       03770000
+*                                                                       03780000
+*                                                                       03790000
+*p29main:                                                               03800000
+*                                                                       03810000
+*    /* Now the parameters for POPUP are like this:-                    03820000
+*            1. (                                                       03830000
+*            2. color 'Literal to be displayed'.                        03840000
+*            3. Optional ›, routine (Jol Macro) to handle popup®        03850000
+*            4. ) end of sub-parameters.                                03860000
+*                                                                       03870000
+*      First, we must loop around and see how wide each pop-up line is, 03880000
+*       then we can calculate if the popup will fit.                    03890000
+*                                                                       03900000
+*                                                                       03910000
+*       */                                                              03920000
+*                                                                       03930000
+* t_bracket:                                                            03940000
+*                                                                       03950000
+*           if (Tkn›0® == '(') {                                        03960000
+*                                                                       03970000
+        CLI     TKN,C'('                                                03980000
+        BNE     @16@410                                                 03990000
+*                                                                       04000000
+*                clear(outtext);                                        04010000
+*                clear(outtext_with_attrs);                             04020000
+*                clear(default_txt);                                    04030000
+*                clear(default_with_attrs);                             04040000
+*                                                                       04050000
+        LA      R1,0                                                    04060000
+        STH     R1,#OUTTXT                                              04070000
+        STH     R1,#OUTTXTA                                             04080000
+        STH     R1,#DEFTXT                                              04090000
+        STH     R1,#DEFTXTA                                             04100000
+*                                                                       04110000
+*                                                                       04120000
+*text_in:                                                               04130000
+*                p27_pop_parameters();                                  04140000
+*                                                                       04150000
+        CALL    UJP29POP          ARAMETERS                             04160000
+*                                                                       04170000
+*                if (length(outtext) > max_width)                       04180000
+*                                                                       04190000
+        LH      R1,#OUTTXT                                              04200000
+        CH      R1,MAXWIDTH                                             04210000
+        BNH     P29MAIN                                                 04220000
+*                                                                       04230000
+*                    max_width=length(outtext);                         04240000
+*                                                                       04250000
+        STH     R1,MAXWIDTH                                             04260000
+*                                                                       04270000
+*                goto p29main;                                          04280000
+*                                                                       04290000
+        B       P29MAIN                                                 04300000
+*                                                                       04310000
+*                                                                       04320000
+@16@410 DS      0H                                                      04330000
+*           }                                                           04340000
+*                                                                       04350000
+*           if (Tkn›0® == ')')                                          04360000
+*                                                                       04370000
+        CLI     TKN,C')'                                                04380000
+        BNE     @16@458                                                 04390000
+*                                                                       04400000
+*           {                                                           04410000
+OKTOSKIP DS     0H                                                      04420000
+* ok_to_skip:                                                           04430000
+*      i = gettkn(Tkncurr); /* gettkn;   (* get current token number *) 04440000
+*                                                                       04450000
+        GETTKN  TKNCURR                                                 04460000
+        STH     R1,TKNCURR                                              04470000
+*                                                                       04480000
+*               goto p29main;                                           04490000
+*                                                                       04500000
+        B       P29MAIN                                                 04510000
+@16@458 DS      0H                                                      04520000
+*                                                                       04530000
+*           }                                                           04540000
+*           if (Tkncurr > stackno) goto p27wrap; / end of parameters    04550000
+*                                                                       04560000
+        CLC     TKNCURR,TKNNO                                           04570000
+        BH      P29WRAP                                                 04580000
+*                                                                       04590000
+*                                                                       04600000
+*           if (Tkn›0® == '/') {                                        04610000
+*                                                                       04620000
+        CLI     TKN,C'/'                                                04630000
+        BNE     @16@530                                                 04640000
+*                                                                       04650000
+*line_feed:                                                             04660000
+*               currrow = currrow + 1;                                  04670000
+*                                                                       04680000
+        LH      R1,CURRROW                                              04690000
+        LA      R1,1(R1)                                                04700000
+        STH     R1,CURRROW                                              04710000
+*                                                                       04720000
+*              goto p29main;                                            04730000
+*                                                                       04740000
+        B       P29MAIN                                                 04750000
+@16@530 DS      0H                                                      04760000
+*                                                                       04770000
+*           }                                                           04780000
+*                                                                       04790000
+*                                                                       04800000
+*           if (Tkn›0® == '\'')                                         04810000
+*                                                                       04820000
+        CLI     TKN,C''''                                               04830000
+        BE      @16@626                                                 04840000
+*                                                                       04850000
+*              goto invalid_pop;                                        04860000
+*                                                                       04870000
+*           if (t_ident(Tkn))                                           04880000
+*                                                                       04890000
+        CLI     TKN,C'_'                                                04900000
+        BE      ISIDENT                                                 04910000
+        CLI     TKN,C'@'                                                04920000
+        BE      ISIDENT                                                 04930000
+        CLI     TKN,C'$'                                          cvc   04940000
+        BE      ISIDENT                                           cvc   04950000
+        CLI     TKN,C'A'                                                04960000
+        BL      @16@602                                                 04970000
+        CLI     TKN,C'Z'                                                04980000
+        BH      @16@602                                                 04990000
+*                                                                       05000000
+ISIDENT DS      0H                                                      05010000
+*           if (*x›Tkncurr-2® == ',')                                   05020000
+*                                                                       05030000
+        LH      R1,TKNCURR                                              05040000
+        SH      R1,=H'2'                                                05050000
+        STH     R1,TKNCURR                                              05060000
+        GETTKN  TKNCURR                                                 05070000
+        LA      R1,1(R1)                                                05080000
+        STH     R1,TKNCURR                                              05090000
+        CLI     TKN,C','                                                05100000
+        BE      OKTOSKIP                                                05110000
+@16@602 DS      0H                                                      05120000
+*                                                                       05130000
+*               goto ok_to_skip;                                        05140000
+*                                                                       05150000
+*           if (!t_attrib())                                            05160000
+*                                                                       05170000
+        CALL    UJP27ATR                                                05180000
+        LTR     R15,R15                                                 05190000
+        BZ      P29ATDN1                                                05200000
+@16@626 DS      0H                                                      05210000
+*                                                                       05220000
+*           {                                                           05230000
+*                                                                       05240000
+*invalid_pop:                                                           05250000
+*                                                                       05260000
+*                                                                       05270000
+*       jolerr  'P27412','Symbol ''',#TKN,''' Invalid in POPUP'         05280000
+        JOLERR  412,'Symbol''',#TKN,''' Invalid in POPUP'               05290000
+*                                                                       05300000
+*                                                                       05310000
+*      i = gettkn(Tkncurr); /* gettkn;   (* get current token number *) 05320000
+*                                                                       05330000
+P29ATDN1 DS    0H                                                       05340000
+        GETTKN  TKNCURR                                                 05350000
+        STH     R1,TKNCURR                                              05360000
+*                                                                       05370000
+*           }                                                           05380000
+*           goto p29main;                                               05390000
+*                                                                       05400000
+        B       P29MAIN                                                 05410000
+*                                                                       05420000
+*                                                                       05430000
+P29WRAP DS      0H                                                      05440000
+* p27wrap:                                                              05450000
+*                                                                       05460000
+*  /* Pass two.  This time we will loop around and actually put out     05470000
+*                the box and pop-ups */                                 05480000
+*                                                                       05490000
+*                                                                       05500000
+*  /* Prepare to draw a box for the Pop - up */                         05510000
+*                                                                       05520000
+*           if (lhs_margin + max_width > 80)                            05530000
+*                                                                       05540000
+        LH      R1,LHSMARG                                              05550000
+        AH      R1,MAXWIDTH                                             05560000
+        CH      R1,=H'80'                                               05570000
+        BNH     @16@770                                                 05580000
+*                                                                       05590000
+*           {                                                           05600000
+*               lhs_margin=  80 - max_width;                            05610000
+*                                                                       05620000
+        LA      R1,80                                                   05630000
+        SH      R1,MAXWIDTH                                             05640000
+        STH     R1,LHSMARG                                              05650000
+@16@770 DS      0H                                                      05660000
+*                                                                       05670000
+*           }                                                           05680000
+*                                                                       05690000
+*           /* Draw a box around and Allow for Japanese Machines */     05700000
+*                                                                       05710000
+*           if ((draw_box) && (ibm_direct_write))                       05720000
+*                                                                       05730000
+*        CLI     DRAW_BOX,0                                             05740000
+*        BNE     @@42                                                   05750000
+*        B       @16@1226                                               05760000
+*@@42    DS      0H                                                     05770000
+*        CLI     IBM_DIRECT_WRITE,0                                     05780000
+*        BNE     @@43                                                   05790000
+*        B       @16@1226                                               05800000
+*@@43    DS      0H                                                     05810000
+*                                                                       05820000
+*           {   int trow, brow;         /* Top Row, Bottom Row */       05830000
+*               int lcol, rcol;         /* Left Column, Right Column */ 05840000
+*                                                                       05850000
+*               trow=1;                 /* Start at Row 1 */            05860000
+*                                                                       05870000
+*       MVC     TROW,=H'1'                                              05880000
+        MVC     TROW,=H'2'                                              05890000
+*                                                                       05900000
+*               brow=currrow+1+1;  /* Leave room for › ® select box */  05910000
+*                                                                       05920000
+*cvc delLH      R1,CURRROW                                              05930000
+*       LA      R1,2(R1)                                                05940000
+*       STH     R1,BROW                                                 05950000
+*                                                                       05960000
+*                                                                       05970000
+*               lcol=lhs_margin;                                        05980000
+*                                                                       05990000
+*cvcdel LH      R1,LHSMARG                                              06000000
+*       STH     R1,LCOL                                                 06010000
+*                                                                       06020000
+*                                                                       06030000
+*               rcol=max_width+lhs_margin+3;                            06040000
+*                                                                       06050000
+*cvcdel LH      R1,MAXWIDTH                                             06060000
+*       AH      R1,LHSMARG                                              06070000
+*       AH      R1,=H'3'                                                06080000
+*       STH     R1,REPCOLNO                                             06090000
+*                                                                       06100000
+*                                                                       06110000
+* The PC version wrote out each part of the POPUP separately.           06120000
+*                                                                       06130000
+* This version will form up a picture of the POPUP ready to be          06140000
+*   displayed in one WRITE.                                             06150000
+*                                                                       06160000
+*$$$    /* Blank the area in the box */                                 06170000
+*                                                                       06180000
+*           blanks›rcol-lcol®='\0';/* Temporarily shorten the string */ 06190000
+*                                                                       06200000
+*               for (dr = trow+1; dr <= brow; dr++)  /* Do Sides */     06210000
+*               {                                                       06220000
+*                  gotorc(dr, lcol);                                    06230000
+*               }                                                       06240000
+*                                                                       06250000
+*        blanks›rcol-lcol®=' ';          /* Reset the string string */  06260000
+*                                                                       06270000
+*               for (dc = lcol; dc <= rcol; dc++)     /* Do Top Row */  06280000
+*                                                                       06290000
+*               {                                                       06300000
+*                  gotorc(trow, dc);                                    06310000
+*                  display_char("\xc4");                                06320000
+*               }                                                       06330000
+*               gotorc(trow, lcol);                                     06340000
+*                                                                       06350000
+*               display_char("\xda");                 /* LHS TOP - */   06360000
+*               gotorc(trow, rcol);                                     06370000
+*               display_char("\xb7");   /* bf */      /*         - */   06380000
+*               for (dr = trow+1; dr <= brow; dr++)   /* Do Sides  */   06390000
+*               {                                                       06400000
+*                  gotorc(dr, lcol);                                    06410000
+*                  display_char("\xb3");              /* -         */   06420000
+*                  gotorc(dr, rcol);                                    06430000
+*                  display_char("\xba");                                06440000
+*               }                                                       06450000
+*               for (dc = lcol; dc <= rcol; dc++)                       06460000
+*               {                                                       06470000
+*                  gotorc(brow, dc);                                    06480000
+*                  display_char("\xc4");                                06490000
+*               }                                                       06500000
+*               gotorc(brow, lcol);                                     06510000
+*                                                                       06520000
+*               display_char("\xc0");                                   06530000
+*                                                                       06540000
+*               gotorc(brow, rcol);                                     06550000
+*                                                                       06560000
+*               display_char("\xbd" /* "\xd9"*/ );                      06570000
+*           }                                                           06580000
+*                                                                       06590000
+*                                                                       06600000
+* So, Set up the TOP row with ______________  and Select Msg            06610000
+*                                                                       06620000
+         MVI   P27HI,0           TURN OFF HIGHLIGHTS              J50   06630000
+         MVI   P27COLOR,POPCOLOR DEFAULT COLOUR (see POP EQU)     J51   06640000
+*       MVC     TXTROWNO,=H'1'                                          06650000
+        MVC     TXTROWNO,=H'2'                                    row   06660000
+        MVC     TXTCOLNO,LHSMARG                                        06670000
+        MVC     REPROWNO,=H'0'                                          06680000
+        MVC     REPCOLNO,=H'0'                                          06690000
+        MVC     RPLYLEN,=H'0'                                           06700000
+        MVI     LITERAL,C'_'                                            06710000
+        LH      R1,MAXWIDTH                                             06720000
+         LA    R1,4(R1)          Add 4 for number of attributes   J52   06730000
+*       EX      R1,P29TOPR                                              06740000
+*P29TOPR  MVC     LITERAL+1(*-*),LITERAL                                06750000
+       MEMCPY  LITERAL+1,LITERAL,R1                                     06760000
+        STH     R1,TXTLEN                                               06770000
+         LH    R1,TXTLEN                                                06780000
+        MVC    LITERAL(P27SELEL),P27SELE Select › ® or Arrow Keys Msg   06790000
+*NO replyAH    R1,RLITLEN                                               06800000
+        MVC     TXTCOLR,P27COLOR                                        06810000
+         AR    R5,R1          BUMP UP TO POINT TO NEW SPOT IN TABLE     06820000
+*        LA    R5,LFIXED(R5)  POINT OVER FIXED AREA IN PARM LIST        06830000
+         AH    R5,=AL2(LFIXED)  cvc simulator bug                       06840000
+*       XC    DITEM(LFIXED),DITEM  Clear next item row and col numbers  06850000
+        XC    TXTROWNO(LFIXED),TXTROWNO next item row and col numbers   06860000
+*                                                                       06870000
+* OK, now set up 2nd row.                                               06880000
+*                                                                       06890000
+*       MVC     CURRROW,=H'2'                                           06900000
+        MVC     CURRROW,=H'3'                                           06910000
+*           gettkn(2);                                                  06920000
+*                                                                       06930000
+        MVC     TKNCURR,=H'2'                                           06940000
+        GETTKN  TKNCURR                                                 06950000
+        STH     R1,TKNCURR                                              06960000
+*                                                                       06970000
+*           if ((clclit(x›2®, "AT") == 0))                              06980000
+*                                                                       06990000
+        CLC     =C'AT ',TKN                                             07000000
+        BNE     @16@1274                                                07010000
+*                                                                       07020000
+*           {                                                           07030000
+*               p27getnum();                                            07040000
+*                                                                       07050000
+        GETTKN  TKNCURR                                                 07060000
+        STH     R1,TKNCURR                                              07070000
+*                                                                       07080000
+*      i = gettkn(Tkncurr); /* gettkn;  (* get current token number *)  07090000
+*                                                                       07100000
+        GETTKN  TKNCURR                                                 07110000
+        STH     R1,TKNCURR                                              07120000
+*                                                                       07130000
+*           }                                                           07140000
+*                                                                       07150000
+@16@1274 DS     0H                                                      07160000
+*                                                                       07170000
+*           }                                                           07180000
+*                                                                       07190000
+*           display_str(default_with_attrs);                            07200000
+*                                                                       07210000
+*       LA      R1,DEFATTR                                              07220000
+*       CALL    DISPLAY_STR                                             07230000
+*          rplylen = -1; *                                              07240000
+        MVC     RPLYLEN,ZERO   =H'-1'                                   07250000
+*                                                                       07260000
+*           rowno=1;                                                    07270000
+*                                                                       07280000
+*       MVC     TXTROWNO,=H'1'                                          07290000
+        MVC     TXTROWNO,=H'2'                                    row   07300000
+*                                                                       07310000
+*           currrow=0;                                                  07320000
+*                                                                       07330000
+*       MVC     CURRROW,=H'1'                                           07340000
+        MVC     CURRROW,=H'2'                                     row   07350000
+*                                                                       07360000
+*           i=0;                                                        07370000
+*                                                                       07380000
+        MVC     I29,ZERO                                                07390000
+*                                                                       07400000
+*           k=0;                                                        07410000
+*                                                                       07420000
+        MVC     K29,ZERO                                                07430000
+*                                                                       07440000
+*                                                                       07450000
+P28MAIN2 DS    0H                                                       07460000
+*p29main2:                                                              07470000
+*                                                                       07480000
+*    /* Now the parameters for POPUP are like this:-                    07490000
+*             1. (                                                      07500000
+*             2. color 'Literal to be displayed'.                       07510000
+*             3. ) end of sub-parameters.                               07520000
+*                                                                       07530000
+*   First, we must loop around and see how wide each pop-up line is,    07540000
+*     then we can calculate if   the popup will fit.                    07550000
+*                                                                       07560000
+*    */                                                                 07570000
+*                                                                       07580000
+*                                                                       07590000
+*       WTO 'MAIN2 Entered'                                             07600000
+*           if (Tkn›0® == '(')                                          07610000
+*                                                                       07620000
+        CLI     TKN,C'('                                                07630000
+        BNE     @16@1922                                                07640000
+*                                                                       07650000
+*           {                                                           07660000
+*                clear(outtext);                                        07670000
+*                                                                       07680000
+        MVC     #OUTTXT,=H'0'                                           07690000
+*                                                                       07700000
+*                clear(outtext_with_attrs);                             07710000
+*                                                                       07720000
+        MVC     #OUTTXTA,=H'0'                                          07730000
+*                                                                       07740000
+*                clear(default_txt);                                    07750000
+*                                                                       07760000
+        MVC     #DEFTXT,=H'0'                                           07770000
+*                                                                       07780000
+*                clear(default_with_attrs);                             07790000
+*                                                                       07800000
+        MVC     #DEFTXTA,=H'0'                                          07810000
+*                                                                       07820000
+         MVI   P27COLOR,POPCOLOR DEFAULT COLOUR (see POP EQU)     J51   07830000
+        MVI     P27ATTR,0                                               07840000
+*                                                                       07850000
+* text_in2:                                                             07860000
+*                p27_pop_parameters();                                  07870000
+*                                                                       07880000
+        CALL    UJP29POP                                                07890000
+*                                                                       07900000
+*                                                                       07910000
+*       /* Get Hot key here */                                          07920000
+*                                                                       07930000
+* /* Now start at 1st position,and work out the allowable ALT Fields*/  07940000
+*                                                                       07950000
+*        /*   for (i=0,k=0; i<No_Alt_Keys; i++) */                      07960000
+*                                                                       07970000
+*             {                                                         07980000
+*                 field_posn=outtext;               /* Get an Item */   07990000
+*                                                                       08000000
+* What we are trying to do here is find the hot_key.                    08010000
+*                                                                       08020000
+* It can be:  F{i}les   ie the i is the hot key.                        08030000
+*        or   Files     ie the Files is the hot key.                    08040000
+*                                                                       08050000
+*                                                                       08060000
+        LA      R1,OUTTXT                                               08070000
+*                                                                       08080000
+*                 test_bracket=strchr(field_posn,'{');                  08090000
+*                                                                       08100000
+        LA      R14,1                                                   08110000
+        LA      R15,OUTTXT                                              08120000
+        AH      R15,#OUTTXT                                             08130000
+*       LA      R15,L'OUTTXT(R1)                                        08140000
+P29FLB  CLI     0(R1),C'{'                                              08150000
+        BE      P29GOTB1                                                08160000
+        BXLE    R1,R14,P29FLB                                           08170000
+        B       P29NOCRL            No Curly Bracket                    08180000
+*                                                                       08190000
+P29NOCRL DS     0H                                                      08200000
+*                 if (test_bracket==NULL)                               08210000
+*                 {                                                     08220000
+*                    for (alt_posn=field_posn; *alt_posn != '\0';       08230000
+*                         alt_posn++)                                   08240000
+*                                                                       08250000
+        LA      R1,OUTTXT                                               08260000
+        LA      R14,1                                                   08270000
+        LA      R15,OUTTXT                                              08280000
+        AH      R15,#OUTTXT                                             08290000
+*       LA      R15,L'OUTTXT(R1)                                        08300000
+@16@1490 DS     0H                                                      08310000
+*                                                                       08320000
+*                    {                                                  08330000
+*                        if (isupper(*alt_posn))                        08340000
+*                                                                       08350000
+P29TUPP CLI     0(R1),C'A'                                              08360000
+        BL      P29TULP                                                 08370000
+        CLI     0(R1),C'Z'                                              08380000
+        BH      P29TULP                                                 08390000
+        B       TESTDUP             Got an Upper case                   08400000
+P29TULP BXLE    R1,R14,P29TUPP                                          08410000
+        B       ALL@LOW             All Lower Case                      08420000
+@16@1538 DS     0H                                                      08430000
+*                                                                       08440000
+*                            goto test_dup;                             08450000
+*                    }                                                  08460000
+*       all_lower:                                                      08470000
+*                    alt_posn=field_posn;                               08480000
+*                                                                       08490000
+ALL@LOW DS     0H                                                       08500000
+        LA      R1,OUTTXT                                               08510000
+@16@1586 DS     0H                                                      08520000
+*                                                                       08530000
+*                    *alt_posn= toupper(*alt_posn);                     08540000
+*                                                                       08550000
+*       OI      0(R1),C' '        370 way                               08560000
+        OC      0(1,R1),BLANKS    MAKE OI NEXT LISTING cvc              08570000
+*       MEMUPR  0(R1),1                                                 08580000
+*                                                                       08590000
+*test_dup:                                                              08600000
+*                                                                       08610000
+@16@1610 DS     0H                                                      08620000
+TESTDUP  DS     0H                                                      08630000
+        ST      R1,ALTPOSN                                              08640000
+*                    if (strchr( Alt_Keys,*alt_posn) != 0) {            08650000
+*                                                                       08660000
+        LA      R14,L'ALTKEYS                                           08670000
+P29TDUP LA      R15,ALTKEYS(R14)                                        08680000
+        CLC     0(1,R1),0(R15)                                          08690000
+        BE      P29DUP                                                  08700000
+        BCT     R14,P29TDUP                                             08710000
+        LA      R15,ALTKEYS        Test First key                       08720000
+        CLC     0(1,R1),0(R15)                                          08730000
+        BE      P29DUP                                                  08740000
+        B       @16@1682                                                08750000
+*                                                                       08760000
+*                        Panel_Err2("Duplicate Pop_Up Keys Found");     08770000
+*                                                                       08780000
+P29DUP  DS      0H                                                      08790000
+        JOLERR  405,'Duplicate Pop_Up Keys Found'                       08800000
+*                                                                       08810000
+RETN04   DS     0H                                                      08820000
+*                        return(4);                                     08830000
+*                                                                       08840000
+        JOLRETN  RC=4                                                   08850000
+@16@1682 DS      0H                                                     08860000
+*                    }                                                  08870000
+*                    else                                               08880000
+*                    {                                                  08890000
+*                        if ((Menu_Bar_Text_Len + length(outtext))      08900000
+*                             < sizeof (Menu_Bar_Text))                 08910000
+*                                                                       08920000
+        LH      R1,#MENUTXT                                             08930000
+        AH      R1,#OUTTXT                                              08940000
+        CH      R1,=AL2(L'MENUTXT)                                      08950000
+        BL      CATMENPP                                                08960000
+        JOLERR  406,'Popup Text Too Long'                               08970000
+         B     RETN04                                             J52   08980000
+*                                                                       08990000
+*                        {                                              09000000
+*                           strcpy(&Menu_Bar_Text›Menu_Bar_Text_Len®,   09010000
+*                           outtext);                                   09020000
+*                                                                       09030000
+*                                                                       09040000
+CATMENPP DS    0H                                                       09050000
+        LH      R1,#MENUTXT       Reload current length of #MENUTXT     09060000
+        LA      R1,MENUTXT(R1)     Point to end of current MENUTXT      09070000
+        LH      R15,#OUTTXT                                             09080000
+        LA      R15,2(R15)        Add 1 for length word            J50  09090000
+       EX       R15,P29MVCTT                                            09100000
+P29MVCTT MVC       0(*-*,R1),#OUTTXT                                    09110000
+*       MEMCPY  0(R1),#OUTTXT,R15                                       09120000
+        LH      R14,#MENUTXT                                            09130000
+        AR      R15,R14                                                 09140000
+        STH     R15,#MENUTXT                                            09150000
+*                                                                       09160000
+*             Menu_Bar_Items›k®= &Menu_Bar_Text›Menu_Bar_Text_Len®;     09170000
+*                                                                       09180000
+*       LH      R15,#MENUTXT                                            09190000
+        LA      R15,MENUTXT(R14)                                        09200000
+        LH      R1,K29                                                  09210000
+        SLL     R1,2                                                    09220000
+        ST      R15,MENBARIT(R1)                                        09230000
+*                                                                       09240000
+*                                 /* Points to Start of Menu Item */    09250000
+*             Menu_Bar_Text_Len=Menu_Bar_Text_Len+length(outtext) + 1;  09260000
+*             }                                                         09270000
+*               else                                                    09280000
+*                        {                                              09290000
+*                           Panel_Err2("PopUp Panel Text Too Long");    09300000
+*                           return 4;                                   09310000
+*                        }                                              09320000
+*                        Alt_Keys›k®=*alt_posn;                         09330000
+*                                                                       09340000
+        LH      R1,K29                                                  09350000
+        L       R15,ALTPOSN                                             09360000
+        IC      R15,0(R15)                                              09370000
+        STC     R15,ALTKEYS(R1)                                         09380000
+*                                                                       09390000
+*                        Alt_Keys›k+1®='\0';                            09400000
+*                                                                       09410000
+        SR      R15,R15                                                 09420000
+        STC     R15,ALTKEYS+1(R1)                                       09430000
+*                                                                       09440000
+*                        alt_posn++;                                    09450000
+*                                                                       09460000
+        L       R15,ALTPOSN                                             09470000
+        LA      R15,1(R15)                                              09480000
+        ST      R15,ALTPOSN                                             09490000
+*                                                                       09500000
+*                        temp_char›0®=*alt_posn;                        09510000
+*                                                                       09520000
+        IC      R1,0(R15)                                               09530000
+        STC     R1,TMPCHAR                                              09540000
+*                                                                       09550000
+*                        *alt_posn='\0';                                09560000
+*                                                                       09570000
+*cvc    MVI     1(R1),0                                                 09580000
+*                                                                       09590000
+*                        alt_column=alt_posn-outtext;                   09600000
+*                                                                       09610000
+*       S       R1,=A(OUTTXT)                                           09620000
+        LA      R0,OUTTXT                                               09630000
+        SR      R15,R0                                                  09640000
+        STH     R15,ALTCOL                                              09650000
+*                                                                       09660000
+*                        gotorc(currrow+1,alt_column + 1 + lhs_margin); 09670000
+*cvc                                                                    09680000
+*       add     ax,word ptr DGROUP:_lhs_margin                          09690000
+*       LA      R1,1(R1)                                                09700000
+*       push    ax                                                      09710000
+*       LH      R1,word ptr DGROUP:_currrow                             09720000
+*       LA      R1,1(R1)                                                09730000
+*       push    ax                                                      09740000
+*       CALL    gotorc                                                  09750000
+*       pop     cx                                                      09760000
+*       pop     cx                                                      09770000
+*                                                                       09780000
+*                                                                       09790000
+*                                                                       09800000
+*Move the text to the 3270 buffer                                       09810000
+*                                                                       09820000
+*                rowno++;                                               09830000
+*                                                                       09840000
+        LH      R1,CURRROW                                              09850000
+        LA      R1,1(R1)                                                09860000
+        STH     R1,CURRROW                                              09870000
+        STH     R1,TXTROWNO                                             09880000
+*                                                                       09890000
+*                colno=lhs_margin+2;                                    09900000
+*                                                                       09910000
+        LH      R1,LHSMARG                                              09920000
+*       LA      R1,2(R1)                                                09930000
+        STH     R1,TXTCOLNO                                             09940000
+*                                                                       09950000
+        MVC     TXTATTR,P27ATTR                                         09960000
+        MVC     TXTCOLR,P27COLOR                                        09970000
+*                                                                       09980000
+*                p27display();                                          09990000
+*                                                                       10000000
+* NO!!! We don't display the line on a 3270.                            10010000
+*                                                                       10020000
+        MVC     LITERAL(80),BLANKS                                      10030000
+        MVI     LITERAL,C'|'            Put in Line on LHS              10040000
+* Now shift the string in, after the "| "                               10050000
+        LH      R1,#OUTTXT A cvc                                        10060000
+        S       R1,ONE                                                  10070000
+        BM      P29NONO                                                 10080000
+*       EX      R1,P29MUVPP                                             10090000
+*P29MUVPP MVC     LITERAL+2(*-*),OUTTXT A cvc                           10100000
+       MEMCPY  LITERAL+2,OUTTXT,R1 vc                                   10110000
+*                                                                       10120000
+P29NONO  LH    R1,#SCITEMS                                              10130000
+         LA    R1,1(R1)                                                 10140000
+         STH   R1,#SCITEMS                                              10150000
+         LH    R1,MAXWIDTH               Get width of box               10160000
+         SH    R1,=H'4'                                           J52   10170000
+         LA    R15,LITERAL(R1)                                          10180000
+         MVI   3(R15),C'|'               Rhs Box                        10190000
+         LA    R1,4(R1)                  Count in the rhs ®             10200000
+* NO !!! AH    R1,RLITLEN                                               10210000
+         STH   R1,TXTLEN                                                10220000
+*                                                                       10230000
+*                        temp_char2›0®=Alt_Keys›k®;                     10240000
+*                                                                       10250000
+        LH      R1,K29                                                  10260000
+        IC      R15,ALTKEYS(R1)                                         10270000
+        STC     R15,TMPCHAR2                                            10280000
+*                                                                       10290000
+*                        *alt_posn=temp_char›0®;                        10300000
+*                                                                       10310000
+        L       R1,ALTPOSN                                              10320000
+        MVC     0(1,R1),TMPCHAR                                         10330000
+*                                                                       10340000
+*                                                                       10350000
+* Check if color, and add in a color change and go to cursor, and       10360000
+* the HOTKEY.                                                           10370000
+*                                                                       10380000
+*    if (black_and_white == true)                                       10390000
+*                                                                       10400000
+        CLI     MONOSCRN,0                                              10410000
+        BNE     POPBW                                                   10420000
+*                                                                       10430000
+*                         display_str(red_bold);                        10440000
+* BOTHER...                                                             10450000
+* I made a GOTORC Macro, but it adds to a varying length string.        10460000
+* SO ... We'll use #WORK until this is altered.                         10470000
+*                                                                       10480000
+         MVC   #WORK,=H'3'                                              10490000
+         MVC   WORK(1),VIDSA           Fujitsu OR IBM Set Attribute     10500000
+         MVC   WORK+1(2),=X'42F2'      Red                              10510000
+DORED    LH    R15,ALTCOL                                         J51   10520000
+         AH    R15,LHSMARG                                        J51   10530000
+         LA    R15,2(R15)                                         J60   10540006
+         LH    R14,CURRROW                                        J51   10550000
+*        LA    R14,1(R14)                                         J60   10551005
+*        S     R14,ONE                                            J51   10560006
+         GOTORC  (R14),(R15),#WORK       Set Buffer Address             10570000
+         LA    R1,WORK                                                  10580000
+         AH    R1,#WORK                                                 10590000
+         MVC   0(1,R1),TMPCHAR2                                         10600000
+*        MVI   1(R1),X'0E'             Fujitsi SFE (Zappable)           10610000
+         MVC   1(1,R1),VIDSA           Fujitsu OR IBM Set Attribute     10620000
+         MVC   2(2,R1),=X'4200'        BACK TO DEFAULT Colour           10630000
+         MVC   2(2,R1),=X'42F5'        BACK TO DEFAULT COLOUR CVC J60   10631002
+         LH    R1,#WORK                                                 10640000
+         LA    R1,4(R1)                                                 10650000
+         STH   R1,#WORK                                                 10660000
+         LA    R14,22                                                   10670000
+         LA    R15,79                                                   10680000
+         GOTORC  (R14),(R15),#WORK       Set Buffer Address             10690000
+         LH    R1,TXTLEN                                                10700000
+         LA    R15,LITERAL(R1)                                          10710000
+         AH    R1,#WORK                                                 10720000
+         STH   R1,TXTLEN                                                10730000
+         MVC   0(20,R15),WORK                                           10740000
+*                        display_str(temp_char2);                       10750000
+*                                                                       10760000
+*                                                                       10770000
+POPBW   DS     0H                                                       10780000
+*                                                                       10790000
+         LH    R1,TXTLEN                                                10800000
+         AR    R5,R1          BUMP UP TO POINT TO NEW SPOT IN TABLE     10810000
+*        LA    R5,LFIXED(R5)  POINT OVER FIXED AREA IN PARM LIST        10820000
+         AH    R5,=AL2(LFIXED)  cvc simulator bug                       10830000
+*        XC    DITEM(LFIXED),DITEM  Clear next item row and col numbers 10840000
+         XC    TXTROWNO(LFIXED),TXTROWNO m row and col numbers          10850000
+*                                                                       10860000
+*                        k++;                                           10870000
+*                                                                       10880000
+        LH      R1,K29                                                  10890000
+        LA      R1,1(R1)                                                10900000
+        STH     R1,K29                                                  10910000
+*                                                                       10920000
+*                    }                                                  10930000
+*                 }                                                     10940000
+*                                                                       10950000
+        B       P28MAIN2                                                10960000
+P29GOTB1 ST     R1,TESTBRAK                                             10970000
+*                                                                       10980000
+*                 else                                /* Found { */     10990000
+*                 {                                                     11000000
+*                    alt_posn=test_bracket+1;                           11010000
+*                                                                       11020000
+        LH      R1,TESTBRAK                                             11030000
+        LA      R1,1(R1)                                                11040000
+        ST      R1,ALTPOSN                                              11050000
+        B       @16@1586                                                11060000
+@16@1922 DS     0H                                                      11070000
+*                                                                       11080000
+*                    *alt_posn= toupper(*alt_posn);                     11090000
+*                    goto test_dup;                                     11100000
+*                 }                                                     11110000
+*             }                                                         11120000
+*                                                                       11130000
+*                goto p29main2;                                         11140000
+*           }                                                           11150000
+*                                                                       11160000
+*           if (Tkn›0® == ')')                                          11170000
+*                                                                       11180000
+        CLI     TKN,C')'                                                11190000
+        BNE     @16@1970                                                11200000
+@16@1946 DS     0H                                                      11210000
+*                                                                       11220000
+*           {                                                           11230000
+*ok_to_skip2:                                                           11240000
+*     i = gettkn(Tkncurr); /* gettkn;   (* get current token number *)  11250000
+*                                                                       11260000
+        GETTKN  TKNCURR                                                 11270000
+        STH     R1,TKNCURR                                              11280000
+*                                                                       11290000
+*               goto p29main2;                                          11300000
+*                                                                       11310000
+        B       P28MAIN2                                                11320000
+@16@1970 DS     0H                                                      11330000
+*                                                                       11340000
+*           }                                                           11350000
+*      if (Tkncurr > stackno) goto p27wrap2; /* end of parameters */    11360000
+*                                                                       11370000
+        CLC     TKNCURR,TKNNO                                           11380000
+        BNH     @@47                                                    11390000
+        B       P27WRAP2                                                11400000
+@@47    DS      0H                                                      11410000
+*                                                                       11420000
+*                                                                       11430000
+*                                                                       11440000
+*           if (Tkn›0® == '/') {                                        11450000
+*                                                                       11460000
+        CLI     TKN,C'/'                                                11470000
+        BNE     @16@2042                                                11480000
+*                                                                       11490000
+*       line_feed2:                                                     11500000
+*               currrow = currrow + 1;                                  11510000
+*                                                                       11520000
+        LH      R1,CURRROW                                              11530000
+        LA      R1,1(R1)                                                11540000
+        STH     R1,CURRROW                                              11550000
+*                                                                       11560000
+*               goto p29main2;                                          11570000
+*                                                                       11580000
+        B       P28MAIN2                                                11590000
+*                                                                       11600000
+@16@2042 DS     0H                                                      11610000
+*           }                                                           11620000
+*                                                                       11630000
+*           if (t_ident(Tkn))                                           11640000
+*                                                                       11650000
+        CLI     TKN,C'_'                                                11660000
+        BE      ISIDENT2                                                11670000
+        CLI     TKN,C'@'                                                11680000
+        BE      ISIDENT2                                                11690000
+        CLI     TKN,C'$'                                          cvc   11700000
+        BE      ISIDENT2                                          cvc   11710000
+        CLI     TKN,C'A'                                                11720000
+        BL      @16@2114                                                11730000
+        CLI     TKN,C'Z'                                                11740000
+        BH      @16@2114                                                11750000
+ISIDENT2 DS      0H                                                     11760000
+*                                                                       11770000
+*           if (*x›Tkncurr-2® == ',')                                   11780000
+*                                                                       11790000
+        LH      R1,TKNCURR                                              11800000
+        SLL     R1,2                                                    11810000
+*       L       R15,ATKN1                                               11820000
+*       USING   TKNX,R15                                                11830000
+*       LH      R14,TKNDESC-8(R1)                                       11840000
+        SH      R1,=H'10'                   370 simulator bug           11850000
+        LH      R14,TKNDESC(R1)                                         11860000
+*       N       R14,=X'0000FFFF'                                        11870000
+        LA      R1,TKNSTRG(R14)                                         11880000
+        CLI     0(R1),C','                                              11890000
+        BNE     @16@2114                                                11900000
+*       DROP    R15                                                     11910000
+*                                                                       11920000
+*           {                                                           11930000
+*               Menu_Macro_Tknno›k® = Tkncurr-1;                        11940000
+*                                                                       11950000
+        LH      R14,K29                                                 11960000
+        SLL     R14,1                                                   11970000
+        LH      R1,TKNCURR                                              11980000
+        SH      R1,=H'1'                                                11990000
+        STH     R1,MENUTKN(R14)                                         12000000
+*                                                                       12010000
+*               goto ok_to_skip2;                                       12020000
+*                                                                       12030000
+        B       @16@1946                                                12040000
+@16@2114 DS     0H                                                      12050000
+*                                                                       12060000
+*           }                                                           12070000
+*                                                                       12080000
+*                                                                       12090000
+*           if (!t_attrib()) {                                          12100000
+*                                                                       12110000
+        CALL    UJP27ATR                                                12120000
+        LTR     R15,R15                                                 12130000
+        BZ      P29SKPAT                                                12140000
+*                                                                       12150000
+*                cpylit(errtext,"Symbol ");                             12160000
+*                                                                       12170000
+        JOLERR  416,'Symbol ''',#TKN,''' Invalid in POPUP'              12180000
+*                                                                       12190000
+*     i = gettkn(Tkncurr); /* gettkn; (* get current token number *)    12200000
+*                                                                       12210000
+P29SKPAT DS     0H                                                      12220000
+        GETTKN  TKNCURR                                                 12230000
+        STH     R1,TKNCURR                                              12240000
+*                                                                       12250000
+*           }                                                           12260000
+*           goto p29main2;                                              12270000
+*                                                                       12280000
+        B       P28MAIN2                                                12290000
+P27WRAP2 DS     0H                                                      12300000
+*                                                                       12310000
+*                                                                       12320000
+*p27wrap2:                                                              12330000
+*                                                                       12340000
+*                                                                       12350000
+* Set up the BOTTOM row with |____________|                             12360000
+*                                                                       12370000
+         MVI   P27HI,0           TURN OFF HIGHLIGHTS              J50   12380000
+         MVI   P27COLOR,POPCOLOR DEFAULT COLOUR (see POP EQU)     J51   12390000
+        MVC     TXTCOLNO,LHSMARG                                        12400000
+        MVC     REPROWNO,=H'0'                                          12410000
+        MVC     REPCOLNO,=H'0'                                          12420000
+        MVC     RPLYLEN,=H'0'                                           12430000
+         MVI   TESTR,0           no default reply                 J50   12440000
+        LH      R1,LHSMARG                                              12450000
+        STH     R1,TXTCOLNO                                             12460000
+        LH      R1,CURRROW                                              12470000
+        LA      R1,1(R1)                                                12480000
+        STH     R1,CURRROW                                              12490000
+        STH     R1,TXTROWNO                                             12500000
+        MVC     TXTCOLR,P27COLOR                                        12510000
+        MVI     LITERAL,C'_'                                            12520000
+        LH      R1,MAXWIDTH                                             12530000
+         SH    R1,=H'4'                                           J52   12540000
+        LA      R1,4(R1)           for ?b  <txt>  b?                    12550000
+        STH     R1,TXTLEN                                               12560000
+*       EX      R1,P29BOTPR                                             12570000
+*P29BOTPR MVC      LITERAL+1(*-*),LITERAL                               12580000
+       MEMCPY  LITERAL+1,LITERAL,R1                                     12590000
+        MVI     LITERAL,C'›'                                            12600000
+         LH    R1,TXTLEN                                                12610000
+         LA    R1,LITERAL-1(R1)     Point to end of string              12620000
+         FIX 'if | in wrong spot'                                       12630000
+*        LA    R1,LITERAL(R1)     Point to end of string                12640000
+         B     DUM                                                J50   12650000
+DUM     MVI      0(R1),C'›'                                             12660000
+*NO replyAH    R1,RLITLEN                                               12670000
+         LH    R1,TXTLEN                                                12680000
+         AR    R5,R1          BUMP UP TO POINT TO NEW SPOT IN TABLE     12690000
+*        LA    R5,LFIXED(R5)  POINT OVER FIXED AREA IN PARM LIST        12700000
+         AH    R5,=AL2(LFIXED)  cvc simulator bug                       12710000
+         LH    R1,#SCITEMS                                              12720000
+         LA    R1,2(R1)                                                 12730000
+         STH   R1,#SCITEMS                                              12740000
+*                                                                       12750000
+*           gotorc(1,lhs_margin+8);                                     12760000
+*                                                                       12770000
+*cvc    GOTORC  (1,lhs_margin+8)                                        12780000
+*                                                                       12790000
+*           max_row=currrow;                                            12800000
+*                                                                       12810000
+        LH      R1,CURRROW                                              12820000
+        STH     R1,MAXROW                                               12830000
+*                                                                       12840000
+*           currrow=1;                                                  12850000
+*                                                                       12860000
+*       MVC     CURRROW,=H'1'                                           12870000
+        MVC     CURRROW,=H'2'                                     row   12880000
+*                                                                       12890000
+BADMENKY DS     0H                                                      12900000
+*                                                                       12910000
+*                                                                       12920000
+*       /* Now get the Key pressed */                                   12930000
+*                                                                       12940000
+*                                                                       12950000
+*bad_menu_key:                                                          12960000
+*             Cntl = false;                                             12970000
+*                                                                       12980000
+*       MVC     CNTL,ZERO                                               12990000
+*                                                                       13000000
+*             Syspfk = 0;                                               13010000
+*                                                                       13020000
+        MVC     SYSPFK,ZERO                                             13030000
+*                                                                       13040000
+*                                                                       13050000
+*             getkey();            /* Get char from Keyboard */         13060000
+*                                                                       13070000
+*3270 - DISPLAY SCREEN                                                  13080000
+*                                                                       13090000
+         SPACE 2                                                        13100000
+         LA    R0,4000(R4)    GET WORK AREA FOR SCREEN HANDLER FIX DJD  13110000
+         LR    R15,R0         se t up dummy name for popup        J50   13120000
+         S     R15,=F'16'                                         J50   13130000
+         MVC   0(16,R15),BLANKS                                   J50   13140000
+         LR    R1,R4          POINT TO START OF PARAMETER AREA          13150000
+         MVI   NOCLS,1           Tell P28 not to clear screen     J52   13160000
+         MVI   SETCURSR,1                                         J52   13170000
+        LH      R14,LHSMARG                                       J52   13180000
+        LA      R14,10(R14)      Point to < >                     J60   13190010
+         STC   R14,SETCURSC      Set Cursor Column                J52   13200000
+         MVI   SETCURSR,2        Set Cursor Row                   row   13210000
+        CALL    UJP28SCR                                                13220000
+*                                                                       13230000
+*                                                                       13240000
+*                                                                       13250000
+*                                                                       13260000
+* For 3270's we simply wait for the user to press enter, or the PFK,    13270000
+*     after maybe moving the cursor keys.                               13280000
+*                                                                       13290000
+*        CLC   SYSPFK,=H'0'                                             13300000
+*        BE    CHKPOP                                                   13310000
+         LR    R9,R15       SAVE THE RETURN CODE                        13320000
+         LH    R0,SYSPFK                                          J52   13330000
+         CVD   R0,DBL                                                   13340000
+         UNPK  WORK(2),DBL                                              13350000
+         OI    WORK+1,X'F0'  SET ZONE BITS                              13360000
+         MVC   #WORK,=H'2'                                              13370000
+         MVC   SYMBOLIC,=CL8'SYSPFK'                                    13380000
+         CALL$ UJP85ASN                                                 13390000
+         LTR   R9,R9          CHECK RETURN CODE FROM 28                 13400000
+         BZ    P27REC         RECIEVE DATA BACK                         13410000
+P27SERR  JOLERR 410,'Error Occurred in Screen Handler'                  13420000
+         JOLRETN RC=16                                                  13430000
+P27REC   EQU   *                                                        13440000
+         CLC   SYSPFK,=H'0'                                             13450000
+         BE    CHKPOP                                                   13460000
+         LR    R8,R1          SAVE R1 (RETURNED STRINGS)                13470000
+         LH    R9,CURRROW     LOAD THE LAST ROW OUTPUT        **CVC     13480000
+         LA    R9,1(R9)       SET +1 SO CURSOR ENDS UP THERE  **CVC     13490000
+         LA    R9,1           SET LINE TO 1  ****************           13500000
+*cvc     STLINENO LINE=(R9),MODE=OFF SET LINE, AND TURN OFF FS **CVC    13510000
+*        STFSMODE   OFF                                                 13520000
+         JOLRETN                                                        13530000
+*                                                                       13540000
+CHKPOP   DS    0H                                                       13550000
+* Check  if user coded A <Hot Key> in Row 1                       J50   13560000
+         L     R8,TGETAREA       Returned by P28SCR               J50   13570000
+         USING TGETREAD,R8                                        J50   13580000
+         CLI   ISBA,0            A character entered ?            J50   13590000
+         BE    P29CURS           No, check where the Cursor is    J50   13600000
+         IC    R1,IADD1       GET FIRST ADDRESS                         13610000
+         N     R1,=F'63'      TURN OFF ALL BITS EXCEPT LAST 6           13620000
+         IC    R15,IADD2      GET 2ND ADDRESS                           13630000
+         N     R15,=F'63'     TURN OFF ALL BITS EXCEPT LAST 6           13640000
+         SLL   R1,6           SHIFT FIRST ADDRESS 6 BITS TO THE LEFT    13650000
+         AR    R15,R1        ADD THE RESULTS. R15 HAS ADDR REL TO 0 POS 13660000
+         SLR   R0,R0             GET READY FOR DIVIDE             J50   13670000
+         LR    R1,R15                                             J50   13680000
+         D     R0,#COLUMNS                                        J50   13690000
+*        D     R0,=F'80'                                          J50   13700000
+* r1 has the row, and r0 the column                               J50   13710000
+*        CH    R1,ZERO           Was the data entered in Row 0(1) J50   13720000
+         CH    R1,=H'1'          Was the data entered in Row 0(1) r2    13730000
+         BNE   P29CURS           No, check where the Cursor is    J50   13740000
+*        OI    ITEXTI,C' '       Make Upper Case                  J50   13750000
+         MEMUPR ITEXTI,1         Make Upper Case                  J50   13760000
+         B     P29DOHOT          Go do the Hot Key                J50   13770000
+*                                                                 J50   13780000
+P29CURS  DS    0H                                                 J50   13790000
+*      if (cntl)                                                        13800000
+*      {                                                                13810000
+*    Binary_Input_Char = ord(Input_Char); /* Get Binary Equivalent  */  13820000
+*                                                                       13830000
+*              switch (Binary_Input_Char)                               13840000
+*                                                                       13850000
+*                 {                                                     13860000
+*        case 1:                /* Mouse Action, and Cursor moved */    13870000
+*                                                                       13880000
+*                       if ((wherex() > rcol)                           13890000
+*                       ||  (wherex() < lhs_margin))                    13900000
+*                                                                       13910000
+        LH      R1,WHEREX                                               13920000
+        LH      R0,LHSMARG                                              13930000
+         AH    R0,MAXWIDTH       SEE IF CURSOR IN AREA            J50   13940000
+         CR    R1,R0             OUT OF RIGHT HAND SIDE?          J50   13950000
+        BH      BADKEY                                                  13960000
+        LH      R1,WHEREX        GET CURSOR COLUMN                      13970000
+        CH      R1,LHSMARG       CHECK IF LEFT OF LEFT MARGIN           13980000
+        BL      BADKEY                                                  13990000
+*                                                                       14000000
+*                          goto pop_esc;                                14010000
+*                                                                       14020000
+*       B        BADKEY                                                 14030000
+@16@2498 DS      0H                                                     14040000
+*                                                                       14050000
+*                       goto change_row;                                14060000
+*                                                                       14070000
+*        case 72:                                                   /*  14080000
+*                   if (currrow<2)                                      14090000
+*                                                                       14100000
+*       CLC     CURRROW,=H'2'                                           14110000
+*       BNL     @16@2594                                                14120000
+*                                                                       14130000
+*                   {   beep();                                         14140000
+*                                                                       14150000
+*       B       BADKEY                                                  14160000
+@16@2594 DS     0H                                                      14170000
+*                                                                       14180000
+*                       goto bad_menu_key;                              14190000
+*                   }                                                   14200000
+*                   if (currrow!=1)             /* Reset reverse ? */   14210000
+*                   {                                                   14220000
+*                      reverse_pop(currrow, lhs_margin +2, max_width);  14230000
+*                   }                                                   14240000
+*                   currrow--;                                          14250000
+*                                                                       14260000
+*                   if (currrow == 1) gotorc(1,lhs_margin+8);           14270000
+*                                                                       14280000
+*                   else                                                14290000
+*                   {  gotorc(currrow,lhs_margin+1);                    14300000
+*                                                                       14310000
+*                      reverse_pop(currrow, lhs_margin +2, max_width);  14320000
+*                   }                                                   14330000
+*                   goto bad_menu_key;                                  14340000
+*                                                                       14350000
+*                                                                       14360000
+*                   break;                                              14370000
+*                                                                       14380000
+*                                                                       14390000
+*        case 80:                               /*  Down  */            14400000
+*                                                                       14410000
+*       change_row:                                                     14420000
+*                                                                       14430000
+*                   if (currrow>max_row)                                14440000
+*                                                                       14450000
+        CLC     WHEREY,MAXROW                                           14460000
+        BNH     @16@2834                                                14470000
+        B       BADKEY                                                  14480000
+@16@2834 DS     0H                                                      14490000
+* The 3270 cursor is in the "box" defined by the POPUP.                 14500000
+*                                                                       14510000
+        LH      R14,WHEREY                                              14520000
+         SH    R14,=H'2'                                          row   14530000
+         BNP   @16@3530          Just return to caller            J52   14540000
+        B       P29GOTHT                                                14550000
+*                                                                       14560000
+*                   {   beep();                                         14570000
+*                       goto bad_menu_key;                              14580000
+*                   }                                                   14590000
+*                                                                       14600000
+*                   if (currrow!=1)             /* Reset reverse ? */   14610000
+*                                                                       14620000
+*       CLC     CURRROW,=H'1'                                           14630000
+*       BE      @16@2882                                                14640000
+*                                                                       14650000
+*                   {                                                   14660000
+*                      reverse_pop(currrow, lhs_margin +2, max_width);  14670000
+*                                                                       14680000
+@16@2882 DS     0H                                                      14690000
+*                                                                       14700000
+*                   }                                                   14710000
+*                                                                       14720000
+*                   if (Binary_Input_Char == 1)                         14730000
+*                                                                       14740000
+*                                                                       14750000
+*                       currrow=wherey() -1;                            14760000
+*                                                                       14770000
+*                   gotorc(currrow,lhs_margin+1);                       14780000
+*                   reverse_pop(currrow, lhs_margin +2, max_width);     14790000
+*                                                                       14800000
+*                   gotorc(currrow,lhs_margin+1);                       14810000
+*                                                                       14820000
+*                   if (Binary_Input_Char == 1)                         14830000
+*                                                                       14840000
+*       B       BADMENKY                                                14850000
+@@51    DS      0H                                                      14860000
+        B       @16@2498                                                14870000
+@16@3002 DS     0H                                                      14880000
+*                                                                       14890000
+*                   {                                                   14900000
+*                       i=currrow-2;                                    14910000
+*                       goto got_enter;                                 14920000
+*                   }                                                   14930000
+*                                                                       14940000
+*                   goto bad_menu_key;                                  14950000
+*                   break;                                              14960000
+*             }                                                         14970000
+*                                                                       14980000
+*                 if (Syspfk != 0)                                      14990000
+*                                                                       15000000
+        CLC     SYSPFK,=H'0'                                            15010000
+        BNE     BADKEY                                                  15020000
+*                                                                       15030000
+*                 {    goto bad_key;                                    15040000
+*                      Binary_Input_Char = 13;                          15050000
+*                      Input_Char = '\015';                             15060000
+*                 }                                                     15070000
+*                                                                       15080000
+*                                                                 J50   15090000
+*        /*  Alt characters here  */                                    15100000
+*                 if (Binary_Input_Char <= sizeof (transalt))           15110000
+*                 {                                                     15120000
+*                     Input_Char = transalt›Binary_Input_Char®;         15130000
+*                                                                       15140000
+*                     taltkey = strchr(Alt_Keys,Input_Char);            15150000
+*                                                                       15160000
+*                     if (taltkey == NULL) beep();                      15170000
+*                                                                       15180000
+@16@3098 DS     0H                                                      15190000
+*                     else {                                            15200000
+*                         i=taltkey-Alt_Keys;                           15210000
+*                                                                       15220000
+*                         strcpy(Ret_Alt_Field,Menu_Bar_Items›i®);      15230000
+*                                                                       15240000
+*cvc    mov     bx,di                                                   15250000
+*       shl     bx,1                                                    15260000
+*       lea     ax,word ptr MENUBARITEM                                 15270000
+*       add     bx,ax                                                   15280000
+*       push    word ptr ›bx®                                           15290000
+*       lea     ax,word ptr RETALTFL                                    15300000
+*       push    ax                                                      15310000
+*       CALL    strcpy                                                  15320000
+*                                                                       15330000
+*                         strupr(Ret_Alt_Field);                        15340000
+*                                                                       15350000
+        MEMUPR  RETALTFL,L'RETALTFL                                     15360000
+@16@3122 DS     0H                                                      15370000
+*                                                                       15380000
+*       /*                Binary_Input_Char = 13;                       15390000
+*                         Input_Char = '\015'; */                       15400000
+*                     }                                                 15410000
+*                  }                                                    15420000
+*                }                                                      15430000
+*                                                                       15440000
+*/* Here is an ordinary character.  Must check for valid key, and wait  15450000
+*   for an ENTER, if the cursor is at the top */                        15460000
+*                                                                       15470000
+*                                                                       15480000
+*       /*-----------------------------                                 15490000
+*       endofedit                                                       15500000
+*       */                                                              15510000
+*           if ((Alt_Keys›0® != '\0')                                   15520000
+*           &   (Ret_Alt_Field›0® == 0)                                 15530000
+*           )                                                           15540000
+*                                                                       15550000
+        CLI     ALTKEYS,0                                               15560000
+        BE      @16@3170                                                15570000
+        LA      R1,1                                                    15580000
+        B       @16@3194                                                15590000
+@16@3170 DS     0H                                                      15600000
+        SR      R1,R1                                                   15610000
+@16@3194 DS     0H                                                      15620000
+*cvc    push    ax                                                      15630000
+        CLI     RETALTFL,0                                              15640000
+        BNE     @16@3242                                                15650000
+        LA      R1,1                                                    15660000
+        B       @16@3266                                                15670000
+@16@3242 DS     0H                                                      15680000
+*cvc    xor     ax,ax                                                   15690000
+@16@3266 DS     0H                                                      15700000
+*cvc    pop     dx                                                      15710000
+*cvc    test    dx,ax                                                   15720000
+*                                                                       15730000
+*           {                                                           15740000
+*       /*      Input_Char = *Field_Str_Ptr›1®;/ * Get Menu_Bar Key */  15750000
+*                                                                       15760000
+*       test_key:                                                       15770000
+*             Input_Char= toupper(Input_Char);                          15780000
+*                                                                       15790000
+*cvc    OI      INPUTCHR,C' '                                           15800000
+*                                                                       15810000
+*                                                                       15820000
+P29DOHOT DS    0H                Do the Hot Key as Coded          J50   15830000
+*                                                                       15840000
+* Here, ITEXTI contains the character typed in.                         15850000
+*                                                                       15860000
+*             taltkey = strchr(Alt_Keys,Input_Char);                    15870000
+*cvc fix , go  forward                                                  15880000
+        LA      R14,1                                                   15890000
+P29STCH LA      R15,ALTKEYS-1(R14)                                      15900000
+        CLC     ITEXTI(1),0(R15) see if we can find the key             15910000
+        BE      P29GOTHT         OK, Got the Hot key                    15920000
+        CH      R14,=AL2(L'ALTKEYS)                                     15930000
+         LA    R14,1(R14)        Bump to next character           J52   15940000
+        BL      P29STCH          round again.                           15950000
+BADKEY  DS      0H                                                      15960000
+*                                                                       15970000
+*                                                                       15980000
+*       bad_key:                                                        15990000
+*             {  beep();                                                16000000
+*                                                                       16010000
+*cvc    CALL    BEEP                                              J60   16020001
+*                                                                       16030000
+*                goto  bad_menu_key;                                    16040000
+*                                                                       16050000
+        B       BADMENKY                                                16060000
+*                                                                       16070000
+P29GOTHT DS     0H                                                      16080000
+         STH   R14,I29                                            J50   16090000
+*                                                                       16100000
+*R14 has the index into the ALTKEY table, R15 -> the character    J50   16110000
+*             }                                                         16120000
+*             else {                                                    16130000
+*                                                                       16140000
+*                 i=taltkey-Alt_Keys;                                   16150000
+*                                                                       16160000
+@16@3362 DS     0H                                                      16170000
+*                                                                       16180000
+* got_enter:                                                            16190000
+*                 if (i<0)                                              16200000
+*                                                                       16210000
+        LH      R1,I29                                                  16220000
+        LTR     R1,R1                                                   16230000
+        BP      @16@3458                                                16240000
+*                                                                       16250000
+*                 {                                                     16260000
+*                    *Ret_Alt_Field = '\0';                             16270000
+*                                                                       16280000
+        MVC     RETALTFL,ZERO                                           16290000
+*                                                                       16300000
+*                    clear(Tkn);                                        16310000
+*                                                                       16320000
+        MVC     #TKN,=H'0'                                              16330000
+        MVI      TKN,C' '                                               16340000
+*                                                                       16350000
+*                 }                                                     16360000
+*                                                                       16370000
+        B       @16@3482                                                16380000
+@16@3458 DS     0H                                                      16390000
+*                                                                       16400000
+*                 else                                                  16410000
+*                 {                                                     16420000
+*                    strcpy(Ret_Alt_Field,Menu_Bar_Items›i®);           16430000
+*                                                                       16440000
+        LH      R1,I29                                                  16450000
+        SLL     R1,1                                                    16460000
+        SLL     R1,1                                                    16470000
+        L       R1,MENBARIT-4(R1)                                       16480000
+        MVC     #RETALTF(L'RETALTFL),0(R1)                              16490000
+*                                                                       16500000
+*                    gettkn(Menu_Macro_Tknno›i+1®);                     16510000
+*                                                                       16520000
+        LH      R1,I29                                                  16530000
+        SLL     R1,1                                                    16540000
+        LH      R1,MENUTKN(R1)                                          16550000
+*cvc    lea     ax,word ptr MENUTKN                                     16560000
+*       add     bx,ax                                                   16570000
+*       push    word ptr ›bx®                                           16580000
+*       CALL    gettkn                                                  16590000
+        STH     R1,TKNCURR                                              16600000
+        GETTKN  TKNCURR                                                 16610000
+@16@3482 DS     0H                                                      16620000
+*                                                                       16630000
+*                 }                                                     16640000
+*                 strupr(Ret_Alt_Field);                                16650000
+*                                                                       16660000
+        MEMUPR  RETALTFL,L'RETALTFL                                     16670000
+*                                                                       16680000
+*                 Binary_Input_Char = 13;                               16690000
+*                                                                       16700000
+*cvc    LA      R1,13                                                   16710000
+*       STH     R1,BINCHAR                                              16720000
+*                                                                       16730000
+*                 Input_Char = '\015';                                  16740000
+*                                                                       16750000
+*cvc    mov     byte ptr DGROUP:_Key_Board_Values+2,13                  16760000
+*                                                                       16770000
+*             }                                                         16780000
+*           }                                                           16790000
+*                                                                       16800000
+*                                                                       16810000
+*                                                                       16820000
+*       /* Ordinary key here */                                         16830000
+*                                                                       16840000
+*           else                                                        16850000
+*           {                                                           16860000
+*                 goto test_key;                                        16870000
+*           }                                                           16880000
+*                                                                       16890000
+*           mvc(symbolic, "SYSPOP  ",8);                                16900000
+*                                                                       16910000
+        MVC     SYMBOLIC,=CL8'SYSPOP'                                   16920000
+*                                                                       16930000
+*           x›1® = Ret_Alt_Field;                                       16940000
+*                                                                       16950000
+        MVC     #WORK(100),#RETALTF                                     16960000
+*                                                                       16970000
+*           ujp85asn();                                                 16980000
+*                                                                       16990000
+        CALL$   UJP85ASN                                                17000000
+*                                                                       17010000
+*                                                                       17020000
+*           disp_pokebox(scrn_save,0,0,24,79);                          17030000
+*                                                                       17040000
+*cvc    RESTORE SCREEN                                                  17050000
+*                                                                       17060000
+*           p27reset_attr();        /* Reset Attributes for TXT */      17070000
+*                                                                       17080000
+*cvc    CALL    p27reset_attr                                           17090000
+*                                                                       17100000
+*           curs_at(24, 1); /* CVC FEB 11, 87 : Pretty Screen */        17110000
+*                                                                       17120000
+*cvc    GOTORC  24,1                                                    17130000
+*                                                                       17140000
+*                                                                       17150000
+*           return(0);                                                  17160000
+*                                                                       17170000
+@16@3530 DS     0H                                                      17180000
+*                                                                       17190000
+*       }                                                               17200000
+*                                                                       17210000
+        JOLRETN RC=0                                                    17220000
+        LTORG                                                           17230000
+         DC   140S(*)                                                   17240000
+*                                                                       17250000
+*                                                                       17260000
+*XX2      DSECT                                                         17270000
+UJP29POP JOLSAVE CSECT=UJP29POP                                         17280000
+         TITLE 'UJP29POP : DO POPUP (INTERNAL ROUTINE)'          J51    17290000
+*       { int          dc;                                              17300000
+*       /* Start of sub_parameter. Tkn contains a "(". */               17310000
+*                                                                       17320000
+*           rplylen = -1; /* Set if a reply */                          17330000
+*                                                                       17340000
+*       WTO     'UP29POP Called'                                        17350000
+        L       R10,P27GBL                                              17360000
+        USING   PANELWRK,R10                                            17370000
+*       L       R6,=V(P29POPWK)                                         17380000
+        L       R6,AP29PWK       Get address of POPWK in JOLCOM   J52   17381000
+        USING   P29POPWK,R6                                             17390000
+        USING   #PARM,R4                                                17400000
+        USING   DITEM,R5                                                17410000
+        MVC     RPLYLEN,ZERO    =H'-1'                                  17420000
+*                                                                       17430000
+*           currrow = currrow + 1;                                      17440000
+*                                                                       17450000
+*       LH      R1,CURRROW                                              17460000
+*       LA      R1,1(R1)                                                17470000
+*       STH     R1,CURRROW                                              17480000
+*                                                                       17490000
+*                                                                       17500000
+*           colno = lhs_margin;                                         17510000
+*                                                                       17520000
+        LH      R1,LHSMARG                                              17530000
+        STH     R1,TXTCOLNO                                             17540000
+*                                                                       17550000
+*                                                                       17560000
+*           p27reset_attr();                                            17570000
+*                                                                       17580000
+*       CALL    p27reset_attr                                           17590000
+*                                                                       17600000
+*                                                                       17610000
+*           p27gettext(); /* gets the text, fixes attributes */         17620000
+*                                                                       17630000
+        CALL    UJP27TXT                                                17640000
+*                                                                       17650000
+*                 /* on return, Tkn contains the next token */          17660000
+*           cpy(outtext , default_txt);                                 17670000
+*                                                                       17680000
+        MVC     #OUTTXT(L'OUTTXT),#DEFTXT                               17690000
+*                                                                       17700000
+*           cpy(outtext_with_attrs , default_with_attrs);               17710000
+*                                                                       17720000
+        MVC     #OUTTXTA(L'OUTTXTA),#DEFTXTA                            17730000
+*                                                                       17740000
+*                                                                       17750000
+*           clear  (default_txt);                                       17760000
+*                                                                       17770000
+        MVC     #DEFTXT,=H'0'                                           17780000
+*                                                                       17790000
+*           cpylit (default_with_attrs , "\033›0;");                    17800000
+*                                                                       17810000
+*cvc    MVC     default_with_attrs(xx),=C                               17820000
+*                                                                       17830000
+*           cat    (default_with_attrs , videobackground);              17840000
+*                                                                       17850000
+*cvc    CAT    (DEFATTR,VIDEOBACKGROUND);                               17860000
+*                                                                       17870000
+*           catchar(default_with_attrs , ';');                          17880000
+*                                                                       17890000
+*cvc    CATCHAR(DEFATTR,';');                                           17900000
+*                                                                       17910000
+*           cat    (default_with_attrs , videohighlight);               17920000
+*                                                                       17930000
+*cvc    CAT    (DEFATTR,VIDEOHIGHLIGHT);                                17940000
+*                                                                       17950000
+*           catchar(default_with_attrs , 'm');                          17960000
+*                                                                       17970000
+*cvc    CATCHAR(DEFATTR,'M');                                           17980000
+*                                                                       17990000
+*           rowno = currrow;                                            18000000
+*                                                                       18010000
+*cvc    LH      R1,CURRROW                                              18020000
+*cvc    STH     R1,TXTROWNO                                             18030000
+*                                                                       18040000
+*                                                                       18050000
+*           if (Tkncurr > stackno) return;/* end of parameters */       18060000
+*                                                                       18070000
+        CLC     TKNCURR,TKNNO                                           18080000
+        BH      @14@410                                                 18090000
+*                                                                       18100000
+*           if (Tkn›0® == ')') return;                                  18110000
+*                                                                       18120000
+        CLI     TKN,C')'                                                18130000
+        BE      @14@410                                                 18140000
+*                                                                       18150000
+*                                                                       18160000
+*       /* ok, we have a reply symbolic name here */                    18170000
+*                                                                       18180000
+*           if (Tkncurr > stackno) return;/* end of parameters */       18190000
+*                                                                       18200000
+        CLC     TKNCURR,TKNNO                                           18210000
+        BH      @14@410                                                 18220000
+*                                                                       18230000
+*           if (Tkn›0® == ')') return;                                  18240000
+*                                                                       18250000
+        CLI     TKN,C')'                                                18260000
+@14@410 DS      0H                                                      18270000
+*                                                                       18280000
+*                                                                       18290000
+*                                                                       18300000
+*       p27retnf:;                                                      18310000
+*        } /* Procedure */                                              18320000
+*                                                                       18330000
+        JOLRETN  RC=15                                                  18340000
+        LTORG                                                           18350000
+*                                                                       18360000
+*void         p27_pop_parameters(void)                                  18370000
+*{*int          dc;                                                     18380000
+*/* Start of sub_parameter. Tkn contains a "(". */                      18390000
+*                                                                       18400000
+*   rplylen = -1; /* Set if a reply */                                  18410000
+*                                                                       18420000
+*   currrow = currrow + 1;                                              18430000
+*                                                                       18440000
+*   colno = lhs_margin;                                                 18450000
+*                                                                       18460000
+*   p27reset_attr();                                                    18470000
+*                                                                       18480000
+*   p27gettext(); /* gets the text, fixes attributes */                 18490000
+*                        /* on return, Tkn contains the next token */   18500000
+*   cpy(outtext , default_txt);                                         18510000
+*   cpy(outtext_with_attrs , default_with_attrs);                       18520000
+*                                                                       18530000
+*                                                                       18540000
+*   clear  (default_txt);                                               18550000
+*   cpylit (default_with_attrs , "\033›0;");                            18560000
+*   cat    (default_with_attrs , videobackground);                      18570000
+*   catchar(default_with_attrs , ';');                                  18580000
+*   cat    (default_with_attrs , videohighlight);                       18590000
+*   catchar(default_with_attrs , 'm');                                  18600000
+*                                                                       18610000
+*   rowno = currrow;                                                    18620000
+*                                                                       18630000
+*   if (Tkncurr > stackno) return;/* end of parameters */               18640000
+*   if (Tkn›0® == ')') return;                                          18650000
+*                                                                       18660000
+*/* ok, we have a reply symbolic name here */                           18670000
+*                                                                       18680000
+*   if (Tkncurr > stackno) return;/* end of parameters */               18690000
+*   if (Tkn›0® == ')') return;                                          18700000
+*                                                                       18710000
+*                                                                       18720000
+*p27retnf:;                                                             18730000
+*} /* Procedure */                                                      18740000
+*                                                                       18750000
+*                                                                       18760000
+*void         reverse_pop(int row, int col, int width)                  18770000
+*{                                                                      18780000
+* unsigned      ch_att;                                                 18790000
+*                                                                       18800000
+* char           temp_char;                                             18810000
+* unsigned char  background;                                            18820000
+* unsigned char  foreground;                                            18830000
+* unsigned char  normal_text_attr;                                      18840000
+* unsigned char  temp_text_attr;                                        18850000
+* unsigned char  temp_video_attr;                                       18860000
+* int            end_col;                                               18870000
+*                                                                       18880000
+* end_col=width+col;                                                    18890000
+*                                                                       18900000
+* for (col=col; col < end_col; col++)                                   18910000
+* {                                                                     18920000
+*         disp_move(row,col);                                           18930000
+*         ch_att=disp_peekw(row+1, col+1);                              18940000
+*                                                                       18950000
+*         normal_text_attr=ch_att >>8;                                  18960000
+*         temp_char=ch_att & 0xff;                                      18970000
+*                                                                       18980000
+*         background = (normal_text_attr & 0x70) >> 4;                  18990000
+*         foreground = (normal_text_attr & 0x07);                       19000000
+*         temp_video_attr = (foreground << 4) + background;             19010000
+*         normal_text_attr = normal_text_attr & 0x88;                   19020000
+*         normal_text_attr = normal_text_attr + temp_video_attr;        19030000
+*                                                                       19040000
+*         ch_att=(normal_text_attr <<8 ) + temp_char;                   19050000
+*                                                                       19060000
+*         disp_pokew(row,col,ch_att);                                   19070000
+* }                                                                     19080000
+*}                                                                      19090000
+         DC   140S(*)                                                   19100000

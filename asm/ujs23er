@@ -1,0 +1,342 @@
+UJS23ER  TITLE 'WTP,WTO ERROR MESSAGES'                                 00010011
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973                 00020001
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1976                           00030001
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1980                           00040001
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1982                           00050001
+* JOL COPYRIGHT CCS-JOL 1986.  1987,  1988                              00060001
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00070001
+           SPACE 3                                                      00080001
+*                   J             000000            L                   00090001
+*                   J            0      0           L                   00100001
+*                   J           0        0          L                   00110001
+*                   J          0          0         L                   00120001
+*                   J         0            0        L                   00130001
+*                   J         0            0        L                   00140001
+*                   J         0            0        L                   00150001
+*                   J         0            0        L                   00160001
+*                   J         0            0        L                   00170001
+*                   J         0            0        L                   00180001
+*                   J         0            0        L                   00190001
+*        J          J         0            0        L                   00200001
+*         J        J           0          0         L                   00210001
+*          J      J             0        0          L                   00220001
+*           J    J               0      0           L                   00230001
+*            JJJJ                 000000            LLLLLLLLLLL         00240001
+           SPACE 3                                                      00250001
+         COPY  JOLGLOBL                                          88036  00260001
+*        GBLC  &JOLOS                                                   00270001
+         LCLA  &SP &RSVDRC                                              00280001
+         LCLC  &KEY,&SUP,&C                                             00290001
+         $UJEPARM                                                       00300001
+&TYPE    SETC  'SCHED'                                           88036  00310001
+&SP      SETA  155        1 FOR TESTING, 155 FOR X8  PRODUCTION        .00320001
+                                         254 FOR OTHER OS/VS PRODUCTION 00330001
+&KEY     SETC  'NZERO'    NZERO FOR TESTING, ZERO FOR PRODUCTION        00340001
+&SUP     SETC  'PROB'      PROB FOR TESTING, SUP FOR PRODUCTION         00350001
+&RSVDRC  SETA  &X8*40+(1-&X8)*4000                                      00360001
+&RSVDRC  SETA  0                                                        00370001
+UJECOMM  DSECT                 START OF THE AREA USED BY SCHEDULER      00380001
+         LCLA  &A                                                88036  00390002
+.L       AIF   (&A GT 15).END                                    88036  00400002
+R&A      EQU   &A                                                88036  00410002
+&A       SETA  &A+1                                              88036  00420002
+         AGO   .L                                                88036  00430002
+.END     ANOP                                                           00440002
+         USING UJECOMM,R3                                        88036  00450001
+         COPY  UJECOMM                                                  00460001
+         EJECT                                                   88036  00470001
+UJS23ER  CSECT                                                          00480000
+         ENTRY UJSERR                                                   00490000
+UJSERR   EQU   UJS23ER                                                  00500000
+         USING *,R10                                                    00510000
+         USING S23WORK,R6                                        88036  00520000
+         B     SERR10-*(,R15)                                    88036  00521005
+         DC    AL1(SERR10-*),C'UJS23ER &SYSDATE &SYSTIME'        88036  00522005
+SERR10   DS    0H                                                88036  00523005
+         STM   R14,R12,12(R13)                                          00530000
+         LR    R10,R15                                           88036  00540000
+         L     R6,AS23WORK                                              00550000
+         L     R4,AWINST                                         88036  00560000
+         USING INSTR,R4                                          88036  00570000
+         LA    R15,S23ESA                                        88036  00580000
+         ST    R13,4(,R15)                                       88036  00590000
+         ST    R15,8(,R13)                                              00600013
+         LR    R13,R15                                                  00610000
+         MVC   S23FLAGS,0(R14) COPY INDICATORS                          00620000
+         MVC   S23STMTA,4(R14)  AND S-TYPE ADDRESS                      00630000
+         LA    R14,6(,R14)     SKIP PAST INDICATORS ETC                 00640000
+         ST    R14,0(,R13)                                       88036  00650000
+         SPEAK 'WE HAVE SOMETHING TO SAY'                        88036  00660000
+         L     R14,0(,R13)                                       88036  00670000
+* R14 IS THE RETURN ADDRESS BUT IT ALSO POINTS TO A LIST OF             00680000
+* INSTRUCTIONS WHICH ARE TO BE EXECUTED                                 00690000
+* THEY CAN BE :-                                                        00700000
+*    MVC   CONSTANT                                                     00710000
+*    LA    VARYING STRING                                               00720000
+         CLEAR S23MSSG         CLEAR MESSAGE AREA                       00730000
+* NEW, END DEC 1974. IF AN ERROR MESSAGE IS BEING ISSUED, THEN OFFSET   00740000
+*    THE MESSAGE AND PUT '***' IN IT.                                   00750000
+         LA    R1,S23MSSG                                         74365 00760000
+         CLC   =C'DISPLAY ',ICOMMAND                     CHG30062 76200 00770000
+         BE    S23OFF10                                  CHG30062 76200 00780000
+         CLC   =C'TYPE ',ICOMMAND                        CHG30062 76200 00790000
+         BE    S23OFF10                                  CHG30062 76200 00800000
+         CLC   =C'RETURN ',ICOMMAND                      CHG30062 76200 00810000
+         BE    S23OFF10       PUT 10 BLANKS IN START     CHG30062 76200 00820000
+         B     S23TSEV                                   CHG30062 76200 00830000
+S23OFF10 MVC   0(10,R1),BLANKS OFFSET MESSAGE BY 10      CHG30062 76200 00840000
+         LA    R1,10(R1)      SKIP BLANKS                CHG30062 76200 00850000
+         B     S23START       GO FORM UP MESSAGE         CHG30062 76200 00860000
+S23TSEV  CLI   S23SEV,2                                  CHG30062 76200 00870000
+         BNL   S23REALE       REAL ERROR, PUT JOB NAME   CHG30062 76200 00880000
+         MVC   0(5,R1),BLANKS                            CHG30062 76200 00890000
+         LA    R1,5(R1)                                  CHG30062 76200 00900000
+         B     S23START                                  CHG30062 76200 00910000
+S23REALE MVC   0(4,R1),=C'***('  PUT '***('              CHG30062 76200 00920000
+         MVC   4(8,R1),JBNAME    + JOBNAME               CHG30062 76200 00940010
+         MVI   12(R1),C')'       + ')'                   CHG30062 76200 00950000
+         LA    R1,13(R1)         SKIP ABOVE              CHG30062 76200 00960000
+S23START MVC   0(3,R1),=C'JOL' SHIFT IN 'JOL'                     74365 00970000
+         LA    R1,3(,R1)       SKIP OVER IT SO WE WON'T OVER-WRITE IT   00980000
+* START  OF CODE LIFTED FROM JOLMAIN                                    00990000
+* INITIALISE THE FIRST LINE                                             01000000
+         MVC   0(1,R1),S23CSECT SHIFT IN CSECT NO                       01010000
+         SR    R15,R15        CLEAR R15                                 01020000
+         IC    R15,S23MODNO   CSECT NUMBER                              01030000
+         CVD   R15,DBL        DEC PKD                                   01040000
+         UNPK  1(2,R1),DBL      EBCDIC                                  01050000
+         OI    2(R1),C'0'     MAKE MEANINGFUL                           01060000
+         MVI   3(R1),C'-'   SET UP '-'                                  01070000
+         IC    R15,S23ERRNO   GET ERROR NUMBER                          01080000
+         CVD   R15,DBL                                                  01090000
+         UNPK  4(3,R1),DBL                                              01100011
+         OI    6(R1),C'0'                                               01110011
+* NOW PUT IN 'WARNING' ETC                                              01120000
+*        IC    R15,S23SEV     LOAD SEVERITY                             01130000
+*        MH    R15,=H'6'      LENGTH OF MVC INSTRUCTION TO BE 'EX'      01140000
+*        LA    R1,ERRTEXT1    RESET R1 A BIT                            01150000
+*        EX    R0,S23MSS(R15) SHIFT REQ'D INFO IN                       01160000
+*        IC    R15,S23SEV     RELOAD SEVERITY                           01170000
+*        SLL   R15,2          MULTIPLY BY 4                             01180000
+*        EX    R0,S23RESET(R15) ADD TO R1 L'MESSAGE JUST SHIFTED        01190000
+         LA    R1,08(R1)      RESET R1                                  01200011
+* END    OF CODE LIFTED FROM JOLMAIN                                    01210000
+S23LUP1  DS    0H                                                       01220000
+         CLI   0(R14),X'D2'    MOVE ?                                   01230000
+         BE    S23MUV1                                                  01240000
+         CLI   0(R14),X'41'    LA ?                                     01250000
+         BE    S23LA1                                                   01260000
+         B     S23END1         SHOULD BE '00'                           01270000
+         SPACE                                                          01280000
+S23MUV1  DS    0H                                                       01290012
+         L     R13,4(,R13)     CALLER'S SAVE AREA                 J40B  01290112
+         EX    R0,0(R14)        EXECUTE THE MOVE                        01291012
+         L     R13,8(,R13)     MY SAVE AREA                       J40B  01292012
+*        DC    H'0'                                              88036  01300000
+         SR    R0,R0                                                    01310000
+         IC    R0,1(R14)       LENGTH MOVED                             01320000
+         AR    R1,R0           ADD TO OUTPUT POSN                       01330000
+         LA    R1,1(R1)        COS ASSMBLR REMOVED 1                    01340000
+         LA    R14,6(R14)      SKIP MVC                                 01350000
+         B     S23LUP1                                                  01360000
+         SPACE                                                          01370000
+S23LA1   DS    0H                                                       01380000
+*        DC    H'0'                                              88036  01390000
+         L     R13,4(,R13)     CALLER'S SAVE AREA                 J40B  01393012
+         EX    0,0(R14)        EXECUTE THE LA R15,VARYING STRING        01400000
+         L     R13,8(,R13)     MY SAVE AREA                       J40B  01401012
+         ST    R14,0(R13)      SAVE REGISTER 14 IN SAVE AREA            01410000
+         LH    R14,0(R15)      LOAD LENGTH OF THE STRING                01420000
+         LTR   R14,R14         SEE IF STRING LENGTH = 0                 01430000
+         BZ    RESET14         NO DATA TO MOVE                          01440000
+         BCTR  R14,0                                                    01450000
+         EX    R14,ERRMUV                                               01460000
+         LA    R1,1(R14,R1)    STEP 1 SO NEXT MOVE GOES ONTO RIGHT      01470000
+*                              SPOT IN BUFFER                           01480000
+RESET14  DS    0H                                                       01490000
+         L     R14,0(R13)      RELOAD R14                               01500000
+         LA    R14,4(R14)      STEP OVER THE LA                         01510000
+         B     S23LUP1                                                  01520000
+ERRMUV   MVC   0(*-*,R1),2(R15) **** EXECUTED                           01550000
+         SPACE                                                          01560000
+S23END1  DS    0H                                                       01570000
+         LA    R14,2(R14)      BRANCH AROUND '0' AT END OF LIST         01580000
+         L     R15,4(R13)       LOAD OLD SAVE ADDRESS                   01590000
+         ST    R14,12(R15)     RESET OLD RETURN ADDRESS                 01600000
+         MVC   0(4,R1),=C' AT '  SHIFT IN 'AT'                          01610000
+         L     R13,4(,R13)     CALLER'S SAVE AREA                 J40B  01611012
+         EX    R0,S23GSTMT    LA  R15,STMT                              01620000
+         L     R13,8(,R13)     MY SAVE AREA                       J40B  01621012
+         MVC   4(4,R1),0(R15) SHIFT IN STATEMENT NUMBER                 01630000
+*        MVC   4(4,R1),S23STMT                                    75003 01640000
+*        OC    S23STMT,S23STMT                                          01650000
+*        BNZ   S23SETL                                                  01660000
+*        MVC   4(4,R1),STMT                                       75003 01670000
+*        OC    4(4,R1),=C'0000' JCS NOTICED BINARY ZEROES IN THERE      01680000
+S23SETL  LA    R14,S23MSSG-12 THE -8 IS FOR THE 'AT STMT'         75128 01690000
+S23TEST0 CLI   4(R1),C'0'     LEADING ZERO?                       75003 01700000
+         BNH   S23SR          -> NO                               75003 01710000
+         MVC   4(4,R1),5(R1)  DROP ZERO                           75003 01720000
+         BCT   R1,S23TEST0                                        75003 01730000
+S23SR    DS    0H                                                 75003 01740000
+         SR    R1,R14                                                   01750000
+         XC    #S23LNE2,#S23LNE2   CLEAR LENGTH                   76200 01760000
+         CH    R1,#S23MAX          CHECK FOR A BIG MESSAGE        76200 01770000
+         BNH   S23SHORT            ITS OK, KEEP GOING             76200 01780000
+* NOW WE HAVE A MESSAGE THATS GREATER THAN 96 BYTES AND IF        76200 01790000
+* WE DONT MAKE TWO LINES OUT OF IT, THE OS WRITER OR HASP...ECT   76200 01800000
+* WILL CHOP IT OFF                                                76200 01810000
+* SO WE ARE NOW GOING TO TAKE A LOOK AT THE MESSAGE FROM +96 BACK       01820000
+* AND WHEN WE FIND A COMMA OR A BLANK THAT WILL END LINE 1 AND          01830000
+* START LINE 2                                                          01840000
+         STH   R1,#S23LNE2         SAVE OLD LENGTH FOR LATER      76200 01850000
+         LA    R15,S23MSSG         POINT TO THE START OF THE MSG  76200 01860000
+         AH    R15,#S23MAX         GET TO +96                     76200 01870000
+         LA    R1,30               STOP LOOKING AFTER 30 BYTES    76200 01880000
+S23LOOK  DS    0H                                                 76200 01890000
+         CLI   0(R15),C' '         IS IT A BLANK                  76200 01900000
+         BE    S23ENDLK                                           76200 01910000
+         CLI   0(R15),C','         HOW ABOUT A COMMA              76200 01920000
+         BE    S23ENDLK                                           76200 01930000
+         BCTR  R15,0               BACKUP,1 BYTE                  76200 01940000
+         BCT   R1,S23LOOK          RETURN                         76200 01950000
+S23ENDLK DS    0H                                                 76200 01960000
+         LR    R1,R15              R1 = NEW END FOR LINE 1        76200 01970000
+         LA    R14,#S23LREC   POINT TO START OF MESSAGE           76200 01980000
+         SR    R1,R14              CALC NEW LENGTH FOR LINE 1     76200 01990000
+         AH    R14,#S23LNE2        POINT R14 TO END OF MESSAGE    76200 02000000
+         SR    R14,R15             CALC LENGTH FOR LINE 2         76200 02010000
+         LA    R14,19(R14) LEAVE SOME BLANKS ON CONT LINE         76200 02020000
+         STH   R14,#S23LNE2        SAVE IT FOR LATER              76200 02030000
+         MVC   S23LNE2,BLANKS                                     87150 02070000
+         MVC   S23LNE2+15(L'S23LNE2-16),1(R15)      SAVE LINE 2   76200 02080000
+S23SHORT DS    0H                                                 76200 02090000
+         XC    #S23BLKS(8),#S23BLKS CLEAR VB DESCRIPTOR ETC       76200 02100000
+         STH   R1,#S23LREC                                              02110000
+         LA    R1,4(R1)                                                 02120000
+         STH   R1,#S23BLKS                                              02130000
+         XC    S23STMT,S23STMT                                          02140000
+* GREAT,NOW WHERE ARE WE GOING TO PUT THIS FANTASTIC PIECE OF           02150000
+*    INFORMATION ?                                                      02160000
+         L     R1,AFPRINT                                        88036  02170000
+         TM    48(R1),X'10'                                             02180000
+         BZ    S23WTO                                                   02190000
+         PRPUT #S23BLKS                                          88036  02200000
+         SPEAK 'WE ARE WRITING ON THE PRINT FILE'                88036  02210000
+         B     ZEX             DEBUGGING                         88036  02220000
+S23WTO   DS    0H                                                       02230000
+         SPEAK 'BUT THE PRINT FILE IS CLOSED'                    88036  02240000
+ZEX      DS    0H              DEBUGGING                         88036  02250000
+* NOW IF THE SEVERITY IS >=12 THE MESSAGE IS TYPED ON THE CONSOLE,      02260000
+*    OTHERWISE A WTO WITH ROUTCDE=11 IS QUITE SATISFACTORY,UNLESS       02270000
+*    WE HAVE A PRINT DD CARD,IF WHICH CASE WE CAN RETURN NOW            02280000
+         CLI   S23SEV,3                                                 02290000
+         BL    S23TPRNT                                                 02300000
+* HERE A REAL WTO IS REQUIRED,SO SET UP ROUTE-CODES 2 & 11              02310000
+         SPEAK 'IT''S A HIGH SEVERITY MSG'                       88036  02320000
+         MVC   #S23MSSG,=XL2'8000'                                      02330000
+         LH    R15,#S23LREC                                             02340000
+         LA    R15,#S23LREC(R15)                                        02350000
+         MVC   0(4,R15),=X'04004020' DESC 6 RTE 11,2              75311 02360000
+         CLI   VS,C'2'    MVS  ?                                   DASD 02370000
+         BNE   S23TNMVS   NOPE                                     DASD 02380000
+         CLI   ISTSO,C' '      UNDER TSO/TSS?                     87150 02390000
+         BNE   S23TNMVS        YES, LEAVE ROUTE CODE 11 THEN      87150 02400000
+         MVC   0(4,R15),=X'04004004' DESC 6 RTE 2,14 JESMSG        DASD 02410000
+S23TNMVS DS    0H                                                  DASD 02420000
+         WTO   MF=(E,#S23LREC)                                          02430000
+         B     S23GOBAK                                                 02440000
+         SPACE 3                                                        02450000
+S23TPRNT DS    0H                                                 75311 02460000
+         L     R1,AFPRINT                                        88036  02470000
+         TM    48(R1),X'10'   DID WE PUT MESSAGE ON PRINTER FIX-X 76200 02480000
+*        B     DYNP           FOR DYNAMIC VERSION, PRINT AGAIN !        02490000
+*        BO    S23GOBAK       YES, DON'T FILL WTP ON JCL LOGFIX-X 76200 02500017
+* SET UP A WTO WITH ROUTCDE=11                                          02510000
+DYNP     MVC   #S23MSSG,=XL2'8000'                                      02520000
+         LH    R15,#S23LREC                                             02530000
+         LA    R15,#S23LREC(R15)                                        02540000
+         MVC   0(4,R15),=X'00000020' ROUTCODE   11                75128 02550000
+         CLI   VS,C'2'   MVS ??                                    DASD 02560000
+         BNE    S23NMVS   NOPE                                     DASD 02570000
+         CLI   ISTSO,C' '      UNDER TSO/TSS?                     87150 02580000
+         BNE   S23NMVS         YES, LEAVE ROUTE CODE 11 THEN      87150 02590000
+         MVC   0(4,R15),=X'00000004' ROUTCODE 14 FOR JESMSG        DASD 02600000
+S23NMVS  DS    0H                                                  DASD 02610000
+         WTO   MF=(E,#S23LREC)                                          02620000
+S23GOBAK DS    0H                                                       02630000
+         CLC   #S23LNE2,=X'0000'   DO WE HAVE A SECOND LINE       76200 02640000
+         BE    S23GOBK2            NOPE                           76200 02650000
+         LH    R1,#S23LNE2         LOAD LENGTH OF LINE2           76200 02660000
+         XC    #S23LNE2,#S23LNE2   CLEAR                          76200 02670000
+         MVC   S23MSSG,S23LNE2     OVERLAY OLD WITH NEW           76200 02680000
+         CLI   S23LNE2,C' '  CHECK FOR BLANK SECOND LINE           DASD 02690000
+         BNE   S23SHORT                                            DASD 02700000
+         LR    R15,R1        LOAD LENGTH OF MESSAGE                DASD 02710000
+         BCTR  R15,0         SUBTRACT 1 FOR EXECUTE INST           DASD 02720000
+         L     R13,4(,R13)     CALLER'S SAVE AREA                 J40B  02721012
+         EX    R15,S23CLCBL                                        DASD 02730000
+         L     R13,8(,R13)     MY SAVE AREA                       J40B  02731012
+         BE    S23GOBK2    ITS BLANK  LETS NOT PRINT IT            DASD 02740000
+         B     S23SHORT            RETURN AND WRITE LINE2         76200 02750000
+S23CLCBL CLC  S23LNE2+1(*-*),S23LNE2                              DASD  02760000
+S23GOBK2 DS    0H                                                 76200 02770000
+         CLI   S23SEV,5         JOL TERMINAL ERROR ?                    02780014
+         BL    S23LMRET                                                 02790014
+*        AIF   (&X8).X8480                                              02800010
+*        JOLCLOSE (INSTRUCT,,PRINT,,RETN,,JOBQ),MF=(E,CALLAREA)         02810010
+*        AGO   .NX8480                                                  02820010
+*.X8480  ANOP                                                           02830010
+         OI    AFPRINT,X'80'                                     88036  02850000
+         JOLCLOSE MF=(E,AFPRINT)                                        02860000
+         SPEAK 'I JUST CLOSED THE PRINT FILE'                    88036  02861010
+.NX8480  ANOP                                                           02870000
+         CLI   S23SEV,6         JOL TERMINAL ERROR ?                    02871014
+         BE    S23NDMP                                                  02872015
+         ABEND 1,DUMP STEP                                              02880000
+S23NDMP  DS    0H                                                       02890014
+         ABEND 1 DUMP STEP                                              02890114
+S23LMRET DS    0H                                                       02891014
+         JOLRETN                                                        02900000
+         DROP  R4                                                88036  02910000
+         LTORG                                                          02920000
+         TITLE 'UJS23PUT PRINT-FILE WRITER'                             02930000
+UJS23PUT CSECT                                                          02940000
+         USING *,R12                                                    02950000
+         USING S23WORK,R11                                       88036  02960000
+         B     SPUT10-*(,R15)                                    88036  02961005
+         DC    AL1(SPUT10-*),C'UJS23PUT &SYSDATE &SYSTIME'       88036  02962005
+SPUT10   DS    0H                                                88036  02963005
+         STM   R14,R12,12(R13)                                          02970000
+         LR    R12,R15                                           88036  02980000
+         LR    R2,R1           LOAD BLOCK ADDRESS                88036  02990000
+         L     R11,AS23WORK                                             03000000
+         LA    R14,S23PSA                                               03010000
+         ST    R14,8(,R13)                                              03020000
+         ST    R13,4(,R14)                                              03030000
+         LR    R13,R14                                                  03040000
+S23P010  DS    0H                                                       03050000
+         USING S23PSA,R13                                               03060000
+         SPACE 2                                                 88036  03070000
+*   NOW THATS DONE, LETS SKIP SOME LINES IF WE'VE BEEN ASKED     88036  03080000
+*        NICELY                                                  88036  03090000
+S23P020  DS    0H                                                88036  03100000
+         SP    S23SKIPS,=P'1'                                    88036  03110000
+         BZ    S23P030                                           88036  03120000
+         WRITE S23DECB,SF,,S23BLNKL,MF=E  WRITE A BLANK LINE            03130000
+         CHECK S23DECB                                                  03140000
+         B     S23P020                                           88036  03150000
+S23P030  DS    0H                                                88036  03160000
+         ZAP   S23SKIPS,=P'1'                                    88036  03170000
+         L     R15,AFPRINT                                       88036  03171108
+         LH    R0,X'03E'(R15)                                    88036  03172009
+         SH    R0,0(,R2)       LOAD BLOCK LENGTH                 88036  03172109
+         BM    DIE                                               88036  03173009
+         WRITE S23DECB,SF,,(R2),MF=E                                    03180000
+         CHECK S23DECB                                                  03190000
+         JOLRETN                                                        03200000
+DIE      EX    0,*                                               88036  03201006
+         DC    C'RECORD LENGTH ERROR'                            88036  03202006
+         LTORG                                                   88036  03210000
+         DC    20S(*)                                                   03220000
+         END                                                            03230003

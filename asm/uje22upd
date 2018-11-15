@@ -1,0 +1,68 @@
+UJE22UPD TITLE  'PROGRAM TO UPDATE INSTRUCTION MEMBER OF JOL PARM DS'   00010000
+         COPY  JOLGLOBL                                          88036  00020013
+         LCLA  &A                                                88036  00030013
+         COPY  DDDSNDET                                                 00040000
+UJE22UPD CSECT                                                          00050013
+         DC    D'0'                                              88036  00051020
+&A       SETA  0                                                 88036  00060013
+.L       ANOP                                                    88036  00070013
+R&A      EQU   &A                                                88036  00080013
+&A       SETA  &A+1                                              88036  00090013
+         AIF   (&A LT 16).L                                      88036  00100013
+         STM   R14,R12,12(R13)                                          00110013
+         LR    R10,R0          ADDRESS PARAMETER INFO                   00120013
+         USING PARMS,R10                                                00130000
+         USING UJE22UPD,R15                                             00140013
+         USING DDDSNDET,R11                                             00150000
+         SPACE                                                          00160000
+         LTR   R11,R1                                                   00170013
+         BZ    E22DONE         IT'S END OF FILE                         00180013
+         LA    1,=C'22UPD'                                       88036  00180119
+         TPUT  (1),5,USERIDL==CL8'CLARKE'                        88036  00181019
+         CLI   DDDD1,C'D'                                               00190000
+         BNE   E22DONE                                                  00200013
+         CLC   PARMDSN,DDDSNAME                                         00210000
+         BE    E22VOLS           GO AND COPY VOLUME INFO                00220000
+         CLI   DDVOLUME,C'*'     VOLREF?                                00230000
+         BNE   E22DONE           NO, GO AND READ THE NEXT               00240013
+         CLI   DDVOLUME+1,C'*'   ** DDNAME VOLREF?                87150 00250000
+         BNE   E22TDSN           NO, TEST IF DSNAMES EQUAL        87150 00260000
+         CLC   PARMDDN,DDVOLUME+2 THIS DDNAME ?                         00270000
+         BNE   E22DONE           NO, GO AND READ THE NEXT               00280013
+         B     E22VOLS           YES, GO AND COPY VOLUME INFO     87150 00290000
+E22TDSN  CLC   PARMDSN,DDVOLUME+1 THIS DATASET?                         00300000
+         BNE   E22DONE           NO, GO AND READ THE NEXT               00310013
+E22VOLS  DS    0H                                                       00320000
+         MVC   DDVOLUME,PARMVOLS COPY VOLUME INFO                       00330015
+         LA    1,DDDSNAME                                        88036  00330117
+         TPUT  (1),26,USERIDL==CL8'CLARKE'                       88036  00331017
+         LA    1,DDDDNAME                                        88036  00331117
+         TPUT  (1),08,USERIDL==CL8'CLARKE'                       88036  00332017
+         LA    1,DDVOLUME                                        88036  00332118
+         TPUT  (1),6,USERIDL==CL8'CLARKE'                        88036  00333017
+         SPACE                                                          00340000
+E22DONE  DS    0H                                                       00350013
+         LM    R14,R12,12(R13)                                          00360015
+         SLR   R15,R15                                           88036  00370013
+         BR    R14                                               88036  00380013
+         AGO   .X                                                88036  00390013
+         EJECT                                                          00400000
+JOLPP    DCB   DDNAME=JOLPP,DSORG=PS,MACRF=(PM),RECFM=VB,LRECL=240,   ++00410000
+               BLKSIZE=800                                              00420000
+JOLBUG   DC    CL255' '                                                 00430000
+JOLDSN   DC    AL2(JOLVOL-*),CL20'INST DSNAME===='                      00440000
+JOLDSNR  DC    CL44' '                                                  00450000
+JOLVOL   DC    AL2(JOLPRMD-*),CL20'INST VOLUME===='                     00460000
+JOLVOLR  DC    CL44' '                                                  00470000
+JOLPRMD  DC    AL2(JOLPRMV-*),CL20'PARM DSNAME===='                     00480000
+JOLPRMDR DC    CL44' '                                                  00490000
+JOLPRMV  DC    AL2(JOLENDXX-*),CL20'PARM VOLUME===='                    00500000
+JOLPRMVR DC    CL44' '                                                  00510000
+JOLENDXX DS    0H                                                       00520000
+.X       ANOP                                                    88036  00530013
+PARMS    DSECT                                                          00540000
+PARMDSN  DS    CL44            F4, MVS                                  00550000
+*PARMDSN DS    CL26            X8                                       00560000
+PARMVOLS DS    CL256                                                    00570000
+PARMDDN  DS    CL8             DSNAME                                   00580000
+         END                                                            00590000

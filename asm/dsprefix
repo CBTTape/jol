@@ -1,0 +1,94 @@
+         TITLE 'SUBROUTINE TO RETURN THE DSPREFIX'                      00140000
+* THIS PROGRAM RETURNS THE DSPREFIX CURRENTLY IN USE.                   00150000
+* THE RULES FOR FINDING DATASET ALLOCATIONS ON MVS AND OSIV/F4          00160000
+*    TCBJSCB POINTS TO JSCB                                             00170000
+*    JSCDSABQ POINTS TO QDB                                             00180000
+*    QDBFELMP POINTS TO FIRST DSAB                                      00190000
+*    QDBLELMP POINTS TO LAST DSAB                                       00200000
+*    DSABFCHN POINTS TO THE NEXT DSAB                                   00210000
+*    DSABBCHN POINTS TO THE PREVIOUS DSAB                               00220000
+*    DSABTIOT POINTS TO THE TIOT ENTRY                                  00230000
+*    TIOT+C POINTS TO JFCB IN SWA (NOTE 3 BYTES FROM +C, NOT 4)         00240000
+*                                                                       00250000
+*    WHY ALL THIS BOTHER?                                               00260000
+*                                                                       00270000
+*     DSAB CONTAINS USEFUL FLAGS SUCH AS IN-USE ATTRIBUTE ETC           00280000
+*                                                                       00290000
+*                                                                       00300000
+         REGEQU                                                         00310002
+DSPREFIX CSECT                                                          00320006
+DSPREFIX SAVE  (5,10),,DSPREFIX                                         00321006
+         USING DSPREFIX,R15                                             00330005
+R01    EQU  1                                                           00340000
+         SPACE 1                                                        00350000
+         L     R9,CVTPTR           LOAD CVT ADDRESS                     00360000
+         L     R9,0(0,R9)          TCB WORDS                            00370000
+         L     R9,4(0,R9)          MY TCB ADDRESS                       00380000
+         USING TCB,R9                                                   00390000
+         L     R9,TCBJSCB          MY JSCB ADDRESS                      00400000
+         DROP  R9                                                       00410000
+         USING KDJJSCB,R9                                               00420000
+         ICM   R10,15,JSCBPSCB     ARE THERE ANY?                       00430004
+         BZ    NOPREF                                                   00440004
+         L     R9,JSCBPSCB         PSCB                                 00450000
+         DROP  R9                                                       00460000
+         USING PSCB,R9             PSCB Q DESCRIPTOR BLOCK              00470000
+         L     R8,PSCBUPT          GET UPT BLOCK                        00480003
+         USING UPT,R8                                                   00490000
+         LM    R0,R1,UPTPREFX      GET THE DSNAME PREFIX                00500004
+         SRDL  R0,8                                                     00510004
+         ICM   R0,8,UPTPREFL       RETURN LENGTH IN TOP BYTE            00520003
+         RETURN (5,10)                                                  00530000
+NOPREF   LA    R0,0                RETURN LENGTH IS 0                   00540005
+         LR    R1,R0                                                    00550005
+         RETURN (5,10)                                                  00560005
+         DROP  R8                                                       00570000
+         PRINT OFF                                                      00580001
+         TITLE 'COMMUNICATIONS VECTOR TABLE'                            00590000
+         CVT   DSECT=YES,SYS=BOTH                                       00600000
+         TITLE '  DATA CONTROL BLOCK'                                   00610000
+         DCBD  DSORG=PS,DEVD=DA                                         00620000
+         PRINT GEN                                                      00630000
+         TITLE '  USER PROFILE TABLE'                                   00640000
+         IKJUPT                                                         00650000
+         TITLE '  PROTECTED STEP CONTROL BLOCK'                         00660000
+         IKJPSCB                                                        00670000
+         TITLE '  ENVIRONMENT CONTROL TABLE'                            00680000
+         IKJECT                                                         00690000
+         TITLE '  PARSE PARAMETER LIST'                                 00700000
+         IKJPPL                                                         00710000
+LENMYPPL EQU   *-PPL                                                    00720000
+         AGO   .F4CB                                                    00730000
+         AIF   (&F4).F4CB                                               00740000
+         TITLE '  TASK CONTROL BLOCK'                                   00750000
+         IKJTCB                                                         00760000
+         TITLE '  JOB-STEP CONTROL BLOCK'                               00770000
+         IEZJSCB                                                        00780000
+         TITLE '  DATA-SET ASSOCIATION BLOCK'                           00790000
+         IHADSAB                                                        00800000
+         TITLE '  DSAB QUEUE DESCRIPTOR BLOCK'                          00810000
+         IHAQDB                                                         00820000
+         TITLE '  JOB FILE CONTROL BLOCK'                               00830000
+JFCB     DSECT                                                          00840000
+         IEFJFCBN                                                       00850000
+         AGO   .CBDUN                                                   00860000
+.F4CB    ANOP                                                           00870000
+         TITLE '  TASK CONTROL BLOCK'                                   00880000
+         KAATCB                                                         00890000
+         TITLE '  JOB-STEP CONTROL BLOCK'                               00900000
+         KDJJSCB                                                        00910000
+         TITLE '  DATA-SET ASSOCIATION BLOCK'                           00920000
+         KDJDSAB                                                        00930000
+         TITLE '  DSAB QUEUE DESCRIPTOR BLOCK'                          00940000
+         KDJQDB                                                         00950000
+         TITLE '  JOB FILE CONTROL BLOCK'                               00960000
+JFCB     DSECT                                                          00970000
+         KDJJFCBN LIST=YES,DSECT=NO                                     00980000
+.CBDUN   ANOP                                                           00990000
+         AIF   ('&GENCB' EQ 'YES').GENCB2                               01000000
+         POP   PRINT                                                    01010000
+.GENCB2  ANOP                                                           01020000
+         PRINT ON                                                       01030000
+         TITLE '  WORK AREA'                                            01040000
+         DROP                                                           01050000
+         END                                                            01060000

@@ -1,0 +1,287 @@
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974,1975       00010000
+* JOL COPYRIGHT CCS-JOL 1986.                                           00020001
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00030000
+           SPACE 3                                                      00040000
+*                   J             000000            L                   00050000
+*                   J            0      0           L                   00060000
+*                   J           0        0          L                   00070000
+*                   J          0          0         L                   00080000
+*                   J         0            0        L                   00090000
+*                   J         0            0        L                   00100000
+*                   J         0            0        L                   00110000
+*                   J         0            0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*        J          J         0            0        L                   00160000
+*         J        J           0          0         L                   00170000
+*          J      J             0        0          L                   00180000
+*           J    J               0      0           L                   00190000
+*            JJJJ                 000000            LLLLLLLLLLL         00200000
+           SPACE 3                                                      00210000
+         PRINT OFF                                                      00220000
+         COPY JOLCOM                                                    00230000
+        PRINT ON,DATA                                                   00240000
+           TITLE 'AUTOMATIC RESET OF GENERATIONS-INPUT AND OUTPUT'      00250000
+*                                                                       00260000
+* THIS IS NEW CODE FOR VERSION 3.0 (DEC 26, 1975)                       00270000
+*                                                                       00280000
+CALLOVLY   DSECT                                                        00290001
+CHARWORK   DS  CL4                                                      00300001
+O39SAVE    DSECT                                                        00310001
+           DS  18F             NORMAL SAVE                              00320000
+O39GDG1I   DS  CL1 '('                                                  00330000
+O39RELIN   DS  CL1             '+' | '-' | ' '                          00340000
+O39RELNO   DS  CL4 REL NUMBER                                           00350000
+O39VERS    DS  CL2             VERSION NUMBER                           00360000
+GDGINPUT   DS  CL4             LOWEST INPUT RELATIVE NUMBER             00370000
+GDGINTYP   DS  CL1             '-' | ' '                                00380000
+O39BIAS    DS  P'000'          BIAS FOR GDG'S                           00390000
+O39PACKR   DS  P'0000'         PACKED REL GDG GOES HERE                 00400000
+O39SAVEL   EQU *-O39SAVE                                                00410000
+* SOME NEW CODE NOW FOR GENERATION DATA SETS.                           00420000
+*                                                                       00430000
+* WHAT WE WANT TO DO IS TO RE-ADJUST THE RELATIVE GENERATION            00440000
+*  NUMBERS TO ASSIST IN RE-START SITUATIONS.                            00450000
+*                                                                       00460000
+* I CAN'T REALLY WORK OUT WHETHER THIS SHOULD BE DONE ONLY WHEN         00470000
+*    'STARTAT' IS USED, OR ALWAYS, SO I'LL DO IT ALWAYS FOR NOW.        00480000
+*                                                                       00490000
+*** THIS IS THE GDG PROBLEM ***                                         00500000
+* A JOB STARTS OFF AND IT READ (0) AND CREATES (+1), THEN               00510000
+*    READS (+1) AND MAYBE CREATES (+2).                                 00520000
+* WHEN (IF) IT CRASHES IN THE MIDDLE OF A JOB, THE CODER MUST           00530000
+*    RESET THE GENERATION NUMBERS BEFORE RE-SUBMITTING THE JOB.         00540000
+* THIS IS A LITTLE (?) ANNOYING, SO WHAT WE WILL DO IS THIS:-           00550000
+*                                                                       00560000
+*    1. SCAN THE GDG DATA-SETS TILL WE FIND A + GDG.                    00570000
+*    2. IF IT IS +1, ALL IS WELL, AND WE CAN IGNORE THIS DATASET        00580000
+*          ENTIRELY.                                                    00590000
+*    3. IF IT IS +2 (OR HIGHER), WE WILL RE-ADJUST ALL THE              00600000
+*          RELATIVE NUMBERS FOR THAT GENERATION DATA SET SO THAT        00610000
+*          THEY USE +1 AS A BASE.                                       00620000
+*                                                                       00630000
+* FOR EXAMPLE:-                                                         00640000
+*                                                                       00650000
+*    //STEP1 EXEC                                                       00660000
+*    //DD1 DD DSN=GDG(0),DISP                                           00670000
+*    //DD2 DD DSN=GDG(+1)                                               00680000
+*    //*                                                                00690000
+*    //STEP2 EXEC                                                       00700000
+*    //DD3 DD DSN=GDG(+1)                                               00710000
+*    //DD4 DD DSN=GDG(+2)                                               00720000
+*                                                                       00730000
+* NOW, IF WE ARE STARTING AT STEP2, WE WILL RE-ADJUST THE               00740000
+*    RELATIVE NUMBERS BACKWARD BY 1, SO WE END UP WITH :-               00750000
+*                                                                       00760000
+*    //STEP2 EXEC                                                       00770000
+*    //DD3 DD DSN=GDG(0)                                                00780000
+*    //DD4 DD DSN=GDG(+1)                                               00790000
+*                                                                       00800000
+*                                                                       00810000
+*                                                                       00820000
+* THIS CSECT COULD (PERHAPS) HAVE BEEN PART OF UJO40DD, BUT             00830000
+*    A NEW MODULE HAS BEEN WRITTEN SO THAT IS CAN BE EASILY             00840000
+*    REPLACED AFTER EXPERIENCE HAS BEEN GAINED WITH IT.                 00850000
+*                                                                       00860000
+*                                                                       00870000
+           JOLSAVE CSECT=UJO39GDG,SIZE=O39SAVEL                         00880000
+         JOLRETN RC=0    ********                                       00890000
+         ORG   *-4                                                      00900006
+         B     *+4                                                      00910006
+           USING O39SAVE,R13                                            00920000
+           LA   R8,CALLAREA                                             00930001
+           USING CALLOVLY,R8                                            00940002
+            PRINT DATA                                                  00950000
+           L   R3,AVTBLE       GET ADDRESS OF THE MAIN TABLE.           00960000
+           USING DDDSNDET,R3   SET UP A USING STATEMENT.                00970000
+O39TDD1    CLI DDDD1,C'D'      DD-CARD ENTRY ?                          00980000
+           BE  O39DD1          YES, TEST IF GDG DATA SET NOW            00990000
+           CLI DDDD1,C'E'      EXEC CARD ?                              01000000
+           BNE O39STEP1        NOPE, STEP ON TO NEXT TABLE ENTRY.       01010000
+           MVC STMT,PGMESTMT-PGMDETS(R3) SAVE 'RUN' STATEMENT NUMBER    01020000
+O39STEP1   AH  R3,0(R3)        POINT TO NEXT RECORD                     01030000
+           CLC DDOSVB,=H'0'    END TABLE ?                              01040000
+           BNE O39TDD1         NOPE, TEST RECORD TYPE.                  01050000
+           JOLRETN                                                      01060000
+           SPACE 3                                                      01070000
+O39DD1     EQU *                                                        01080000
+* HERE WE HAVE A 'DD-CARD'                                              01090000
+           CLI DDMBR,C'('      GDG OF SOME SORT ?                       01100000
+           BNE O39STEP1        NO SO IGNORE IT.                         01110000
+           CLI DDMBR+6,C'1'    HAVE WE ALREADY DONE THIS GDG ?          01120000
+           BE  O39STEP1        YES, IGNORE IT THEN.                     01130000
+           SPACE 3                                                      01140000
+* MARK IT SO WE WON'T REFERENCE IT AGAIN                                01150000
+           MVI DDMBR+6,C'1'    MARK IT .                                01160000
+           LR  R4,R3           SET R4 TO POINT TO CURRENT DSID          01170000
+           LR  R5,R4           SET R5 TO POINT TO CURRENT DSID TOO      01180000
+           CLEAR O39GDG1I,O39RELNO,GDGINPUT,GDGINTYP                    01190000
+           DROP R3                                                      01200000
+           USING DDDSNDET,R4                                            01210000
+* SO WE HAVE A GENERATION DATA SET OF SOME DESCRIPTION.                 01220000
+O39TPLUS   CLI DDMBR+1,C'+'      SEE IF PLUS                            01230002
+           BNE O39INPGD        NOT +, MUST BE 0 OR -VE                  01240002
+           BNE O39STP2         NOPE                                     01250000
+* OK, WE HAVE A PLUS GDG.                                               01260000
+           TM DDUSE,B'11000000' INPUT AS WELL?                          01270004
+           BZ  O39INPGD        YES,GO FIX INPUT GDG NUMBER.             01280004
+           IFNULL O39RELNO,O39MVCRE                                     01290000
+* NOW CHECK IF THIS RELATIVE NUMBER IS LOWER THAN THE ONE IN            01300000
+*    O39RELNO                                                           01310000
+           CLC O39RELNO,DDMBR+2 LAST ONE <= NEW GDG REL NUMBER.         01320000
+           BNH O39STP2                                                  01330000
+O39MVCRE   MVC O39RELNO,DDMBR+2                                         01340000
+           B   O39STP2                                                  01350000
+           SPACE 3                                                      01360000
+O39INPGD   EQU *                                                        01370000
+           IFNULL GDGINPUT,O39MVCIN SET UP FIRST THEN                   01380000
+           CLI DDMBR+1,C'-'    IS THIS A NEGATIVE REL NUMBER ?          01390000
+           BE  O39INING        YES                                      01400000
+           CLI GDGINTYP,C'-'   OLDEST -VE ?                             01410000
+           BE  O39STP2         LAST -VE GDG,THIS NOT, IGNORE THIS       01420000
+* HERE NEITHER NEGATIVE GDG'S                                           01430000
+           CLC GDGINPUT,=C'0000' IS FIRST ZERO ?                        01440001
+           BH  O39MVCIN        YES, SO SWAP NUMBERS                     01450000
+           CLC GDGINPUT,DDMBR+2 LAST STORED > THIS ONE                  01460001
+           BH  O39MVCIN        YES, SO SWAP NUMBERS                     01470001
+           B   O39STP2         NO, IGNORE THIS ONE                      01480000
+           SPACE 2                                                      01490000
+O39INING   EQU *               INPUT (LAST WE ARE LOOKING AT) -VE GDG   01500000
+           CLI GDGINTYP,C'-'   IS THIS -VE TOO ?                        01510000
+           BNE O39MVCIN        NOPE, SO TAKE LOWEST (THIS ONE)          01520000
+           SPACE 1                                                      01530000
+* BOTH -VE, TAKE LOWEST (THERE IS REALLY NO NEED TO DO THIS - ANY       01540000
+*          -VE MEANS WE WON'T BE ADJUSTING ANYTHING ANYWAY).            01550000
+           MVC GDGINPUT,DDMBR+1 CHANGE                                  01560000
+           B   O39STP2         EXAMINE NEXT DD ENTRY                    01570000
+           SPACE 3                                                      01580000
+O39MVCIN   CLI DDMBR+1,C'-'    -VE ?                                    01590000
+           BNE *+8                                                      01600000
+           MVI GDGINTYP,C'-'   SHIFT -VE NOW                            01610000
+           MVC GDGINPUT,DDMBR+2 SWAP | MOVE REL INPUT NUMBERS           01620000
+O39STP2    AH  R4,DDOSVB       STEP TO NEXT RECORD                      01630000
+           CLC DDOSVB,ZERO     REACHED END ?                            01640000
+           BE  O39END1                                                  01650000
+           CLI DDDD1,C'D'      DDCARD ?                                 01660000
+           BNE O39STP2         NO, SKIP IT.                             01670000
+           CLC DDDSNAME,DDDSNAME-DDDSNDET(R3)  DSN'S EQUAL ?            01680000
+           BNE O39STP2                                                  01690000
+           CLI DDMBR,C'('      IS IT A GDG AT ALL (COULD BE ALL)        01700000
+           BNE O39STP2         NO, SKIP IT (MUST BE ALL)                01710000
+           LR  R5,R4           SAVE LAST POSITION OF DSNAME IN          01720000
+*                              TABLE SO WE CAN SAVE CPU TIME WHEN       01730000
+*                              WE GO ROUND AGAIN                        01740000
+           MVI DDMBR+6,C'1'    TURN ON 'USED' BIT                       01750000
+           B   O39TPLUS        TEST IF + ETC                            01760000
+           SPACE 3                                                      01770000
+O39END1    EQU *                                                        01780000
+* OK, NOW SEE IF WE HAVE TO ADJUST THE 'BIAS' TABLE ...                 01790000
+           LR  R4,R3           SET R4 TO ORIGINAL DSNAME DSID.          01800000
+           SPACE 2                                                      01810000
+* WE MUST CHECK FOR INPUT AND OUTPUT GDGS.                              01820000
+* IF WE HAVE AN INPUT NUMBER (0) | (-XX) WE WON'T DO ANYTHING.          01830000
+* IF WE HAVE AN OUTPUT OF +1, WE WON'T DO ANYTHING UNLESS THERE         01840000
+* IS AN INPUT OF (+NN), IN WHICH CASE WE WILL ADJUST TO THE LOWEST.     01850000
+           SPACE 2                                                      01860000
+           CLI GDGINTYP,C'-'   -VE INPUT GDG FOUND ?                    01870000
+           BE  O39STEP1        YES, AWAY,AWAY                           01880000
+           CLC GDGINPUT,BLANKS DID WE FIND ANY INPUT GDG'S ?            01890000
+           BE  O39ONLYP        NO, ONLY +GDG'S                          01900000
+           SPACE 2                                                      01910000
+* OK,INPUT GDG, AND OUTPUT'S FOUND                                      01920000
+           CLC GDGINPUT,=CL4'0000' INPUT WAS (0) ?                      01930000
+           BE  O39STEP1        YES, SO DON'T DO ANYTHING EITHER.        01940000
+* NOW WE HAVE A + INPUT GDG (LOWEST DETECTED) AND MAYBE A +GDG TOO.     01950000
+           CLC O39RELNO,BLANKS IS THERE AN OUTPUT GDG OR NOT ?          01960000
+           BE  O39ONLYI        ONLY INPUT, SO NOW CHECK AND RE-CALC     01970000
+*                              GDG NUMBERS.                             01980000
+           SPACE 1                                                      01990000
+           CLC O39RELNO,GDGINPUT ARE INPUT AND OUTPUT THE SAME?         02000000
+           BE  O39ONLYP              YES, CHECK AND RE-CALG BIAS.       02010000
+           SPACE 1                                                      02020000
+* ONLY INPUT                                                            02030000
+O39ONLYI   MVC CALLAREA,GDGINPUT                                        02040000
+           CLC GDGINPUT,=CL4'0000' LOWEST INPUT (0)                     02050000
+           BE  O39STEP1        YES. DON'T DO ANYTHING TO THIS           02060000
+*                              SET OF GDG'S THEN                        02070000
+           SPACE 1                                                      02080000
+* SHALL WE ADJUST TO THE INPUT | OUTPUT ?                               02090000
+* I MEAN, INPUT MAY BE +2, AND OUTPUT +1, WHICH IS OK ANYWAY,COS        02100000
+* THERE SHOULD BE A +2 OUTPUT SOMEWHERE (IF NOT,ERROR DETECTED          02110000
+* NEXT PHASE).                                                          02120000
+         IFNULL O39RELNO,RESETIN                                        02130004
+           CLC O39RELNO,GDGINPUT                                        02140000
+           BL  O39ONLYP        + IS LOWER THAN INPUT, CALC NEW THINGS   02150000
+*                              BASED ON THE OUTPUT DATA SET.            02160000
+           SPACE 2                                                      02170000
+* HERE WE MUST ADJUST THINGS ON THE LOWEST INPUT DATA SET               02180000
+*39ONLYI   EQU *                                                   SOCO 02190000
+RESETIN    MVC CALLAREA,GDGINPUT                                        02200004
+* DROP BLANKS FROM END OF DATA SET NAME                                 02210004
+         MVC   #WORK,=H'44'                                             02220004
+         MVC   WORK(44),DDDSNAME                                        02230004
+         BAL   R14,DRPBWORK                                             02240004
+           JOLERR 102,'LOWEST RELATIVE GENERATION NUMBER FOUND FOR INPU*02250005
+               T DATA SET ''',#WORK,''' WAS ',CHARWORK,':- ','ALL RESET*02260005
+                SO THAT LOWEST ','INPUT DATA SET IS (0)'                02270004
+           PACK O39BIAS,GDGINPUT                                        02280000
+           B   O39RESET        RESET ALL GENERATIONS                    02290000
+           SPACE 3                                                      02300000
+O39ONLYP   EQU *                                                        02310000
+           IFNULL O39RELNO,O39STEP1  FOUND NO '+' GDGS.                 02320000
+           CLC O39RELNO,=C'0001'  LOWEST WE FOUND '+1' ?                02330007
+           BE  O39STEP1        YES, SO NO ADJUSTING TO DO.              02340000
+           CLC O39RELNO,=C'0000' +0 MAY HAVE COME THROUGH TOO           02350007
+           BE  O39STEP1        IGNORE IT TOO                            02360000
+           SPACE 1                                                      02370000
+         MVC CALLAREA,O39RELNO  JOLERR WON'T WORK ON BASE REG 13        02380004
+* DROP BLANKS FROM END OF DATA SET NAME                                 02390004
+         MVC   #WORK,=H'44'                                             02400004
+         MVC   WORK(44),DDDSNAME                                        02410004
+         BAL   R14,DRPBWORK                                             02420004
+           JOLERR 101,'LOWEST RELATIVE GENERATION NUMBER FOUND FOR OUTP*02430005
+               UT DATA SET ''',#WORK,''' WAS ',CHARWORK,':- ','ALL RESE*02440005
+               T SO THAT LOWEST ','OUTPUT DATA SET IS (+1)'             02450005
+* NOW CALCULATE THE 'BIAS' WE HAVE TO APPLY                             02460000
+           PACK O39BIAS,O39RELNO  PACK IT                               02470000
+           SP  O39BIAS,=P'1'   CORRECT BIAS NOW                         02480000
+* NOW START AT DD CARD AT 0(R3) AND APPLY CORRECT GDG NUMBERS.          02490000
+O39RESET   EQU *                                                        02500000
+O39STEP3   CR  R4,R5           REACHED END ?                            02510000
+           BH  O39STEP1                                                 02520000
+           CLI DDMBR,C'('      GDG ?                                    02530000
+           BE  O39GDG3                                                  02540000
+O39STP3    AH  R4,DDOSVB       STEP ON                                  02550000
+           CLC DDOSVB,ZERO     REACHED END?                             02560000
+           BE  O39STEP1                                                 02570000
+           B   O39STEP3                                                 02580000
+O39GDG3    CLI DDMBR+1,C'-'    -N ?                                     02590000
+           BE  O39REL                                                   02600000
+           CLI DDMBR+1,C'+'    +N ?                                     02610000
+           BE  O39REL                                                   02620000
+           CLC DDMBR+2,=C'0000' +0                                      02630000
+           BNE O39STP3         IGNORE ABSOLUTE GENERATION THEN          02640000
+O39REL     PACK O39PACKR,DDMBR+2(4) PACK REL GDG NUMBER                 02650001
+           SP  O39PACKR,O39BIAS    SUBTRACT THE 'BIAS'                  02660000
+           CP  O39PACKR,=P'0'      COMPARE TO 0                         02670000
+           BE  O39RZERO            =0 ->                                02680000
+           BH  O39UNPK             > 0                                  02690000
+           MVI DDMBR+1,C'-'        < 0                                  02700000
+           AP  O39PACKR,=P'10000'  MAKE POSITIVE                        02710000
+           B   O39UNPK                                                  02720000
+O39RZERO   MVI DDMBR+1,C' '        BLANK '+' | '-' FOR REL (0)          02730000
+O39UNPK    UNPK DDMBR+2(4),O39PACKR UNPACK NEW REL NUMBER               02740000
+           OI  DDMBR+5,C'0'        FIX LAST BYTE                        02750000
+           B   O39STP3             STEP ON NOW                          02760000
+           LTORG                                                        02770000
+          DC S(*,*,*,*,*,*,*,*,*,*,*,*)                                 02780000
+          DC S(*,*,*,*,*,*,*,*,*,*,*,*)                                 02790000
+          DC S(*,*,*,*,*,*,*,*,*,*,*,*)                                 02800000
+          DC S(*,*,*,*,*,*,*,*,*,*,*,*)                                 02810000
+          DC S(*,*,*,*,*,*,*,*,*,*,*,*)                                 02820000
+          DC S(*,*,*,*,*,*,*,*,*,*,*,*)                                 02830000
+          DC S(*,*,*,*,*,*,*,*,*,*,*,*)                                 02840000
+          DC S(*,*,*,*,*,*,*,*,*,*,*,*)                                 02850000
+          DC S(*,*,*,*,*,*,*,*,*,*,*,*)                                 02860000
+           END                                                          02870000

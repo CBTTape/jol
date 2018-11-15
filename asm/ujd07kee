@@ -1,0 +1,135 @@
+UJD07KEE TITLE 'KEEP DATA SET'                                   '      00010001
+* JOL COPYRIGHT CCS-JOL PTY LTD 1988                                    00020001
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-E001.           00030001
+         SPACE 3                                                        00040001
+*                   J             000000            L                   00050001
+*                   J            0      0           L                   00060001
+*                   J           0        0          L                   00070001
+*                   J          0          0         L                   00080001
+*                   J         0            0        L                   00090001
+*                   J         0            0        L                   00100001
+*                   J         0            0        L                   00110001
+*                   J         0            0        L                   00120001
+*                   J         0            0        L                   00130001
+*                   J         0            0        L                   00140001
+*                   J         0            0        L                   00150001
+*        J          J         0            0        L                   00160001
+*         J        J           0          0         L                   00170001
+*          J      J             0        0          L                   00180001
+*           J    J               0      0           L                   00190001
+*            JJJJ                 000000            LLLLLLLLLLL         00200001
+           SPACE 3                                                      00210001
+* LAST SOURCE UPDATE                                                    00220001
+*   CHANGES:-                                                           00230001
+*     1.                                                                00240001
+         COPY  JOLGLOBL                                                 00250001
+         $UJEPARM                                                       00260001
+&TYPE    SETC  'SCHED'                                           88036  00270001
+         PRINT ON,DATA                                                  00280001
+UJECOMM  DSECT                                                          00290001
+         USING UJECOMM,R3,R5                                            00300001
+         COPY  UJECOMM                                                  00310001
+D07WORK  DSECT                                                    J40B  00320004
+         DS    18F                                                J40B  00330001
+D07WORKS EQU   *-D07WORK                                          J40B  00340004
+         JOLSAVE CSECT=UJD07KEE,                                       .00350004
+               SIZE=D07WORKS,                                     J40B .00360004
+               BASE=R11                                                 00370001
+* A KEEP INSTRUCTION IS TO BE EXECUTED.                                 00390000
+         L     R4,AWINST                                         88036  00400000
+         USING INST,R4                                           88036  00410000
+         L     R6,AJFCB                                          88036  00420000
+         USING INFMJFCB,R6                                       88036  00430000
+*        AIF   (&X8).X8280                                              00440000
+* THE KEEP IS A PRETTY EASY INSTRUCTION TO DO, AS BASICALLY             00450000
+*    ALL WE HAVE TO DO IS FREE IT WILL KEEP.                            00460000
+*                                                                       00470000
+* THE ONLY COMPLICATION THAT CAN ARISE IS THAT WE WOULD (ON OCCASIONS)  00480000
+*    LIKE THE VOLUME TO BE UNLOADED(OR SET INTO AN UN-LOADABLE          00490000
+*    STATUS                                                             00500000
+*                                                                       00510000
+* PERMANENT,RETAINED,'JOL PREFERRED' ETC VOLUMES DO NOT HAVE TO         00520000
+*    HAVE THEIR STATUS SET SO THEY MAY BE UNLOADED AND THIS IS          00530000
+*    LEFT TO THE OPERATORS DISCRETION.                                  00540000
+* IF IT IS A TAPE OR A NON-PREFERRED,(PRIVATE IN OTHER WORDS)           00550000
+*    VOLUME AND IT IS NOT RETAINED,IT SHOULD BE DISMOUNTED.             00560000
+         CLC   =C'*DUMMY ',DDDSNAME                                     00570003
+         BE    D07A                               74365                 00580004
+         CLC   =C'NULLFILE ',DDDSNAME                                   00581003
+         BNE   D07NOTDM                           74365                 00582004
+D07A     DS    0H                                                 J40B  00583004
+         JOLERR 206,'DSID ''',DDDSID,''' DSNAME ''',#DSN,              *00590000
+               ''' NOT KEPT:- DUMMY DATA SET'                    75003  00600000
+         JOLRETN RC=16                                                  00610000
+D07NOTDM DS    0H                                                       00620004
+         CALL  UJD48TAL      TEST IF THE DATA SET IS ALLOCATED TO US    00630004
+         LTR   R15,R15                                                  00640000
+         BZ    D07ISALL      YES, IT WAS ALLOCATED TO US                00650004
+         CLI   ICOMMAND,C'K'   KEEP ?                                   00660000
+         BE    D07ERR1         YES,FLAG IT AS AN ERROR THEN             00670004
+         CLC   =C'*.',DDVOLUME VOLUME REFERENCE SPECIFIED,BUT DATA SET  00680000
+* NOT CREATED ? THIS CAN OCCUR IF THE CREATING STEP WAS BYPASSED        00690000
+         BE    D07ERR1         GO FLAG AS AN ERROR                      00700004
+         CLI   DDVOLUME,C' '   VOL SPECIFIED ?                          00710000
+         BE    D07RETNF        NO,SO ERROR                              00720004
+         CLI   DDUNITYP,C' '   UNIT SPECIFIED ?                         00730000
+         BE    D07RETNF        NO,ERROR TOO                             00740004
+* WELL A UNIT AND VOLUME WERE SPECIFIED,SO WE SHALL CONVERT             00750000
+*     THE UNIT TO AN IBM TYPE OF NAME AND GENTLY RETURN                 00760000
+* (THE USER CODED 'CATLG DSN X UNIT Y VOL Z')                           00770000
+         SPACE                                                          00780000
+D07FIXU  DS    0H                                                       00790004
+         B     D07RETN0                                                 00800004
+D07ERR1  DS    0H                                                       00810004
+         JOLERR 204,'DSID ''',DDDSID,''' DSNAME ''',#DSN,              *00820000
+               '''',                                                   *00830000
+               ' NOT YET CREATED:-KEEP IGNORED'                         00840000
+D07RETNF DS    0H                                                       00850004
+         JOLRETN RC=16                                                  00860000
+         SPACE 3                                                        00870000
+D07ISALL DS    0H                                                       00880004
+D07FREE  DYNPARM DSN=(44,#DSN),ID=D07KEEP,VRB=UN,DISP=KEEP DEBUG=YES    00890004
+*                                                           FIX-X 76200 00900000
+* THE NEXT FEW LINES ARE NEW IN 3.1 AND ARE CODED IN        FIX-X 76200 00910000
+*  THE HOPE THAT WE CAN HAVE THE OPERATING SYSTEM UNLOAD    FIX-X 76200 00920000
+*  THE VOLUME FOR US AT STEP TERM.                          FIX-X 76200 00930000
+* IN ADDITION, THE DSNAME SHOULD BE TAKEN OFF THE PASSED    FIX-X 76200 00940000
+*  DATA SET QUEUE. CURRENTLY, AT JOB TERMINATION, A NUMBER  FIX-X 76200 00950000
+*  OF UNNECESSARY MESSAGES ARE DISPLAYED INDICATING THAT    FIX-X 76200 00960000
+*  DATA SETS HAVE BEEN KEPT. THESE SHOULD NO LONGER OCCUR.  FIX-X 76200 00970000
+*                                                           FIX-X 76200 00980000
+*                                                           FIX-X 76200 00990000
+         CLI   DDDISP+1,C'L'  LAST USE OF DATA SET ?        FIX-X 76200 01000000
+*                             IF WE CAN LET OS UNLOAD ?     FIX-X 76200 01010000
+*        BNE   D07NLAST       NOT LAST USE                  FIX-X 76200 01020004
+* MARK SIOT AND LET IT THINK WE HAVE FINISHED WITH          FIX-X 76200 01030000
+*  THE DATASET (WHICH WE HAVE, OF COURSE).                  FIX-X 76200 01040000
+D07NLAST DS    0H                                           FIX-X 76200 01050004
+         SPACE 3                                                        01060000
+         MVC   DDVOLUME,JFCBVOLS                                        01070000
+         L     R14,=V(E00FXVOL)                                   J40B  01071002
+         BALR  R14,R14                                            J40B  01072002
+*        BAL   R14,E00FXVOL    SET UP VOLUME(S) IN #VOL           74365 01080002
+D07TUNIT DS    0H                                                       01090004
+         SPACE 3                                                        01100000
+D07RETN0 DS     0H                                                      01110004
+         CLI   ICOMMAND,C'K'   IS THIS A KEEP INSTRUCTION?        74365 01120000
+         BNE   D07RETNO W      NO,SO NO MESSAGE,JUST RETURN       74365 01130004
+         JOLERR 101,'DSID ''',DDDSID,''' DSNAME ''',#DSN,              *01140000
+               ''' KEPT ON VOL(S) ',#VOL                          74365 01150000
+D07RETNO DS     0H                                                      01160004
+D07RTN   JOLRETN RC=0                                              DASD 01170004
+D07LETOS DS    0H                                                       01180004
+         JOLRETN RC=4                                                   01190000
+         SPACE 3                                                        01200000
+D07DELET DS    0H                                                       01210004
+         JOLERR 203,'DSID ''',DDDSID,''' DSNAME ',                     *01220000
+               ''' PREVIOUSLY DELETED :- KEEP IGNORED'                  01230000
+         JOLRETN RC=16                                                  01240000
+D07NOKPT DS    0H   NO ENTRIES MARKED KEEP                              01250004
+         JOLERR 202,'DSID ',DDDSID,' NOT KEPT, IS NOT ALLOCATED'        01260000
+         B     JRETN0                                                   01270000
+         SPACE 3                                                        01280000
+         DC    20S(*)                                                   01300000
+         LTORG                                                          01310000
+         END                                                            01320001

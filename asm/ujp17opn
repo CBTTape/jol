@@ -1,0 +1,813 @@
+UJP17 TITLE 'OPEN, GETFILE, PUTFILE FREEFILE ROUTINES'                  00010001
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974            00020000
+* COPYRIGHT CCS 1975,1976,1980                                          00030000
+* COPYRIGHT CCS 1981,1982.                                              00040000
+* COPYRIGHT CLEM CLARKE 1983.                                           00050000
+* COPYRIGHT CCS-JOL 1984.                                               00060000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00070000
+           SPACE 3                                                      00080000
+*                   J             000000            L                   00090000
+*                   J            0      0           L                   00100000
+*                   J           0        0          L                   00110000
+*                   J          0          0         L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0            0        L                   00160000
+*                   J         0            0        L                   00170000
+*                   J         0            0        L                   00180000
+*                   J         0            0        L                   00190000
+*        J          J         0            0        L                   00200000
+*         J        J           0          0         L                   00210000
+*          J      J             0        0          L                   00220000
+*           J    J               0      0           L                   00230000
+*            JJJJ                 000000            LLLLLLLLLLL         00240000
+         SPACE 3                                                        00250000
+*                                                                       00260000
+*                                                                       00270000
+*                                                                       00280000
+******************************************************************      00290000
+*                                                                       00300000
+* NEW MODULE, CODED OCTOBER 16, 1984                                    00310000
+*             FINISHED JANUARY  1986                                    00320031
+*  THIS MODULE SETS UP THE CONTROL BLOCKS FOR THE ALLOC, OPENFILE       00330000
+*    ETC MODULES.                                                       00340000
+*                                                                       00350000
+******************************************************************      00360000
+*                                                                       00370000
+* MODULES INVOLVED ARE UJM15ALL, UJM15DAL, UJP15CLS                     00380029
+*                      UJP17OPN, UJP18GET, UJP19PUT,                    00390029
+*                      UJP60REA, UJP61WRI, UJP19FRE,                    00400000
+*                                                                       00410000
+******************************************************************      00420000
+*                                                                       00430000
+* DATE 16 OCT, 1984                                                     00440000
+* C. V. CLARKE COPYRIGHT CCS-JOL.                                       00450000
+*                                                                       00460000
+         PRINT OFF                                                      00470000
+         COPY JOLCOM                                                    00480000
+         PRINT ON,DATA                                                  00490000
+      TITLE 'FREE ALL DYNAMIC ALLOCATION CONTROL BLOCKS'                00500029
+         JOLSAVE CSECT=UJP15DAL                                         00510029
+*                                                                       00520029
+* THIS CSECT GETS CONTROL AFTER THE PRE-PROCESSOR HAS FINISHED    84290 00530029
+*                                                                       00540029
+* IT MUST TIDY UP THE ALLOCATED DATA SET, CLOSE THEM AND FREE THEM.     00550029
+*                                                                       00560029
+P15NEXT  ICM     R4,15,P17FCNTL     ANY THERE?                          00570059
+         BZ      P15SRET            NO, SIMPLY RETURN                   00590059
+         USING   DYNFCNTL,R4        WE ARE POINTING AT A BLOCK          00600029
+         MVC     SYMBOLIC,ALLDDNAM                                      00610029
+         $CALL   UJP15CLR           CLOSE THE FILE AND FREE AREAS       00620031
+         B       P15NEXT            TRY NEXT BLOCK THEN.                00630029
+P15SRET  JOLRETN ,                  FINISHED, SO GO BACK TO CALLER.     00640059
+         DROP    R4                                                     00680029
+         LTORG                                                          00690029
+         DC      30S(*)                                                 00700029
+         TITLE 'CLOSE FILE'                                             00710029
+         JOLSAVE CSECT=UJP15CLS                                         00720029
+*                                                                       00730029
+* CLOSE THE FILE SPECIFIED.                                             00740029
+*                                                                       00750029
+         MVC      ICOMMAND,=CL8'MACRO' MAKE ASSIGN BETTER.              00760029
+         MVC      SYMBOLIC,=CL8'LASTCC'                                 00770029
+         MVC      #WORK(3),=X'0001F0'  SET RC=0 TO START                00780029
+         $CALL    UJP85ASN             STORE IN %LASTCC                 00790029
+         GETTKN   1                    SEE IF CLOSE OR CLOSFILE         00800029
+         CLC      =C'CLOSFILE',TKN                                      00810029
+         BNE      P15CLOS                                               00820030
+         GETTKN   2                    GET THE FILE NAME                00830029
+         MVC      SYMBOLIC,TKN         MOVE TO PARAMETER AREA           00840029
+         GETTKN   3                    GET NEXT SYMBOL                  00850031
+         CLI      TKN,C' '             BLANK ?                          00860031
+         BNE      P15TOOM              NO, OUT MESSAGE, THEN CLOSE      00870031
+P15CALL  $CALL    UJP15CLR                                              00880031
+         LTR      R15,R15                                               00890029
+         BZ       P15RET0                                               00900029
+         MVC      SYMBOLIC,=CL8'LASTCC'                                 00910029
+         MVC      #WORK(4),=X'0002F1F6'       SET RC=16                 00920029
+         $CALL    UJP85ASN                    STORE IN %LASTCC          00930029
+         JOLRETN  RC=16                                                 00940029
+P15RET0  JOLRETN                                                        00950029
+*                                                                       00960029
+P15CLOS  GETTKN   2                    GET SECOND TOKEN.                00970030
+         CLI      TKN,C' '             ANY MORE TOKENS??                00980029
+         BNE      P15OK1                                                00990029
+         JOLERR   301,'NO FILE SPECIFIED ON CLOSE STATEMENT'            01000040
+         JOLRETN  RC=16                                                 01010029
+P15OK1   CLC      =C'F ',TKN           F SPECIFIED?                     01020029
+         BE       P15KEYWD             YES, HAVE A KEYWORD              01030029
+         CLC      =C'FILE ',TKN        FILE SPECIFIED?                  01040029
+         BE       P15KEYWD             YES, HAVE A KEYWORD              01050029
+* HERE WE HAVE A FILE NAME WITHOUT THE FILE KEYWORD                     01060029
+         MVC      SYMBOLIC,TKN         SAVE IN 'SYMBOLIC'               01070029
+         GETTKN   (R1)                 GET INPUT, OUTPUT OR UPDATE      01080029
+         CLI      TKN,C' '             NO PARAMETER?                    01090029
+         BE       P15CALL              CALL CLOSE, RETURN               01100029
+P15TOOM  JOLERR   302,'TOO MANY SYMBOLS ON CLOSE'                       01110030
+         B        P15CALL              CALL CLOSE, RETURN               01120029
+P15TEND  GETTKN   (R1)                                                  01130031
+         CLI      TKN,C' '                                              01140029
+         BE       P15CALL                                               01150030
+         B        P15TOOM              MESSAGE  'TOO MANY SYMBOLS '     01160030
+P15KEYWD DS       0H                                                    01170030
+         GETTKN   (R1)          SEE IF '('                              01180030
+         CLI      TKN,C'('                                              01190030
+         BNE      P15GOTF1                                              01200030
+         GETTKN   (R1)                                                  01210030
+P15GOTF1 MVC      SYMBOLIC,TKN  SAVE FILE NAME THERE                    01220030
+         GETTKN   (R1)                                                  01230030
+         CLI      TKN,C')'      END ')'                                 01240030
+         BNE      P15TEND      CHECK TYPE OF OPEN                       01250031
+         GETTKN   (R1)                                                  01260030
+         B        P15TEND                                               01270031
+         DC      30S(*)                                                 01280029
+         LTORG                                                          01290034
+         TITLE 'CLOSE FILE (REALLY)'                                    01300029
+         JOLSAVE CSECT=UJP15CLR                                         01310031
+*                                                                       01320029
+* CLOSE THE FILE SPECIFIED IN SYMBOLIC.                                 01330029
+*                                                                       01340029
+*        JOLERR   309,'CLOSING ',SYMBOLIC                               01350040
+         $CALL    P17SFILE                                              01360032
+* ON RETURN, R1 POINTS TO THE LAST BLOCK FOUND. IF IT IS THE            01370029
+*    FIRST TIME CALLED, OR THE ADDRESS OF THE FILE CONTROL BLOCK.       01380029
+         LR       R5,R0         COPY PREVIOUS CHAIN TO R5               01390029
+         LR       R4,R1         COPY ADDRESS OF DCB TO R4               01400029
+         LTR      R15,R15       TEST IF WE FOUND THE FILE BLOCK         01410029
+         BZ       P15GOTDT      YES, GOOD, ISSUE CLOSE TO THAT DCB      01420029
+P15ERR   JOLERR   303,'CANNOT CLOSE FILE ''',SYMBOLIC,''''              01430040
+         JOLRETN  RC=16                                                 01440029
+         USING    DYNFCNTL,R4                                           01450029
+* TEST IF OPEN, AND IF NOT CLOSE, AND FREEPOOL                          01460029
+P15GOTDT LA       R9,ALLDCB                                             01470031
+         ST       R9,CALLAREA                                           01480029
+         MVI      CALLAREA,X'80'                                        01490029
+         USING    IHADCB,R9                                             01500029
+         TM       DCBOFLGS,DCBOFOPN   IS IT OPEN?                       01510029
+         BNO      P15TDEQ             NO, GIVE MESSAGE                  01520041
+         CLOSE    MF=(E,CALLAREA)                                       01530029
+         FREEPOOL (R9)                                                  01540029
+         SPACE 3                                                        01550029
+* WE MUST DEQUEUE THE DATA SET IF IT IS ENQUEUED.                       01560029
+P15TDEQ  CLC      ALLDSN,BLANKS                                         01570041
+         BE       P15NODEQ       NO DEQUEUE NECESSARY (INPUT OR TEMP)   01580029
+         $CALL    JOLDEQ,(P15QNAME,ALLDSNL,P15WAIT)                     01590035
+P15NODEQ DS       0H                                                    01600029
+*                                                                       01610029
+* NOW THIS BLOCK IS GOING, AND WE MUST RESET THE PREVIOUS CHAIN         01620029
+*     POINTER TO THE NEXT POINTER.                                      01630029
+*                                                                       01640029
+* WE NEED TO CHECK IF WE ARE DELETING THE FIRST BLOCK,                  01650029
+*    OR A MIDDLE BLOCK, AND TAKE APPROPRIATE ACTION.                    01660029
+*                                                                       01670029
+         L        R10,ALLNEXT   GET THE POINTER TO THE NEXT BLOCK       01680029
+         FREEMAIN R,A=(4),LV=P17CLEN                                    01690031
+         L        R14,P17FCNTL GET POINTER TO FIRST CONTROL BLOCK       01700059
+*                                                                       01710029
+*     P17FCNTL    -> 1ST BLOCK              -> 2ND BLOCK                01720059
+*                    2ND BLOCK              -> 3RD BLOCK                01730031
+*                    3RD BLOCK              -> 4TH BLOCK                01740031
+*                    4TH BLOCK              -> 0  (END OF CHAIN)        01750031
+*                                                                       01760031
+* NOW :- R4 POINTS  TO CURRENT (NOW FREED)                              01770031
+*        R5  POINTS TO PREVIOUS                                         01780031
+*        R10 POINTS TO NEXT                                             01790029
+*        R14 POINTS TO FIRST                                            01800029
+*                                                                       01810029
+         CR       R4,R14        IS DELETED BLOCK FIRST IN CHAIN?        01820029
+         BE       P15FIRST                                              01830029
+* HERE IT IS A MIDDLE BLOCK OR THE LAST BLOCK                           01840029
+         LR       R4,R5         SET CURRENT TO PREVIOUS                 01850039
+         ST       R10,ALLNEXT   RESET THE CHAIN                         01860031
+         JOLRETN  ,             FINISHED.                               01870029
+P15FIRST DS       0H                                                    01880029
+         ST       R10,P17FCNTL KEEP FIRST CHAIN CORRECT                 01890059
+         JOLRETN  ,             FINISHED.                               01900029
+P15QNAME DC       CL8'SPFDSN'                                           01910029
+P15WAIT  DC       X'00'                                                 01920029
+         DROP     R9                                                    01930029
+         DROP     R4                                                    01940032
+         LTORG                                                          01950029
+         CNOP  0,8                                                      01960029
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                               01970029
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                               01980029
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                               01990029
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                               02000029
+         TITLE 'OPEN FILE'                                              02010029
+P17SAVE  DSECT                                                          02020029
+         DS      18F                                                    02030001
+P17OPT   DS      XL1,XL3                                                02040001
+P17OPENP DS      XL1,XL3                                                02050001
+         DS      0F                                                     02060027
+TEMPEXIT DS      F                                                      02070027
+P17MEMBR DS      CL8                                                    02071051
+         IEFJFCBN LIST=NO                                               02080027
+         PUSH  PRINT                                                    02090045
+         PRINT OFF                                                      02100045
+PDSDCB   DCB   DSORG=PO,MACRF=R                                         02110045
+         POP   PRINT                                                    02120045
+P17QUIET DS    CL1             SET TO NON-BLANK IF 'QUIET' CODED        02121055
+P17SAVEL EQU     *-P17SAVE                                              02130001
+         JOLSAVE CSECT=UJP17OPN,SIZE=P17SAVEL                           02140001
+* NOTE:- THE READ INSTRUCTION USES GET LOCATE SO THAT WE CAN            02150016
+*        SET UP AN EOF FUNCTION FOR THE USER, RATHER THAN SETTING UP    02160016
+*        AN ERROR EXIT AS TSO DOES.                                     02170016
+*  THIS MEANS THAT WE MUST USE LOCATE MODE SO THAT WE KNOW BEFORE HAND  02180016
+*        WHETHER THE FILE IS AT EOF OR NOT- IN OTHER WORDS WE HAVE TO   02190016
+*        BE ONE STEP IN FRONT OF OUR SELVES.                            02200016
+         USING    P17SAVE,R13                                           02210001
+         CLEAR P17QUIET        SET QUIET FLAG OFF                       02211055
+         MVC      ICOMMAND,=CL8'MACRO' MAKE ASSIGN BETTER.              02220005
+         MVC      SYMBOLIC,=CL8'LASTCC'                                 02230005
+         MVC      #WORK(3),=X'0001F0'  SET RC=0 TO START                02240005
+         $CALL    UJP85ASN             STORE IN %LASTCC                 02250005
+         GETTKN   2                    GET SECOND TOKEN.                02260001
+         CLI      TKN,C' '             ANY MORE TOKENS??                02270001
+         BNE      P17OK1                                                02280001
+         JOLERR   301,'NO FILE SPECIFIED ON OPEN STATEMENT'             02290001
+         JOLRETN  RC=16                                                 02300005
+P17OK1   CLC      =C'F ',TKN           F SPECIFIED?                     02310001
+         BE       P17KEYWD             YES, HAVE A KEYWORD              02320001
+         CLC      =C'FILE ',TKN        FILE SPECIFIED?                  02330001
+         BE       P17KEYWD             YES, HAVE A KEYWORD              02340001
+* HERE WE HAVE A FILE NAME WITHOUT THE FILE KEYWORD                     02350001
+         MVC      SYMBOLIC,TKN         SAVE IN 'SYMBOLIC'               02360001
+         GETTKN   (R1)         GET INPUT, OUTPUT OR UPDATE              02370056
+P17CHKT  CLI      TKN,C' '             NO PARAMETER?                    02380006
+         BE       P17IN ASSUME INPUT LIKE TSO                           02390006
+         CLC      =C'INPUT ',TKN                                        02400006
+         BE       P17IN                                                 02410006
+         CLC      =C'OUTPUT ',TKN                                       02420001
+         BE       P17OUT                                                02430001
+         CLC      =C'UPDATE ',TKN                                       02440001
+         BE       P17UPD                                                02450001
+         JOLERR   302,'INVALID OPEN OPTION:-''',#TKN,''''               02460056
+P17RC16  MVC      SYMBOLIC,=CL8'LASTCC'                                 02470005
+         MVC      #WORK(4),=X'0002F1F6'       SET RC=16                 02480005
+         $CALL    UJP85ASN                    STORE IN %LASTCC          02490005
+         JOLRETN  RC=16                                                 02500002
+P17IN    MVI      P17OPT,1                                              02510001
+         B        P17GETF                                               02520001
+P17OUT   MVI      P17OPT,B'00000010'                                    02530001
+         B        P17GETF                                               02540001
+P17UPD   MVI      P17OPT,B'00000011'                                    02550001
+         B        P17GETF                                               02560001
+P17KEYWD DS       0H                                                    02570001
+         GETTKN   (R1)          SEE IF '('                              02580001
+         CLI      TKN,C'('                                              02590001
+         BNE      P17GOTF1                                              02600001
+         GETTKN   (R1)                                                  02610001
+P17GOTF1 MVC      SYMBOLIC,TKN  SAVE FILE NAME THERE                    02620001
+         GETTKN   (R1)                                                  02630001
+         CLI      TKN,C')'      END ')'                                 02640001
+         BNE      P17CHKT      CHECK TYPE OF OPEN                       02650001
+         GETTKN   (R1)                                                  02660001
+         B        P17CHKT                                               02670001
+P17GETF  GETTKN   (R1)                                                  02680001
+         CLI   TKN,C' '        BLANK, OR OTHERWISE?                     02691056
+         BE    P17GETF2                                                 02691156
+         CLC   =C'QUIET ',TKN                                           02693056
+         BNE   P17BADTK                                                 02694056
+         MVI   P17QUIET,C'1'   NON-BLANK                                02695056
+         GETTKN   (R1)         GET NEXT AFTER QUIET OPTION              02696056
+         CLI   TKN,C' '        BLANK, OR OTHERWISE?                     02697056
+         BE    P17GETF2                                                 02697156
+P17BADTK JOLERR   303,'TOO MANY SYMBOLS ON OPEN'                        02710056
+P17GETF2 DS       0H                                                    02720001
+         $CALL    P17SFILE                                              02730001
+* ON RETURN, R1 POINTS TO THE LAST BLOCK FOUND. IF IT IS THE            02740005
+*    FIRST TIME CALLED, R1 WILL POINT TO 'USER4'. ++++ NONO             02750010
+         LR       R4,R1         COPY LAST IN CHAIN TO R4                02760006
+         LTR      R15,R15       TEST IF WE FOUND THE FILE BLOCK         02770005
+         BZ       P17GOTDT      YES, AND THAT SHOULDN'T REALLY HAPPEN.  02780059
+         USING    DYNFCNTL,R4                                           02800005
+* HERE WE HAVE A NEW FILE, SO WE WILL DO A GETMAIN FOR THE              02810005
+*      DCB AND CHAIN IT TO THE LAST.                                    02820005
+         GETMAIN  R,LV=P17CLEN                                          02830005
+         ST       R1,ALLNEXT    SET UP THE CHAIN                        02840005
+         LR       R4,R1         ADDRESS THE AREA                        02850005
+         MVC      DYNFCNTL(P17CLEN),P17CONST  COPY TO GOTTEN AREA.      02860005
+         MVC      ALLDDNAM,SYMBOLIC  COPY IN THE DDNAME                 02870005
+P17GOTDT DS       0H                                                    02880001
+         CLI      ALLSTAT,0                                             02890001
+         BE       P17OPEN                                               02900001
+         JOLERR   304,'FILE ''',SYMBOLIC,''' ALREADY OPEN'              02910040
+         B     P17RC16                                                  02920059
+P17OPEN  DS    0H                                                       02930059
+         MVC   ALLSTAT,P17OPT                                           02940059
+* I SUPPOSE I COULD HAVE MADE THE INDICATORS THE SAME AS OPEN REQUIRES, 02950005
+*   BUT I DIDN'T, SO A BIT OF EXTRA WORK IS REQUIRED HERE.              02960001
+         LA    R9,ALLDCB                                                02970059
+         ST    R9,CALLAREA                                              02980059
+         OI    CALLAREA,X'80'                                           02981048
+         USING IHADCB,R9                                                02990059
+         MVC   DCBDDNAM,ALLDDNAM   SET UP DCB NAME                      03000059
+         MVC      ALLDSN,BLANKS                                         03010045
+* READ THE JFCB FOR ENQUE PURPOSES, AND SO WE CAN DO                    03020045
+*   A 'FIND' OR 'BLDL' SO WE DON'T ABEND IF OPEN FAILS                  03030045
+         LA    R7,INFMJFCB                                              03040045
+         USING INFMJFCB,R7                                              03050045
+         ST    R7,TEMPEXIT                                              03060045
+         MVI   TEMPEXIT,X'87'                                           03070045
+         LA    R15,TEMPEXIT                                             03080045
+         ST    R15,DCBEXLST                                             03090045
+         RDJFCB MF=(E,CALLAREA)                                         03100045
+         CLI   ALLSTAT,B'00000001' INPUT?                               03110045
+         BNE   P17NIN                                                   03120045
+         TM    JFCBIND1,JFCPDS     PARTITIONED DATA SET ?               03130045
+         BNO   P17NPDS         NO, SO DO ORDINARY OPEN                  03140045
+* A PDS. CHECK IF THE MEMBER IS PRESENT                                 03150045
+         LA    R9,PDSDCB       SET R9 TO POINT TO OUR WORK AREA.        03160045
+         ST    R9,CALLAREA                                              03170045
+         MVI   CALLAREA,X'80'                                           03180045
+         MVC   PDSDCB(P17PDS2L),P17PDS2 COPY TO WORK AREA.              03190046
+         MVC   DCBDDNAM,ALLDDNAM   SET UP DCB NAME                      03200045
+         LA    R15,TEMPEXIT                                             03201049
+         ST    R15,DCBEXLST                                             03202049
+         NI    JFCBIND1,255-JFCPDS  TURN OFF PARTITIONED DATA SET IND   03203054
+         OI    JFCBTSDM,JFCNWRIT   DON'T WRITE JFCB BACK                03203154
+         MVC   P17MEMBR,JFCBELNM SAVE MEMBER NAME                       03204052
+         MVC   JFCBELNM,BLANKS                                          03205051
+         OPEN  MF=(E,CALLAREA),TYPE=J                                   03210049
+         TM    DCBOFLGS,DCBOFOPN   DID IT OPEN?                         03220045
+         BNO   P17ERROP               OPEN ERROR                        03230045
+         FIND  PDSDCB,P17MEMBR,D                                        03240051
+         LR    R9,R15                                                   03250048
+         CLOSE MF=(E,CALLAREA) CLOSE THE PDS DCB                        03270045
+         LTR   R9,R9                                                    03270356
+         BZ    P17MEMOK        MEMBER NOT FOUND                         03271057
+         CLI   P17QUIET,C' '   DO WE NOTIFY THE USER ?                  03272057
+         BNE   P17SETER        SET ERROR IN LASTCC, RETURN              03273057
+         B     P17ERROP        MEMBER NOT FOUND                         03274057
+P17MEMOK LA    R9,ALLDCB       RESET R9 AFTER FIND ETC                  03280057
+         ST    R9,CALLAREA                                              03290045
+P17NPDS  DS    0H                                                       03300045
+         MVI   CALLAREA,X'80'                                           03310045
+         B     P17OPEN2                                                 03320045
+P17NIN   CLI   ALLSTAT,B'00000010' OUTPUT?                              03330045
+         BNE   P17NOUT                                                  03340045
+         MVI   CALLAREA,X'8F'                                           03350045
+* WE MUST ENQUE ON THE OUTPUT FILE                                      03360027
+P17ENQ   DS    0H                                                       03370045
+         TM    JFCBIND2,JFCTEMP    TEMPORARY DSNAME ?                   03380045
+         BO    P17OPEN2                                                 03390045
+* NOW FIND THE END OF THE DSNAME SO WE CAN SET UP A PROPER ENQ LIST     03400035
+         LA    R15,JFCBDSNM+43     GET END OF DSNAME                    03410035
+P17FBLNK CLI   0(R15),C' '         GOT THE LAST '.' ?                   03420035
+         BNE   P17GOTBL            YES                                  03430035
+         BCT   R15,P17FBLNK        FIND STOP LOOP                       03440035
+P17DSNER JOLERR   505,'INTERNAL ERROR:DSNAME ALL BLANK OR LENGTH <0'    03450040
+         JOLRETN  RC=16                                                 03460035
+P17GOTBL DS    0H                                                       03470036
+         LA    R14,JFCBDSNM        GET START OF DSNAME                  03480036
+         SR    R15,R14             GIVES LENGTH -1                      03490035
+         BM    P17DSNER            ERROR                                03500035
+         LA    R15,1(R15)          GET REAL LENGTH                      03510035
+         STH   R15,ALLDSNL         STORE IT                             03520038
+         MVC   ALLDSN(44),JFCBDSNM COPY THE NAME OVER TOO               03530036
+         SPACE                                                          03540036
+         L        R6,CALLAREA          SAVE CALLAREA BECAUSE JOLENQ     03550034
+*                                      DESTROYS IT.                     03560034
+         $CALL    JOLENQ,(SPFDSN,ALLDSNL,WAITON)                        03570035
+         ST       R6,CALLAREA          RESET OPEN PARAMETERS            03580034
+         LTR      R15,R15                                               03590027
+         BNZ      P17RC16            RETURN A 16                        03600027
+         MVC      DCBEXLST(4),ZERO                                      03610027
+         B        P17OPEN2                                              03620027
+* MUST BE UPDATE                                                        03630001
+P17NOUT  MVI      CALLAREA,X'84'                                        03640006
+         B        P17ENQ                                                03650027
+P17OPEN2 DS       0H                                                    03660001
+         MVC   DCBEXLST+1(3),=AL3(0)                                    03661053
+         OPEN     MF=(E,CALLAREA)                                       03670002
+         TM       DCBOFLGS,DCBOFOPN   DID IT OPEN?                      03680006
+         BNO      P17ERROP            OPEN ERROR                        03690006
+         CLC      DCBLRECL,=H'3000'                                     03700003
+         BL       P17TIN2             TEST IF INPUT, MUST PRIME RECORD  03710016
+         JOLERR   306,'RECORD LENGTH OF FILE ''',ALLDDNAM,             C03720003
+               ''' TOO LARGE:->3000 CHARACTERS'                         03730003
+P17SETER MVI      ALLSTAT,B'10000000'  STOPS ANY READS OR WRITES        03740006
+*                 TO THAT FILE                                          03750006
+         B        P17RC16                                               03760006
+P17TIN2  DS       0H                   PRIME BUFFER IF INPUT            03770016
+         CLI      ALLSTAT,B'00000001'  INPUT?                           03780016
+         BNE      P17RETN              NO, SO RETURN                    03790016
+         MVC      DCBEODA,=AL3(P17SETEN)  EOF ADDRESS                   03800016
+         GET      ALLDCB               TRY TO GET LOCATE A RECORD       03810016
+         ST       R1,ALLGETAD          SAVE THE RECORD ADDRESS          03820016
+P17RETN  JOLRETN                                                        03830017
+P17SETEN OI       ALLSTAT,B'01000000'  TURN ON EOF FLAG THERE TOO       03840018
+*        JOLERR   107,'FILE ''',SYMBOLIC,''' HAS NO DATA'               03850040
+         JOLRETN                                                        03860018
+P17ERROP JOLERR   308,'OPEN FAILED FOR FILE ''',ALLDDNAM,''''           03870040
+         B        P17SETER                                              03880006
+SPFDSN   DC       CL8'SPFDSN'                                           03890028
+WAITON   DC       X'01'                                                 03900028
+         DROP     R9                                                    03910017
+         LTORG                                                          03920005
+* THIS NEXT AREA IS THE SAME AS THE 'DYNFCNTL' BLOCK; IT IS COPIED      03930006
+*        TO 'GOTTEN' STORAGE.                                           03940006
+P17CONST DC       A(0)      SAME AS 'ALLNEXT'                           03950006
+         DC       CL8' '    DDNAME                                      03960005
+         DC       AL1(0)    STATUS INITIALLY 0                          03970014
+         DC       A(0)      GET LOCATE NEXT RECORD ADDRESS              03980017
+         DC       AL2(0)    LENGTH OF DSNAME                            03990038
+         DC       CL44' '   DSNAME AREA IF ENQUED                       04000027
+         PRINT    NOGEN                                                 04010005
+P17DCB   DCB      DDNAME=NONE,MACRF=(PM,GL),DSORG=PS                    04020016
+P17CLEN  EQU      *-P17CONST                                            04030005
+         SPACE 3                                                        04040045
+P17PDS2  DCB      DDNAME=NONE,MACRF=R,DSORG=PO                          04050045
+P17PDS2L EQU      *-P17PDS2                                             04060045
+         PRINT    GEN                                                   04070045
+         LTORG                                                          04080009
+         DC      30S(*)                                                 04090034
+         TITLE 'SEARCH FOR FILE DCB AND OTHER DETAILS'                  04100034
+         JOLSAVE CSECT=P17SFILE                                         04110029
+         DROP    R13                                                    04120029
+* THIS CSECT SEARCHES THE TABLE FOR THE FILENAME SPECIFIED              04130001
+*  IN 'SYMBOLIC' AND RETURNS:-                                          04140001
+*     0 IF FOUND                                                        04150001
+*     4 IF NOT FOUND (BUT MORE ROOM IN THE TABLE FOR ANOTHER)           04160001
+*     8 OTHERWISE (NO ROOM, AND NOT FOUND)                              04170001
+* R0 POINTS TO THE LAST AREA, FOR DECHAINING IN CLOSE                   04180029
+* R1 POINTS TO THE AREA, OR NEXT AREA FOR RC=0 OR RC=4                  04190029
+*                                                                       04200001
+         L       R4,P17FCNTL                                            04210059
+         LTR     R5,R4              FIRST TIME IN?                      04220029
+         BZ      P17SRET4           YES, SIMPLY RETURN A 4.             04230005
+         USING   DYNFCNTL,R4        WE ARE POINTING AT A BLOCK          04240005
+P17NEXT  CLC     SYMBOLIC,ALLDDNAM                                      04250001
+         BE      P17SGOT                                                04260001
+         CLC     ALLNEXT,ZERO       MORE BLOCKS ALLOCATED?              04270006
+         BE      P17SRETR           NO, SO RETURN A 4                   04280011
+         LR      R5,R4              SAVE PREVIOUS ADDRESS               04290029
+         L       R4,ALLNEXT         GET NEXT ADDRESS                    04300014
+         B       P17NEXT            TRY NEXT BLOCK THEN.                04310005
+P17SRET4 LA      R4,P17FCNTL        POINT TO THE CORRECT SPOT           04320059
+P17SRETR L       R14,4(R13)                                             04330013
+         ST      R5,20(R14)         SET R0 TO ADDRESS                   04340029
+         ST      R4,24(R14)         SET R1 TO ADDRESS                   04350005
+         JOLRETN RC=4                                                   04360005
+P17SGOT  L       R14,4(R13)                                             04370005
+         ST      R4,24(R14)         SET R1 TO ADDRESS                   04380005
+         ST      R5,20(R14)         SET R0 TO ADDRESS                   04390029
+         JOLRETN RC=0                                                   04400005
+         DROP    R4                                                     04410005
+         LTORG                                                          04420034
+         DC      30S(*)                                                 04430034
+         TITLE 'SEARCH FOR FILE DCB AND OTHER DETAILS'                  04440034
+         JOLSAVE CSECT=P18TEOF                                          04450027
+         L        R1,0(R1)             GET THE FILENAME                 04460028
+         MVC      SYMBOLIC,0(R1)       COPY TO SYMBOLIC                 04470027
+         $CALL    P17SFILE             FIND THE FILE DETAILS            04480027
+         LTR      R15,R15                                               04490027
+         BZ       EOFGOTF                                               04500027
+EOFRC16  DS       0H                                                    04510027
+         JOLRETN  RC=16                                                 04520027
+         USING    DYNFCNTL,R8                                           04530027
+EOFGOTF  LR       R8,R1                SAVE CODE IN R8                  04540027
+         TM       ALLSTAT,1            OPEN FOR INPUT?                  04550027
+         BO       EOFTERR                                               04560027
+         B        EOFRC16                                               04570027
+EOFTERR  TM       ALLSTAT,B'10000000'                                   04580027
+         BNO      EOFOK1                                                04590027
+         B        EOFRC16                                               04600027
+EOFOK1   DS       0H                                                    04610027
+         TM       ALLSTAT,B'01000000'                                   04620027
+         BNO      EOFRET0                                               04630028
+         B        EOFRC16                                               04640027
+* WE COULD CLOSE THE FILE AND FREE THE BUFFERS, BUT I MUST SEE          04650027
+*    IF THAT WILL CAUSE ANY LOGICAL PROBLEMS BEFORE I PUT CODE IN.      04660027
+*                                                                       04670027
+EOFRET0  JOLRETN                                                        04680027
+         LTORG                                                          04690027
+         DC      30S(*)                                                 04700034
+         TITLE 'READ RECORD ROUTINE'                                    04710034
+         JOLSAVE CSECT=UJP18GET                                         04720027
+* THIS IS THE GETFILE INSTRUCTION   ****************************        04730027
+         USING TKNX,R3                                                  04740001
+* THIS ROUTINE DOES THE GETFILE INSTRUCTION                             04750001
+         GETTKN   2                    GET NAME OF SYMBOLIC VALUE       04760001
+*                                      TO BE RETURNED TO.               04770001
+         MVC      SYMBOLIC,TKN         STORE IN SYMBOLIC NAME FIELD     04780001
+         GETTKN   3                    CHECK FOR ERRORS.                04790001
+         CLI      TKN,C' '             ANY MORE TOKENS??                04800001
+         BE       P18SYNOK                                              04810012
+         JOLERR   301,'TOO MANY SYMBOLS ON GETFILE STATEMENT'           04820001
+P18SYNOK DS       0H                                                    04830027
+         MVC      TKN(8),SYMBOLIC      COPY BACK FOR GET SUBRTN         04840027
+         MVC      #TKN,=H'8'           SET UP LENGTH TO 8.              04850027
+         $CALL    UJP182               ACTUALLY DO THE GET              04860027
+         LTR      R15,R15                                               04870027
+         BZ       GETRC0                                                04880027
+         JOLRETN  RC=4                                                  04890027
+GETRC0   JOLRETN                                                        04900027
+         LTORG                                                          04910027
+         DC      30S(*)                                                 04920034
+         TITLE 'REAL READ RECORD ROUTINE'                               04930034
+         JOLSAVE  CSECT=UJP182         READ FILE                        04940027
+* SYMBOLIC CONTAINS THE FILE NAME, TKN CONTAINS SYMBOLIC FOR DATA       04950027
+         MVC      ICOMMAND,=CL8'MACRO' MAKE ASSIGN BETTER.              04960027
+         $CALL    P17SFILE             FIND THE FILE DETAILS            04970027
+         LTR      R15,R15                                               04980001
+         BZ       P18GOTF                                               04990001
+         JOLERR   302,'FILE ''',SYMBOLIC,''' NOT OPENED'                05000005
+P18RC16  MVC      SYMBOLIC,=CL8'LASTCC'                                 05010005
+         MVC      #WORK(4),=X'0002F1F6'       SET RC=16                 05020005
+         $CALL    UJP85ASN                    STORE IN %LASTCC          05030005
+         JOLRETN  RC=16                                                 05040001
+         USING    DYNFCNTL,R8                                           05050005
+P18GOTF  LR       R8,R1                SAVE CODE IN R8                  05060004
+         TM       ALLSTAT,1            OPEN FOR INPUT?                  05070001
+         BO       P18TERR                                               05080006
+         JOLERR   303,'FILE ''',SYMBOLIC,''' NOT OPEN FOR INPUT'        05090001
+         B        P18RC16                                               05100005
+P18TERR  TM       ALLSTAT,B'10000000'                                   05110006
+         BNO      P18OK1                                                05120001
+         JOLERR   304,'FILE ''',SYMBOLIC,''' HAD OPEN ERROR:- IT CANNOT+05130006
+                BE USED'                                                05140006
+         B        P18RC16                                               05150005
+P18OK1   DS       0H                                                    05160023
+         TM       ALLSTAT,B'01000000'                                   05170023
+         BNO      P18OK2                                                05180023
+P18ATEOF JOLERR   305,'FILE ''',SYMBOLIC,''' IS AT END OF FILE'         05190040
+* WE COULD CLOSE THE FILE AND FREE THE BUFFERS, BUT I MUST SEE          05200023
+*    IF THAT WILL CAUSE ANY LOGICAL PROBLEMS BEFORE I PUT CODE IN.      05210023
+*                                                                       05220023
+P18NULL  MVC      #WORK(2),=X'0000'    RETURN A NULL RECORD             05230023
+         MVC      SYMBOLIC,TKN         SET UP RECEIVING NAME            05240027
+         $CALL    UJP85ASN             NULL RETURNED                    05250023
+         B        P18RC16 RETURN A CODE OF 16 TOO                       05260023
+P18OK2   LA       R9,ALLDCB            GET ADDRESS OF DCB               05270023
+         USING    IHADCB,R9                                             05280003
+         L        R1,ALLGETAD          GET ADDRESS OF RECORD IN BUFFER  05290016
+         LTR      R1,R1                AT EOF ?                         05300016
+         BZ       P18ATEOF                                              05310016
+         TM       DCBRECFM,X'50'       VARIABLE BLOCKED?                05320013
+         BO       P18VB                                                 05330003
+         LA       R15,WORK             GET RECEIVE AREA ADDRESS         05340016
+         LH       R14,DCBLRECL         GET LENGTH OF RECORD             05350016
+         STH      R14,#WORK            SET UP LENGTH                    05360016
+         BCTR     R14,0                -1 FOR MVC EXECUTE               05370016
+         EX       R14,P18MVCFB         MOVE THE RECORD TO WORK          05380017
+         B        P18STORE             STORE READ RECORD                05390003
+P18VB    DS       0H                                                    05400016
+         LH       R14,0(R1)            GET RECORD LENGTH FROM BUFFER    05410016
+         SH       R14,=H'4'            -4 FOR RECORD DESCRIPTOR WORD    05420016
+         CH       R14,=H'253'          CHECK IF RECORD IS TOO LONG      05430016
+         BNH      P18VBOK                                               05440016
+         JOLERR   306,'FILE ''',SYMBOLIC,''' RECORD IS TOO LONG'        05450040
+         B        P18NULL                                               05460016
+P18VBOK  STH      R14,#WORK            SET UP LENGTH                    05470016
+         BCTR     R14,0                -1 FOR MVC EXECUTE               05480016
+         EX       R14,P18MVCVB         MOVE THE RECORD TO WORK          05490017
+P18STORE LH       R1,#WORK             MUST ADD 2 FOR THE QUOTES        05500025
+         LA       R14,2(R1)                                             05510025
+         STH      R14,#WORK                                             05520025
+         MVI      WORK,C''''           PUT IN QUOTES FOR CHAR TEXT      05530025
+*        LH       R1,#WORK             PUT A QUOTE                      05540025
+         LA       R1,WORK+1(R1)        -- AT THE END                    05550026
+         MVI      0(R1),C''''          ---- OF THE STRING               05560013
+         MVC      SYMBOLIC,TKN         COPY IN NAME                     05570027
+         $CALL UJP85ASN                                                 05580013
+* SET UP %LASTCC=0                                                      05590027
+         MVC      SYMBOLIC,=CL8'LASTCC'                                 05600027
+         MVC      #WORK(3),=X'0001F0'  SET RC=0 TO START                05610027
+         $CALL    UJP85ASN             STORE IN %LASTCC                 05620027
+* NOW GET LOCATE NEXT RECORD SO WE CAN SET UP EOF ETC                   05630016
+         MVC      DCBEODA,=AL3(P18SETEN)  EOF ADDRESS                   05640022
+         MVC      ALLGETAD,=A(0)       CLEAR RECORD POINTER FIRST       05650016
+         TM       ALLSTAT,B'01000000'  ARE WE AT EOF ALREADY?           05660023
+         BO       P18ATEOF             YES                              05670016
+         TM       DCBOFLGS,DCBOTFM     IS IT AN END OF FILE?            05680016
+         BNO      P18DORD              NO, DO THE READ                  05690016
+         JOLRETN                                                        05700022
+P18DORD  GET      ALLDCB               TRY TO GET LOCATE A RECORD       05710016
+         ST       R1,ALLGETAD          SAVE THE RECORD ADDRESS          05720016
+         JOLRETN                                                        05730016
+P18SETEN OI       ALLSTAT,B'01000000'  TURN ON EOF FLAG THERE TOO       05740023
+*        JOLERR   107,'FILE ''',SYMBOLIC,''' NOW AT EOF'                05750040
+         JOLRETN                                                        05760023
+P18MVCFB MVC      WORK+1(*-*),0(R1)                                     05770023
+P18MVCVB MVC      WORK+1(*-*),4(R1)                                     05780023
+         DC    80S(*,*,*,*)              ZAP SPACE IF REQUIRED          05790027
+         LTORG                                                          05800027
+         DC      30S(*)                                                 05810034
+         TITLE 'WRITE RECORD ROUTINE'                                   05820034
+         JOLSAVE CSECT=UJP19PUT                                         05830027
+* THIS IS THE PUTFILE INSTRUCTION   ****************************        05840027
+         GETTKN   2                    GET NAME OF SYMBOLIC VALUE       05850027
+*                                      TO BE SENT.                      05860027
+         MVC      SYMBOLIC,TKN         STORE IN SYMBOLIC NAME FIELD     05870027
+         GETTKN   3                    CHECK FOR ERRORS.                05880027
+         CLI      TKN,C' '             ANY MORE TOKENS??                05890027
+         BE       P19OK1                                                05900027
+         JOLERR   301,'TOO MANY SYMBOLS ON PUTFILE STATEMENT'           05910027
+         USING TKNX,R3                                                  05920027
+P19OK1   DS       0H                                                    05930027
+         MVC      TKN(8),SYMBOLIC      COPY BACK FOR GET SUBRTN         05940027
+         MVC      #TKN,=H'8'           SET UP LENGTH TO 8.              05950027
+         $CALL    UJP192               ACTUALLY DO THE GET              05960027
+         LTR      R15,R15                                               05970027
+         BZ       PUTRC0                                                05980027
+         JOLRETN  RC=4                                                  05990027
+PUTRC0   JOLRETN                                                        06000027
+         LTORG                                                          06010027
+         DC      30S(*)                                                 06020034
+         TITLE 'REAL WRITE RECORD ROUTINE'                              06030034
+         JOLSAVE  CSECT=UJP192         WRITE FILE                       06040027
+* SYMBOLIC CONTAINS THE FILE NAME, TKN CONTAINS SYMBOLIC FOR DATA       06050027
+* OR A LITERAL STRING TO GO OUT                                         06060042
+         MVC      ICOMMAND,=CL8'MACRO' MAKE ASSIGN BETTER.              06070027
+         L        R9,AJCL              SET R9 TO $$JCL DCB              06080044
+         CLC      SYMBOLIC,=CL8'$$JCL' WRITING TO JCL FILE ?            06090043
+         BE       P19OK2               YES, OK, FILE MUST BE OPEN       06100043
+         $CALL    P17SFILE             FIND THE FILE DETAILS            06110043
+         LTR      R15,R15                                               06120001
+         BZ       P19GOTF                                               06130001
+         JOLERR   302,'FILE ''',SYMBOLIC,''' NOT OPEN'                  06140006
+* QUESTION?                                                             06150006
+*  WHY SHOULDN'T I OPEN IT FOR HIM?                                     06160006
+*  MAYBE JUST FOR INPUT?                                                06170006
+P19SETRC MVC      SYMBOLIC,=CL8'LASTCC'                                 06180005
+         MVC      #WORK(4),=X'0002F1F6'       SET RC=16                 06190005
+         $CALL    UJP85ASN                    STORE IN %LASTCC          06200005
+         JOLRETN  RC=16                                                 06210001
+         USING    DYNFCNTL,R8                                           06220015
+P19GOTF  LR       R8,R1                SAVE CODE IN R8                  06230004
+         LA       R9,ALLDCB            GET ADDRESS OF DCB               06240003
+         USING    IHADCB,R9                                             06250003
+         TM       ALLSTAT,2            OPEN FOR OUTPUT?                 06260003
+         BO       P19OK2                                                06270004
+         JOLERR   303,'FILE ''',SYMBOLIC,''' NOT OPEN FOR OUTPUT'       06280001
+         B        P19SETRC                                              06290005
+P19OK2   MVC      SYMBOLIC,TKN         GET NAME TO WRITE FROM           06300027
+         CLI      TKN,C''''            IS IT A LITERAL STRING ?         06310042
+         BE       P19WLIT              YES, SO WRITE IT OUT             06320042
+         FINDSYM  SYMBOLIC                                              06330042
+         LTR      R15,R15                                               06340003
+         BNZ      P19NFND              MESSAGE - NOT FOUND              06350003
+         LR    R1,R0           COPY ADDRESS OF SYM TO R1          87150 06351051
+* R1 POINTS TO THE SYMBOLIC WORK AREA TABLE ENTRY                       06360003
+         USING    SYMOVLY,R1                                            06370003
+* MOVE TO #TKN FOR WRITING PURPOSES                                     06380013
+         MVI      TKN,C' '                                              06390013
+         MVC      TKN+1(255),TKN       CLEAR 255 ONLY BYTES             06400013
+         L        R0,SYMADDR           GET ITS ADDRESS                  06410003
+         LA       R1,#TKN                                               06420013
+         BAL      R14,MOVEDATA         MOVE SYMBOLIC TO #TKN            06430013
+P19WLIT  BAL      R14,DROPQUOT         DROP QUOTES, IF ANY              06440042
+         C        R9,AJCL              WRITING TO JCL FILE ?            06450044
+         BNE      P19TDCB                                               06460043
+* OK, HERE WE ARE WRITING DIRECTLY TO THE JCL FILE.                     06470044
+* THIS IS A PUT LOCATE FILE.                                            06480044
+         PUT      (R9)                 PUT LOCATE MODE                  06490044
+         MVC      0(80,R1),TKN         SHIFT RECORD IN                  06500043
+         B        P19RC0                                                06510043
+P19TDCB  TM       DCBRECFM,X'50'       VARIABLE BLOCKED ?               06520043
+         BO       P19VB                                                 06530003
+         PUT      ALLDCB,TKN                                            06540013
+         CLC      #TKN,DCBLRECL                                         06550013
+         BH       P19FBLER                                              06560003
+P19RC0   MVC      SYMBOLIC,=CL8'LASTCC'                                 06570043
+         MVC      #WORK(3),=X'0001F0'  SET RC=0 TO START                06580027
+         $CALL    UJP85ASN             STORE IN %LASTCC                 06590027
+         JOLRETN                                                        06600003
+P19VB    LH       R1,#TKN              VARIABLE BLOCKED                 06610013
+         LA       R1,2(R1)             ADD 2 FOR THE 0 WORK             06620003
+         STH      R1,#TKN-2                                             06630013
+         MVC      #TKN,ZERO                                             06640013
+         PUT      ALLDCB,#TKN-2                                         06650013
+         MVC      SYMBOLIC,=CL8'LASTCC'                                 06660027
+         MVC      #WORK(3),=X'0001F0'  SET RC=0 TO START                06670027
+         $CALL    UJP85ASN             STORE IN %LASTCC                 06680027
+         JOLRETN                                                        06690001
+P19FBLER JOLERR   304,'RECORD ''',#TKN,                                C06700013
+               ''' TRUNCATED ON OUTPUT TO FILE ''',SYMBOLIC,''''        06710027
+         B        P19SETRC                                              06720005
+P19NFND  JOLERR   305,'SYMBOLIC VARIABLE ''',SYMBOLIC,                 C06730004
+               ''' NOT FOUND FOR OUTPUT'                                06740027
+         B        P19SETRC                                              06750005
+         DC      30S(*)                                                 06760034
+         TITLE 'READ RECORD ROUTINE'                                    06770034
+         JOLSAVE CSECT=UJP60REA                                         06780001
+         USING TKNX,R3                                                  06790001
+* THIS ROUTINE IS THE READ INSTRUCTION.                                 06800002
+* IT EITHER DOES:-                                                      06810027
+*       READ SYMBOLIC;                                                  06820027
+* OR    READ FILE(X) INTO(Y);                                           06830027
+         MVC      ICOMMAND,=CL8'MACRO' MAKE ASSIGN BETTER.              06840001
+         GETTKN   3                    SEE IF A BRACKET                 06850027
+         CLI      TKN,C'('                                              06860027
+         BNE      P60TERM              SYMBOLIC TERMINAL READ           06870027
+* HERE IT IS MOST LIKELY A READ FILE TYPE INSTRUCTION.                  06880027
+         GETTKN   2                                                     06890027
+         CLC      =C'FILE ',TKN                                         06900033
+         BE       P60FNAME                                              06910034
+         CLC      =C'F ',TKN                                            06920033
+         BNE      P60ERR                                                06930033
+P60FNAME GETTKN   4                                                     06940034
+         MVC      SYMBOLIC,TKN         SET UP FILE NAME                 06950034
+         GETTKN   5                                                     06960027
+         CLI      TKN,C')'                                              06970027
+         BE       P60GET6                                               06980027
+P60ERR   JOLERR   302,'INVALID SYNTAX ON READ FILE STATEMENT'           06990027
+         MVC      SYMBOLIC,=CL8'LASTCC'                                 07000027
+         MVC      #WORK(3),=X'0001F1F6'  SET RC=16                      07010027
+         $CALL    UJP85ASN             STORE IN %LASTCC                 07020027
+         JOLRETN  RC=16                                                 07030027
+P60GET6  GETTKN   6                                                     07040027
+         CLC      =C'INTO',TKN                                          07050027
+         BNE      P60ERR                                                07060027
+         GETTKN   7                                                     07070027
+         CLI      TKN,C'('                                              07080027
+         BNE      P60ERR                                                07090027
+         GETTKN   9                                                     07100027
+         CLI      TKN,C')'                                              07110027
+         BNE      P60ERR                                                07120027
+         GETTKN   10                                                    07130027
+         CLI      TKN,C' '                                              07140027
+         BNE      P60ERR                                                07150027
+         GETTKN   8                   GET NAME OF RECEIVING SYMBOLIC    07160027
+         $CALL    UJP182                                                07170028
+         JOLRETN  RC=(15)                                               07180027
+         SPACE 3                                                        07190027
+P60TERM  GETTKN   2                    GET NAME OF SYMBOLIC VALUE       07200027
+*                                      TO BE RETURNED TO.               07210001
+         MVC      SYMBOLIC,TKN         STORE IN SYMBOLIC NAME FIELD     07220001
+         GETTKN   3                    CHECK FOR ERRORS.                07230001
+         CLI      TKN,C' '             ANY MORE TOKENS??                07240001
+         BE       P60OK1                                                07250001
+         JOLERR   301,'TOO MANY SYMBOLS ON READ STATEMENT'              07260001
+P60OK1   LA       R1,WORK              GET RECEIVE AREA                 07270001
+         TGET     (1),L'WORK                                            07280001
+         STH      R1,#WORK                                              07290001
+         B        P60STR                                                07300001
+P60STR   OC       WORK(256),=CL256' '  CONVERT TO UPPER CASE            07310001
+         $CALL UJP85ASN                                                 07320001
+         JOLRETN                                                        07330001
+         LTORG                                                          07340000
+         DC      30S(*)                                                 07350034
+         TITLE 'WRITE FILE ROUTINE'                                     07360034
+         JOLSAVE CSECT=UJP61WRI                                         07370027
+         USING TKNX,R3                                                  07380027
+* THIS ROUTINE IS THE WRITE INSTRUCTION.                                07390027
+* IT EITHER DOES:-                                                      07400027
+*       WRITE SYMBOLIC;                                                 07410027
+* OR    WRITE FILE(X) FROM(Y);                                          07420027
+         MVC      ICOMMAND,=CL8'MACRO' MAKE ASSIGN BETTER.              07430027
+         GETTKN   3                    SEE IF A BRACKET                 07440027
+         CLI      TKN,C'('                                              07450027
+         BNE      P61TERM              SYMBOLIC TERMINAL READ           07460027
+* HERE IT IS MOST LIKELY A READ FILE TYPE INSTRUCTION.                  07470027
+         GETTKN   2                                                     07480027
+         CLC      =C'FILE ',TKN                                         07490033
+         BE       P61FNAME                                              07500034
+         CLC      =C'F ',TKN                                            07510033
+         BNE      P61ERR                                                07520033
+P61FNAME GETTKN   4                                                     07530034
+         MVC      SYMBOLIC,TKN         SET UP FILE NAME                 07540027
+         GETTKN   5                                                     07550027
+         CLI      TKN,C')'                                              07560027
+         BE       P61GET6                                               07570027
+P61ERR   JOLERR   302,'INVALID SYNTAX ON WRITE FILE STATEMENT'          07580027
+         MVC      SYMBOLIC,=CL8'LASTCC'                                 07590027
+         MVC      #WORK(3),=X'0001F1F6'  SET RC=16                      07600027
+         $CALL    UJP85ASN             STORE IN %LASTCC                 07610027
+         JOLRETN  RC=16                                                 07620027
+P61GET6  GETTKN   6                                                     07630027
+         CLC      =C'FROM',TKN                                          07640027
+         BNE      P61ERR                                                07650027
+         GETTKN   7                                                     07660027
+         CLI      TKN,C'('                                              07670027
+         BNE      P61ERR                                                07680027
+         GETTKN   9                                                     07690027
+         CLI      TKN,C')'                                              07700027
+         BNE      P61ERR                                                07710027
+         GETTKN   10                                                    07720027
+         CLI      TKN,C' '                                              07730027
+         BNE      P61ERR                                                07740027
+         GETTKN   8                   GET NAME OF RECEIVING SYMBOLIC    07750027
+         $CALL    UJP192                                                07760028
+         JOLRETN  RC=(15)                                               07770027
+         SPACE 3                                                        07780027
+* THIS ROUTINE WRITES A CHARACTER STRING ONTO A TSO SCREEN.             07790027
+P61TERM  GETTKN   3                    CHECK FOR ERRORS.                07800027
+         CLI      TKN,C' '             ANY MORE TOKENS??                07810027
+         BE       P61OK1                                                07820027
+         JOLERR   301,'TOO MANY TOKENS ON WRITE STATEMENT'              07830027
+P61OK1   GETTKN   2                    GET MESSAGE TO BE WRITTEN.       07840027
+         BAL      R14,DROPQUOT         DROP QUOTES FROM THE MESSAGE     07850027
+         LA       R1,TKN               GET MESSAGE AREA ADDRESS.        07860027
+         LH       R0,#TKN              GET LENGTH TO GO TO SCREEN.      07870027
+         SVC      93                   GET VALUE FROM THE SCREEN.       07880027
+         JOLRETN                                                        07890027
+         DC    20S(*)                  ZAP SPACE IF REQUIRED            07900027
+         LTORG                                                          07910027
+         EJECT                                                          07920027
+         COPY  DYNFCNTL                                                 07930000
+DCBOTFM  EQU   B'00000100'                                              07940008
+         DCBD  DSORG=PS,DEVD=DA                                   75128 07950000
+         END                                                            07960000

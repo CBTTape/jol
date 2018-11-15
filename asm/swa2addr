@@ -1,0 +1,45 @@
+* NAME      : SWA2ADDR                                                * 00010000
+* FUNCTION  : THIS SUBROUTINE CONVERTS SWA TOKENS TO REAL ADDRESSES.  * 00020000
+* FEATURES  : THIS PROGRAM WILL WORK ON ALL MVS/XA SYSTEMS, RELEASE   * 00030000
+*             2.2 OR LATER. IT DOES NOT MATTER WHETHER OR NOT THE SWA * 00040000
+*             CONTROL BLOCKS RESIDE ABOVE OR BELOW THE 16 MEG LINE.   * 00050000
+*             IN EITHER CASE IT WILL STILL RETURN A VALID ADDRESS.    * 00060000
+* CALL FMT  : CALL SWA2ADDR(TOKEN,ADDRESS)                            * 00070000
+* PARAMETERS: THE TWO PARAMETERS PASSED TO THIS SUBROUTINE ARE DEFINED* 00080000
+*             AS FOLLOWS.                                             * 00090000
+* TOKEN      DS   XL3      THE TOKEN FOR A SWA CONTROL BLOCK SUPPLIED * 00100000
+*                          BY THE CALLER.                             * 00110000
+* ADDRESS    DS   A        A 31 BIT ADDRESS TO BE RETURNED TO THE     * 00120000
+*                          CALLER.                                    * 00130000
+* REG-15 WILL CONTAIN THE RETURN CODE FROM THE SWAREQ MACRO.          * 00140000
+SWA2ADDR CSECT                         MY NAME IS ...                   00150000
+SWA2ADDR AMODE 31                      I CAN LIVE IN HEAVEN..           00160000
+SWA2ADDR RMODE ANY                     ..OR THAT OTHER PLACE            00170000
+         BAKR  R14,0                   ESA STYLE SAVE                   00180000
+         BASR  R12,0                   ADDRESS THIS CSECT               00190000
+         USING *,R12                   AH .. ADDRESSABILITY             00200000
+         LM    R3,R4,0(R1)             R3->TOKEN, R4->ADDRESS           00210000
+         USING SWAEPA,R10              MAP SWA EPA                      00220000
+         LA    R10,SWA_EPA             ADDRESS THE ENTRY PARM           00230000
+         XC    SWAEPA,SWAEPA           CLEAR THE AREA                   00240000
+         MVC   SWVA(3),0(R3)           PLACE SWA TOKEN IN PLIST         00250000
+         SWAREQ FCODE=RL,              READ/LOCATE REQUEST             -00260000
+               EPA=SWEPAPTR,           ENTRY PAREMETER LIST            -00270000
+               MF=(E,SWAPARMS),        LIST FORM ENTRY                 -00280000
+               UNAUTH=YES              PROGRAM EXECUTES UNAUTHORIZED    00290000
+         L     R1,SWBLKPTR             GET ADDRESS OF SCHED CB          00300000
+         ST    R1,0(R4)                STORE SWA CONTROL BLOCK ADDRESS  00310000
+         DROP  R10                     DROP ADDRESSABILITY              00320000
+         PR                            EXIT                             00330000
+         LTORG                                                          00340000
+SWEPAPTR DC    A(SWA_EPA)              ADDRESS OF ENTRY PARM LIST       00350000
+SWA_EPA  DS    XL28                    PARM LIST MAPED BY IEFZB505      00360000
+SWAPARMS SWAREQ MF=L,                  LIST FORM OF THE REQUEST        -00390000
+               UNAUTH=YES                                               00400000
+         IEFZB505                      MAP THE PARM LIST                00410000
+         IEFJESCT                      JES CONTROL TABLE                00420000
+         CVT   DSECT=YES               GOOD OLD CVT                     00430000
+         END                                                            00440000
+Paul Lemmons                                                            00450000
+Systems Programmer                                                      00460000
+Tucson Medical Center (USA)                        c Xephon 1991        00470000

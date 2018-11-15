@@ -1,0 +1,47 @@
+//T92CVCX JOB (R777),'LONS 8TH',MSGCLASS=X,NOTIFY=T92CVC,               00010000
+// CLASS=A,USER=????????,PASSWORD=????????                              00020000
+//*MAIN LINES=999                                                       00030000
+//ASM EXEC PGM=ASMBLR,PARM='NODECK,NOOBJ,XREF(SHORT),LIST,TEST,TERM'    00040000
+//SYSLIB   DD  DSN=SYS1.MACLIB,DISP=SHR,DCB=BLKSIZE=19040               00050000
+//         DD  DSN=SYS1.AMODGEN,DISP=SHR                                00060000
+//SYSUT1   DD  DSN=&&SYSUT1,SPACE=(CYL,(2,2)),UNIT=SYSDA                00070000
+//SYSUT2   DD  DSN=&&SYSUT2,SPACE=(CYL,(2,2)),UNIT=SYSDA                00080000
+//SYSUT3   DD  DSN=&&SYSUT3,SPACE=(CYL,(2,2)),UNIT=SYSDA                00090000
+//SYSTERM  DD  SYSOUT=*                                                 00100000
+//SYSPRINT DD  SYSOUT=*                                                 00110000
+         SPACE 3                                                        00120000
+         MACRO                                                          00130000
+         P3375                                                          00140000
+         JOLVOL &SYSLIST(1),&SYSLIST(2),CODE='11001101'                 00150000
+         MEND                                                           00160000
+         SPACE 3                                                        00170000
+         MACRO                                                          00180000
+         P3380 &P3330=,&P3350=                                          00190000
+         JOLVOL &P3330,&SYSLIST(1),CODE='11001101'                      00200000
+         JOLVOL &P3350,&SYSLIST(1),CODE='11001111'                      00210000
+         MEND                                                           00220000
+         SPACE 3                                                        00230000
+           SPACE 3                                                      00240000
+           MACRO                                                        00250000
+           JOLVOL &CODE=                                                00260000
+*        AIF   (&SYSLIST(2) NE '').ERR                                  00270000
+         AGO .OK                                                        00280000
+.ERR     MNOTE 12,'ONLY 1 VOLUME LIST ALLOWED'                          00290000
+         MNOTE 12,'SYSLIST 1=&SYSLIST(1)'                               00300000
+         MNOTE 12,'SYSLIST 2=&SYSLIST(2)'                               00310000
+.OK      ANOP                                                           00320000
+           LCLA &PARMNO                                                 00330000
+&PARMNO    SETA N'&SYSLIST(1)                                           00340000
+&PARMNO    SETA  1                                                      00350000
+.SPLIT     ANOP                                                         00360000
+           AIF (&PARMNO GT N'&SYSLIST(1)).END                           00370000
+           DC  CL6'&SYSLIST(1,&PARMNO)',B&CODE                          00380000
+&PARMNO    SETA &PARMNO+1                                               00390000
+           AGO .SPLIT                                                   00400000
+.END       ANOP                                                         00410000
+           MEND                                                         00420000
+           P3375 (ONE,TWO),(THREE)                                      00430000
+           P3380 P3330=(ONE,TWO),P3350=(THREE),(L,M)                    00440000
+           P3380 P3330=(1,2,3,4,5,6,7)                                  00450000
+           P3380 P3350=1,P90=9                                          00460000
+       END                                                              00470000

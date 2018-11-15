@@ -1,0 +1,65 @@
+         TITLE 'PROPOGATE VOLUMES IN JOL JOBQ'                          03682000
+           JOLSAVE CSECT=UJE30VOL                                 74365 03682001
+* THIS ROUTINE IS CALLED TO FIND THE VOLUME THAT A DATA SET             03682003
+*  WAS ALLOCATED ON, AND THEN PROPOGATES THIS INFORMATION               03682004
+*  DOWN THE JOL QUEUES. IT ALSO FIXES UP VOLREFS WHEN REQD.             03682005
+*                                                                       03682006
+* IT IS CALLED LINK  :-                                                 03682007
+*                                                                       03682008
+*        CALL  UJE30VOL       PROPOGATE VOLS DOWN JOL 'JOBQ'            03682020
+*                                                                       03682022
+         CLI   DDTYPE,DDPUNCH   Q... SYSIN, SYSOUT OF SOME KIND?        03682030
+         BNH   E30RETN4       DON'T PROPOGATE SYSOUT VOLS               03682040
+         CLC   =C'*DUMMY ',DDDSNAME                                     03682050
+         BE    E30RETN4       DON'T PROPOGATE DUMMY VOLS                03682060
+*  IT IS NECESSARY TO LOCATE THE FCT FOR THE DATASET WHOSE NAME IS      03682070
+*    IN DDDSNDET, TO FIND THE CURRENT VOLUMES AND COPY THE LIST TO      03682080
+*    THE ALLOCATION REQUEST FOR THIS DATASET                            03682090
+         L     R4,ATCB              ADDRESS MY TCB                      03682100
+         L     R4,TCBJSCB-TCB(,R4)          MY JSCB                     03682110
+         ICM   R4,7,JSCBFCTA-JSCB(R4)         FIRST FCT                 03682120
+         BZ    E30RETN4              EXIT IF NONE ?!! & SSSSSSSSS       03682130
+         SPACE                                                          03682140
+*   FOUND THE FCT CHAIN. NOW FIND THE DATASET ENTRY                     03682150
+         SPACE                                                          03682160
+         USING FCT,R4                                                   03682170
+E30TNXTF DS    0H                                                       03682180
+         CLC   FCTFLN,DDDSNAME     Q... IS THIS IT?                     03682190
+         BE    E30TFFCT            A... YES, GO AND GET THE VOLUME INFO 03682200
+         SPACE                                                          03682210
+         ICM   R4,7,FCTNFCTA         NEXT FCT                           03682220
+         BNZ   E30TNXTF              GO AND TEST THE NEXT ONE           03682230
+E30TNFCT DS    0H                    END OF CHAIN, AND NOT FOUND        03682240
+         JOLERR 301,'DSID ',DDDSID,',DS ',#DSN,                        .03682250
+               ' IS NOT ALLOCATED,',' VOLUMES FOR DATA SET IN ERROR'    03682260
+         B     E30RETN4       PRESS ON IN ANY CASE                      03682270
+E30TFFCT DS    0H                                                       03682280
+         SPACE 3                                                        03682290
+* NOW I HAVE FOUND THE FCT, COPY THE VOLUME SERIAL NUMBERS              03682300
+         SPACE 2                                                        03682310
+         CLEAR DDVOLUME                                                 03682320
+         SLR   R8,R8                                                    03682330
+         ICM   R8,1,FCTVOLNO        LOAD VOLUME COUNT                   03682340
+         BZ    E30TNFCT             EXIT IF THERE ARE NO VOLUMES        03682350
+         LA    R0,L'DDVOLUME/6      LOAD NUMBER OF VOLUMES ALLOWED      03682360
+         CR    R0,R8                CHECK THAT THE SERIAL NUMBERS FIT   03682370
+         BH    E30TOK               BE IF OK                            03682380
+         JOLERR 509,'DS ',DDDSID,',',#DSN,                             .03682390
+               ' IS NOT ALLOCATED,',' REFERS TO TOO MANY VOLUMES'       03682400
+E30TOK   DS    0H                                                       03682410
+         L     R6,FCTVCT                                                03682420
+         LA    R15,DDVOLUME         ADDRESS FOR VOLUMES                 03682430
+E30TNXTV DS    0H                                                       03682440
+         MVC   0(6,R15),8(R6)       COPY THE VOLUME SERIAL NUMBER       03682450
+         LA    R15,6(,R15)          ADDRESS FOR NEXT AREA               03682460
+         L     R6,4(,R6)            ADDRESS THE NEXT VCT                03682470
+         BCT   R8,E30TNXTV          CONTINUE UNTIL ALL AREA DONE        03682480
+         SPACE 2                                                        03682490
+         UJE22UPD FCTFLN,DDVOLUME FIX FUTURE VOLUME REFERENCES          03682500
+S30RETN0 DS    0H                                                       03682600
+E30RETN0 DS    0H                                                       03682610
+           JOLRETN  RC=0                                                03682700
+E30RETN4 DS    0H                                                       03682710
+           JOLRETN  RC=4                                                03682720
+         DC  10S(*)                                                     03682800
+           LTORG                                                        03682900

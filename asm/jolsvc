@@ -1,0 +1,103 @@
+           TITLE 'JOL SVC:SVC 34:READ/WRITE JOBQ MVS'                   00000100
+* THIS IS A MULTI-FUNCTION SVC FOR JOL.                                 00000200
+* IT IS USED AT BOTH COMPILE AND EXECUTE TIME.                          00000300
+*                                                                       00000400
+****** THERE ARE ONLY A FEW CHECKS TO VALIDATE THE CALLER, AND          00000500
+* THESE COULD BE DUPLICATED BY ANY-ONE. HOWEVER, SVC 34 WILL            00000600
+* PERFORM ITS OWN VALIDATIONS, AND THE OTHER ENTRY POINT IS             00000700
+* USED PURELY FOR COPYING INFORMATION TO SUBPOOL 236, AND THE           00000800
+* INFORMATION TO GO THERE WILL BE FAIRLY HEAVILY VALIDATED.             00000900
+*                                                                       00001000
+* AS AT 12/12/75, ONLY 3 FUNCTIONS ARE TO BE PERFORMED.                 00001100
+*                                                                       00001200
+* FUNCTION 0                                                            00001300
+*    ISSUE SVC 34, USING THE UNFORMATION POINTED TO BY R1 AS THE        00001400
+*          COMMAND.                                                     00001500
+*                                                                       00001600
+* FUNCTION 1                                                            00001700
+*    COPY INFORMATION PROVIDED TO THE MVS JOBQ.                         00001800
+*                                                                       00001900
+* FUNCTION 2                                                            00002000
+*    TURN OFF THE ALLOCATION BIT FOR HASP INTERNAL READERS              00002100
+*                                                                       00002200
+           SPACE                                                        00002300
+* SET UP REGISTER EQUATES                                               00002400
+           REGEQU                                                       00002500
+UJESVC     CSECT                                                        00002600
+           USING UJESVC,R6     ADDRESS OURSELVES                        00002700
+* ON ENTRY, R0 CONTAINS:-                                               00002800
+*          BITS 0-8 :- FUNCTION CODE                                    00002900
+*          8-END    :- C'JOL'                                           00003000
+*                                                                       00003100
+* VALIDATE R0 A LITTLE ...                                              00003200
+           LR  R8,R0                                                    00003300
+           SRL R8,24           DROP 'JOL'                               00003400
+           SLL R8,1            MULTIPLY BY 2 FOR BRANCH                 00003500
+           SLL R0,8            DROP FUNCTION CODE FROM R0               00003600
+           C   R0,=C'JOL '     IS IT JOL ?                              00003700
+           BNE ABEND           NO, ABEND                                00003800
+* NOW CHECK FUNCTION CODE WITHIN LIMITS.                                00003900
+           CH  R8,=H'8'                                                 00004000
+           BH  ABEND                                                    00004100
+* OK, FUNCTION OK, BRANCH TO PROCESSING ROUTINES                        00004200
+           B   *+4(R8)                                                  00004300
+           B   SVC34           ISSUE SVC 34                             00004400
+           B   PUTJOBQ         COPY INFO TO SUBPOOL 236                 00004500
+           B   OFFALLOC        TURN OFF ALLOCATION BIT IN UCB           00004600
+           SPACE 3                                                      00004700
+           TITLE 'SVC 34'                                               00004800
+SVC34      SVC 34              ISSUE THE COMMAND                        00004900
+           BR  R14             RETURN TO CALLER                         00005000
+           TITLE 'COPY TO MVS JOBQ'                                     00005100
+PUTJOBQ    EQU *                                                        00005200
+* ON ENTRY R1-> A QMPA SET UP FOR IEFQMRAW FOR MFT,MVT, VS1 SYSTEMS.    00005300
+* SO R1-> IOPARAMS (SEE BELOW)                                          00005400
+*    HOWEVER, +8 CONTAINS THE OPTION INDICATING READ/WRITE.             00005500
+*          WE WILL ONLY ACCEPT 'WRITE', IE 3                            00005600
+*    THIS IS FIELD 'QMPOP'                                              00005700
+*                                                                       00005800
+*    THE FIELD 'QMPCL' POINTS TO THE EXTERNAL PARAMETER AREA,           00005900
+*    WHICH CONTAINS:                                                    00006000
+*          DC  A(AREA_FROM_WHICH_RECORD_IS_TO_BE_WRITTEN)               00006100
+*          DC  XL4'TTR' SEE NOTE BELOW                                  00006200
+* NOTE *** IN MVS SYSTEMS, THIS IS A CORE ADDRESS.                      00006300
+*   MVS JOBQ HAS 176 BYTE RECORDS AS USUAL (AND SUPPOSEDLY THE          00006400
+*          SAME AS NORMAL JOBQ RECORDS), BUT AT:-                       00006500
+*              -4  CONTAINS CL4'SIOT'|'JFCB' ETC                        00006600
+*              -8  CONTAINS                                             00006700
+*                  X'NN'       RECORD TYPE                              00006800
+*                  X'0000'                                              00006900
+*                  X'B0'       LENGTH OF RECORD                         00007000
+*              -12 CONTAINS                                             00007100
+*                  X'80'                                                00007200
+*                  AL3(*-4)    ADDRESS OF RECORD                        00007300
+*              -16             ? A NUMBER (F) OF SOME DESCRIPTION       00007400
+* BY INSPECTION,(FROM AN MVS DUMP) WE HAVE                              00007500
+*                                                                       00007600
+*          -4                  -8                                       00007700
+*          SCTX                X'0C'                                    00007800
+*          ACT                 X'01'                                    00007900
+*          JFCB                X'1C'                                    00008000
+*          SCT                 X'02'                                    00008100
+*          SIOT                X'03'                                    00008200
+*          JMR                 X'1B'                                    00008300
+*          IWAB                X'25'                                    00008400
+*          JCT                 X'00'                                    00008500
+*          JFCX                X'1D'                                    00008600
+*          PDIB                X'21'                                    00008700
+*          DSEN                X'0F'                                    00008800
+*                                                                       00008900
+           SPACE 3                                                      00009000
+* WE HAVE TO VALIDATE THE RECORD, AND COPY IT BACK TO THE JOBQ.         00009100
+           SPACE 1                                                      00009200
+* WE DO KNOW THAT THE RECORD TO BE WRITTEN BACK HAS NAMES (EG 'JFCB')   00009300
+*    -32 FROM THE ACTUAL RECORD, SO WE CAN DO A COMPARE ON              00009400
+*    THAT BEFORE COPYING IT BACK.                                       00009500
+*                                                                       00009600
+*                                                                       00009700
+* CURRENTLY, THE ONLY RECORDS WE WANT TO WRITE BACK ARE                 00009800
+*                                                                       00009900
+*    1.    SCT                                                          00010000
+*    2.    PDQ     (NAME PDIB ??)                                       00010100
+*    3.    SIOT                                                         00010200
+*                                                                       00010300

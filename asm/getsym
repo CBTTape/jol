@@ -1,0 +1,319 @@
+         PRINT  OFF                                               J51
+         COPY  JOLCOM                                             J51
+         PRINT ON,DATA                                            J51
+GETSYM   CSECT
+         USING GETSYM,R15                                         J51
+         L     R15,=V(UJP85GSM)                                   J51
+         BR    R15                                                J51
+         LTORG                                                    J51
+         DROP  R15                                                J51
+P85SWORK DSECT
+         DS    18F            REGISTER SAVE AREA FOR ROUTINE
+COPYNAME DC  CL8' '
+P85SAVE9 EQU   *-P85SWORK     LENGTH OF SAVE + WORK AREA
+         SPACE 3
+UJP85GSM JOLSAVE CSECT=UJP85GSM,SIZE=P85SAVE9 (char *name)
+* R1 points to a varying length string containing the name we want.
+*
+*int         i;
+*void       *addr_symbolic;
+*void       *addr_copyname;
+*int         upper_work;
+*
+         USING P85SWORK,R13                                       J51
+         MVC COPYNAME,BLANKS
+         LH  R14,0(R1)                 Get length of string we want
+         LA  R1,2(R1)                  Point to real string
+         CH  R14,=H'8'
+         BL  LT8
+         LA  R14,8
+LT8      BCTR R14,0
+         LTR R14,R14
+         BNM GET1OK
+         JOLRETN RC=16
+GET1OK   DS  0H
+         MEMCPY COPYNAME,0(R1),R14     Shift to work area
+*
+         LH  R15,TKNX+4                2nd Token offset
+         LA  R15,TKNSTRG(R15)          Point to it
+         CLI 0(R15),C':'               Label?
+         BE  LEAVEL
+*   if (clc(icommand, "GOTO    ",8))
+*       goto leave_;
+         CLC ICOMMAND,=C'GOTO    '
+         BE  LEAVEL
+*   if (clc(icommand, "REDO    ",8))
+*       goto leave_;
+         CLC ICOMMAND,=C'REDO    '
+         BE  LEAVEL
+*
+         MEMUPR COPYNAME,8             Convert to Upper Case
+LEAVEL   DS  0H
+         LR    R8,R1           SAVE THE VALUE FOR THE ROUTINES    87150 16000112
+         FINDSYM COPYNAME      FIND THE SYMBOLIC (BIN SEARCH)     87150 16001005
+         LTR   R15,15          DID WE FIND IT?                          16002004
+         BNZ   GETNMBAD        No, Error
+P85GETDT DS    0H                                                       16150004
+         LR    R5,R0          GET ADDRESS OF SYMBOLIC TABLE       87150 16180004
+         USING SYMOVLY,R5                                         J51
+         L     R7,SYMADDR     GET ADDRESS SYMBOLIC       CHG30011 76200 16181004
+         MVC   DBL(2),0(R7)   SHIFT LENGTH SO NO 0C6     CHG30011 76200 16190000
+*        LR    R1,R8           RESTORE THE ORIGINAL R1 VALUE      87150 16191012
+*        LH    R8,DBL         LOAD R8 WITH THE LENGTH    CHG30011 76200 16200000
+*        BR    R6             RETURN TO CALLER           CHG30011 76200 16210000
+         MVI   OP,C' '           Clear it                         J52
+         MVC   OP+1(L'OP-1),OP   done                             J52
+         LH    R15,DBL                                            J51
+         LA    R15,1(R15)                                         J51
+         EX    R15,*+4                                            J51
+         MVC   #OP(0),0(R7)                                       J51
+         DROPQUSR #OP                                             J51
+         SPACE 3                                         CHG30011 76200 16220000
+         L     R14,4(R13)     GET SAVE AREA ADDRESS                     04910000
+         ST    R0,20(,R14)    Set R0 for JOLRETN                        04920000
+         ST    R1,24(,R14)    And R1                                    04920000
+         JOLRETN RC=0
+         DROP  R13                                                J51
+GETNMBAD DS    0H                                                 J51
+         MVC   #OP,ZERO                                           J51
+         JOLRETN RC=0
+         LTORG                                                    J51
+         END
+         END
+******** ***** ***************** ******************************** ***
+           LTORG                                                        16230000
+*   for (i = nosyms; i >= 1; i--)                      /* 1.1 % */
+*   {
+*    if (
+*       (copyname ==  symname  (* Psuedo Code !!!!! *)
+*      )
+*      {
+*          return i;
+*      }
+*   }
+*
+*   if (nosyms + 1 >= maxsyms) {
+*       cpylit(errtext, "Symbolic Name '");
+*       cat   (errtext, copyname);
+*       catlit(errtext, "' Cannot Be Stored:- Name Table Is Full");
+*       jolerr("P85405");
+*       return -1;
+*   }
+*   return 0;
+*}
+*
+GETNMBAD DS    0H
+         LR    R5,R0           SYMNAME POINTER                          16005006
+         USING SYMOVLY,R5                                CHG30011 76200 16010000
+* NAME NOT THERE                                         CHG30011 76200 16100000
+*        JOLERR 410,'%',#TKN,' NOT FOUND FOR ',#WORK     CHG30011 76200 16110000
+         SPACE 3                                         CHG30011 76200 16140000
+* NAME NOT HERE SO ENTER IT INTO THE STACK PROVIDED THAT                15380000
+*     THERE IS ROOM TO ENTER THE SYMBOLIC NAME IN THE TABLE       74303 15390000
+*     OF SYMBOLIC NAMES.                                          74303 15400000
+P85NOTFN EQU   *                                                  74303 15410004
+P85STRIT LH    R1,NOSYMS                                                15420004
+         LR    R5,R1           PUT NON-INCREMENTED VALUE IN R5    87150 15421007
+         LA    R1,1(R1)                                                 15430004
+         CH    R1,MAXSYMS                                               15440004
+         BH    P85ERR05        CANNOT ENTER NAME IN STACK,TOO MANY74303 15450004
+*                              AND NO AMOUNT OF RE-ORGANING WILL  74303 15460000
+*                              DROP THE NUMBER OF NAMES (ONLY THE 74303 15470000
+*                              PART FOR THE VALUE,AS THE NAMES    74303 15480000
+*                              ARE DROPPED AT THE END OF EACH     74303 15490000
+*                              MACRO).                            74303 15500000
+         STH   R1,NOSYMS       RESET NUMBER OF SYMBOLIC NAMES     74303 15521007
+         SPACE                                                          15530004
+         MH    R5,=H'12'                                                15540004
+         A     R5,ASYMTBL                                               15550004
+         MVC   SYMNAME,SYMBOLIC      * NAME STORED                      15560004
+         ST    R7,SYMADDR      R7=ANEXTSYM,IE ADDR VALUE WHICH    74303 15570004
+*                              HAS ALREADY BEEN MOVED IN          74303 15580000
+         MVC   SYMLEVEL(1),LEVEL+1                                      15590004
+         ST    R6,ANEXTSYM     RESET ANEXTSYM                     74303 15600004
+* STORE THE OFFSET IN THE BINARY LOOKUP TABLE                           15601004
+* NOTE, IF THE SYMBOL WAS FOUND, WE WANT TO REPLACE IT RATHER THAN      15601208
+*       INSERTING IT SO THAT WE ONLY HAVE THE NAME IN THE TABLE ONCE.   15601308
+         CLC   P85WASFN,ZERO   IF ZERO, THE NAME WAS FOUND        87150 15601408
+         BNE   P85INS                                                   15601508
+         L     R15,ATBLCNTL                                             15601608
+         USING TABLCNTL,R15                                             15601708
+         LH    R1,P85TBLPS     GET TABLE POSITION                       15601808
+         BCTR  R1,0                                                     15601911
+         AR    R1,R1           DOUBLE IT                                15602011
+         A     R1,ACUROFFS     POINT TO POSITION IN OFFSET TABLE        15602111
+         LH    R14,NOSYMS                                               15602211
+         BCTR  R14,0                                                    15602311
+         MH    R14,=H'12'                                               15602411
+         STH   R14,0(R1)                                                15602511
+         JOLRETN                                                        15602611
+         DROP  R15                                                      15602711
+P85INS   $CALL UJP02INS,P85TBLPS                                  87150 15602811
+         JOLRETN                                                        15610004
+         SPACE 3                                                        15620004
+P85GOTNM EQU   *                                                        15630004
+* NOW THE NAME IS ALREADY IN THE SYMBOLIC PARAMETER TABLE ENTRIES.      15640000
+*    IF THE LEVEL IN THE STACK IS EXTERNAL OR EQUAL TO THE CURRENT      15650008
+*    LEVEL,WE WILL OVERWRITE IT.                                        15660000
+*    IF THE CURRENT LEVEL IS > THAN THE LEVEL NOW,WE SHALL CREATE       15670000
+*    A NEW ENTRY.                                                       15680000
+         CLI   SYMLEVEL,X'FF'  EXTERAL ?                                15690004
+         BE    P85USENM        YES,SO DO THE ASSIGN                     15700004
+         CLC   SYMLEVEL,LEVEL+1                                         15710004
+         BH    P85NOTFN        ENTER SAME NAME AT DIFFERENT LEVEL       15720004
+* NAME IS HERE SO WE MUST OVER-WRITE THE INFORMATION (IF THERE IS ROOM) 15730000
+P85USENM EQU   *                                                  74303 15740004
+* SET UP NEW ADDRESS IN SYMADDR                                         15750000
+         MVC   SYMADDR+1(3),ANEXTSYM+1                                  15760004
+         ST    R6,ANEXTSYM     RESET NEXT VARIABLE ADDRESS        74303 15770004
+         JOLRETN RC=0                                             74303 15780004
+P85ERR05 JOLERR 405,'SYMBOLIC NAME ''',SYMBOLIC,''' CANNOT BE STORED'   15790000
+P85RETNF JOLRETN RC=16                                                  15800004
+*
+         JOLRETN RC=16                                   CHG30011 76200 16130000
+*void        getsym(char *name)
+*{
+*dcl(name_fast,charfixed,8,"",static); /* For faster string compares */
+*int         i;
+*int         temp_name_len;
+*
+union       sym_val_ovly {
+*           char        *px;
+*           int         *px_int;
+*           } sym_val_ovly;
+*
+*nsigned int          symlen;
+*
+*
+*
+*   i = getsymname(name);             /* Find the name and address in*/
+*
+*
+*   if (!(i > 0))
+*   {
+*       clear(op);                    /* Set return area to null */
+*
+*       cpystr(name_fast, name);     /* Convert to 8 characters */
+*
+*       if (clc(icommand, "GOTO ",5))
+*               return;/* Forward Reference */
+*
+*       if (!this_is_an_if) {
+*            cpylit(errtext, "Cannot Find '%");
+*            cat   (errtext, name_fast);
+*            catlit(errtext, "' Set to Null");
+*            jolerr("S20402");
+*            return;
+*       }
+*
+*/* Try for a LABEL now on a CALL or RUN statement */
+*
+*       strlwr(name_fast);                       /* Convert to lower case */
+*
+*       ujp47get_rc(name_fast); /* Find RC, sets OP */
+*
+*       return;
+*                                       /* implicit declare */
+* /*fix           symname(n)=ident;
+*                   xvalue(n)=''; */
+*   }
+*
+*
+*   if (i == 0)
+*   {
+*      clear(op);
+*      return;
+*   }
+*
+*
+** Now to copy the value from the symbolic table */
+*
+*   sym_val_ovly.px = &symvals/(symoffset/(i/)/);
+*   symlen = (unsigned int) *sym_val_ovly.px_int;
+*
+*   sym_val_ovly.px=sym_val_ovly.px+2;
+*
+**    if ((symlen > sizeof(op)) ?? (symlen<0)) int3(); */
+*
+*   memcpy(&op/(0/),sym_val_ovly.px ,symlen);
+*   length(op)=symlen;
+*   op/(length(op)/)=0;
+*
+*
+*   if (op/(0/) == '\'') {
+*        /* replacing in a quoted string */
+*        if (s20quot1) {
+*            memcpy(op, &op/(1/), length(op) - 2);
+*            length(op)=length(op)-2;
+*            op/(length(op)/) = '\0';
+*            return;
+*        }
+*        dropquotes(op); /* Not replacing in a quoted string */
+*   }
+*}
+*
+*
+*int        getsymty(char *name)
+*{
+*/dcl(name_fast,charfixed,8,"",static); /* For faster string compares */
+*int         i;
+*
+*union      sym_val_ovly {
+*           char        *px;
+*           int         *px_int;
+*           } sym_val_ovly;
+*
+*nsigned int          symlen;
+*
+*
+*/    cpystr(name_fast, name);        /* Convert to 8 characters */
+*
+*   clear(op);                        /* Set reurn area to null */
+*
+*   i = getsymname(name);             /* Find the name and address in*/
+*
+*   if (i == 0)
+*   {
+*      getsym(name);                  /* Puts out error message */
+*      clear(op);
+*      return -1;
+*   }
+*
+*
+** Now to copy the value from the symbolic table */
+*
+*   sym_val_ovly.px = &symvals/(symoffset/(i/)/);
+*   symlen = (unsigned int) *sym_val_ovly.px_int;
+*
+**    if ((symlen > sizeof(op)) ?? (symlen<0)) int3(); */
+*
+*   sym_val_ovly.px=sym_val_ovly.px+2;
+*
+*   memcpy(&op/(0/),sym_val_ovly.px ,symlen);
+*   length(op)=symlen;
+*   op/(length(op)/)=0;
+*   return 1;
+*}
+*
+*
+*
+*
+*int         getrcname(char *name)
+*{
+*dcl (copyname,charfixed,8,"",static);    /* array/(1..8/) of char; */
+*int         i;
+*
+*   cpystr(copyname, name);
+*
+*   for (i = nosyms; i >= 1; i--)                      /* 1.1 % */
+*   {
+*
+*      if ((memcmp(copyname, symname/(i/),8) == 0))
+*      {
+*          return i;
+*      }
+*   }
+*   return 0;
+* }
+*
+*

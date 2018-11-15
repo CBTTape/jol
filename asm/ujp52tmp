@@ -1,0 +1,32 @@
+         TITLE 'GET NEXT CHARACTER FROM INPUT STREAM(3)'          86014 00745000
+UJP52CHR CSECT                                                    86014 00738000
+* NEW CODE IS INTRODUCED FOR FASTER INPUT. IT SAVES USING A       86014 00022000
+*     SAVEAREA FOR NORMAL CHARACTER READS                         86014 00022000
+* THIS ROUTINE RETURNS THE NEXT CHARACTER FROM FILE SYSIN         86014 00752000
+         USING UJP52CHR,R15
+         CLI   EOFSYSIN,C' '                                            00757000
+         BNE   P52RC12        RETURN A 12                               00758000
+         CLI   SYSINMDE,C'1'  ARE WE IN SYSINMODE ?             74303   00759000
+         BE    P52OLDRT                                                 00760000
+         L     R1,AJOLGEN
+         USING GENDETS,R1
+         CLC   CP,SM2         RUN OVER CARD BOUNDARY ?                  00762000
+         BNL   P52OLDRT                                                 01074000
+         LH    R1,CP          LOAD CURRENT CHARACTER POSITION           01076000
+         LA    R15,CARD(R1)   GET ABSOLUTE ADDRESS CHAR WE WANT         01077000
+         MVC   INCHAR,0(R15)  GET REQD CHARACTER                        01078000
+         LA    R1,1(R1)       ADD 1 TO CP                               01079000
+         STH   R1,CP          AND RESTORE                               01080000
+         SR    R15,R15                                                  01081000
+         BR    R14
+P52RC12  MVI   EOFSYSIN,C'1'                                            01083000
+         MVI   INCHAR,C' '                                              01084000
+         LA    R15,12                                                   01085000
+         BR    R14
+* HERE WE NEED TO GO TO THE FULL READ CHARACTER ROUTINE
+P52OLDRT L     R15,=V(UJP52OLD)                                   86014 00741000
+         BR    R15                                                74303 00742000
+         DC    10S(*)                                                   01088000
+         LTORG                                                          00743000
+         DROP  R15                                                74303 00744000
+         DROP  R1                                                 86014 00744000

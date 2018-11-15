@@ -1,0 +1,1692 @@
+ALLOCATE TITLE '  DECODE AND ALLOCATE DATA SET'                         00010002
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974,1975       00020000
+* COPYRIGHT CCS 1976,1980                                               00030000
+* COPYRIGHT C. V. CLARKE 1982                                           00040000
+* COPYRIGHT C. V. CLARKE 1983                                           00050002
+*                                                                       00060000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00070000
+           SPACE 3                                                      00080000
+*                   J             000000            L                   00090000
+*                   J            0      0           L                   00100000
+*                   J           0        0          L                   00110000
+*                   J          0          0         L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0            0        L                   00160000
+*                   J         0            0        L                   00170000
+*                   J         0            0        L                   00180000
+*                   J         0            0        L                   00190000
+*        J          J         0            0        L                   00200000
+*         J        J           0          0         L                   00210000
+*          J      J             0        0          L                   00220000
+*           J    J               0      0           L                   00230000
+*            JJJJ                 000000            LLLLLLLLLLL         00240000
+           SPACE 3                                                      00250000
+           SPACE 3                                                      00260000
+         COPY JOLCOM                                                    00270000
+         EJECT                                                          00280002
+         PRINT DATA                                               75128 00290000
+C03SAVE  DSECT                                                    75128 00300000
+         DS    18F                                                75128 00310000
+C03STKN  DS    H      SAVE AREA FOR CURRENT TOKEN #                DASD 00320000
+C03DEXT  DS    CL1                                                75128 00330000
+C03DLIKE DS    CL8                                                75128 00340000
+C03DDSND DS    CL255      DDDSNDET OVERLAID OVER HERE                   00350002
+         DS    0F              FORCE ALIGNMENT                    87150 00351012
+C03DLEN  EQU   *-C03SAVE                                                00360000
+         JOLSAVE CSECT=UJP15ALL,BASE=(11,12),SIZE=C03DLEN         86013 00370007
+* THIS CSECT IS RESPONSIBLE FOR DECODING A DATA SET DECLARATION         00380000
+           SPACE                                                        00390000
+* LET'S ESTABLISH A BIT OF ADDRESSALITY.                                00400000
+           USING JOLCOM,R2                                              00410000
+           USING TKNX,R3                                                00420000
+           USING DDDSNDET,R4                                            00430000
+           USING C03SAVE,R13                                      75128 00440000
+           LA  R4,C03DDSND  ADDRESS THE WORK AREA                       00450003
+           SPACE                                                        00460000
+         CLEAR C03DDSND                                                 00470004
+         CLEAR C03DEXT,C03DLIKE,DDSPECTP,DDSPECT2,                75128*00480000
+               DDCANCEL,DDLABEL,DDUNITNO,DDPRIM,DDSEC,DDDIRECT,   80290*00490000
+               DDBLKSZE,DDLRECL,DDSIZE,DDSIZE2,DDAVREC,DDBUFNO,   80290*00500000
+               DDBUFND,DDBUFNI,                                   82300*00510000
+               DDBUFL,DDRKP,DDKEYLEN,DDOVERFL,DDVOLSEQ,DDMAXVOL,  80290*00520000
+               DDUNITQU                                                 00530000
+           MVI DDDD1,C'D'                      SET RECORD TYPE TO'D'    00540000
+           MVC DDSTMT,STMT                     MOVE STMT NO IN FOR      00550000
+*                                              ERRORS LATER             00560000
+           MVC DDLEVEL,LEVEL+1                                          00570000
+           MVC DDNEST,NEST+1                                            00580000
+           MVC DDOSVB,=AL2(DDLEN)                                       00590000
+*          GETTKN NO=2                         GET THE 2ND TOKEN        00600005
+*          MVC DDDSID,TKN                      MOVE THE DSIDENTIFIER    00610005
+*                                              IN                       00620000
+           SPACE 3                                                      00630000
+* NOW THE HARD WORK BEGINS,I.E DECODING MADLY                           00640000
+           GETTKN NO=2                                                  00650004
+           CLI TKN,C'*'                        SYSIN DATA SET ?         00660000
+           BNE NOTSYSIN                                                 00670000
+           STH R1,TKNCURR                                               00680000
+           JOLSTOR 'DSNAME',DDDSNAME,#TKN                               00690005
+*          MVC DDDSNAME(4),=C'*,$$'                                     00700005
+*          MVC DDDSNAME+4(4),DDSTMT                                     00710005
+*          OC  DDDSNAME+4(4),=C'0000'                                   00720005
+         MVI   DDTYPE,DDSYSIN                                     75128 00730000
+           B C                                 SEE IF ANY OTHER INFO    00740000
+           SPACE 3                                                      00750000
+NOTSYSIN   EQU *                                                        00760000
+* NOW TRY SYSOUT PROCESSING                                             00770000
+           CLC TKN(6),=C'SYSOUT'                                        00780000
+           BE ISSYSOUT                                                  00790000
+           CLC =C'PRINTER',TKN                                          00800000
+           BE ISSYSOUT                                                  00810000
+           CLC =C'PUNCH ',TKN                                           00820000
+           BNE NOSYSOUT                                                 00830000
+*   PUNCH DATA SET HERE                                                 00840000
+         CLEAR DDCOPIES,DDOUTLIM                                  75311 00850000
+         MVI   DDTYPE,DDPUNCH TURN ON PUNCH INDICATOR             75128 00860000
+           L   R1,AJOLGEN                                         75311 00870000
+           USING GENDETS,R1                                       75311 00880000
+           MVC DDSYSCLS,PUNCHCLS                                  75311 00890000
+           DROP R1                                                75311 00900000
+           MVI TKNCURR+1,4     SET TKNCURR=4 (MVI OK)             74256 00910000
+           B   C               START NORMAL PROCESSING                  00920000
+ISSYSOUT    EQU *                                                       00930000
+          CLEAR DDCOPIES,DDOUTLIM                                 75128 00940000
+           MVI TKNCURR+1,4     SET TKNCURR=4 (MVI OK)             74256 00950000
+         MVI   DDTYPE,DDSYSOUT TURN ON SYSOUT INDICATOR           75128 00960000
+           GETTKN NO=4                                                  00970000
+           CLI TKN,C'='                        SYSOUT=?                 00980000
+           BNE NOSYSEQU                                                 00990000
+           STH R1,TKNCURR                                               01000000
+           GETTKN (R1)         GET SYMBOL AFTER '='               74256 01010000
+           CLC TKN,C' '        USER MAY HAVE CODED ' 'ACCIDENTLY  74256 01020000
+           BE  C               IF SO,DON'T UPSET DEFAULT CLASS 'A'74256 01030000
+C03STRCL CLI   TKN,C'''' SYSOUT='(A,X,C)' ????                    75128 01040000
+         BNE   C03SYSNS       NOT SPECIAL SYSOUT                  75128 01050000
+         MVI   DDTYPE,DDSPECOU TURN ON SPECIAL SYSOUT PROCESSING  75128 01060000
+         XC    DDDSNAME(L'DDDSNAME+L'DDMBR),DDDSNAME SO NOTHING   75128 01070000
+*                                  ELSE CAN BE STORED 'JOLSTOR'   75128 01080000
+           BAL  R14,DROPQUOT      DROP ANY QUOTES                       01090000
+         LH    R15,#TKN            LOAD LENGTH                    75128 01100000
+         LA    R15,2-1(R15)        +1                             75128 01110000
+         EX    R15,SYSXMUV         SHIFT IT IN                    75128 01120000
+         B     STORR1                                             75128 01130000
+SYSXMUV  MVC   DDDSNAME(*-*),#TKN                                 75128 01140000
+         SPACE 3                                                  75128 01150000
+C03SYSNS MVC   DDDSNAME(1),TKN POP IN REQUESTED CLASS             75128 01160000
+           B   STORR1          STORE R1 IN TKNCURR,CARRY ON       74256 01170000
+NOSYSEQU   EQU *                                                        01180000
+* HERE,WE MAY HAVE A BLANK, IE USER CODED 'DCL X PRINTER;'        74256 01190000
+           CLI TKN,C' '        ' '                                74256 01200000
+           BE  C               YES,GO TO END PROCESSING           74256 01210000
+* NOW HERE WE COULD HAVE:-                                        74256 01220000
+*    'DCL X PRINTER A';                                           74256 01230000
+* OR 'DCL X PRINTER 2 PART'; ETC                                  74256 01240000
+*    IF PRINTER 'A' | SYSOUT A THEN WE SHALL OVER-RIDE OUR DEFAULT74256 01250000
+*          OF SYSOUT=(*)                                          74256 01260000
+* HOWEVER,WE COULD ALSO HAVE 'FORM XYZ' OR'2 PART' OR '2 COPIES'  74256 01270000
+* SO:- LETS SORT THAT OUT A BIT MORE                              74256 01280000
+           CLI #TKN+1,1                        LENGTH OF TOKEN=1 ?      01290000
+*                                              IE SYSOUT= A ?           01300000
+           BNE C               GO JOIN NORMAL LOOP                74256 01310000
+         FIX 'CHECK THIS MORE THOROUGHLY LATER' 80290                   01320013
+         CLI   TKN,C'*'                SYSOUT = * ?              A DASD 01330000
+         BNE   C03CKTYP                                          A DASD 01340000
+         L     R1,AJOLGEN                                        A DASD 01350000
+         USING GENDETS,R1                                        A DASD 01360000
+         LA    R1,5                    NEXT TOKEN IS NO 5        A DASD 01370000
+         CLC   DEFSYS(3),=CL3'VS2'     IS SYSTEM VS2 ?           A DASD 01380000
+         BE    C03STRCL                SYSOUT=* & SYSTEM IS VS2  A DASD 01390000
+         CLC   DEFSYS(3),=CL3'MVS'     IS SYSTEM VS2 ?            82200 01400000
+         BE    C03STRCL                SYSOUT=* & SYSTEM IS VS2   82200 01410000
+         FIX 'CHECK FOR F4 AS WELL'                                     01420013
+         DROP  R1                                                A DASD 01430000
+C03CKTYP TM    TKNTYPE,X'01' ALPHABETIC OR NUMERIC ?       C63537  SOCO 01440000
+         BO    C               NOPE,JOIN NORMAL DECODE LOOP       74256 01450000
+* HERE IT IS A 1 CHARACTER,ALPHABETIC TOKEN,SO SYSOUT=X           74256 01460000
+         LA    R1,5            NEXT TOKEN WILL BE NO 5            74256 01470013
+         B     C03STRCL        GO STORE SYSOUT CLASS              74256 01480013
+         SPACE 3                                                        01490013
+NOSYSOUT DS    0H                                                       01500013
+* HERE IT IS NOT A SYSIN OR SYSOUT DATA-SET                             01510000
+         LA    R1,1                                                     01520013
+           LA  R1,1(R1)                                                 01530000
+STORR1     EQU *                                                  74256 01540000
+SKIP1      STH R1,TKNCURR                                               01550000
+           SPACE 3                                                      01560000
+C          EQU *                                                        01570000
+* WHEW,NOW WE CAN FINALLY GET INTO OUR LITTLE DECODING LOOP             01580000
+*    AND QUIETLY GO BESERK                                              01590000
+           CLC TKNCURR,TKNNO                   HAVE WE FINISHED ?       01600000
+           BNH FINDKEY                         NO,PRESS ONWARDS         01610000
+           SPACE 3                                                      01620000
+* WE APPARENTLY HAVE FINISHED PROCESSING THE MIGHTY DECLARE STMT        01630005
+* NOW BEFORE WE GO WE WILL HAVE A LOOK AT THE UNIT AND VOLUME TO SEE IF 01640005
+* WE CAN FILL IN THE 'DDUNITYP' FIELD.                                  01650005
+           IFNULL DDVOLUME,C03CANT CANT DO ANYTHING WITH THE UNIT       01660000
+*                         TYPE SO LEAVE IT FOR A LATER PHASE.           01670000
+           SPACE 3                                                      01680000
+* NOW WE HAVE A VOLUME                                                  01690000
+* LET'S SEE IF IT IS IN THE TABLE                                       01700000
+         L     R1,AJOLGEN                                         75128 01710000
+         USING UJGENDET,R1                                        75128 01720000
+         L     R1,APREFVOL                                        75128 01730000
+         DROP  R1                                                 75128 01740000
+           LM R7,R9,0(R1)      LOAD BXLE CONSTANTS                      01750000
+C03FV01    CLC 0(6,R7),DDVOLUME                                         01760000
+           BE  C03UN01                                                  01770000
+           BXLE R7,R8,C03FV01                                           01780000
+           B  C03CANT          DIDN'T FIND IT IN TABLE,SO AWAY,AWAY     01790000
+C03UN01    EQU *                                                        01800000
+* NOW IF THE DDUNITYP FIELD IS '' THE WE'LL COPY THIS ONE IN            01810000
+           CLI DDUNITYP,C' '                                            01820000
+           BNE C03COMPU                                                 01830000
+           MVC DDUNITYP,6(R7) SHIFT IN UNIT TYPE (JOLS)                 01840000
+           B  C03CANT                                                   01850000
+C03COMPU   EQU *                                                        01860000
+* THE UNIT TYPE HAS BEEN SET UP.                                        01870000
+*     IT COULD HAVE BEEN SET UP BY THE VOLUME PROCESSOR EARLIER         01880005
+*     OR FROM THE UNIT PROCESSOR.                                       01890000
+*     BECAUSE THIS IS A PREFERRED VOLUME WE CAN AT LEAST CHECK          01900000
+*     THAT THE UNIT TYPES ARE VAGUELLY SIMILIAR.                        01910000
+           SR R0,R0                                                     01920000
+           IC R0,6(R7)    GET UNIT TYPE FROM VOL TABLE                  01930000
+           SR R1,R1                                                     01940000
+           IC R1,DDUNITYP GET UNIT TYPE FROM DD CARD                    01950000
+           LA R15,X'0F'   ONLY WANT TO LOOK AT LAST 4 BITS              01960000
+           NR R0,R15      SO AND                                        01970000
+           NR R1,R15      SO AND                                        01980000
+           CR R0,R1       AND COMPARE                                   01990000
+           BE C03CANT     ALL'S OK                                      02000000
+         JOLERR 202,'UNIT SPECIFIED FOR PREFERRED VOLUME CHANGED AS IT *02010000
+               WAS INCORRECT'                                           02020000
+           MVC DDUNITYP,6(R7)  OVER-WRITE THE UNIT HE SPECIFIED         02030000
+C03CANT    EQU *                                                        02040000
+* IF THIS IS A SYSIN CARD FILE,SHIFT IN THE DEFAULT BLOCKSIZE SO THAT   02050000
+*    IF THE USER IS OVER-RIDING A DSID,THE THE BLOCKSIZE FROM THE OLD   02060000
+*    ONE WON'T GET IN THE JCL.                                          02070000
+           CLC =C'*,$$',DDDSNAME SYSIN ?                                02080000
+           BNE C03FINDO        NO,FIND OLD ONE(IF THERE IS ONE)         02090000
+* NOW SHIFT IN BLOCKSIZE AND LRECL,IF NOT THERE ALREADY                 02100000
+           IFVALUE DDBLKSZE,C03LSYSB                                    02110000
+         L     R1,AJOLGEN                                         75128 02120000
+         USING GENDETS,R1                                         75128 02130000
+           MVC DDBLKSZE(L'PARMSYSB),PARMSYSB SHIFT IN BLOCK SIZE        02140000
+C03LSYSB   IFVALUE DDLRECL,C03LREC                                      02150000
+           MVC DDLRECL,=H'80'                                    80290  02160000
+C03LREC    IFVALUE DDRECFM,C03FINDO                                     02170000
+           MVC DDRECFM(2),=C'FB'                                        02180000
+C03FINDO   EQU *                                                        02190000
+*                                                                       02200000
+C03ALLOC   $CALL UJD03DS1,(DDDSNDET) DO THE ALLOCATION                  02210002
+           MVC   ICOMMAND,=CL8'MACRO'                                   02220009
+           MVC   SYMBOLIC,=CL8'LASTCC'                                  02221011
+           LTR   R15,R15                                                02230009
+           BNZ   C03LASTE                                               02240009
+           MVC   #WORK(3),=X'0001F0'                                    02250009
+           $CALL UJP85ASN                                               02260009
+           JOLRETN                                                      02270000
+C03LASTE   MVC   #WORK(4),=X'0002F1F6'                                  02280009
+           $CALL UJP85ASN                                               02290009
+           JOLRETN RC=16                                                02300009
+           TITLE 'SCAN FOR KEYWORDS AND DECODE'                         02310000
+FINDKEY  DS    0H                                                       02320014
+         GETTKN LOCN=TKNCURR                   GET THE NEXT TOKEN       02330014
+         CLC     TKNCURR,TKNNO                                          02340014
+         BH      C                                                      02350014
+         STH     R1,TKNCURR                                             02360014
+         CLI     TKN,C','                        IS IT A COMMA?         02370014
+         BE      FINDKEY                                                02380014
+         CLI   TKN,C')'       LEFT OVER ?                         75128 02390000
+         BE    FINDKEY        YES,SKIP IT                         75128 02400000
+         CLI   TKN,C'='       EQUAL LEFT OVER            JOL30079 76200 02410000
+         BE    FINDKEY                                   JOL30079 76200 02420000
+         SPACE 3                                                        02430005
+*  TEST FOR A KEY-WORD                                                  02440005
+         SPACE 3                                                        02450005
+         LR    R5,R1           SET R5=TKNNO OF NEXT TOKEN               02460014
+         BCTR  R5,0           NOW R5=TKNNO OF THIS TOKEN                02470014
+         CLI   TKNTYPE,0       IS THIS TOKEN NUMERIC ?            74256 02480014
+         BE    C03NUM01        YES,SO IT CANT BE A DSN WITH NO KEY74256 02490014
+         CLI   TKN,C''''      DSN CODED AS 'DSNAME'?              75311 02500000
+         BE    C03QDSN        YES, GO STORE R1, THEN START DSN    75311 02510000
+         CLI   TKNTYPE,2       IS THIS TOKEN A CHARACTER ?        74256 02520014
+         BNE   C03NOTSP        NO,MUST BE A LITERAL OR SPECIAL    74256 02530014
+*                              SO KICK IT OUT                     74256 02540000
+         GETTKN REG=R1                                                  02550014
+         CLC   =C'||',TKN     DSN TYPE A||B.C ?                   75311 02560000
+         BE    C03DSNNK       YES                                 75311 02570000
+         FIX   'FOR CONCATENATED DATA SETS'                             02580013
+         CLI   TKN,C'.'                                                 02590013
+         BNE   C03NOTSP        NO,TEST IF A KEYWORD               74256 02600013
+* HERE IT IS A DSN WITH NO KEYWORD                                      02610000
+C03DSNNK DS    0H                                                 75311 02620013
+         GETTKN (R5)                                                    02630013
+C03QDSN  DS    0H                                                 75311 02640013
+         STH R1,TKNCURR                                                 02650013
+         B     STARTDSN                                                 02660013
+C03NUM01 LR    R8,R5           R8=TKNNO OF *THIS* NUMERIC TOKEN   74256 02670013
+         MVC   #WORK(20),#TKN SAVE THIS NUMERIC TOKEN             75128 02680000
+         GETTKN (R1)         GET TOKEN AFTER NUMBER               74256 02690013
+         CLC   =C'PART ',TKN   <NUMBER> PART ?                    74256 02700013
+         BNE   C03TCOPY        NO,TEST IF 'COPIES' FOR PRINTER    74256 02710013
+* PART NUMBER HERE                                                74256 02720000
+         STH   R1,TKNCURR      STORE NUMBER TO SKIP 'PART' LATER  74256 02730013
+         CLI   DDTYPE,DDSYSOUT SYSOUT ?                           75128 02740000
+         BNE   C03SYS1E        ERROR                              74256 02750013
+         JOLSTOR 'PART NUMBER',DDSYSFRM,#WORK                     75128 02760000
+         GETTKN TKNCURR        GET NEXT TOKEN                           02770000
+         CLC =C'STATIONERY ',TKN                                        02780000
+         BE   SKIP1                                                     02790000
+         CLC  =C'PAPER ',TKN                                            02800000
+         BE   SKIP1                                                     02810000
+           B   C               BACK TO MAIN PROCESSING            74256 02820000
+C03TCOPY   CLC =C'COPIES ',TKN <NUMBER> COPIES ?                  74256 02830000
+         BNE   C03TREC        NO, TEST RECORDS THEN               75128 02840000
+           STH R1,TKNCURR      STORE SO WE SKIP 'COPIES' LATER    74256 02850000
+         CLI   DDTYPE,DDSYSOUT SYSOUT ?                           75128 02860000
+           BNE C03SYS1E        NO,CAN'T HAVE 'COPIES' THEN        74256 02870000
+DSCOPIES JOLSTOR 'COPIES',DDCOPIES,#WORK,NUM                      75128 02880000
+           B   C               AND ON TO MAIN LINE                74256 02890000
+C03SYS1E   GETTKN (R1)                                            74256 02900000
+           B   C03PRONL                                           75311 02910000
+           SPACE                                                        02920000
+* NOW TEST IF  NK | N-NZ RECORDS | 2400-3 TYPE UNIT               75128 02930000
+C03TREC  EQU   *                                                  75128 02940000
+* IN FACT BEFORE TESTING RECORD NUMBERS, WE WILL TEST                   02950000
+* THAT HE DIDN'T CODE 3 UNITS                                           02960000
+         B     C03TREC2       ********                            75128 02970000
+         CLC =C'UNITS ',TKN                                             02980000
+         BNE  C03TREC2                                                  02990000
+         MVC #TKN(30),#WORK                                             03000000
+         B   DSUNITNO        GO STORE UNIT NUMBERS                      03010000
+C03TREC2 EQU *                                                          03020000
+         CLC   =C'K ',TKN     20K (RECORDS?)                      75128 03030000
+         BE    C03RECS                                            75128 03040000
+         CLC   =C'BYTES ',TKN 2000 BYTES (RECORDS | SIZE)         75128 03050000
+         BE    C03RECS                                            75128 03060000
+         CLC   =C'RECS ',TKN                                      75128 03070000
+         BE    C03RECS                                            75128 03080000
+         CLC   =C'RECORDS ',TKN                                   75128 03090000
+         BE    C03RECS                                            75128 03100000
+         CLI   TKN,C'-'       1000-3000 RECS  | 2400-3 ?          75128 03110000
+         BNE   C03TBPI        NO, TEST BPI THEN....               75128 03120000
+         LA    R1,1(R1)       SKIP NEXT ITEM                      75128 03130000
+         GETTKN (R1)          NOW, IF ITS NOT 'RECORDS' | 'RECS'        03140000
+*                             WE WILL ASSUME THAT IT IS A UNIT          03150000
+*                             FOR NOW, BUT IT WILL BE PROPERLY          03160000
+*                             VALIDATED LATER, ANYWAY                   03170000
+         CLC   =C'K ',TKN     20K (RECORDS?)                      75128 03180000
+         BE    C03RECS                                            75128 03190000
+         CLC   =C'BYTES ',TKN 2000 BYTES (RECORDS | SIZE)         75128 03200000
+         BE    C03RECS                                            75128 03210000
+         CLC   =C'RECS ',TKN                                      75128 03220000
+         BE    C03RECS                                            75128 03230000
+         CLC   =C'RECORDS ',TKN                                   75128 03240000
+         BE    C03RECS                                            75128 03250000
+* HERE WE MUST TEMPORARILY ASSUME A UNIT OF THE TYPE '2400'       75128 03260000
+         LA    R1,1(R8)       GET THE '-'                         75128 03270000
+         GETTKN (R1)                                              75128 03280000
+         BAL   R14,CONCAT     CONCAT TO #WORK                           03290000
+         GETTKN (R1)          GET THE THING AFTER '-'             75128 03300000
+         BAL   R14,CONCAT     CONCATENATE IT AS WELL              75128 03310000
+         SPACE 1                                                        03320000
+         MVC   #TKN(30),#WORK                                           03330000
+         STH   R1,TKNCURR     RESET R1 INTO TKNCURR               75128 03340000
+         B     C03TKEYW                                           75128 03350000
+         SPACE 2                                                        03360000
+C03TBPI    CLC =C'BPI ',TKN    BPI ?                              74256 03370000
+         BNE   C03TDAYS                                           75128 03380000
+           STH R1,TKNCURR      STORE R1 TO IGNORE 'BPI' NEXT TIME 74256 03390000
+           LA  R1,C03BPITB     LA IN R1 OF START OF TABLE         74256 03400000
+           LA  R14,6           AND 14=INCREMENT                   74256 03410000
+           LA  R15,C03BPITE-6  AND END OF TABLE-6                 74256 03420000
+           SPACE 1                                                74256 03430000
+           CLC WORK(5),0(R1)   CHECK BPI NUMBER                   75311 03440000
+           BE  C03BPIOK        GOT IT ->                          74256 03450000
+           BXLE R1,R14,*-10    LOOP                               74256 03460000
+         JOLERR 310,'BPI ',#WORK,' IS INCORRECT:S/B 800,1600 OR 6250'   03470000
+           B   C               BACK TO PROCESSING LOOP            74256 03480000
+C03BPITB DC    CL5'800  ',C'2',C'1600 ',C'3',C'6250 ',C'4'        75128 03490000
+C03BPITE   EQU *                                                  74256 03500000
+C03BPIOK   EQU *                                                  74256 03510000
+           MVC TKN(1),5(R1)    SHIFT IN CODE                      74256 03520000
+           MVI #TKN+1,1        SET LENGTH TO '1'                  74256 03530000
+           JOLSTOR 'BPI',DDDENS,#TKN  STORE BPI CODE              75311 03540000
+           B   C                                                        03550000
+         SPACE 3                                                        03560000
+C03TDAYS CLC   =C'DAYS ',TKN  DAYS?                               75128 03570000
+         BE    C03DAYS             -> YES                         75128 03580000
+         CLC   =C'DAY ',TKN   1 DAY ?                             75128 03590000
+         BNE   C03TSIZE            -> NO                          75128 03600000
+C03DAYS  STH   R1,TKNCURR     HERE IT IS RETPD                    75128 03610000
+         GETTKN (R8)          GET THE NUMBER AGAIN                75128 03620000
+C03STRTP JOLSTOR 'RETENTION PERIOD',DDEXPDT,#WORK,NUM             76200 03630000
+         LTR   R15,R15                                   JOL30055 76200 03640000
+         BNZ   C                                         JOL30055 76200 03650000
+         MVI   DDRETPD,C'R'                              JOL30055 76200 03660000
+         B     C              BACK TO MAIN LINE                   75128 03670000
+         SPACE 3                                                  75128 03680000
+C03TSIZE CLC   =C'K ',TKN     DID USER SAY LOOK (STORAGE REQ)     75128 03690000
+         BNE   C03TSPC2       NOPE                                75128 03700000
+         STH   R1,TKNCURR     YES,RESET TKN CURR                  75128 03710000
+         GETTKN (R8)          GET THE NUMBER AGAIN                75128 03720000
+         B     DSSIZE         GO STORE IT                         75128 03730000
+C03TSPC2   EQU  *                                                       03740000
+           LA  R15,C03SPTBL    SPACE TABLE CONSTANTS              74256 03750000
+C03TSPC4   CLC TKN(L'C03SPTBL),0(R15) IS IT A SPACE KEYWORD ?     74256 03760000
+           BE  C03ISPC                YES ->                      74256 03770000
+           LA  R15,L'C03SPTBL(R15) ADD TO LOOP                    74256 03780000
+           C   R15,=A(C03SPTBE)    REACHED END OF TABLE ?         74256 03790000
+           BL  C03TSPC4            NO,CHECK NEXT ENTRY            74256 03800000
+* SORRY,BXLE NOT POSSIBLE,NO REGISTERS                            74256 03810000
+* NOW CHECK IF NEXT TOKEN IS A COMMA FOLLOWED BY A <NUMBER>,            03820000
+*     FOLLOWED BY 'TRKS' ETC AGAIN                                      03830000
+           CLI TKN,C','                                                 03840000
+           BNE C03NOTSP        NO,SO PREVIOUS NUMBER NOT SPACE          03850000
+C03N2NDS   GETTKN (R1)                                            75311 03860000
+           CLI  TKN,C','                                          75311 03870000
+           BE   C03N2NDS                                          75311 03880000
+           CLI TKNTYPE,0       <NUMBER>                                 03890000
+           BNE C03NOTSP        NOT A SPACE LIKE 1,2TRKS WITHOUT KEYWORD 03900000
+           GETTKN (R1)         IT IS MAYBE HERE COS WE HAVE <NO>,<NO>   03910000
+*                              SO GET THE 'TRKS' HOPEFULLY              03920000
+           B   C03TSPC2        -> GO TEST NOW FOR 'TRKS' ETC            03930000
+           SPACE 3                                                      03940000
+C03KEYWD EQU   *                                                  75128 03950000
+C03NOTSP   EQU  *                                                       03960000
+* NOT SPACE WITHOUT A KEYWORD                                           03970000
+           GETTKN REG=R5       GET ORIGINAL NUMBER AGAIN                03980000
+C03TKEYW   EQU *                                                        03990000
+         L     R1,=V(UJCDDKEY) LOAD ADDRESS OF TABLE              75128 04000000
+         LM    R14,R15,4(R1)   LOAD BXLE CONSTANTS                75128 04010000
+         L     R1,0(R1)        LOAD START OF TABLE                75128 04020000
+KEYLOOP    CLC     TKN(8),0(R1)                                         04030000
+           BE  GOTKEYWD                                                 04040000
+           BXLE  R1,R14,KEYLOOP                                         04050000
+           SPACE 3                                                      04060000
+         L     R1,AJOLGEN                                         75128 04070000
+         L     R1,AGENUNIT-UJGENDET(R1)                           75128 04080000
+           LM R14,R15,4(R1)                                             04090000
+           L  R1,0(R1)                                                  04100000
+TGENU      CLC TKN(8),0(R1)                                             04110000
+           BE  GOTGENU                                                  04120000
+           BXLE R1,R14,TGENU                                            04130000
+* NOW CHECK FOR A PREFERRED VOLUME                                75128 04140000
+         SPACE 1                                                  75128 04150000
+        L   R1,AJOLGEN                                            75128 04160000
+         L     R1,APREFVOL-GENDETS(R1)                            75128 04170000
+         LM    R14,R15,4(R1)                                      75128 04180000
+         L     R1,0(R1)                                           75128 04190000
+C03TPREF CLC   TKN(6),0(R1)                                       75128 04200000
+         BE    GOTPREFV                                           75128 04210000
+         BXLE  R1,R14,C03TPREF                                    75128 04220000
+         SPACE 2                                                        04230000
+*************** NOW CHECK THE DEVICE NAME TABLE **************          04240000
+         SPACE 2                                                        04250005
+          L    R1,AJOLGEN                                               04260000
+         L     R1,ADEVNAME    GET ADDRESS OF TABLE                      04270000
+         LTR   R1,R1          IS IT THERE?                              04280000
+         BZ    C03USER        NO,GIVE CONTROL TO USER EXIT              04290000
+         L     R15,0(R1)      LOAD NUMBER OF ENTRIES IN TABLEEL         04300000
+         MH    R15,=H'12'     MULT BY L'TABLE                           04310000
+         LA    R1,4(R1)       SKIP TABLE START                          04320000
+         AR    R15,R1         AND SET TABLE END                         04330000
+         LA    R14,12         L'TABLE                                   04340000
+         CLC   TKN(8),0(R1)  IS IT A UNIT NAME??                        04350000
+         BE    C03DEVUN       YEP                                       04360000
+         BXLE  R1,R14,*-10 CHECK FURTHER                                04370000
+* OK,GIVE CONTROL TO A USER EXIT                                        04380000
+         SPACE 2                                                  75128 04390000
+* OK NOW WE REALLY HAVE A PROBLEM COS WE HAVEN'T A CLUE WHAT            04400000
+*    IT IS BUT WE SHALL PRESS ON REGARDLESS.                            04410000
+WHATISIT   EQU *                                                        04420000
+* NOW WE HAVE A WORD THAT WE DON'T UNDERSTAND SO CALL THE USER          04430000
+* TO DO AS HE WISHES                                                    04440000
+           SPACE                                                        04450000
+C03USER    EQU *                                                        04460000
+         L     R15,ACOMPEXI   GET COMPILER EXIT ROUTINE ADDRESS   75128 04470000
+         L     R15,8(R15)                                         75128 04480000
+           LTR R15,R15                                                  04490000
+           BZ C03ERR                                                    04500000
+           B  C03ERR                                                    04510009
+         $CALL (15),(CALLAREA,TKNX,DDDSNDET)                      75128 04520000
+           LTR R15,R15                                                  04530000
+         BNZ   C03ERR         EXIT DIDN'T FIX IT                  75128 04540000
+* NOW WE MUST SEARCH THE TABLE (KEYWORD) AND TRY AND FIND         75128 04550000
+*  THE KEYWORD THE USER GAVE BACK TO US                           75128 04560000
+         L     R1,=V(UJCDDKEY) GET A(KEYWORDS)                    75128 04570000
+         LM    R14,R15,4(R1)   LOAD BXLE LOOP                     75128 04580000
+         L     R1,0(R1)                                           75128 04590000
+         CLC   DBL(8),0(R1)                                       75128 04600000
+         BE    GOTKEYUS                                           75128 04610000
+         BXLE  R1,R14,*-10                                        75128 04620000
+* WELL, ERROR HERE I'M AFRAID                                     75128 04630000
+         B  C03INV                                                      04640005
+         B     C                                                  75128 04650000
+GOTKEYUS EQU *                                                          04660000
+       LH  R15,TKNCURR                                                  04670000
+       BCTR R15,0                                                       04680000
+       STH  R15,TKNCURR                                                 04690000
+       B    GOTKEYWD                                                    04700000
+C03ERR     EQU *                                                        04710000
+         MVC   #WORK(L'TKN),#TKN                                  75128 04720000
+C03NERR2 GETTKN TKNCURR                                           75128 04730000
+         CLI   TKN,C'='                                           75128 04740000
+         BE    C03CONEQ                                           75128 04750000
+         CLI   TKN,C'('                                           75128 04760000
+         BE    C03CONEQ                                           75128 04770000
+C03INV   JOLERR 301,'''',#WORK,''' IS NOT A VALID KEYWORD:-IGNORED'     04780000
+         B     C              BACK TO MAINLINE                    75128 04790000
+         SPACE 1                                                  75128 04800000
+C03CONEQ BAL   R14,CONCAT                                         75128 04810000
+C03CONE2 GETTKN (R1)                                              75128 04820000
+         BAL   R14,CONCAT                                         75128 04830000
+         CLI   TKN,C'('                                           75128 04840000
+         BE    C03CONE2                                           75128 04850000
+         STH   R1,TKNCURR                                         75128 04860000
+         B     C03NERR2                                           75128 04870000
+         SPACE 2                                                  75128 04880000
+GOTKEYWD   EQU *                                                        04890000
+* PREVIOUSLY, THERE USED TO BE TWO TABLES, ONE CONTAINING         75128 04900000
+*  KEYWORDS SUCH AS VB (IE NO KEYWORD EXPECTED AFTER) AND         75128 04910000
+*  KEYWORDS SUCH AS DSN.                                          75128 04920000
+* THE NEW TABLE CONTAINS AND INDICATOR TO SAY WHETHER WE HAVE     75128 04930000
+*  TO FIND THE VALUE AFTER THE KEYWORD, OR NOT                    75128 04940000
+         MVC   #WORK(L'TKN+2),#TKN SAVE KEYWORD FOR ERR-MSSGE     75128 04950000
+         MVC   DBL(2),C03LA10 MOVE LA R10 INSTRUCTION TO DBL      75128 04960000
+         MVC   DBL+2(2),10(R1) SHIFT IN S(RTN)                    75128 04970000
+         EX    R0,DBL         LOAD R10 WITH RTN                   75128 04980000
+         SPACE 1                                                        04990000
+* NOW WE HAD BETTER CHECK OUR INDICATORS TO SAY WHETHER THIS      75128 05000000
+*  KEYWORD WE HAVE GOT IS EXPECTING A VALUE AFTER IT OR NOT       75128 05010000
+         SPACE 1                                                  75128 05020000
+         ST    R1,DBL         SAVE POINTER TO TABLE FOR NOW       75128 05030000
+         TM    8(R1),X'01'    IF 0 MEANS NO VALUE AFTER KEYWORD   75128 05040000
+         BZ    C03BALR        NO VALUE, JUST BRANCH TO ROUTINE    75128 05050000
+           GETTKN LOCN=TKNCURR                                          05060000
+           CLI TKN,C'='                                                 05070000
+           BNE GOTTOKEY                                                 05080000
+           GETTKN REG=R1                                                05090000
+GOTTOKEY    EQU *                                                       05100000
+         CLI   TKN,C'('       '(' FOLLOWING KEYWORD ?             75128 05110000
+         BNE   C03GOTRK       NO,USE WHATS HERE                   75128 05120000
+         GETTKN (R1)          YES, SKIP IT                        75128 05130000
+C03GOTRK EQU   *                                                  75128 05140000
+           STH R1,TKNCURR                                               05150000
+C03BALR  EQU   *                                                  75128 05160000
+         L     R1,DBL         RELOAD POINTER TO TABLE ENTRY       75128 05170000
+         TM    8(R1),X'04'    SYSOUT ONLY KEYWORD ?               75128 05180000
+         BZ    C03NSYS9       NOPE                                75128 05190000
+         CLI   DDTYPE,DDSYSOUT IS THIS A SYSOUT DECLARE ?          SOCO 05200000
+         BL    C03PRONL       NOPE,BALR                            SOCO 05210000
+         CLI   DDTYPE,DDSPECOU IS THIS A SPECIAL SYSOUT ?          SOCO 05220000
+         BNH   C03BALR2        YES, I AM ONE OF THEM, SO BRANCH    SOCO 05230000
+C03PRONL JOLERR 311,'''',#WORK,'=',#TKN,''' IGNORED:- FOR SYSOUT ONLY'  05240000
+         B     C              BACK TO MAIN-LINE                  75128  05250000
+         SPACE 1                                                  75128 05260000
+C03NSYS9 TM    8(R1),X'08'    KEY ONLY FOR NON-SYSOUT DATA SET ?  75128 05270000
+         BZ    C03BALR2                                           75128 05280000
+         CLI   DDTYPE,DDSYSOUT  WELL, IS THIS A SYSOUT DATA SET?  75128 05290000
+         BH    C03BALR2         NOPE, GO TO ROUTINE               75128 05300000
+         JOLERR 312,'''',#WORK,'=',#TKN,''' IGNORED:- FOR',       75128*05310000
+               ' NON-SYSOUT FILES ONLY'                           75128 05320000
+         B     C                                                        05330000
+C03BALR2 EQU   *                                                        05340000
+         LTR   R15,R10                                            75128 05350000
+         BZ  C03NOTIM        NOT YET IMPLEMENTED MESSAGE,MATE           05360005
+         MVC   #WORK(L'TKN+2),#TKN                                75128 05370000
+         BALR R14,R15                                                   05380005
+         B C                                                            05390005
+         SPACE 3                                                        05400000
+C03DEVUN EQU   *              UNIT FOUND IN DEVNAMET                    05410000
+         MVI  DDUNITYP,X'80'    PREPARE FOR DISK                        05420000
+         CLI   8+2(R1),X'80' TAPE UNIT IN DEVNAMET?                     05430000
+         BNE   C03SET8        SET L'TKN TO 8                            05440000
+         MVI   DDUNITYP,4     SET TO ANY TAPE UNIT                      05450000
+         B     C03SET8                                                  05460000
+GOTGENU    MVC TKN(8),8(R1) SWAP UNIT NAMES                             05470000
+           MVC DDUNITYP,16(R1) MOVE IN UNIT TYPE                        05480000
+C03SET8    MVI #TKN+1,8        SET LENGTH TO 8                    74256 05490000
+           B   DSUNIT                                                   05500000
+C03ISPC    GETTKN REG=R8                                                05510000
+           B  DSSPACE                                                   05520000
+           SPACE                                                        05530000
+GOTPREFV   EQU *                                                        05540000
+           MVC DDUNITYP,6(R1)  MOVE IN UNIT TYPE                        05550000
+           B   DSVOL                                                    05560000
+C03NOTIM   JOLERR 309,'''',#WORK,' ',#TKN,''' IS NOT YET IMPLEMENTED'   05570000
+           B   C                                                        05580000
+           TITLE 'DSNAME SET UP'                                        05590000
+DSDSN      EQU *                                                        05600000
+DSDSNAME   EQU *                                                        05610000
+DSNAME     EQU *                                                        05620000
+STARTDSN   EQU *                                                        05630000
+           SPACE 3                                                      05640000
+* NOW WE MUST FORM UP THE FULL DSNAME.EACH PART IS SEPERATED            05650000
+*    BY A '.' OR THERE MAY BE'( )' AFTER                                05660000
+           MVC CALLAREA(2),=C'||'                                 75311 05670000
+           $CALL UJS60DSN      PROCESS DSNAME                     75311 05680000
+           MVC DDPASSW,WORK+120 SHIFT PASSWORD IN                 80290 05690000
+           B   C03DSRET(R15)                                      75311 05700000
+C03DSRET   B   C03DSN1         STRAIGHT DSNAME                    75311 05710000
+           B   C03DSN2         DSNAME + GENERATION NUMBER         75311 05720000
+           B   C03DSN3         DSNAME + MEMBER                    75311 05730000
+           B   C03DSN4         ERROR IN GENERATION NUMBER         75311 05740000
+           B   C03DSN16        INVALID DSNAME                     75311 05750000
+C03DSN1    BAL R10,C03STRDS    STORE DSN,GO TO C IF NOT STORED    75311 05760000
+           MVC  DDMBR,WORK+100                                          05770000
+           MVI DDTYPE,DDREALDS SET UP REAL DSN INDICATOR          75311 05780000
+           CLI WORK,C'&&'    IS IT A TEMPORARY DSNAME ?         75311   05790000
+           BNE C                                                  75311 05800000
+           MVI DDTYPE,DDTEMPPS YES, SET TEMPORARY INDICATOR       75311 05810000
+           B   C                                                  75311 05820000
+           SPACE 3                                                75311 05830000
+C03DSN2    BAL R10,C03STRDS    STORE DSN,GO TO C IF ERROR         75311 05840000
+           MVC DDMBR,WORK+100                                     75311 05850000
+           MVI DDTYPE,DDGDGREL SET RELATIVE FLAG                  75311 05860000
+           CLC DDMBR+2(4),=C'0000' 0 GEN (IE RELATIVE)            75311 05870000
+           BE  C               YES -> C                           75311 05880000
+           CLI DDMBR+1,C' '    IS RELATIVE IND SET (+ | -)        75311 05890000
+           BNE C               YES -> C                           75311 05900000
+           MVI DDTYPE,DDGDGABS ABSOLUTE HERE, SET IT              75311 05910000
+           B   C               GO TO C                            75311 05920000
+           SPACE 3                                                75311 05930000
+C03DSN3    BAL R10,C03STRDS    STORE DSN, GO TO C IF ERROR        75311 05940000
+          MVI DDTYPE,DDMEMSPC  TURN ON REAL DSN WITH MEMBER       75311 05950000
+           MVC DDMBR,WORK+100                                     75311 05960000
+           CLI DDDSNAME,C'&&'  TEMPORARY DSNAME ?                 75311 05970000
+           BNE C                                                  75311 05980000
+           MVI DDTYPE,DDTEMPPO TURN ON TEMPORARY WITH MEMBER      75311 05990000
+           B   C                                                  75311 06000000
+C03DSN4    EQU *                                                  75311 06010000
+GENERR   JOLERR 303,'ERROR IN GENERATION NUMBER'                        06020000
+           B   C                                                        06030000
+C03DSN16   JOLERR 313,'ERROR IN DSNAME'                           75311 06040000
+           B   C                                                  75311 06050000
+C03STRDS   CLI   DDDSNAME,C'%'      NODSN ALREADY CODED??               06060000
+           BE    C                                                      06070000
+           JOLSTOR 'DSNAME',DDDSNAME,#WORK                              06080006
+           BR  R10                                                      06090000
+           SPACE 3                                                      06100000
+           TITLE 'DECODE DCB'                                           06110000
+DSFIXED  EQU   *                                                  75128 06120000
+DSUNDEF  EQU   *                                                 75128  06130000
+DSVARIAB EQU   *                                                  75128 06140000
+DSVAR    EQU   *                                                  75128 06150000
+DSUNDEFI EQU   *                                                  75128 06160000
+         MVI   #WORK+1,1      SET LENGTH INITIALLY TO ONE         75128 06170000
+         MVC   WORK(1),TKN    SHIFT IN 1 CHAR (F OR V)            75128 06180000
+C03NEXTZ GETTKN TKNCURR       GET NEXT TOKEN                      75128 06190000
+         CLC   =C'BLOCKED ',TKN                                   75128 06200000
+         BE    DSRECADD                                           75128 06210000
+         CLC   =C'SPANNED ',TKN                                   75128 06220000
+         BE    DSRECADD                                           75128 06230000
+         CLC   =C'B ',TKN                                         75128 06240000
+         BE    DSRECADD                                           75128 06250000
+         CLC   =C'S ',TKN                                         75128 06260000
+         BE    DSRECADD                                           75128 06270000
+         CLC   =C'ASA ',TKN                                       75128 06280000
+         BE    DSRECADD                                           75128 06290000
+         CLC   =C'MACHINE ',TKN                                   75128 06300000
+         BE    DSRECADD                                           75128 06310000
+         CLC   =C'A ',TKN                                         75128 06320000
+         BE    DSRECADD                                           75128 06330000
+         CLC   =C'M ',TKN                                         75128 06340000
+         BE    DSRECADD                                           75128 06350000
+         JOLSTOR 'RECORD FORMAT',DDRECFM,#WORK                    75128 06360000
+           OI  DDSPECT2,X'20'  TURN ON NODEFAULT BIT BECAUSE      75311 06370000
+*                              RECFM WAS SPECIFIED BY ITSELF      75311 06380000
+         B     C03TLNO                                            75311 06390000
+DSRECADD STH   R1,TKNCURR     RESET TKN-CURRENT                   75128 06400000
+         MVI   #TKN+1,1       SET LENGTH TO 1                     75128 06410000
+         BAL   R14,CONCAT                                         75128 06420000
+         B     C03NEXTZ       GET NEXT ITEM (IF ANY)              75128 06430000
+ISARECFM   JOLSTOR 'RECORD FORMAT',DDRECFM,#TKN                         06440000
+C03TLNO     LTR R15,R15                                                 06450000
+           BNZ C                                                        06460000
+           GETTKN LOCN=TKNCURR                 GET THE NEXT TOKEN       06470000
+           CLI TKNTYPE,0                       NUMERIC                  06480000
+           BNE C                               NOT NUMERIC,SO BUZZ OFF  06490000
+****************************************************************** DASD 06500000
+* PROBLEM HERE FOLKS IF THE CURRENT TOKEN IS NUMERIC AFTER       * DASD 06510000
+* A RECORD FORMAT- YOU SEE THAT WE JUST HAPPEN TO HAVE SOME      * DASD 06520000
+* KEY WORDS WHICH HAVE NUMERICS PRECEEDING THEM.  SOO AT THIS    * DASD 06530000
+* POINT I CANNT REALLY TELL YOU WHO BELONGS WITH WHOM.           * DASD 06540000
+* WHAT WE HAVE TO DO IS CHECK AHEAD 1,2 OR 3 TOKENS FOR KEY      * DASD 06550000
+* WORDS WHICH MIGHT CAUSE US PROBLEMS                            * DASD 06560000
+* THE FOLLOWING WAS REPORTED AS A PROBLEM                        * DASD 06570000
+*                                                                * DASD 06580000
+* DCL BUG DS WHY.ME RECFM=F 1,1 TRACKS;                          * DASD 06590000
+* JOL SAID THAT 'TRACKS' WAS AN  INVALID KEY WORD ----OK?        * DASD 06600005
+****************************************************************** DASD 06610000
+         STH    R1,TKNCURR         SAY CURRENT GUY                 DASD 06620000
+         BCTR   R1,0           BACKOFF CURRENT TOKEN IN CASE OF A HDASD 06630000
+         STH    R1,C03STKN         SAVE CURRENT TOKEN NUMBER       DASD 06640000
+         LA     R10,C03FDKEY       BRANCH TO HERE ON A HIT         DASD 06650000
+         GETTKN LOCN=TKNCURR       LETS LOOK AT NEXT GUY           DASD 06660000
+         CLI    TKNTYPE,0          NUMERIC                         DASD 06670000
+         BE     C03ITSOK           GOOD MOVE ON                    DASD 06680000
+         CLI    TKN,C','           KEY WORD YET??                  DASD 06690000
+         BE     C03LKEY2           NOPE LOOK AGAIN                 DASD 06700000
+* SINGLE GUYS HERE--ONLY ONE TOKEN AHEAD OF IT                     DASD 06710000
+         CLC    =C'PART ',TKN                                      DASD 06720000
+         BER R10                                                   DASD 06730000
+         CLC    =C'COPIES ',TKN                                    DASD 06740000
+         BER R10                                                   DASD 06750000
+         CLC    =C'UNITS ',TKN                                     DASD 06760000
+         BER R10                                                   DASD 06770000
+         CLC    =C'K ',TKN                                         DASD 06780000
+         BER R10                                                   DASD 06790000
+         CLC    =C'- ',TKN                                         DASD 06800000
+         BER R10                                                   DASD 06810000
+         CLC    =C'BYTES ',TKN                                     DASD 06820000
+         BER R10                                                   DASD 06830000
+         CLC    =C'RECS ',TKN                                      DASD 06840000
+         BER R10                                                   DASD 06850000
+         CLC    =C'RECORDS ',TKN                                   DASD 06860000
+         BER R10                                                   DASD 06870000
+         CLC    =C'BPI ',TKN                                       DASD 06880000
+         BER R10                                                   DASD 06890000
+         CLC    =C'DAYS ',TKN                                      DASD 06900000
+         BER R10                                                   DASD 06910000
+         CLC    =C'DAY ',TKN                                       DASD 06920000
+         BER R10                                                   DASD 06930000
+* OK NOW LOOK AT THE SPACE PARAMS    TRK, CYLS,....ETC             DASD 06940005
+         LA     R15,C03SPTBL                                       DASD 06950000
+C03SPL1  CLC    TKN(L'C03SPTBL),0(R15)                             DASD 06960000
+         BER R10                                                   DASD 06970000
+         LA     R15,L'C03SPTBL(R15)    INCR TO NEXT GUY            DASD 06980000
+         C      R15,=A(C03SPTBE)       END??                       DASD 06990000
+         BL     C03SPL1                                            DASD 07000000
+         B      C03ITSOK               OK---ITS A GOOD LRECL/BLKSIZDASD 07010000
+C03LKEY2 EQU    *    OK LETS LOOK AT NEXT TOKEN                    DASD 07020000
+         GETTKN (R1)                                               DASD 07030000
+         CLI    TKN,C','                                           DASD 07040000
+         BER R10      TWO COMMAS IN A ROW ? 1,,1 TRKS ?            DASD 07050000
+         CLI    TKNTYPE,0      NUMERIC??                           DASD 07060000
+         BE     C03LKEY3       YES GO LOOK AGAIN                   DASD 07070000
+C03CKTN2 EQU    *                                                  DASD 07080000
+* DOUBLE TOKNES HERE                                               DASD 07090000
+         CLC    =C'K ',TKN                                         DASD 07100000
+         BER R10                                                   DASD 07110000
+         CLC    =C'- ',TKN                                         DASD 07120000
+         BER R10                                                   DASD 07130000
+         CLC    =C'BYTES ',TKN                                     DASD 07140000
+         BER R10                                                   DASD 07150000
+         CLC    =C'RECS ',TKN                                      DASD 07160000
+         BER R10                                                   DASD 07170000
+         CLC    =C'RECORDS ',TKN                                   DASD 07180000
+         BER R10                                                   DASD 07190000
+         LA     R15,C03SPTBL                                       DASD 07200000
+C03SPL2  CLC    TKN(L'C03SPTBL),0(R15)                             DASD 07210000
+         BER R10                                                   DASD 07220000
+         LA     R15,L'C03SPTBL(R15)    INCR TO NEXT GUY            DASD 07230000
+         C      R15,=A(C03SPTBE)       END??                       DASD 07240000
+         BL     C03SPL2                                            DASD 07250000
+         B      C03ITSOK               OK---ITS A GOOD LRECL/BLKSIZDASD 07260000
+C03LKEY3 EQU   *                                                   DASD 07270000
+         GETTKN (R1)                                               DASD 07280000
+         CLI    TKNTYPE,0                                          DASD 07290000
+         BNE    C03CKTN2                                           DASD 07300000
+         B      C03ITSOK    DONT KNOW WHAT THIS IS BUT IM GONE     DASD 07310000
+C03FDKEY EQU    *                                                  DASD 07320000
+         LH     R1,C03STKN         GET BACK OLD TOKEN NUMBER       DASD 07330000
+         STH    R1,TKNCURR         SAY THIS IS THE CURRENT TOKEN   DASD 07340000
+         B      C                  RETURN TO THE MAIN LAND         DASD 07350000
+C03ITSOK EQU    *                                                  DASD 07360000
+         LH     R1,C03STKN     RESTORE CURRENT TOKEN               DASD 07370000
+         GETTKN (R1) RESTORE #TKN AS BEFORE THIS MESS              DASD 07380000
+* THE NEXT TOKEN AFTER THE RECFM KEYWORD IS A NUMBER SO WE SHALL        07390000
+*    HAVE A FIDDLE WITH IT                                              07400000
+           STH R1,TKNCURR                                               07410000
+           TNUM    #TKN                                                 07420000
+           LTR R15,R15                                                  07430000
+         BNZ   BLKERR                                             75128 07440000
+         CH    R1,=H'32767'                                       75128 07450000
+           BH  BLKERR                                                   07460000
+         LR    R10,R1         SAVE NUMBER                         75128 07470000
+           GETTKN LOCN=TKNCURR                 SEE IF A COMMA FOLLOWS,  07480000
+           CLI     TKN,C','                    IE LRECL (OR BLKSIZE)    07490000
+           BE  ISLRECL                                                  07500000
+ONLYONE  EQU   *                                                  75128 07510000
+           STH  R10,DDLRECL                                       80290 07520000
+           CLI  DDRECFM,C'U'   RECFM U?                                 07530000
+           BNE  C              NO,BACK TO MAIN LINE                     07540000
+           MVC  DDBLKSZE,DDLRECL                                        07550000
+           CLEAR DDLRECL                                                07560000
+           B   C                               CONTINUE PROCESSING      07570000
+ISLRECL    EQU *                                                        07580000
+           STH R1,TKNCURR                                               07590000
+           GETTKN LOCN=TKNCURR                 GET THE NEXT NUMBER(?)   07600000
+           CLI TKNTYPE,0                                                07610000
+         BNE   ONLYONE        ERROR WILL GET PICKED UP ELSEWHERE  75128 07620000
+LRECSIZE   EQU *                                                        07630000
+           STH R1,TKNCURR                                               07640000
+           TNUM    #TKN                                                 07650000
+           LTR R15,R15                                                  07660000
+         BNZ   BLKERR         ERROR,DIDN'T CONVERT                75128 07670000
+         CH    R1,=H'32767'                                       75128 07680000
+           BH  BLKERR                                                   07690000
+         CR    R10,R1         NOW TAKE THE SMALLEST               75128 07700000
+*                                              AS BEING THE LRECL       07710000
+           BH  STRLREC                                                  07720000
+           LR  R9,R10                                                   07730000
+         LR    R10,R1                                             75128 07740000
+         LR    R1,R9                                              75128 07750000
+STRLREC    EQU *                                                        07760000
+* R1 CONTAINS THE SMALLER NUMBER, THE LRECL                       75128 07770000
+           CLC =C'VS',DDRECFM                                           07780000
+           BE  C03VBSWP                                                 07790000
+           CLC =C'VBS',DDRECFM                                          07800000
+           BE  C03VBSWP                                                 07810000
+C03VSOK    EQU *                                                        07820000
+           STH  R1,DDLRECL                                        80290 07830000
+           STH  R10,DDBLKSZE                                      80290 07840000
+           B   C                               CONTINUE PROCESSING      07850000
+BLKERR   JOLERR 305,'ERROR IN BLOCKSIZE/RECORDSIZE:->32768'             07860000
+           B   C                                                        07870000
+C03VBSWP   LR  R9,R10                                                   07880000
+         LR    R10,R1                                             75128 07890000
+         LR    R1,R9                                              75128 07900000
+           B   C03VSOK                                                  07910000
+         BOX   'STORE RECSIZE AND BLOCKSIZE IF SPECIFIED'         75128 07920000
+DSBLOCK  EQU   *                                                  75128 07930000
+DSBLOCKS EQU   *                                                  75128 07940000
+         JOLSTOR 'BLOCKSIZE',DDBLKSZE,#TKN,NUM                    75128 07950000
+           OI  DDSPECT2,X'20'  TURN ON NODEFAULT BIT TOO          75311 07960000
+         B     C                                                  75128 07970000
+         SPACE 3                                                        07980000
+DSRECSIZ EQU   *                                                  75128 07990000
+DSRECORD EQU   *                                                  75128 08000000
+         JOLSTOR 'RECORDSIZE',DDLRECL,#TKN,NUM                    75128 08010000
+         OI  DDSPECT2,X'20'  TURN ON NODEFAULT BIT TOO          75311   08020005
+         B     C                                                  75128 08030000
+DSRECFM  EQU   *                                                        08040000
+         OI  DDSPECT2,X'20'  TURN ON 'NODEFAULT' BIT                    08050000
+         CLI  #TKN+1,1        RECFM (V B A) TYPE?                 75311 08060000
+         BE   DSFIXED         MAYBE,SEE WHATS NEXT                75311 08070000
+         B    ISARECFM        NO,STORE VBA ETC                    75311 08080000
+           SPACE                                                        08090000
+         TITLE 'FIX OPTCD'                                              08100005
+DSOPTCD  EQU *                                                          08110005
+         JOLSTOR 'OPTCD',DDOPTCD,#TKN                                   08120005
+         B  C                                                           08130005
+         SPACE 3                                                  75128 08140000
+         TITLE 'FIX VSAM KEYWORD'                               74256   08150005
+DSVSAM   EQU *                                                  74256   08160005
+         OI   DDSPECT2,X'01'    TURN ON VSAM                      75128 08170000
+           B   C               BACK TO MAIN LOOP                  74256 08180000
+DSFORM     EQU *                                                  74256 08190000
+* NEW FOR VERSION 3.0                                             75311 08200000
+*                                                                 75311 08210000
+* IF SOME-ONE CODES FORM=1, WE GENERATE 'S1', BUT IF THEY CODE    75311 08220000
+*    FORM 'A1', WE POP IT OUT AS CODED.                           75311 08230000
+*                                                                 75311 08240000
+           CLI TKN,C''''       QUOTES AROUND FORM ?               75311 08250000
+           BE  C03FQU          YES                                75311 08260000
+* NO QUOTES HERE                                                  75311 08270000
+           L   R1,AJOLGEN                                         75311 08280000
+           USING GENDETS,R1                                       75311 08290000
+         CLI   DDSYSCLS,C' '                             JOL30048 76200 08300000
+         BNE   C03FORMO        BRANCH TO STORE FORM                SOCO 08310000
+            MVC  DDSYSCLS,SPECFORM                                      08320000
+           B   C03FORMO        STORE FORM NUMBER                  75311 08330000
+           SPACE 1                                                75311 08340000
+C03FQU     EQU *                                                  75311 08350000
+* FORM KEYWORD FOUND                                              74256 08360000
+           BAL R14,DROPQUOT    DROP QUOTES, IF ANY                75311 08370000
+C03FORMO JOLSTOR 'FORM',DDSYSFRM,#TKN                             75128 08380000
+           B   C               FORM DONE,BACK TO MAINLINE         74256 08390000
+           TITLE 'FIX CYLOFL (CYLINDER OVERFLOW)'                       08400000
+DSCYLOFL   JOLSTOR 'CYLOFL',DDOVERFL,#TKN,NUM  STORE AS REQUESTED 80290 08410000
+           B   C               BACK TO MAIN LOOP MAN.                   08420000
+           TITLE 'FIX KEY'                                              08430000
+DSKEY      EQU *                                                        08440000
+         JOLSTOR 'KEY LENGTH',DDKEYLEN,#TKN,255                   75128 08450000
+           GETTKN TKNCURR                                               08460000
+           CLI TKN,C','                                                 08470000
+           BNE C                                                        08480000
+           GETTKN (1)                                                   08490000
+           STH R1,TKNCURR                                               08500000
+DSKEYPOS EQU   *                                                        08510000
+           JOLSTOR 'KEY POSITION',DDRKP,#TKN,NUM                  80290 08520000
+           B  C                                                         08530000
+DSKEYLEN EQU   *                                                        08540000
+         JOLSTOR 'KEY LENGTH',DDKEYLEN,#TKN,255                   75128 08550000
+         B     C                                                        08560000
+           TITLE 'DECODE VOLUME INFORMATION'                            08570000
+DSVOL      EQU *                                                        08580000
+DSVOLS   EQU   *                                                  75128 08590000
+DSVOLUME   EQU *                                                        08600000
+STARTVOL   EQU *                                                        08610000
+         MVI   #TKN+1,6       SET LENGTH OF FIRST VOL=6           75128 08620000
+           MVC #WORK(10),#TKN                                           08630000
+VOLLOOP    GETTKN LOCN=TKNCURR                                          08640000
+           CLI TKN,C','                        MORE THAN 1 VOLUME ?     08650000
+           BNE STORVOLS                                                 08660000
+           STH R1,TKNCURR                                               08670000
+           GETTKN LOCN=TKNCURR                                          08680000
+           STH R1,TKNCURR                                               08690000
+           CLC #TKN,=H'6'                                               08700000
+           BH VOLTOOBG                                                  08710000
+CONTVOL     EQU *                                                       08720000
+         MVI   #TKN+1,6       SET LENGTH OF SECOND VOL=6          75311 08730000
+         BAL   R14,CONCAT                                         75128 08740000
+           B   VOLLOOP                                                  08750000
+STORVOLS   EQU *                                                        08760000
+           JOLSTOR  'VOLUME',DDVOLUME,#WORK                             08770000
+           B   C                                                        08780000
+VOLTOOBG JOLERR 306,'VOLUME NAME''',#TKN,'''> 6 CHARACTERS-TRUNCATED'   08790000
+           B CONTVOL                                                    08800000
+         SPACE 3                                                        08810000
+DSVOLSEQ EQU   *                                                        08820000
+         JOLSTOR 'VOLUME SEQUENCE NUMBER',DDVOLSEQ,#TKN,NUM             08830000
+         B     C                                                        08840000
+           TITLE 'STORE DSORG'                                          08850000
+DSORG    EQU   *                                                 75128  08860000
+DSPS       EQU *                                                        08870000
+DSPSU      EQU *                                                        08880000
+DSIS       EQU *                                                        08890000
+DSISU      EQU *                                                        08900000
+DSPO       EQU *                                                        08910000
+DSPOU      EQU *                                                        08920000
+DSDA       EQU *                                                        08930000
+DSDAU      EQU *                                                        08940000
+DSSEQ      EQU *                                                        08950000
+           JOLSTOR 'DATA SET ORGANISATION',DDDSORG,#TKN                 08960000
+           B C                                                          08970000
+          TITLE 'HANDLE VOLUME REFERENCE'                               08980000
+DSVOLREF   EQU *                                                        08990000
+* NEW FEATURE,VOLREF='SYS1.LINKLIB' IS ALLOWED    3 NOV,1974 C.CLA¢5)   09000000
+*    WHEN A RUN IS BEING DECODED,IT EXAMINES THE VOLREF FIELD FOR       09010000
+*    A LITERAL STRING AND MAY GENERATE AN EXTRA DD-CARD FOR THE         09020000
+*    VOLREF                                                             09030000
+           MVI WORK,C'-'                  INDICATES TO A LATER          09040000
+*                         ROUTINE THAT VOL REF WAS CODED                09050000
+           LH R1,#TKN                                                   09060000
+           LA R1,1(R1)                                                  09070000
+           STH R1,#WORK                                                 09080000
+           MVC WORK+1(40),TKN                                           09090000
+           JOLSTOR 'VOLUME REFERENCE',DDVOLUME,#WORK                    09100000
+           B C                                                          09110000
+       FIX 'NO QUOTES'                                                  09120000
+           TITLE 'UNIT DECODE'                                          09130000
+* UNIT SLIGHTLY COMPLICATED BY THE FACT THAT IT MAY HAVE A KEYWORD      09140000
+*    OR IT MAY NOT.                                                     09150000
+* HOWEVER,THIS IS EASILY RESOLVED                                       09160000
+DSUNIT     EQU *                                                        09170000
+DSUNITS    EQU *                                                        09180000
+STRUNIT    EQU *                                                        09190000
+           MVC #WORK(12),#TKN                                           09200000
+           GETTKN LOCN=TKNCURR                                          09210000
+           CLI TKN,C'-'                                                 09220000
+           BNE TUNITCOM        TEST IF UNIT FOLLOWED BY A','            09230000
+         BAL   R14,CONCAT                                         75128 09240000
+           GETTKN (R1)         GET NEXT TOKEN                     74256 09250000
+           STH R1,TKNCURR                                               09260000
+         BAL   R14,CONCAT                                         75128 09270000
+           GETTKN (R1)         GET NEXT TOKEN                     74256 09280000
+           SPACE 1                                                      09290000
+TUNITCOM   EQU *                                                        09300000
+           CLI TKN,C','                                                 09310000
+           BNE C03STRUN        NO-> STORE UNIT                    74256 09320000
+           STH R1,TKNCURR                                               09330000
+           GETTKN (R1)         GET TKN AFTER ',',IE UNIT NUMBER   74256 09340000
+           CLI TKNTYPE,0       <NUMBER>                           74256 09350000
+           BE  C03VALUC        YES,VALID UNIT COUNT               74256 09360000
+           CLC =C'P ',TKN      PARALLEL MOUNTING ?                74256 09370000
+           BNE C03STRUN        NO, DON'T ISSUE AN ERROR THOUGH.   74256 09380000
+*                              COULD BE SOMEONE CODED A UNIT,VOL  74256 09390000
+*                              BUT ANYWAY,THE ERROR WILL SHOW UP  74256 09400000
+*                              IF IT WASN'T A VALID KEYWORD       74256 09410000
+*                              FOLLOWING.                         74256 09420000
+C03VALUC   STH R1,TKNCURR      FIX IT UP SO WE WON'T GET IT AGAIN 74256 09430000
+           JOLSTOR 'UNIT COUNT',DDUNITNO,#TKN STORE UNIT COUNT          09440000
+C03STRUN   EQU *                                                  74256 09450000
+           JOLSTOR 'UNIT',DDUNIT,#WORK                                  09460000
+* SET UP DDUNITYP NOW, IF STORED                         JOL30030 76200 09470000
+         LTR   R15,R15       DID WE STORE IT             JOL30030 76200 09480000
+         BNZ   C              NO,SKIP THIS               JOL30030 7620/ 09490000
+           SPACE 3                                                      09500000
+         L     R1,AJOLGEN                                         75128 09510000
+         L     R1,AGENUNIT-UJGENDET(R1)                           75128 09520000
+           LM R14,R15,4(R1)                                             09530000
+           L  R1,0(R1)                                                  09540000
+TGENU9X    CLC DDUNIT,0(R1)                                             09550000
+           BE  C03GOTGU                                                 09560000
+           BXLE R1,R14,TGENU9X                                          09570000
+         SPACE 1                                         JOL30030 76200 09580000
+         L     R1,AJOLGEN                                JOL30030 76200 09590000
+         USING GENDETS,R1                                JOL30030 76200 09600000
+         L     R1,ADEVNAME    GET ADDRESS OF DEVNAMET    JOL30030 76200 09610000
+         LTR   R1,R1          DID WE LOAD IT ?           JOL30030 76200 09620000
+         BZ    C              NOPE                       JOL30030 76200 09630000
+         L     R15,0(R1)     LOAD # ENTRIES IN TABLE     JOL30030 76200 09640000
+         MH     R15,=H'12'   MULT                        JOL30030 76200 09650000
+         LA    R1,4(R1)      SET TABLE START             JOL30030 76200 09660000
+         AR    R15,R1         SET TABLE END              JOL30030 76200 09670000
+         LA    R14,12         SET INCREMENT              JOL30030 76200 09680000
+         CLC   DDUNIT,0(R1)   FIND UNIT IN TABLE         JOL30030 76200 09690000
+         BE    C03UNDE        GOT IT                     JOL30030 76200 09700000
+         BXLE  R1,R14,*-10    LOOP                       JOL30030 76200 09710000
+         B     C              ERROR WILL BE PICKED UP LATER   30 76200  09720000
+         SPACE 1                                         JOL30030 76200 09730000
+C03UNDE    IFVALUE  DDUNITYP,C    SKIP IF ALREADY SET UP          76200 09740000
+         MVI   DDUNITYP,X'80' SET UP DISK IND            JOL30030 76200 09750000
+         CLI   10(R1),X'80'  IS DEVNAMET=TAPE            JOL30030 76200 09760000
+         BNE   C                                         JOL30030 76200 09770000
+         MVI   DDUNITYP,X'04' SET TO TAPE                JOL30030 76200 09780000
+         LTR   R15,R15                                                  09790000
+           B   C                                                        09800000
+C03GOTGU EQU   *                                                        09810000
+         MVC   DDUNIT,8(R1)   SWAP UNIT NAMES                           09820000
+         MVC   DDUNITYP,16(R1)                                          09830000
+         B     C                                                        09840000
+         SPACE 2                                                        09850000
+           TITLE 'DECODE MASS STORAGE FACILITY'                         09860000
+DSMSSG     DS  0H                                                       09870000
+           JOLSTOR 'MASS STORAGE',DDVOLUME,#TKN                   80290 09880000
+           LTR R15,R15                                            80290 09890000
+           BNZ C                                                        09900000
+           OI  DDUNITQU,DDUNITM TURN ON MASS STORAGE BIT          80290 09910000
+           B   C                                                        09920000
+           SPACE 3                                                      09930000
+DSQNAME    DS  0H                                                       09940000
+           JOLSTOR 'QNAME',DDVOLUME,#TKN                          80290 09950000
+           LTR R15,R15                                            80290 09960000
+           BNZ C                                                        09970000
+           OI  DDUNITQU,DDUNITQ TURN ON QNAME BIT                 80290 09980000
+           MVI DDTYPE,DDSYSIN  TURN ON INDICATOR TO STOP VETS     80290 09990000
+           MVI DDDSNAME,C'*'   TURN ON INDICATOR TO STOP VETS     82300 10000000
+           B   C                                                        10010000
+           SPACE 3                                                      10020000
+         AGO   .C0301                                             75128 10030000
+DSHIGH     EQU *                                                  74256 10040000
+DSLOW      EQU *                                                  74256 10050000
+DSDUAL     EQU *                                                  74256 10060000
+* THIS CODE PROBABLY NEVER GETS EXECUTED,BUT ....                 74256 10070000
+           MVC #WORK(6),#TKN                                      74256 10080000
+           GETTKN TKNCURR                                         74256 10090000
+*                                                                 74256 10100000
+           CLC TKN(7),=C'DENSITY'                                       10110000
+           BNE C03STRUN        GO STORE UNIT                      74256 10120000
+           STH R1,TKNCURR                                               10130000
+           GETTKN (R1)                                            74256 10140000
+           CLC TKN(4),=C'TAPE'                                          10150000
+           BNE C03STRUN        GO STORE UNIT                      74256 10160000
+           STH R1,TKNCURR                                               10170000
+           B   C03STRUN        GO STORE UNIT                      74256 10180000
+.C0301   ANOP                                                     75128 10190000
+           TITLE 'BUFFER KEYWORD DECODE'                                10200000
+DSBUFNO    EQU *                                                        10210000
+DSBUFFER   EQU *                                                        10220000
+* THANK HEAVENS WE CAN'T GET INTO TOO MUCH TROUBLE WITH BUFFERS         10230000
+           JOLSTOR 'BUFFER NUMBER',DDBUFNO,#TKN,255               74256 10240000
+           B   C                                                        10250000
+DSBUFNI    EQU *                                                        10260000
+           JOLSTOR 'BUFNI PARAMETER',DDBUFNI,#TKN,255                   10270000
+           B   C                                                        10280000
+DSBUFND    EQU *                                                        10290000
+           JOLSTOR 'BUFND PARAMETER',DDBUFND,#TKN,255                   10300000
+           B   C                                                        10310000
+DSBUFL   EQU   *                                                        10320000
+         JOLSTOR 'BUFFER LENGTH',DDBUFL,#TKN,NUM                        10330000
+           B   C                                                        10340000
+           TITLE 'DECODE SPACE '                                        10350000
+DSABSTR  MVI DDCYLTRK,C'A'                                              10360000
+DSSPACE    EQU *                                                        10370000
+SPACE1OK EQU *                                                          10380000
+         JOLSTOR 'PRIMARY SPACE',DDPRIM,#TKN,NUM                  75128 10390000
+           LTR R15,R15                                                  10400000
+           BNZ C                                                        10410000
+           GETTKN LOCN=TKNCURR                                          10420000
+           CLI TKN,C','                                                 10430000
+           BNE SPACEQAL                                                 10440000
+           STH R1,TKNCURR                                               10450000
+           GETTKN (R1)                                            74256 10460000
+* TEST FOR SPACE 10,,7                                                  10470000
+           CLI  TKN,C','                                                10480000
+           BNE  C03TS2                                                  10490000
+           STH  R1,TKNCURR                                              10500000
+           B    C03THIRD                                                10510000
+C03TS2     EQU  *                                                       10520000
+           CLI TKNTYPE,0                                                10530000
+         BNE   SPACEQAL                                           75128 10540000
+           STH R1,TKNCURR                                               10550000
+         JOLSTOR 'SECONDARY SPACE',DDSEC,#TKN,NUM                 75128 10560000
+          GETTKN LOCN=TKNCURR                                    75311  10570000
+           CLI     TKN,C','                                             10580000
+           BNE SPACEQAL                                                 10590000
+* HERE THERE IS A THIRD SPACE                                           10600000
+C03THIRD   STH R1,TKNCURR                                               10610000
+           GETTKN (R1)                                            74256 10620000
+           CLI TKNTYPE,0                       NUMERIC                  10630000
+         BNE   SPACEQAL                                           75128 10640000
+           STH R1,TKNCURR                                               10650000
+         JOLSTOR 'DIRECTORY/INDEX SPACE',DDDIRECT,#TKN,NUM        75128 10660000
+           GETTKN LOCN=TKNCURR                                          10670000
+SPACEQAL   EQU *                                                        10680000
+           LA  R15,C03SPTBL    SPACE TABLE CONSTANTS              74256 10690000
+C03TSPC9   CLC TKN(L'C03SPTBL),0(R15) SPACE KEYWORD (TRK ETC?)    74256 10700000
+           BE  C03GOTQ1               YES                         74256 10710000
+           LA  R15,L'C03SPTBL(R15)    NOT YET,LOOK AT NEXT        74256 10720000
+           C   R15,=A(C03SPTBE)                                   74256 10730000
+           BL  C03TSPC9                                           74256 10740000
+* NOT TRACKS OR ANYTHING SO MAKE IT BLANK AND LET THE VET ROUTINES      10750000
+*         PUT SOMETHING APPROPRIATE THERE LATER                         10760000
+           B   C                                                        10770000
+C03GOTQ1   MVC DDCYLTRK,TKN           MOVE FIRST CHAR IN          74256 10780000
+           STH R1,TKNCURR                                               10790000
+           B   C                                                        10800000
+         SPACE 3                                                        10810000
+DSDIRECT EQU   *                                                  75128 10820000
+DSDIR    EQU   *                                                  75128 10830000
+         JOLSTOR 'DIRECTORY BLOCKS',DDDIRECT,#TKN,NUM             75128 10840000
+         B     C                                                  75128 10850000
+         SPACE 3                                                  75128 10860000
+DSROUND  EQU   *                                                  75128 10870000
+         OI    DDSPECTP,X'01'      TURN ON ROUND                  75128 10880000
+         B     C                                                  75128 10890000
+         SPACE 3                                                  75128 10900000
+DSALX    OI    DDSPECTP,X'02'      TURN ON ALX                    75128 10910000
+         B     C                                                  75128 10920000
+DSMXIG   OI    DDSPECTP,X'04'      TURN ON MXIG                   75128 10930000
+         B     C                                                  75128 10940000
+         SPACE 3                                                        10950000
+DSUNITNO EQU   *                                                        10960000
+         CLI   TKN,C'P'       PARALLEL?                           75311 10970000
+         BE    DSPARUN                                            75311 10980000
+         JOLSTOR 'NO. OF UNITS',DDUNITNO,#TKN,NUM                 75128 10990000
+         B     C                                                  75128 11000000
+DSCONTIG EQU *                                                          11010000
+         OI DDSPECT2,X'80'                                        75128 11020000
+         B C                                                            11030000
+           TITLE 'DECODE SIZE KEYWORD'                                  11040000
+C03RECS  EQU   *                                                  75128 11050000
+         GETTKN (R5)        GET THE ORIGINAL NUMBER AGAIN               11060000
+DSSIZE     EQU *                                                        11070000
+           JOLSTOR 'SIZE',DDSIZE,#TKN,NUM                         74256 11080000
+           GETTKN LOCN=TKNCURR                                          11090000
+           CLC     TKN(2),=C'K '                                        11100000
+           BE   C03STRSQ                                                11110000
+           CLC =C'BYTES ',TKN                                           11120000
+           BE  C03STRSQ                                                 11130000
+           CLC =C'RECS ',TKN                                            11140000
+           BE   SKIP1                                                   11150000
+          CLC =C'RECORDS ',TKN                                    75128 11160000
+         BE    SKIP1       ONLY 1ST SIZE QUANTITY GIVEN US     75128    11170000
+DSSIZE2  CLI   TKN,C'-'       N-N2 K CODED ?                      75128 11180000
+         BNE   C              NO -> BACK TO MAIN LINE             75128 11190000
+         GETTKN (R1)          GET NEXT SIZE                       75128 11200000
+         STH   R1,TKNCURR     SAVE CURRENT POINTER                75128 11210000
+         JOLSTOR 'SIZE',DDSIZE2,#TKN,NUM STORE SIZE2              75128 11220000
+         GETTKN TKNCURR       GET NEXT TOKEN                      75128 11230000
+         CLC   =C'K ',TKN                                         75128 11240000
+         BE    C03STRSQ       YES                                 75128 11250000
+C03TREC9   CLC =C'RECS ',TKN                                            11260000
+         BE SKIP1                                                       11270000
+         CLC  =C'RECORDS ',TKN                                          11280000
+         BE SKIP1                                                       11290000
+         CLC =C'BYTES ',TKN                                             11300000
+         BNE  C                                                         11310000
+C03STRSQ MVI   DDSIZEQ,C'K'                                       75128 11320000
+         STH  R1,TKNCURR                                                11330000
+         GETTKN (R1)                                                    11340000
+         CLI  TKN,C'-'                                                  11350000
+         BE   DSSIZE2                                                   11360000
+         B    C03TREC9                                            75128 11370000
+DSOF     EQU *   ********* KEYWORD, NOT NECESSARILY CODED AFTER         11380000
+*               RECORDS NUMBER                                          11390000
+        JOLSTOR  'MODAL-SIZE',DDAVREC,#TKN,NUM                          11400000
+        B   C                                                           11410000
+           TITLE 'DECODE LABEL'                                         11420000
+DSLABEL    EQU *                                                        11430000
+DSFILENO   JOLSTOR 'LABEL/FILENO',DDLABEL,#TKN,255                74256 11440000
+           B   C                                                        11450000
+DSRETAIN EQU   *                                                  75128 11460000
+         LH  R1,TKNCURR                                                 11470000
+         CLC   =C'UNTIL ',TKN                                     75128 11480000
+         BE    C03TILL                                            75128 11490000
+         CLC   =C'TILL ',TKN                                      75128 11500000
+         BE    C03TILL                                            75128 11510000
+           CLC =C'TIL ',TKN                                       75311 11520000
+           BE  C03TILL                                            75311 11530000
+         CLC   =C'FOR ',TKN                                       75128 11540000
+         BE    C03FOR                                             75128 11550000
+* ASSUME 'RETAIN 10 DAYS' HERE                                    75128 11560000
+DSFOR    EQU   *                                                        11570000
+C03RTPZ  JOLSTOR 'RETENTION PERIOD',DDEXPDT,#TKN,NUM              76200 11580000
+         LTR   R15,R15                                   JOL30053 76200 11590000
+         BNZ   C03TDX2       J                           JOL30053 76200 11600000
+         MVI    DDRETPD,C'R'                             JOL30053 76200 11610000
+C03TDX2  EQU   *                                                  75128 11620000
+         GETTKN TKNCURR                                           75128 11630000
+         CLC   =C'DAY ',TKN                                       75128 11640000
+         BE    SKIP1                                              75128 11650000
+         CLC   =C'DAYS ',TKN                                      75128 11660000
+         BNE   C                                                  75128 11670000
+         B   SKIP1    RESET TKNCURR ONE ABOVE                           11680000
+C03FOR   GETTKN (R1)                                              75128 11690000
+         STH   R1,TKNCURR                                         75128 11700000
+         B     C03RTPZ                                            75128 11710000
+         SPACE 3                                                  75128 11720000
+C03TILL  GETTKN (R1)                                              75128 11730000
+         STH   R1,TKNCURR                                         75128 11740000
+DSUNTIL  EQU *                                                          11750000
+DSTILL   EQU *                                                          11760000
+         JOLSTOR 'EXPIRY DATE',DDEXPDT,#TKN              JOL30053 76200 11770000
+         B     C03TDX2        TEST 'DAY' | 'DAYS' NOW             75128 11780000
+           TITLE 'FIX NL,BLP ETC'                                       11790000
+DSSL       LA  R1,0                                                     11800000
+           B   C03STRLT                                                 11810000
+DSNL       LA  R1,1                                                     11820000
+           B   C03STRLT                                                 11830000
+DSBLP      LA  R1,2                                                     11840000
+           B   C03STRLT                                                 11850000
+DSSUL      LA  R1,3                                                     11860000
+           B   C03STRLT                                                 11870000
+DSNSL      LA  R1,4                                                     11880000
+           B   C03STRLT                                                 11890000
+DSAL   EQU  *                                                           11900000
+DSASCII    LA  R1,5                                                     11910000
+           B   C03STRLT                                                 11920000
+DSLTM    LA    R1,6                                               75128 11930000
+         B     C03STRLT                                                 11940000
+DSAUL    LA R1,7                                                        11950000
+C03STRLT   STC R1,TKN                                                   11960000
+           MVI #TKN+1,1                                                 11970000
+           JOLSTOR 'LABEL TYPE',DDLABTYP,#TKN                           11980000
+           B   C               BACK TO MAIN LINE                        11990000
+         SPACE 3                                                        12000000
+DSPRIVAT EQU   *                                                  75128 12010000
+         OI    DDSPECTP,X'08'      TURN ON PRIVATE                75128 12020000
+         B     C                                                  75128 12030000
+         SPACE 3                                                  75128 12040000
+DSREAD   EQU   *                                                  75128 12050000
+DSREADON EQU   *                                                  75128 12060000
+         OI    DDSPECTP,X'10'      TURN ON READONLY PROTECT       75128 12070000
+           GETTKN TKNCURR      GET ITEM AFTER READ                75311 12080000
+           CLC =C'ONLY ',TKN   'ONLY'                             75311 12090000
+           BE  SKIP1           YES, IGNORE IT                     75311 12100000
+         B     C                                                  75128 12110000
+         SPACE 1                                                  75128 12120000
+DSPROTEC EQU   *                                                  75128 12130000
+         OI    DDSPECTP,X'20'      TURN ON DATA SET PROTECT (ALL) 75128 12140000
+         B     C                                                  75128 12150000
+         SPACE 3                                                  75128 12160000
+DSNOCAT  EQU   *                                                  75128 12170000
+         MVI   DDCATLGS,0                                         75128 12180000
+           OI  PARMSRCH,X'02'  TELL US LATER THAT WE HAVE TO            12190000
+*                              GENERATE A SPECIAL 'UJEINIT' STEP        12200000
+*                              THAT SEARCHES THE SYSTEM CATALOG         12210000
+*                              FOR THE DATA-SETS AT EXECUTE TIME        12220000
+         B     C                                                  75128 12230000
+         SPACE 3                                                  75128 12240000
+* THE FOLLOWING SUPPORTS 'NODEFAULT' | 'NODEF', WHICH MEANS       75311 12250000
+*    NO DEFAULTS TO BE MADE TO THE DDCARD.                        75311 12260000
+DSNODEF    OI  DDSPECT2,X'20'  TURN ON DEFAULT                    75311 12270000
+           B   C                                                  75311 12280000
+           SPACE 3                                                75311 12290000
+DSEXT    EQU   *                                                  75128 12300000
+         MVI   C03DEXT,1      SET NON BLANK                       75128 12310000
+         B     C                                                  75128 12320000
+         SPACE 3                                                  75128 12330000
+DSLIKE   MVC C03DLIKE,TKN    ***JOLSTOR CAN'T USE R13 AS A BASE **75128 12340000
+         B     C                                                  75128 12350000
+DSDSID   EQU   *                                                  75128 12360000
+         JOLSTOR 'DSID',DDDSIDR,#TKN                              75128 12370000
+         B     C                                                  75128 12380000
+DSNORLSE   EQU  *                                                       12390000
+DSNORELE   EQU  *                                                       12400000
+         OI    DDSPECT2,X'02' TURN ON NORLSE FLAG                 75128 12410000
+         B     C                                                        12420005
+DSRLSE   B     C              DUMMY FOR RLSE                     75128  12430000
+           SPACE 3                                                      12440000
+DSNONAME    EQU  *                                                      12450000
+DSNODSN   CLI DDDSNAME,C' '    ALREADY GOT SOMETHING IN IT ?            12460000
+          BNE C03STNDS                                                  12470000
+          MVI DDDSNAME,C'%'                                             12480000
+          B   C                                                         12490000
+C03STNDS  JOLSTOR 'NO DSNAME ',DDDSNAME,#TKN                            12500000
+          B   C                                                         12510000
+          SPACE 3                                                       12520000
+DSNODCB   CLI DDRECFM,C' '                                              12530000
+          BNE C03STNRF                                                  12540000
+          MVI DDRECFM,C'%'                                              12550000
+          B   C                                                         12560000
+C03STNRF  JOLSTOR 'NO DCB',DDRECFM,#TKN                                 12570000
+          B   C                                                         12580000
+          SPACE 3                                                       12590000
+DSNOIO     EQU  *                                                       12600000
+DSDUMMY    EQU *                                                        12610000
+*          CLI DDDSNAME,C' '                                      74256 12620000
+*          BNE C03STDUM                                           74256 12630000
+          MVC DDDSNAME(6),=C'*DUMMY'                                    12640000
+           B  C                                                         12650000
+*03STDUM   JOLSTOR 'NO I0/DUMMY',DDDSNAME,#TKN                    74256 12660000
+*          B   C                                                  74256 12670000
+DSEROPT    LH  R1,TKNCURR      DUMMY                              75128 12680000
+           BCTR  R1,0         -1 SO NEXT GET WILL GET ACCEPT ETC  75311 12690000
+           B     SKIP1                                            75311 12700000
+DSACCEPT EQU   *                                                  75128 12710000
+         OI    DDSPECTP,X'40'      TURN ON ACCEPT ERRORS          75128 12720000
+         B     C03CHKER       CHECK IF NEXT TKN='ERRORS'          75128 12730000
+DSSKIP   EQU   *                                                  75128 12740000
+         OI    DDSPECTP,X'80'      TURN ON SKIP ERRORS            75128 12750000
+C03CHKER GETTKN TKNCURR       GET NEXT TOKEN                      75128 12760000
+         CLC =C'ERRORS ',TKN  ='ERRORS'                           75128 12770000
+         BNE   C              NO ->                               75128 12780000
+         B     SKIP1                                              75128 12790000
+DSCODE   JOLSTOR 'CODE',DDCODE,#TKN                                     12800000
+         B   C                                                          12810000
+         TITLE ' HANDLE OTHER SYSIN / SYSOUT PARAMETERS'          75128 12820000
+DSREPLAC EQU   *                                                  75128 12830000
+DSPRINTA EQU   *                                                  75128 12840000
+DSJOLCRD EQU   *                                                  82300 12850000
+DSPRINTN EQU   *                                                  75128 12860000
+DSNOSPLT EQU   *                                                   DASD 12870000
+DSPRINTO EQU   *                                                  75128 12880000
+         CLI   DDTYPE,DDSYSIN  SYSIN DECLARE ?                    75128 12890000
+         BE    C               YES,JUST IGNORE IT                 75128 12900000
+         B     C03ERR         GIVE ERROR MSSGE                    75128 12910000
+         SPACE 3                                                  75128 12920000
+DSOUTLIM  EQU   *                                                       12930000
+* WE USED TO HAVE (STILL DO IN FACT) A 'JOLSTOR' BUT IT                 12940000
+* WONT STORE NUMBER INTO AL3 FIELDS, SO :                               12950000
+          TNUM  #TKN                                                    12960000
+          LTR   R15,R15                                                 12970000
+          BNZ   DSOUTL2                                                 12980000
+          ST    R1,DBL                                                  12990000
+          CLC   DDOUTLIM,ZERO                                           13000000
+          BNE   DSOUTL2                                                 13010000
+          MVC   DDOUTLIM,DBL+1                                          13020000
+          B     C                                                       13030000
+DSOUTL2   JOLSTOR 'OUTLIM',DDOUTLIM,#TKN,NUM                            13040000
+          B   C                                                         13050000
+DSDEST   BAL   R14,DROPQUOT   DROP QUOTES (IF ANY) FROM TKN       75128 13060000
+         JOLSTOR 'ROUTE/DEST',DDROUTE,#TKN                        75128 13070000
+         B     C                                                  75128 13080000
+DSPROG   JOLSTOR 'SYSOUT PROGRAM',DDSYSPGM,#TKN                   75128 13090000
+         B     C                                                  75128 13100000
+DSUCS    JOLSTOR 'UCS',DDUCS,#TKN                                 75128 13110000
+         B     C                                                  75128 13120000
+DSFCB    JOLSTOR 'FCB',DDFCB,#TKN                                 75128 13130000
+         B     C                                                  75128 13140000
+DSVERIFY MVI   DDVERIFY,C'1'                                      75128 13150000
+         B     C                                                  75128 13160000
+DSALIGN  MVI   DDALIGN,C'1'                                       75128 13170000
+         B     C                                                  75128 13180000
+DSHOLD   OI    DDSPECT2,X'04'                                     75128 13190000
+         B     C                                                  75128 13200000
+DSFREE    EQU   *                                                       13210000
+         GETTKN TKNCURR         GET NEXT TOKEN                          13220000
+         CLI   TKN,C'='       = AFTER FREE ?                      75128 13230000
+         BNE   C03FREEB       NOPE SEE IF FREE(CLOSE)             75128 13240000
+         GETTKN (R1)          SKIP '='                            75128 13250000
+         STH   R1,TKNCURR                                         75128 13260000
+C03FREEB CLI   TKN,C'('       =( | FREE(CLOSE)                    75128 13270000
+         BNE   C03FREEA       NO, SHOULD BE 'AT'|'CLOSE'|'END'    75128 13280000
+         GETTKN (R1)          SKIP '()'                           75128 13290000
+         STH   R1,TKNCURR                                         75128 13300000
+C03FREEA EQU   *                                                        13310000
+         CLC     =C'AT ',TKN                                            13320000
+          BNE    C03FRCL                                                13330000
+          GETTKN (R1)                                                   13340000
+         STH R1,TKNCURR                                                 13350000
+C03FRCL  CLC  =C'END ',TKN                                              13360000
+          BE   C03ENDFR                                                 13370000
+         CLC   =C'CLOSE ',TKN                                     75128 13380000
+         BE    C03CLOSE                                           75128 13390000
+         OI    DDSPECT2,X'08' FREE WITHOUT 'CLOSE' | 'END'        75128 13400000
+         B     C                                                  75128 13410000
+C03CLOSE OI    DDSPECT2,X'08'                                     75128 13420000
+C03ENDFR STH   R1,TKNCURR                                               13430005
+         OI    DDSPECT2,X'10'  SET 'FREE AT END' BIT ON           80290 13440000
+         B     C                                                  75128 13450000
+DSDEN    JOLSTOR 'DEN',DDDENS,#TKN,NUM                            75128 13460000
+         B     C                                                  75128 13470000
+DSDIAGNS EQU   *                                                  75128 13480000
+DSTRACE  OI    DDSPECT2,X'40'                                     75128 13490000
+         B     C                                                  75128 13500000
+DSMAXVOL JOLSTOR 'MAXVOL',DDMAXVOL,#TKN,NUM                       75128 13510000
+         B     C                                                        13520000
+         SPACE 1                                                  75128 13530000
+DSDCBEXT EQU   *                                                  75128 13540000
+         MVI   DDOSVB+1,DDLEN+L'DDEXTRA                           75128 13550000
+         BAL   R14,DROPQUOT   DROP ''                             75128 13560000
+         JOLSTOR 'DCB-EXTRA',DDEXTRA,#TKN                         75128 13570000
+         B     C                                                  75128 13580000
+         SPACE 1                                                  75128 13590000
+DSPARUN  MVI   #TKN+1,1       SET LENGTH TO 1                     75128 13600000
+         MVI  TKN,C'1'        SET IN CASE WE HAVE TO USE JOLSTOR        13610000
+*                             TO GIVE ERROR MESSAGE                     13620000
+         CLI   DDUNITNO,C' ' ANYTHING IN IT YET???                      13630000
+         BNE   DSUNITNO      USE JOLSTOR FOR ERROR      JOL30041 76200  13640000
+         MVI   DDUNITNO,C'P'                                            13650000
+         GETTKN               TKNCURR                             75311 13660000
+         CLC   =C'MOUNT ',TKN                                     75311 13670000
+         BE    SKIP1                                              75311 13680000
+         B     C                                                        13690000
+         SPACE 1                                                        13700000
+DSFOLD   MVI   #TKN+1,1    SET LENGTH TO '1'                      75311 13710000
+         JOLSTOR              'FOLD',DDFOLD,#TKN                  75311 13720000
+         B     C                                                  75311 13730000
+         SPACE 1                                                  75128 13740000
+* THESE COMMANDS ADDED FOR ALLOC COMMAND     CVC MAY 4, 1983            13750005
+DSOLD    MVI   DDUSE,B'00010000' OLD                                    13760005
+         B     C                                                        13770005
+DSSHR    MVI   DDUSE,X'00'                                              13780005
+         B     C                                                        13790005
+DSNEW    MVI   DDUSE,B'01010000'  NEW                                   13800005
+         B     C                                                        13810005
+DSDEL    MVI   DDDISP+1,C'D'      DELETE                                13820005
+         B     C                                                        13830005
+DSCAT    MVI   DDDISP+1,C'C'      CATLG                                 13840005
+         B     C                                                        13850005
+DSFILE   JOLSTOR 'FILE NAME',DDDDNAME,#TKN                              13860005
+         B     C                                                        13870005
+* END KEYWORDS ADDED FOR ALLOC COMMAND     CVC MAY 4, 1983              13880005
+C03ZAP1  JOLSTOR '        ',TKN,#TKN                                    13890000
+         B     C                                                        13900000
+C03ZAP2  JOLSTOR '        ',TKN,#TKN                                    13910000
+         B     C                                                        13920000
+C03ZAP3  JOLSTOR '        ',TKN,#TKN                                    13930000
+         B     C                                                        13940000
+C03ZAP4  JOLSTOR '        ',TKN,#TKN                                    13950000
+         B     C                                                        13960000
+C03ZAP5  JOLSTOR '        ',TKN,#TKN                                    13970000
+         B     C                                                        13980000
+           SPACE 1                                                74256 13990000
+C03SPTBL   DC  CL7'TRKS'                                          74256 14000000
+         DC    CL7'CYLS'                                          75128 14010000
+         DC    CL7'BLKS'                                          75128 14020000
+         DC    CL7'TRK'                                           75128 14030000
+         DC    CL7'CYL'                                           75128 14040000
+         DC    CL7'BLK'                                           75128 14050000
+         DC    CL7'BLOCKS'                                        75128 14060000
+         DC    CL7'BLOCK'                                               14070000
+         DC    CL7'TRACKS'                                        75128 14080000
+         DC    CL7'TRACK'                                          DASD 14090000
+C03SPTBE   EQU *                                                  74256 14100000
+C03LA10  LA    R10,0          ****** MOVED TO DBL AND EXECUTED    75128 14110000
+           LTORG                                                  74256 14120000
+         CNOP  0,8                                                      14130000
+           DC   100S(*)                                                 14140005
+* 30 MAY,1975  *****                                                    14150000
+* THESE KEYWORDS USED TO BE IN A SEPERATELY ASSEMBLED CSECT             14160000
+* THE FORMAT OF THE TABLE HAS BEEN CHANGED TO PUT THE MOST              14170000
+*  FREQUENTLY USED KEY-WORDS UP THE FRONT OF THE TABLE                  14180000
+* FURTHERMORE, AN INDICATOR IS NOW USED TO INDICATE WHETHER             14190000
+*  THE WORD EXPECTS A VALUE (OR=) AFTER IT, OR WHETHER IT IS            14200000
+*  A WORD WITH MEANING ON ITS OWN (EG DUMMY)                            14210000
+*                                                                       14220000
+* THE INDICATOR VALUES ARE:-                                            14230000
+*                                                                       14240000
+*        LAST 2 BITS INDICATE WHETHER A VALUE IS EXPECTED AFTER         14250000
+*              THE KEYWORD OR NOT                                       14260000
+*        01,1  = YES                                                    14270000
+*        10,2  = NO                                                     14280000
+*                                                                       14290000
+*        NEXT 2 BITS INDICATE WHETHER KEYWORD IS ONLY FOR SYSOUT        14300000
+*              OR NON SYSOUT FILE                                       14310000
+*        01,4  = SYSOUT ONLY                                            14320000
+*        10,8  = NON-SYSOUT ONLY                                        14330000
+*                                                                       14340000
+* VALUES THERE-FORE ARE 1,2,3,4 IN DEC                                  14350000
+*                                                                       14360000
+         PRINT DATA                                                     14370000
+UJCDDKEY CSECT                                                          14380000
+         DC    A(*+12,12,UJCKEYE-12)      BXLE INCREMENTS               14390000
+* THE FIRST 8 BYTES ARE THE KEYWORDS,THE INDICATOR,THEN ADDRESS         14400000
+*  OF THE PROCESSING ROUTINES                                           14410000
+         SPACE 2                                                        14420000
+* FIRST, DSN KEYWORD                                                    14430000
+* THESE KEYWORDS ADDED FOR ALLOC COMMAND     CVC MAY 4, 1983            14440005
+         DC    CL8'OLD        ',AL1(2),AL1(0),S(DSOLD)                  14450005
+         DC    CL8'SHR        ',AL1(2),AL1(0),S(DSSHR)                  14460005
+         DC    CL8'NEW        ',AL1(2),AL1(0),S(DSNEW)                  14470005
+         DC    CL8'DELETE     ',AL1(2),AL1(0),S(DSDEL)                  14480005
+         DC    CL8'DEL        ',AL1(2),AL1(0),S(DSDEL)                  14490005
+         DC    CL8'CAT        ',AL1(2),AL1(0),S(DSCAT)                  14500005
+         DC    CL8'CATLG      ',AL1(2),AL1(0),S(DSCAT)                  14510008
+         DC    CL8'FILE       ',AL1(1),AL1(0),S(DSFILE)                 14520005
+         DC    CL8'F          ',AL1(1),AL1(0),S(DSFILE)                 14530005
+* END KEYWORDS ADDED FOR ALLOC COMMAND     CVC MAY 4, 1983              14540005
+         DC    CL8'DSN        ',AL1(1),AL1(0),S(DSDSN)                  14550000
+         DC    CL8'DA         ',AL1(1),AL1(0),S(DSDSN)                  14560010
+         DC    CL8'DS         ',AL1(1),AL1(0),S(DSDSN)                  14570010
+* NEXT SOME COMMONLY USED RECORD FORMATS                                14580000
+         DC    CL8'VB         ',AL1(2),AL1(0),S(ISARECFM)               14590000
+         DC    CL8'FB         ',AL1(2),AL1(0),S(ISARECFM)               14600000
+         DC    CL8'VBA        ',AL1(2),AL1(0),S(ISARECFM)               14610000
+         DC    CL8'FBM        ',AL1(2),AL1(0),S(ISARECFM)               14620000
+         DC    CL8'FBA        ',AL1(2),AL1(0),S(ISARECFM)               14630000
+* NOW UNIT AND VOL KEYWORDS                                             14640000
+         DC    CL8'UNIT       ',AL1(1),AL1(0),S(DSUNIT)           76200 14650000
+         DC    CL8'VOL        ',AL1(1+8),AL1(0),S(DSVOL)                14660000
+         DC    CL8'VOLS       ',AL1(1+8),AL1(0),S(DSVOL)                14670000
+* NOW SPACE WORDS                                                       14680000
+         DC    CL8'SPACE      ',AL1(1),AL1(0),S(DSSPACE)                14690000
+         DC    CL8'SIZE       ',AL1(1),AL1(0),S(DSSIZE)                 14700000
+         DC    CL8'NORLSE     ',AL1(2),AL1(0),S(DSNORLSE)               14710000
+* NOW LABEL OR FILESEQ                                                  14720000
+         DC    CL8'LABEL      ',AL1(1+8),AL1(0),S(DSLABEL)              14730000
+         DC    CL8'FILENO     ',AL1(1+8),AL1(0),S(DSLABEL)              14740000
+         DC    CL8'FILESEQ    ',AL1(1+8),AL1(0),S(DSLABEL)              14750000
+         DC    CL8'POSITION   ',AL1(1+8),AL1(0),S(DSLABEL)        75128 14760000
+         DC    CL8'VOLCOUNT   ',AL1(1+8),AL1(0),S(DSMAXVOL)       75128 14770000
+          DC    CL8'CONTIG     ',AL1(2),AL1(0),S(DSCONTIG)              14780000
+         DC    CL8'REPLACE    ',AL1(2),AL1(0),S(DSREPLAC)               14790000
+*                                                                       14800000
+* THAT END WHAT WE THINK ARE THE REALLY COMMONLY USED KEYWORDS          14810000
+         SPACE 2                                                        14820000
+* SOME MORE RECORD FORMATS                                              14830000
+         DC    CL8'U          ',AL1(2),AL1(0),S(ISARECFM)               14840000
+         DC    CL8'V          ',AL1(2),AL1(0),S(ISARECFM)               14850000
+         DC    CL8'VA         ',AL1(2),AL1(0),S(ISARECFM)               14860000
+         DC    CL8'VM         ',AL1(2),AL1(0),S(ISARECFM)               14870000
+         DC    CL8'VBM        ',AL1(2),AL1(0),S(ISARECFM)         75311 14880000
+         DC    CL8'F          ',AL1(2),AL1(0),S(ISARECFM)               14890000
+         DC    CL8'FA         ',AL1(2),AL1(0),S(ISARECFM)               14900000
+         DC    CL8'FM         ',AL1(2),AL1(0),S(ISARECFM)               14910000
+* THE REST WILL BE PLACED LATER                                         14920000
+* NOW NODSN                                                             14930000
+         DC    CL8'NODSN      ',AL1(2+8),AL1(0),S(DSNODSN)              14940000
+         DC    CL8'NODSNAME  ',AL1(2+8),AL1(0),S(DSNODSN)         75311 14950000
+         DC    CL8'NONAME    ',AL1(2+8),AL1(0),S(DSNODSN)         75311 14960000
+         DC    CL8'NODCB      ',AL1(2),AL1(0),S(DSNODCB)                14970000
+         DC    CL8'DUMMY      ',AL1(2),AL1(0),S(DSDUMMY)                14980000
+* NOW RETENTION DATE KEYWORDS                                           14990000
+         DC    CL8'RETAIN     ',AL1(1+8),AL1(0),S(DSRETAIN)             15000000
+         DC    CL8'FOR        ',AL1(1+8),AL1(0),S(DSFOR)                15010000
+         DC    CL8'TILL       ',AL1(1+8),AL1(0),S(DSTILL)               15020000
+         DC    CL8'TIL        ',AL1(1+8),AL1(0),S(DSTILL)         75311 15030000
+         DC    CL8'UNTIL      ',AL1(1+8),AL1(0),S(DSUNTIL)              15040000
+* LIKE AND EXT                                                          15050000
+         DC    CL8'LIKE       ',AL1(1),AL1(0),S(DSLIKE)                 15060000
+         DC    CL8'EXT        ',AL1(2),AL1(0),S(DSEXT)                  15070000
+          DC   CL8'EXTERNAL',AL1(2),AL1(0),S(DSEXT)                     15080000
+* NOW THE REST FOLLOW IN A 'SORT' OF AN ORDER                           15090000
+         DC    CL8'NODEF     ',AL1(2),AL1(0),S(DSNODEF)           75311 15100000
+         DC    CL8'&&         ',AL1(2+8),AL1(0),S(DSDSN)                15110000
+         DC    CL8'DEN        ',AL1(1+8),AL1(0),S(DSDEN)                15120000
+         DC    CL8'TRACE      ',AL1(2+8),AL1(0),S(DSTRACE)              15130000
+         DC    CL8'DIAGNS     ',AL1(1+8),AL1(0),S(DSDIAGNS)             15140000
+         DC    CL8'MAXVOL     ',AL1(1+8),AL1(0),S(DSMAXVOL)             15150000
+         DC    CL8'MAXVOLS    ',AL1(1+8),AL1(0),S(DSMAXVOL)       75311 15160000
+         DC    CL8'VOLUME     ',AL1(1+8),AL1(0),S(DSVOL)                15170000
+         DC    CL8'VOLUMES    ',AL1(1+8),AL1(0),S(DSVOL)                15180000
+         DC    CL8'VOLREF     ',AL1(1+8),AL1(0),S(DSVOLREF)             15190000
+         DC    CL8'UNITS      ',AL1(1),AL1(0),S(DSUNIT)           76200 15200000
+         DC    CL8'MSVGRP     ',AL1(1),AL1(0),S(DSMSSG)           80290 15210000
+         DC    CL8'MSVGP      ',AL1(1),AL1(0),S(DSMSSG)           80290 15220000
+         DC    CL8'GROUP      ',AL1(1),AL1(0),S(DSMSSG)           80290 15230000
+         DC    CL8'FORM       ',AL1(1+4),AL1(0),S(DSFORM)               15240000
+         DC    CL8'KEY        ',AL1(1+8),AL1(0),S(DSKEY)                15250000
+         DC    CL8'KEYLEN     ',AL1(1+8),AL1(0),S(DSKEYLEN)             15260000
+         DC    CL8'KEYPOS     ',AL1(1+8),AL1(0),S(DSKEYPOS)             15270000
+         DC    CL8'KEYPOSN    ',AL1(1+8),AL1(0),S(DSKEYPOS)             15280000
+         DC    CL8'VSAM       ',AL1(2+8),AL1(0),S(DSVSAM)               15290000
+         DC    CL8'NL         ',AL1(2+8),AL1(0),S(DSNL)                 15300000
+         DC    CL8'BLP        ',AL1(2+8),AL1(0),S(DSBLP)                15310000
+         DC    CL8'AUL        ',AL1(2+8),AL1(0),S(DSAUL)                15320000
+         DC    CL8'AL         ',AL1(2+8),AL1(0),S(DSAL)                 15330000
+         DC    CL8'SL         ',AL1(2+8),AL1(0),S(DSSL)                 15340000
+         DC    CL8'NSL        ',AL1(2+8),AL1(0),S(DSNSL)          75311 15350000
+         DC    CL8'SUL        ',AL1(2+8),AL1(0),S(DSSUL)                15360000
+         DC    CL8'LTM        ',AL1(2+8),AL1(0),S(DSLTM)          75128 15370000
+         DC    CL8'NOCAT      ',AL1(2+8),AL1(0),S(DSNOCAT)              15380000
+         DC    CL8'NOCATLG    ',AL1(2+8),AL1(0),S(DSNOCAT)              15390000
+         DC    CL8'PRIVATE    ',AL1(2+8),AL1(0),S(DSPRIVAT)             15400000
+         DC    CL8'NORELEASE  ',AL1(2+8),AL1(0),S(DSNORLSE)             15410000
+         DC    CL8'COPIES     ',AL1(1+4),AL1(0),S(DSCOPIES)             15420000
+         DC    CL8'BUFFNO     ',AL1(1),AL1(0),S(DSBUFNO)          75311 15430000
+         DC    CL8'BUFNO      ',AL1(1),AL1(0),S(DSBUFNO)                15440000
+         DC    CL8'BUFNI      ',AL1(1),AL1(0),S(DSBUFNI)                15450000
+         DC    CL8'BUFND      ',AL1(1),AL1(0),S(DSBUFND)                15460000
+         DC    CL8'BUFFER     ',AL1(1),AL1(0),S(DSBUFNO)                15470000
+         DC    CL8'BUFFERS    ',AL1(1),AL1(0),S(DSBUFNO)                15480000
+         DC    CL8'BUFL       ',AL1(1),AL1(0),S(DSBUFL)                 15490000
+         DC    CL8'BUFLEN     ',AL1(1),AL1(0),S(DSBUFL)                 15500000
+         DC    CL8'BUFLENGTH  ',AL1(1),AL1(0),S(DSBUFL)                 15510000
+         DC    CL8'BLOCK      ',AL1(1),AL1(0),S(DSBLOCK)                15520000
+         DC    CL8'B          ',AL1(1),AL1(0),S(DSBLOCK)                15530000
+         DC    CL8'BLOCKSIZE  ',AL1(1),AL1(0),S(DSBLOCK)                15540000
+         DC    CL8'BLKSIZE    ',AL1(1),AL1(0),S(DSBLOCK)                15550000
+         DC    CL8'LRECL      ',AL1(1),AL1(0),S(DSRECSIZ)               15560000
+         DC    CL8'RECSIZE    ',AL1(1),AL1(0),S(DSRECSIZ)               15570000
+         DC    CL8'RECORDSIZE ',AL1(1),AL1(0),S(DSRECSIZ)               15580000
+         DC    CL8'DSNAME     ',AL1(1+8),AL1(0),S(DSDSN)                15590000
+         DC    CL8'NAME       ',AL1(1+8),AL1(0),S(DSDSN)                15600000
+         DC    CL8'RECFM      ',AL1(1),AL1(0),S(DSRECFM)          75311 15610000
+         DC    CL8'UCOUNT     ',AL1(1),AL1(0),S(DSUNITNO)   30034 76200 15620000
+         DC    CL8'UNITNO    ',AL1(1),AL1(0),S(DSUNITNO)   30034 76200  15630000
+         DC    CL8'PARALLEL   ',AL1(2+8),AL1(0),S(DSPARUN)        75128 15640000
+         DC    CL8'VSEQ       ',AL1(1+8),AL1(0),S(DSVOLSEQ)       75128 15650000
+         DC    CL8'VOLSEQ     ',AL1(1+8),AL1(0),S(DSVOLSEQ)             15660000
+         DC    CL8'DEST       ',AL1(1+4),AL1(0),S(DSDEST)               15670000
+         DC    CL8'ROUTE      ',AL1(1+4),AL1(0),S(DSDEST)               15680000
+         DC    CL8'OUTLIM     ',AL1(1+4),AL1(0),S(DSOUTLIM)             15690000
+         DC    CL8'ABSTR      ',AL1(1),AL1(0),S(DSABSTR)                15700000
+*        DC    CL8'PROFILE    ',AL1(1+4),AL1(0),S(DSPROFIL)        SOCO 15710000
+         DC    CL8'PROG       ',AL1(1+4),AL1(0),S(DSPROG)               15720000
+         DC    CL8'PGM        ',AL1(1+4),AL1(0),S(DSPROG)               15730000
+         DC    CL8'UCS        ',AL1(1+4),AL1(0),S(DSUCS)                15740000
+         DC    CL8'FCB        ',AL1(1+4),AL1(0),S(DSFCB)                15750000
+         DC    CL8'DCBEXTRA   ',AL1(1),AL1(0),S(DSDCBEXT)               15760000
+         DC    CL8'QNAME      ',AL1(1),AL1(0),S(DSQNAME)           SOCO 15770000
+         DC    CL8'DIR        ',AL1(1+8),AL1(0),S(DSDIR)                15780000
+*        DC    CL8'LIMCT      ',AL1(1+8),AL1(0),S(DSLIMCT)              15790000
+*        DC    CL8'TRKOFL     ',AL1(1+8),AL1(0),S(DSTRKOFL)        SOCO 15800000
+         DC    CL8'CYLOFLO    ',AL1(1+8),AL1(0),S(DSCYLOFL)             15810000
+         DC    CL8'CYLOFL    ',AL1(1+8),AL1(0),S(DSCYLOFL)        75311 15820000
+*        DC    CL8'INDOFL     ',AL1(1+8),AL1(0),S(DSINDOFL)        SOCO 15830000
+*        DC    CL8'NCP        ',AL1(1+8),AL1(0),S(DSNCP)           SOCO 15840000
+         DC    CL8'OPTCD      ',AL1(1+8),AL1(0),S(DSOPTCD)              15850000
+* REST OF RECORD FORMATS                                                15860000
+         DC    CL8'D          ',AL1(2),AL1(0),S(ISARECFM)               15870000
+         DC    CL8'DM         ',AL1(2),AL1(0),S(ISARECFM)               15880000
+         DC    CL8'UT         ',AL1(2),AL1(0),S(ISARECFM)               15890000
+         DC    CL8'UA         ',AL1(2),AL1(0),S(ISARECFM)               15900000
+         DC    CL8'UM         ',AL1(2),AL1(0),S(ISARECFM)               15910000
+         DC    CL8'UTA        ',AL1(2),AL1(0),S(ISARECFM)               15920000
+         DC    CL8'UTM        ',AL1(2),AL1(0),S(ISARECFM)               15930000
+         DC    CL8'VS         ',AL1(2),AL1(0),S(ISARECFM)               15940000
+         DC    CL8'VT         ',AL1(2),AL1(0),S(ISARECFM)               15950000
+         DC    CL8'VBS        ',AL1(2),AL1(0),S(ISARECFM)               15960000
+         DC    CL8'VBT        ',AL1(2),AL1(0),S(ISARECFM)         75311 15970000
+         DC    CL8'FST        ',AL1(2),AL1(0),S(ISARECFM)         75311 15980000
+         DC    CL8'VST        ',AL1(2),AL1(0),S(ISARECFM)         75311 15990000
+         DC    CL8'VBT        ',AL1(2),AL1(0),S(ISARECFM)               16000000
+         DC    CL8'VBST       ',AL1(2),AL1(0),S(ISARECFM)               16010000
+         DC    CL8'VBSA       ',AL1(2),AL1(0),S(ISARECFM)               16020000
+         DC    CL8'VBSM       ',AL1(2),AL1(0),S(ISARECFM)               16030000
+         DC    CL8'FS         ',AL1(2),AL1(0),S(ISARECFM)               16040000
+         DC    CL8'FT         ',AL1(2),AL1(0),S(ISARECFM)               16050000
+         DC    CL8'FBS        ',AL1(2),AL1(0),S(ISARECFM)               16060000
+         DC    CL8'FBT        ',AL1(2),AL1(0),S(ISARECFM)         75311 16070000
+         DC    CL8'FST        ',AL1(2),AL1(0),S(ISARECFM)               16080000
+         DC    CL8'FBST       ',AL1(2),AL1(0),S(ISARECFM)               16090000
+         DC    CL8'FBSA       ',AL1(2),AL1(0),S(ISARECFM)               16100000
+         DC    CL8'FBSM       ',AL1(2),AL1(0),S(ISARECFM)               16110000
+         DC    CL8'G          ',AL1(2),AL1(0),S(ISARECFM)               16120000
+         DC    CL8'R          ',AL1(2),AL1(0),S(ISARECFM)               16130000
+         DC    CL8'S          ',AL1(2),AL1(0),S(ISARECFM)               16140000
+* DSORGS                                                                16150000
+         DC    CL8'DSORG      ',AL1(1),AL1(0),S(DSORG)                  16160000
+         DC    CL8'PS         ',AL1(2+8),AL1(0),S(DSORG)                16170000
+         DC    CL8'PSU        ',AL1(2+8),AL1(0),S(DSORG)                16180000
+         DC    CL8'IS         ',AL1(2+8),AL1(0),S(DSORG)                16190000
+         DC    CL8'ISU        ',AL1(2+8),AL1(0),S(DSORG)                16200000
+         DC    CL8'PO         ',AL1(2+8),AL1(0),S(DSORG)                16210000
+         DC    CL8'POU        ',AL1(2+8),AL1(0),S(DSORG)                16220000
+         DC    CL8'DAU        ',AL1(2+8),AL1(0),S(DSORG)                16230000
+*        DC    CL8'CONSEQ     ',AL1(2+8),AL1(0),S(DSCONS)          SOCO 16240000
+*        DC    CL8'CONSEC     ',AL1(2+8),AL1(0),S(DSCONS)          SOCO 16250000
+         DC    CL8'SEQ        ',AL1(2+8),AL1(0),S(DSSEQ)                16260000
+*        DC    CL8'INDEXED    ',AL1(2+8),AL1(0),S(DSIND)           SOCO 16270000
+*        DC    CL8'PARTITIONED',AL1(2+8),AL1(0),S(DSPART)          SOCO 16280000
+         DC    CL8'SEQUENTIAL ',AL1(2+8),AL1(0),S(DSSEQ)                16290000
+* AND THE REST                                                          16300000
+         DC    CL8'NONAME     ',AL1(2+8),AL1(0),S(DSNONAME)             16310000
+         DC    CL8'NOIO       ',AL1(2),AL1(0),S(DSDUMMY)                16320000
+*        DC    CL8'NOOPT      ',AL1(2),AL1(0),S(DSNOOPT)           SOCO 16330000
+         DC    CL8'EROPT      ',AL1(1),AL1(0),S(DSEROPT)                16340000
+         DC    CL8'ACCEPT     ',AL1(2),AL1(0),S(DSACCEPT)               16350000
+         DC    CL8'ACC       ',AL1(2),AL1(0),S(DSACCEPT)          75311 16360000
+         DC    CL8'JOL        ',AL1(2),AL1(0),S(DSJOLCRD)         82300 16370000
+         DC    CL8'SKIP       ',AL1(2),AL1(0),S(DSSKIP)                 16380000
+         DC    CL8'SKP       ',AL1(2),AL1(0),S(DSSKIP)            75311 16390000
+         DC    CL8'ABEND     ',AL1(2),AL1(0),S(C)  IGNORE         75311 16400000
+         DC    CL8'ABE       ',AL1(2),AL1(0),S(C)  IGNORE         75311 16410000
+         DC    CL8'ROUND      ',AL1(2),AL1(0),S(DSROUND)                16420000
+         DC    CL8'ALIGN      ',AL1(2+4),AL1(0),S(DSALIGN)              16430000
+         DC    CL8'VERIFY     ',AL1(2+4),AL1(0),S(DSVERIFY)             16440000
+         DC    CL8'HOLD       ',AL1(2+4),AL1(0),S(DSHOLD)               16450000
+         DC    CL8'ASCII      ',AL1(2),AL1(0),S(DSASCII)                16460000
+         DC    CL8'FIXED      ',AL1(2),AL1(0),S(DSFIXED)                16470000
+         DC    CL8'VARIABLE   ',AL1(2),AL1(0),S(DSVARIAB)               16480000
+         DC    CL8'UNDEFINED  ',AL1(2),AL1(0),S(DSUNDEF)                16490000
+         DC    CL8'UNDEF      ',AL1(2),AL1(0),S(DSUNDEF)                16500000
+         DC    CL8'VAR        ',AL1(2),AL1(0),S(DSVARIAB)               16510000
+*        DC    CL8'UNMOVEABLE ',AL1(2),AL1(0),S(DSNOMOVE)          SOCO 16520000
+*        DC    CL8'NOMOVE     ',AL1(2),AL1(0),S(DSNOMOVE)          SOCO 16530000
+         DC    CL8'READ       ',AL1(2+8),AL1(0),S(DSREAD)               16540000
+         DC    CL8'READONLY   ',AL1(2+8),AL1(0),S(DSREAD)               16550000
+         DC    CL8'PROTECT    ',AL1(2+8),AL1(0),S(DSPROTEC)             16560000
+         DC    CL8'MXIG       ',AL1(2),AL1(0),S(DSMXIG)                 16570000
+         DC    CL8'ALX        ',AL1(2),AL1(0),S(DSALX)                  16580000
+         DC    CL8'ROUND      ',AL1(2),AL1(0),S(DSROUND)                16590000
+          DC    CL8'RLSE       ',AL1(2),AL1(0),S(DSRLSE)                16600000
+         DC    CL8'PRINTALL   ',AL1(2),AL1(0),S(DSPRINTA)               16610000
+         DC    CL8'PRINTNONE  ',AL1(2),AL1(0),S(DSPRINTN)               16620000
+         DC    CL8'NOSPLIT    ',AL1(2),AL1(0),S(DSNOSPLT)          DASD 16630000
+         DC    CL8'PRINTOFF   ',AL1(2),AL1(0),S(DSPRINTO)               16640000
+         DC    CL8'CODE       ',AL1(1+8),AL1(0),S(DSCODE)               16650000
+         DC     CL8'FREE       ',AL1(2),AL1(0),S(DSFREE)                16660000
+        DC     CL8'OF          ',AL1(1),AL1(0),S(DSOF)  *****           16670000
+         DC    CL8'NODEFAULT ',AL1(2),AL1(0),S(DSNODEF)           75311 16680000
+         DC    CL8'FOLD      ',AL1(2+4),AL1(0),S(DSFOLD)          75311 16690000
+         DC    CL8' ZAP01     ',AL1(2),AL1(0),S(C03ZAP1)          75128 16700000
+         DC    CL8' ZAP02     ',AL1(2),AL1(0),S(C03ZAP2)          75128 16710000
+         DC    CL8' ZAP03     ',AL1(2),AL1(0),S(C03ZAP3)          75128 16720000
+         DC    CL8' ZAP04     ',AL1(1),AL1(0),S(C03ZAP4)          75128 16730000
+         DC    CL8' ZAP05     ',AL1(1),AL1(0),S(C03ZAP5)          75128 16740000
+* ZAP SPACE FOR NEW KEYWORDS                                            16750000
+         DC    CL8' ZAP05     ',AL1(0),AL1(0),S(0)                75311 16760000
+         DC    CL8' ZAP06     ',AL1(0),AL1(0),S(0)                75311 16770000
+         DC    CL8' ZAP07     ',AL1(0),AL1(0),S(0)                75311 16780000
+         DC    CL8' ZAP08     ',AL1(0),AL1(0),S(0)                75311 16790000
+         DC    CL8' ZAP09     ',AL1(0),AL1(0),S(0)                75311 16800000
+         DC    CL8' ZAP10     ',AL1(0),AL1(0),S(0)                75311 16810000
+UJCKEYE  EQU   *                                                        16820000
+         DC    CL8'           ',AL1(0),AL1(0),S(0)                      16830000
+         DC    CL8'           ',AL1(0),AL1(0),S(0)                      16840000
+         DC    CL8'           ',AL1(0),AL1(0),S(0)                      16850000
+         DC    CL8'           ',AL1(0),AL1(0),S(0)                      16860000
+         DC    CL8'           ',AL1(0),AL1(0),S(0)                      16870000
+         DC    CL8'           ',AL1(0),AL1(0),S(0)                      16880000
+         DC    CL8'           ',AL1(0),AL1(0),S(0)                      16890000
+          END                                                           16900000

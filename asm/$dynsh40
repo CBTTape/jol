@@ -1,0 +1,1586 @@
+$DYNSH40 TITLE 'JOL DYNAMIC TRANSIENT SCHEDULER/INSTRUCTION HANDLER'    00200014
+* TEMP MOD BY CVC TO COMPILE - FEB 2010                                 00201038
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974,1975,1976  00210000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1980,1981,1982.                00220000
+* JOL COPYRIGHT CCS-JOL PTY LTD 1985, 1986.                             00230000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-E001.           00240000
+         SPACE 3                                                        00250000
+*                   J             000000            L                   00260000
+*                   J            0      0           L                   00270000
+*                   J           0        0          L                   00280000
+*                   J          0          0         L                   00290000
+*                   J         0            0        L                   00300000
+*                   J         0            0        L                   00310000
+*                   J         0            0        L                   00320000
+*                   J         0            0        L                   00330000
+*                   J         0            0        L                   00340000
+*                   J         0            0        L                   00350000
+*                   J         0            0        L                   00360000
+*        J          J         0            0        L                   00370000
+*         J        J           0          0         L                   00380000
+*          J      J             0        0          L                   00390000
+*           J    J               0      0           L                   00400000
+*            JJJJ                 000000            LLLLLLLLLLL         00410000
+           SPACE 3                                                      00420000
+* LAST SOURCE UPDATE MAR 1982 BY J SUMMERFIELD                          00430000
+*                                   OF KURRAWANG COMPUTER PROGRAMMING   00440000
+*   CHANGES:-                                                           00450000
+*     1. OSIV/X8 SUPPORT                                                00460000
+* LAST SOURCE UPDATE 26/8/1981   BY CVC.                                00470000
+*   CHANGES:-                                                           00480000
+*     1. FIX 800 BPI TAPE PROBLEM                                       00490000
+*     2. ALLOW JOL TO USE PROGRAMS IN LPALIB                            00500000
+* FOLLOWING FIXES CODED, SEPT 7,1976                                    00510000
+*                                                                       00520000
+*CHG26028      PROVIDE SUPPORT FOR 'IF ERROR'                           00530000
+*CHG30002      AS ABOVE                                                 00540000
+*CHG30062      HIGHLIGHT ERROR MESSAGES ETC MORE                        00550000
+*JOL30112      PROVIDE SUPPORT FOR DELETE GDGALL                        00560000
+*JOL30114      ALLOW UP TO 5 LEVELS OF MACROS                           00570000
+*JOL30115      CLOSE FILES BEFORE ABENDING                              00580000
+*JOL30116      FIX DELETE TEMPORARY DATA-SETS                           00590000
+* ALSO UPDATE CAMLIST,SCRATCH ETC MACROS FOR VS RETURN CODES            00600000
+********************************************************************    00610000
+*                                                                       00620000
+*            JOL EXECUTE 'INITIATOR/SCHEDULER'                          00630000
+*                                                                       00640000
+*                                                                       00650000
+*                                                                       00660000
+*                                                                       00670000
+*                                                                       00680000
+*                                                                       00690000
+* NOTE: MANY MACRO NAMES ARE THE SAME AS THOSE USED IN THE JOL          00700000
+*     COMPILER,BUT THEIR GENERATED CODE DIFFERS VERY SLIGHTLY           00710000
+*     FROM THE OTHER MODULES,EVEN THOUGH THE FUNCTION IS THE SAME       00720000
+********************************************************************    00730000
+           SPACE 1                                                      00740000
+*********************************************************************** 00750000
+*                                                                       00760000
+*                                                                       00770000
+* DUE TO THE FAILURE OF IBM JOBQ MANAGEMENT ROUTINES (EITHER TO MY      00780000
+*    UNDERSTANGING OR IBM'S DOCUMENTATION) SOME 'EMERGENCY' TYPE        00790000
+*    CODE ALTERATION IS GOING ON TO GET JOL TO FUNCTION UNDER           00800000
+*    VS1. NOTE THAT MVS USES THE STANDARD IBM CODE.                     00810000
+*                                                                       00820000
+* CODE MARCH 7,1976: ALL MARKED '*****' IN COLS 67-71                   00830000
+*    SEE ALSO  'UJEJOB' CSECT FOR CHANGES                               00840000
+*                                                                       00850000
+*********************************************************************** 00860000
+           SPACE 3                                                      00870000
+           MACRO                                                        00880000
+           EYEBALL &A                                                   00890000
+          DC   0D'0',4CL8'&A'                                           00900000
+           MEND                                                         00910000
+           SPACE 6                                                      00920000
+           MACRO                                                        00930000
+&NAME      JOLERR &STMT=STMT                                            00940000
+.* THIS MACRO WILL PUT INTO A LOCATION A STRING OF CHARACTERS           00950000
+.* THE STRING MAY BE IN A BUFFER OR JOL MAY ITSELF CONTROL              00960000
+.*   THE WHERE-ABOUTS OF THE ERROR MESSAGE.                             00970000
+.*                                                                      00980000
+.* SYSLIST(1) IS TAKEN TO BE THE ERROR SEVERITY AND ALSO THE            00990000
+.*   ERROR NUMBER.                                                      01000000
+           LCLA &LITPOSN,&LITLEN                                        01010000
+           LCLC &CSECT,&ERRNO                                           01020000
+           LCLC &JOLERR,&CHAR1                                          01030000
+           LCLA &LENGTH,&THIS,&NOVAR,&POSN,&L,&K,&STMTLEN               01040000
+&STMTLEN   SETA 4                                                       01050000
+&CSECT     SETC '&SYSECT'(3,3)                                          01060000
+&ERRNO     SETC '&SYSLIST(1)'(2,K'&SYSLIST(1)-1)                        01070000
+&CHAR1     SETC '&SYSLIST(1)'(1,1)                                      01080000
+         AIF   ('&STMT' EQ 'STMT').ORDSTMT                              01090000
+           MVC S23STMT,&STMT MOVE NON-STANDARD STATEMENT NUMBER IN      01100000
+.ORDSTMT   ANOP                                                         01110000
+*-**-**-**-**-**-**-**-**-**-**-**-**-**-**-**-**-**-**-**-**-**-**-*   01120000
+&NAME      BAL 14,UJS23EP&CHAR1 LINK TO APPROPRIATE ERROR POINT         01130000
+&JOLERR    SETC '&CSECT-&ERRNO'                                         01140000
+ER&CSECT&ERRNO MVC 0(8,1),=CL8'&JOLERR' ERROR CODE IN CROSS-REF LIST    01150000
+E&SYSNDX   EQU   ER&CSECT&ERRNO                                         01160000
+&THIS      SETA  2                                                      01170000
+.LUP4      ANOP                                                         01180000
+         AIF   (&THIS GT N'&SYSLIST).END                                01190000
+         AIF   ('&SYSLIST(&THIS)'(1,1) EQ '#').VAR2                     01200000
+         AIF   ('&SYSLIST(&THIS)'(1,1) EQ '''').LIT2                    01210000
+.* HERE IT SHOULD BE A CHAR VARIABLE                                    01220000
+&L         SETA L'&SYSLIST(&THIS)                                       01230000
+           MVC 0(&L,1),&SYSLIST(&THIS)         FIXED CHAR STRING        01240000
+         AGO   .ADD3                                                    01250000
+.LIT2      ANOP                                                         01260000
+.* NOW LOOK FOR DOUBLE QUOTES IN STRING TO CALCULATE THE CORRECT        01270000
+.*   LENGTH                                                             01280000
+&LITPOSN   SETA 2                              START AFTER 1ST QOTE     01290000
+&LITLEN    SETA K'&SYSLIST(&THIS)                                       01300000
+&LITLEN    SETA &LITLEN-2                                               01310000
+.TQUOTE2 AIF   ('&SYSLIST(&THIS)'(&LITPOSN,2) NE '''''').NOTDBL2        01320000
+&LITPOSN   SETA &LITPOSN+1                                              01330000
+&LITLEN    SETA &LITLEN-1                                               01340000
+.NOTDBL2   ANOP                                                         01350000
+&LITPOSN   SETA &LITPOSN+1                                              01360000
+         AIF   (&LITPOSN LT K'&SYSLIST(&THIS)).TQUOTE2                  01370000
+&K         SETA &LITLEN                                                 01380000
+           MVC 0(&K,1),=C&SYSLIST(&THIS)       MOVE LITERAL STRING      01390000
+&POSN      SETA  &POSN+&K                                               01400000
+         AGO   .ADD3                                                    01410000
+.VAR2      ANOP                                                         01420000
+           LA 15,&SYSLIST(&THIS)           LOAD ADDRESS VARYING STRING  01430000
+.ADD3      ANOP                                                         01440000
+&THIS      SETA &THIS+1                                                 01450000
+         AGO   .LUP4                                                    01460000
+.END       DC  H'0'                            END LIST                 01470000
+*-**-**-**-**-**-**-**-**-**-**-**-**-**-**-**-**-**-**-**-**-**-**-*   01480000
+           MEND                                                         01490000
+           SPACE 3                                                      01500000
+           MACRO                                                        01510000
+&NAME      JOLRETN &RC=0                                                01520000
+&NAME      L   R13,4(R13)      RESET SAVE ADDRESS                       01530000
+         AIF   ('&SYSLIST(1)' EQ '').R1412                              01540000
+           RETURN &SYSLIST(1),T,RC=&RC                                  01550000
+           MEXIT                                                        01560000
+.R1412     RETURN (14,12),T,RC=&RC                                      01570000
+           MEND                                                         01580000
+           SPACE 3                                                      01590000
+           MACRO                                                        01600000
+&NAME    JOLSAVE &AREA=,&CSECT=,&BASE=R11                               01610000
+         GBLA &REGEQU                                                   01620000
+.* SEE IF EQUATES SET UP FOR THIS RUN YET OR NOT                        01630000
+         AIF   (&REGEQU NE 0).NOEQU                                     01640000
+&CSECT   CSECT                                                          01650000
+R0       EQU   0                                                        01660000
+R1       EQU   1                                                        01670000
+R2       EQU   2                                                        01680000
+R3       EQU   3                                                        01690000
+R4       EQU   4                                                        01700000
+R5       EQU   5                                                        01710000
+R6       EQU   6                                                        01720000
+R7       EQU   7                                                        01730000
+R8       EQU   8                                                        01740000
+R9       EQU   9                                                        01750000
+R10      EQU   10                                                       01760000
+R11      EQU   11                                                       01770000
+R12      EQU   12                                                       01780000
+R13      EQU   13                                                       01790000
+R14      EQU   14                                                       01800000
+R15      EQU  15                                                        01810000
+&REGEQU  SETA 1                                                         01820000
+         AGO   .NOCSECT                                                 01830000
+.NOEQU   ANOP                                                           01840000
+         AIF   ('&CSECT' EQ '').NOCSECT                                 01850000
+         LTORG                                                          01860000
+         DS    0D                                                       01870000
+&CSECT   CSECT                                                          01880000
+.NOCSECT ANOP                                                           01890000
+&NAME    SAVE (14,12),,&CSECT.-&SYSDATE.:&SYSTIME                       01900000
+         AIF   (N'&BASE EQ 1).ONEBASE                                   01910000
+         USING &CSECT,&BASE(1),&BASE(2)                                 01920000
+         LR    &BASE(1),R15                                             01930000
+         LA    &BASE(2),2048(R15)                                       01940000
+         LA    &BASE(2),2048(&BASE(2))                                  01950000
+         AGO   .HOUSE                                                   01960000
+.ONEBASE ANOP                                                           01970000
+         USING &CSECT,&BASE                                             01980000
+         LR    &BASE,R15                                                01990000
+.HOUSE   AIF   ('&AREA' EQ '').GENAREA                                  02000000
+         MNOTE 12,'AREA NOW UNSUPPORTED'                                02010000
+         AGO   .HOUSE2                                                  02020000
+.GENAREA CNOP 0,4                                                       02030000
+         BAL   R15,*+76         BRANCH AROUND SAVE AREA                 02040000
+         DC    18F'-1'                                                  02050000
+.HOUSE2  ST    R15,8(,R13)                                              02060000
+         ST    R13,4(,R15)                                              02070000
+         LA    R13,0(,R15)     IT MAY BE NECESSARY TO CLEAR HIGH-BYTE   02080037
+         MEND                                                           02090000
+         EJECT                                                          02100000
+* THESE NEXT TWO MACROS ARE USED FOR READING AND WRITING JOBQ.          02110000
+*    IF THE SYSTEM IS VS,THE VS JOBQ ROUTINES ARE CALLED,OTHERWISE      02120000
+*    A STRAIGHT READ OR WRITE OPERATION IS PERFORMED.                   02130000
+         MACRO                                                          02140000
+&NAME    GETJOBQ &DECB,&TTR                                             02150000
+         GBLC  &JOLOS                                                   02160000
+         AIF   ('&JOLOS' NE 'X8').OK                                    02170000
+         MNOTE 12,'GETJOBQ IS NOT SUPPORTED ON OSIV/X8'                 02180000
+         MEXIT                                                          02190000
+.OK      ANOP                                                           02200000
+&NAME    LA  R0,&DECB        LOAD 0 WITH DECB ADDRESS                   02210000
+         L   R1,&TTR         LOAD ADDRESS OF AREA WITH TTR FOR POINT    02220000
+         BAL R14,GETJOBQ     BRANCH AND LINK TO POINT,READ,CHECK RTN    02230000
+         MEND                                                           02240000
+         SPACE                                                          02250000
+         MACRO                                                          02260000
+&NAME    PUTJOBQ &DECB,&TTR                                             02270000
+         GBLC  &JOLOS                                                   02280000
+         AIF   ('&JOLOS' NE 'X8').OK                                    02290000
+         MNOTE 12,'PUTJOBQ IS NOT SUPPORTED ON OSIV/X8'                 02300000
+         MEXIT                                                          02310000
+.OK      ANOP                                                           02320000
+&NAME    LA  R0,&DECB        LOAD 0 WITH DECB ADDRESS                   02330000
+         AIF   ('&TTR' EQ '').NOTTR                                     02340000
+         L   R1,&TTR         LOAD R1 WITH TTR REQUIRED                  02350000
+         AGO   .BAL                                                     02360000
+.NOTTR     SR  R1,R1           NO TTR,CLEAR REGISTER 1                  02370000
+.BAL       BAL R14,PUTJOBQ     BRANCH AND LINK TO POINT,WRITE CHECK RTN 02380000
+           MEND                                                         02390000
+         SPACE 3                                                        03350000
+         MACRO                                                          03360000
+&L       UJE22UPD &P1,&P2                                               03370000
+.* P1 IS ADDRESS OF DSNAME                                              03380000
+.* P2 IS ADDRESS OF VOLUME SERIAL NUMBER(S)                             03390000
+         LA    R0,E22PARM     SET UP PARAMETER LIST                     03400000
+         ST    R0,CALLAREA                                              03410000
+         MVC   E22DSN,&P1     COPY DSNAME                               03420000
+         MVC   E22VOL,&P2      AND VOLUME INFO                          03430000
+         LA    R1,CALLAREA    ADDRESS PARAMETER AREA                    03440000
+         MVI   0(R1),X'80'    THE FINAL TOUCH                           03450000
+         CALL  UJE22UPD       CALL MR FIXIT                             03460000
+         MEND                                                           03470000
+         TITLE 'JOL SCHEDULER MAIN-LINE'                                03480000
+         GBLA  &RSVDRC,&RETNSIZ                                         03490000
+         GBLC  &JOLOS                                                   03500000
+         GBLC  &TYPE                                                    03510000
+         LCLB  &X8                                                      03520000
+         LCLC  &C,&C1,&C2,&C3,&C4,&C5,&C6,&DDPRT,&DDINST                03530000
+&TYPE    SETC  'SCHED'                                                  03540000
+         $UJEPARM                                                       03550000
+&RETNSIZ SETA  2560          SIZE OF RETURN-CODE AREA                   03560000
+&X8      SETB  ('&JOLOS' EQ 'X8')                                       03570000
+&RSVDRC  SETA  4000*(1-&X8)+50*&X8                                      03580000
+&DDPRT   SETC  (&X8)'JOLPRINT'.(1-&X8)'$$PRNT'                          03590000
+&DDINST  SETC  (&X8)'JOLINST'.(1-&X8)'$$INST'                           03600000
+         PRINT ON,DATA                                                  03610003
+         AIF   (&X8).X8010 BYPASS MISLEADING REMARKS                    03620000
+*********************************************************************** 03630000
+*                                                                     * 03640000
+* CODE FOR IF ERROR IS INCORPORATED IN THIS DESCRIPTION OF THE MAIN-  * 03650000
+*  LINE ROUTINE                                                       * 03660000
+*                                                                     * 03670000
+*        CALL  UJE98INI;      /* IF ANY ERRORS (NO DD'S FOR SCHEDUER, * 03680000
+*                                  ETC),                              * 03690000
+*                             OR IF PROBLEM PROGRAM RETURNED A VALUE  * 03700000
+*                             THAT CAUSES JOB TO BE FLUSHED,          * 03710000
+*                             A NON-ZERO RETURN CODE IS GIVEN, AND    * 03720000
+*                             THE JOB WILL BE FLUSHED.                * 03730000
+*                        NOTE:- ABENDS DO NOT CAUSE AN ERROR HERE.    * 03740000
+*                             */                                      * 03750000
+*        IF R15,=0 THEN                                               * 03760000
+*        DO;                                                          * 03770000
+*           SET GOBACK /* TO OS */ ON;                                * 03780000
+*           RETURN 4000;                                              * 03790000
+*        END;                                                         * 03800000
+*                                                                     * 03810000
+*        CALL  UJE50RD;       /* READ A STMT FROM 'INSRUCT' FILE */   * 03820000
+*        IF R15>=0 GO TO EOF; /* GO TO END OF JOB */                  * 03830000
+*                                                                     * 03840000
+*        SET  R4=COND(LEVEL*8 + NEST);                                * 03850000
+*                                                                     * 03860000
+*        IS INSTRUCT='IF' ?                                           * 03870000
+*        YES, DO;                                                     * 03880000
+*                                                                     * 03890000
+*              SET 0(R4)='T';                                         * 03900000
+* E00CLIF:     CALL IF;                                               * 03910000
+*              IF TRUE        /* CHECKS FOR ABEND, AND IF 'ERROR' */  * 03920000
+* NEW          THEN DO;                                               * 03930000
+* NEW               CALL UJE50RD;                                     * 03940000
+* NEW               IF R15>=0,                                        * 03950000
+* NEW               GO TO EOF;                                        * 03960000
+* NEW               IF 'IF' GO TO E00CLIF; /* TEST NEXT IF IN CHAIN*/ * 03970000
+* NEW               ELSE GO TO E00EXECI;(EXECUTE INSTRUCTION) ;       * 03980000
+*              END;                                                   * 03990000
+* SKIP:        ELSE SKIP TILL MATCHING END ETC;                       * 04000000
+*                                                                     * 04010000
+*        END;                                                         * 04020000
+*                                                                     * 04030000
+* NEW    IF ABEND OCCURED                                             * 04040000
+* NEW      AND CURRENT LEVEL,NEST                                     * 04050000
+* NEW      <=  ERROR LEVEL,NEST (LEVEL,NEST ABEND OCCURED AT)         * 04060000
+* NEW      THEN DO;           /* IE, SKIP INSTRUCTION BECAUSE ABEND*/ * 04070000
+* NEW          CLEAR INERROR  /* CLEAR ERROR LOOP INDICATOR*/         * 04080000
+* NEW          GO TO SKIP;    /* ALLOWS FOR IF ERROR, DO; */          * 04090000
+* NEW      END;               /* ETC */                               * 04100000
+*    /* NO ABEND */                                                   * 04110000
+* EXECUTE-INSTRUCTION:        /* BRANCHED TO BY 'IF TRUE'             * 04120000
+*                             ROUTINE ABOVE, THEREBY SKIPPING         * 04130000
+* NEW                         THE 'IF ABEND AND LEVELS' ABOVE.        * 04140000
+* NEW                                                                 * 04150000
+* NEW                         HENCE, IF ERROR WILL FUNCTION */        * 04160000
+*                                                                     * 04170000
+*                                                                     * 04180000
+*        IF A 'DO'                                                    * 04190000
+*        THEN DO;                                                     * 04200000
+*              NEST=NEST+1; GO TO READ;                               * 04210000
+*        END;                                                         * 04220000
+*                                                                     * 04230000
+*        IF AN 'END'                                                  * 04240000
+*        THEN  DO;                                                    * 04250000
+*              NEST=NEST-1;                                           * 04260000
+*              IF NEST=0                                              * 04270000
+*              THEN LEVEL=LEVEL-1;                                    * 04280000
+*              GO TO READ;                                            * 04290000
+*        END;                                                         * 04300000
+*        IS IT AN 'ELSE' ?                                            * 04310000
+*        YES, DO;                                                     * 04320000
+*              IS 0(R4)='T'                                           * 04330000
+*              YES, ELSE MUST BE FALSE, GO TO SKIPLOOP;               * 04340000
+*              NO,GO TO READ;                                         * 04350000
+*        END;                                                         * 04360000
+*                                                                     * 04370000
+*  /* OTHER */                                                        * 04380000
+*                                                                     * 04390000
+*        BRANCH TO PROCESSING ROUTINE                                 * 04400000
+*                                                                     * 04410000
+*                                                                     * 04420000
+*                                                                     * 04430000
+*********************************************************************** 04440000
+.X8010     ANOP                                                         04450000
+         SPACE                                                          04460003
+         EXTRN UJTNUM,UJEJOBQ      HELPS THE LINKAGE EDITOR FIND THINGS 04470003
+         JOLSAVE CSECT=UJE00MN,BASE=R12                                 04480000
+         ENTRY UJESCHED                                                 04490000
+UJESCHED EQU   UJE00MN                                                  04500000
+         L     R3,0(R1)                 ADDRESS OUR PARAMETER AREA      04510003
+         USING PARMAREA,R3                                              04520003
+         L     R5,=A(TABLES)                                            04530003
+         USING TABLES,R5                                                04540003
+E00VSSTR DS    0H                                                 74365 04550000
+         CALL  UJE98INI                 CALL INITIALISE ROUTINES        04560003
+         LTR   R15,R15                  INIT FAIL OR USER ABEND ?       04570003
+         BZ    E00FIRST                                                 04580003
+BADRETN  DS    0H                                                       04590000
+         CALL  UJE94CLN                CLEAN UP OUTSTANDING ALLOCATIONS 04600003
+         MVI   GOBACK,C'1'                                              04610003
+         BAL   R11,UJEFILES            GO CLOSE ALL FILES               04620003
+         JOLRETN RC=&RSVDRC            CANCEL JOB NOW                   04630003
+E00FIRST DS    0H                                                       04640000
+E00READ  DS    0H                                                       04650000
+E00MAINL DS    0H                      THIS IS THE MAIN-LINE.           04660003
+         CALL  UJE50RD                 READ NEXT STATEMENT              04670003
+         LTR   R15,R15                 READ OK (EOF MAYBEE)             04680003
+         BNZ   E00EOF                  EOF,RETURN AFTER SETTING END JOB 04690003
+*                                      INDICATORS.                      04700003
+         LH    R4,LEVEL                LEVEL INDICATOR                  04710003
+         SLL   R4,3                    *8 (WE ALLOW 8 NESTS PER LEVEL)  04720003
+         LH    R0,NEST                                                  04730003
+         AR    R4,R0                                                    04740003
+         LA    R4,COND(R4)             THERE,NOW WE CAN LOOK AT 'CONDS' 04750003
+         CLI   LABEL,C' '                                               04760003
+         BNE   E00LABOK                                                 04770003
+         MVC   LABEL(2),=C'$$'                                          04780003
+         MVC   LABEL+2(4),STMT                                          04790003
+E00LABOK DS    0H                                                       04800000
+         CLC   =C'IF ',ICOMMAND  IF?                                    04810003
+         BNE   E00TDO                  NO,GO TEST FOR A DO              04820003
+* OK,CALL THE IF PROCESSOR AND TEST FOR TRUE OR FALSE                   04830000
+         MVI   0(R4),C'T'              SET COND INITIALLY 'TRUE'        04840003
+         CALL  UJE04IF                                                  04850003
+         LTR   R15,R15                 IF 0,IT WAS A TRUE 'IF'          04860003
+         BNZ   E00IFRD0       FALSE, SKIP INSTRUCTION(S) CHG26028 76200 04870000
+* IF IS TRUE HERE                                        CHG26028 76200 04880000
+         CALL  UJE50RD        READ NEXT INSTRUCTION      CHG26028 76200 04890000
+         LTR   R15,R15        GET IT ?                   CHG26028 76200 04900000
+         BNZ   E00EOF         NO, GO TO EOF ROUTINE      CHG26028 76200 04910000
+         B     E00EXECI       YES, GO AND PERFORM IT     CHG26028 76200 04920000
+           SPACE 3                                                      04930000
+* NOW THE 'IF' IS FALSE                                                 04940000
+E00IFRD0   MVI 0(R4),C'F'      SET COND TO 'FALSE'                      04950000
+E00IFRD1   CALL UJE50RD        READ THE NEXT INSTRUCTION                04960000
+           LTR R15,R15                                                  04970000
+           BNZ E00EOF                                                   04980000
+           SPACE                                                        04990000
+E00SKIP  DS    0H                                        CHG26028 76200 05000000
+           CLC =C'IF ',ICOMMAND  IF THEN...IF THEN SITUATION?           05010000
+           BE  E00IFRD1        YES,SO SKIP THIS ONE NOW                 05020000
+           CLC =C'MACRO ',ICOMMAND   IS IT A MACRO HEADER ?             05030000
+           BE E00IFLUP         START SKIPPING UNTIL MATCHING 'END'      05040000
+           CLC =C'DO ',ICOMMAND IS IT A 'DO;                            05050000
+           BE E00IFLUP         START SKIPPING UNTIL MATCHING 'END'      05060000
+* HERE IT IS AN ORDINARY INSTRUCTION,AND WE HAVE 'SKIPPED ' IF          05070000
+*     WE GO AND READ A NEW ONE NOW                                      05080000
+           B  E00READ                                                   05090000
+           SPACE 3                                                      05100000
+E00IFLUP DS    0H                                                       05110000
+* NOW WE HAVE FOUND A MACRO OR A DO                                     05120000
+           LA R4,1             SET NUMBER OF OUTSTANDING ENDS TO 1      05130000
+E00IFRD    DS    0H                                                     05140000
+           CALL UJE50RD        GET THE NEXT INSTRUCTION                 05150000
+           LTR R15,R15                                                  05160000
+           BNZ E00EOF          END OF INPUT FILE                        05170000
+           CLC =C'END ',ICOMMAND                                        05180000
+           BNE E00TIFMC        GO TEST IF INNER MACRO OR DO             05190000
+           SH R4,=H'1'         -1 FROM END COUNTER                      05200000
+           BZ  E00READ         GOOD OH,REACHED END OF FALSE LOOP        05210000
+           B  E00IFRD                                                   05220000
+           SPACE 3                                                      05230000
+E00TIFMC DS    0H                                                       05240000
+           CLC =C'MACRO ',ICOMMAND                                      05250000
+           BE  E00ADD1                                                  05260000
+           CLC =C'DO ',ICOMMAND                                         05270000
+           BNE E00IFRD                                                  05280000
+E00ADD1    LA R4,1(R4)         UP THE NUMBER OF OUTSTANDING 'ENDS'      05290000
+           B  E00IFRD          AND READ A NEW INSTRUCTION               05300000
+*  END IF PROCESSING                                                    05310000
+           SPACE 3                                                      05320000
+E00TDO   DS    0H                                                       05330000
+E00TERR  CLI   ERRORIND,0     HAS AN ABEND OCCURED ?     CHG26028 76200 05340000
+         BE    E00TDO2        NO, NOT YET                CHG26028 76200 05350000
+* AN ABEND HAS BEEN DETECTED SOMEWHERE.                  CHG26028 76200 05360000
+*******************************************************************DASD 05370000
+*  IF ERROR SWITCH SETTINGS USING FIELD "INERRORL"                *DASD 05380000
+*                                                                 *DASD 05390000
+*  BYTES 0-3 ON = IF ERROR LOGIC IN PROCRESS                      *DASD 05400000
+*           OFF = NO IF ERROR LOGIC REACHED AS YET OR             *DASD 05410000
+*                 CURRENTLY RUNNING IF ERROR AT ABEND LEVEL       *DASD 05420000
+*  BYTES 4-7 ON = IF ERROR LOGIC REACHED AND ABEND OCCURED        *DASD 05430000
+*           OFF = NO ABEND OCCURED WITHIN IF ERROR LOGIC          *DASD 05440000
+*******************************************************************DASD 05450000
+         TM     INERRORL,X'0F' IF ERROR ON WITH AND ABEND ?        DASD 05460000
+         BZ     E00SKIP      NOPE   LETS SKIP ANY RUNNING AFTER ABEDASD 05470000
+         CLC   LEVEL(L'LEVEL+L'NEST),ERRLEVEL            CHG26028 76200 05480000
+         BH    E00TDO2        OK, IF ERROR THEN DO LOOP  CHG26028 76200 05490000
+         MVI   INERRORL,X'0F' TURN OFF 'IN ERROR LOOP'   CHG26028  DASD 05500000
+         B     E00SKIP        SKIP INSTRUCTION(S)        CHG26028 76200 05510000
+E00TDO2  DS    0H                                        CHG26028 76200 05520000
+E00EXECI DS    0H                                        CHG26028 76200 05530000
+         SPACE 2                                         CHG26028 76200 05540000
+           CLC =C'DO ',ICOMMAND IS IT A 'DO'                            05550000
+           BNE E00TMAC         NO,TEST IF 'MACRO'                       05560000
+           LH  R1,NEST         ADD                                      05570000
+           LA  R1,1(R1)            1 TO                                 05580000
+           CH  R1,=H'8'                NEST                             05590000
+           BH  E00DOERR            IF NOT                               05600000
+           STH R1,NEST         T00 BIG                                  05610000
+           B   E00READ         AND READ A NEW RECORD                    05620000
+E00DOERR   JOLERR 505,'TOO MANY DOS'   (THIS ABENDS,U0001)              05630000
+           SPACE 3                                                      05640000
+E00TMAC    CLC =C'MACRO ',ICOMMAND                                      05650000
+           BNE E00TEND                                                  05660000
+           LH  R1,LEVEL                                                 05670000
+           LA  R1,1(R1)                                                 05680000
+         CH    R1,=H'7'                                  JOL30114 76200 05690000
+           BL  E00MACOK                                                 05700000
+           JOLERR 508,'TOO MANY LEVELS'  (ABENDS TOO)                   05710000
+E00MACOK   STH R1,LEVEL                                                 05720000
+           LA R1,SAVENEST(R1)                                           05730000
+           MVC 0(1,R1),NEST+1 SAVE THE NEST SO WE CAN RESET AT MACRO    05740000
+*                              END SO AS NOT TO LOSE OURSELVES          05750000
+           XC  NEST,NEST                                                05760000
+           B   SETMACRO        TRUE 'LOOP',SET UP MACRO START           05770000
+           SPACE 3                                                      05780000
+E00TEND    CLC =C'END ',ICOMMAND WELL,PERHAPS IT IS AN 'END'            05790000
+           BNE E00TELSE        NOPE,GO TEST IF IT IS AN'ELSE' THEN      05800000
+           SPACE                                                        05810000
+           LH  R1,NEST         NOW REDUCE 'NEST'                        05820000
+           SH  R1,=H'1'                                                 05830000
+           BM  E00ENDMC        IF <0 IF IS A 'MACRO' END                05840000
+           STH R1,NEST                                                  05850000
+           B   E00READ        *********************** MARCH 12 76       05860000
+           BCTR R4,0           -1 FROM R4                         75311 05870000
+           MVI 0(R4),C' '      CLEAR COND                         75311 05880000
+           B   E00READ                                                  05890000
+           SPACE 3                                                      05900000
+E00ENDMC DS    0H                                                       05910000
+* NOW THE'MACRO END' REQUIRES SPECIAL ATTENTION BECAUSE WE MUST         05920000
+*     STORE THE HIGHEST RETURN CODE FROM THE PROGRAMS EXECUTED          05930000
+*     BY THE MACROS.                                                    05940000
+           LH R1,LEVEL                                                  05950000
+           LA R15,SAVENEST(R1)                                          05960000
+           SH R1,=H'1'                                                  05970000
+           BNM E00MACEN                                                 05980000
+           JOLERR 506,'TOO MANY ENDS'  (ABENDS)                         05990000
+           SPACE 3                                                      06000000
+E00MACEN  DS    0H                                                      06010000
+           STH R1,LEVEL                                                 06020000
+           MVC NEST+1(1),0(R15)                                         06030000
+           SPACE 3                                                      06040000
+** STORE THE HIGHEST RETURN CODE FROM THE MACRO                         06050000
+           LA R7,IDSTART                                                06060000
+           LH R1,NOIDS                                                  06070000
+           MH R1,=H'18'                                                 06080000
+           LR R15,R7                                                    06090000
+           AR R7,R1                                                     06100000
+           LH R14,=H'-18'                                               06110000
+           LR R1,R7                                                     06120000
+           USING IDOVLY,R1                                              06130000
+           MVC DBL,IDRETN                                               06140000
+           L R7,DBL                                                     06150000
+**** CHECK FOR A DEAD MACRO HEADER WITH A -1 RETURN CODE AND BYPASSDASD 06160003
+           CLC  DBL(4),=F'-1'                                      DASD 06170000
+           BNE E00LUP10                                                 06180000
+           SR R7,R7                                                     06190000
+E00LUP10   CLC IDNAME,=CL8'MACRO'                                       06200000
+           BE  E00GMAC                                                  06210000
+           MVC DBL,IDRETN                                               06220000
+**** CHECK FOR A DEAD MACRO HEADER WITH A -1 RETURN CODE AND BYPASSDASD 06230003
+           CLC  DBL(4),=F'-1'                                      DASD 06240000
+           BE   E00BXH1                                            DASD 06250000
+           C R7,DBL                                                     06260000
+           BH  E00BXH1                                             DASD 06270000
+*          BL  E00BXH1                                             DASD 06280000
+           L   R7,DBL                                                   06290000
+E00BXH1    BXH R1,R14,E00LUP10                                          06300000
+         JOLERR 507,'NO MACRO START'                                    06310000
+E00GMAC  ST    R7,CALLAREA                                              06320000
+         MVC   IDRETN,CALLAREA                                          06330000
+         MVC   IDNAME,=CL8' '  TO GET RIGHT EFFECT FOR NESTED MACROS    06340000
+         B     E00READ                                                  06350000
+         SPACE 3                                                        06360000
+E00TELSE DS    0H                                                       06370000
+* NOW THE 'ELSE' MUST BE TESTED                                         06380000
+           CLC =C'ELSE ',ICOMMAND                                       06390000
+           BNE E00TFALS                NOT ELSE,TEST IF FALSE 'LOOP'    06400003
+           CLI 0(R4),C' '              WAS AN 'IF' JUST PROCESSED ?     06410003
+           BNE E00ELSOK                                                 06420000
+           JOLERR 402,'ELSE IGNORED'                                    06430000
+           SPACE 3                                                      06440000
+E00ELSOK DS    0H                                                       06450000
+           CLI 0(R4),C'F'              LAST FALSE?                      06460003
+           BNE E00TLTRU                                                 06470000
+           MVC 0(2,R4),=C'  '          TURN OFF COND CODE ALTOGETHER    06480003
+           B  E00READ                                                   06490000
+E00TLTRU   B  E00IFRD1                 GO JOIN 'IF' FALSE PROCESSOR     06500003
+           SPACE 3                                                      06510000
+E00TFALS DS    0H                                                       06520000
+E00ORD   DS    0H                                                       06530000
+           CLEAR ISRUN                                                  06540000
+           L   R1,=A(JE00TBL1) LOAD ADDRESS OF TABLE WITH THE           06550000
+*                              INSTRUCTION NAMES AND THE ADDRESSES      06560000
+*                              OF THE ROUTINES TO HANDLE THEM.          06570000
+           LM  R7,R9,0(R1)     LOAD BXLE ADDRESS CONSTANTS FOR          06580000
+*                              THE ABOVE TABLE.                         06590000
+E00FINDR DS    0H                                                       06600000
+           CLC ICOMMAND,0(R7)   COMPARE INSTRUCTION TO THAT IN TABLE    06610000
+           BE  E00GOTRT        GOT THE ROUTINE TO HANDLE IT.            06620000
+           BXLE  R7,R8,E00FINDR                                         06630000
+E00ERROR DS    0H                                                       06640000
+           JOLERR 503,'INVALID INSTRUCTION ''',ICOMMAND,               *06650000
+               ''' IN SCHED'                                            06660000
+           SPACE 3                                                      06670000
+E00GOTRT   L   R15,8(R7)       LOAD ROUTINE ADDRESS                     06680000
+           BALR R14,R15                                                 06690000
+           CLI ISRUN,C'1'      WAS A RUN JUST PROCESSED ?               06700000
+           BE  E00FNDRN        YES,TWAS A RUN                           06710000
+           LTR R15,R15         DID PROCESSOR HANDLE NORMAL INSTRUCTION  06720000
+*                              (EG TYPE,DELETE ETC??)                   06730000
+           BZ  E00MAINL        YES,SO TRY NEXT INSTRUCTION.             06740000
+* HERE AN INSTRUCTION WAS EXECUTED,BUT RETURNED A NON-ZERO              06750000
+*     CODE.                                                             06760000
+           CH  R15,=H'4'       RETURN TO OS AFTER SKIPPING TO           06770000
+*                              THE RIGHT JOB STEP ?                     06780000
+           BE E00STPON         STEP ON TO A NEW OS STEP.                06790000
+           CH R15,=H'&RSVDRC'  STOP ETC EXECUTED ?                      06800000
+           BE BADRETN                                                   06810000
+E00CLRC    MVC 0(2,R4),=CL2' '                                          06820000
+           B  E00MAINL                                                  06830000
+           B  *+4                                                       06840000
+           B  *+4                                                       06850000
+           B  *+4                                                       06860000
+           B  *+4                                                       06870000
+*     SET THE INDICATOR WHICH TELLS OUR CALLER (THE MONITOR)            06880000
+*     TO  RETURN TO OS SO IT CAN SKIP STEPS (OR CANCEL THE JOB)         06890000
+           SPACE 3                                                      06900000
+RETURN   DS    0H                                                 74365 06910000
+E00EOF   DS    0H                                                       06920000
+         AIF   (&X8).X8020                                              06930000
+* WE HAVE READ AN EOF ON THE INSTRUCTION FILE,SO WE WANT TO             06940000
+*     GET TO THE END OF THE JOB                                         06950000
+*                                                                       06960003
+* IF AN ABEND HAS OCCURED, WE SHOULD SET A RETURN OF                    06970003
+*  4000 SO THAT THE JOB WILL TERMINATE WITH AN ERROR CONDITION.         06980003
+         SPACE 1                                         CHG26028 76200 06990000
+         CLI   ERRORIND,0     DID AN ERROR OCCUR ?       CHG26028 76200 07000000
+         BE    E00EOF2        NO, SO TERMINATE NICELY    CHG26028 76200 07010000
+*                             (IF SLOWLY...)             CHG26028 76200 07020000
+         MVC   LASTCC+2(2),=H'&RSVDRC' FLUSH THE JOB     CHG26028 76200 07030000
+         B     RETNNOW        CLOSE FILES, RETURN.       CHG26028 76200 07040000
+E00EOF2     LA R11,1            SET EOF INDICATOR ON                    07050000
+           B  RETNNOW                                                   07060008
+           SPACE 3                                                      07070000
+E00STPON DS    0H                                                       07080000
+         SR  R11,R11         SET EOF INDICATOR OFF                      07090000
+         SPACE 3                                                        07100000
+E00GOTRS DS    0H                                                       07120000
+E00TEST  DS    0H                                                       07130000
+         POINT RETN,TTR$RETN                                            07140000
+           WRITE E00RET2,SF,RETN,READAREA,'S'                           07150000
+           CHECK E00RET2                                                07160000
+           SPACE 3                                                      07170000
+RETNNOW  DS    0H                                                       07180000
+         CALL  UJE94CLN            CLEAN UP OUTSTANDING ALLOCATIONS     07190000
+         MVI GOBACK,C'1'                                                07200000
+*          CLOSE (INSTRUCT,,PRINT,,RETN,,JOBQ)                    *DASD 07210000
+           BAL   R11,UJEFILES   GO CLOSE ALL FILES                 DASD 07220000
+         AIF   (&X8).X80CVC                                             07230000
+           L   R15,LASTCC                                         82200 07240000
+           AGO .X80RET                                                  07250000
+.X80CVC    L   R15,MAXCC                                          82200 07260000
+.X80RET    JOLRETN RC=(15)                                        75311 07270000
+E00FNDRN DS    0H                                                       07280000
+           LTR R15,R15         DO WE HAVE TO SKIP TO A NEW              07290000
+           BNZ E00STPON        OS STEP FOR THIS RUN ?                   07300000
+           SPACE 3                                                      07310000
+SETMACRO DS    0H                                                       07320000
+* RUN IT NOW                                                            07330000
+           LH  R1,NOIDS                                                 07340000
+           LA  R1,1(R1)                                                 07350000
+           CH  R1,MAXIDS                                                07360000
+           BL  MUVNAME                                                  07370000
+           LH  R1,MAXIDS                                                07380000
+           CVD R1,DBL                                                   07390000
+           UNPK DDPRIM,DBL                                              07400000
+           OI  DDPRIM+L'DDPRIM-1,X'F0'                                  07410000
+*******************************************************            DASD 07420000
+* NOW BEFORE ABENDING WE WILL TAKE A LOOK AT THE RETN *            DASD 07430000
+* TABLE FOR A USED MACRO HEADER AND OVERLAY IT MAKING *            DASD 07440000
+* ROOM FOR 1 NEW GUY                                  *            DASD 07450000
+*******************************************************            DASD 07460000
+         LH    R15,NOIDS      LOOK THIS MANY TIMES                 DASD 07470000
+         LA    R1,18                                               DASD 07480000
+         LA    R1,IDSTART(R1) START LOOKING HERE                   DASD 07490000
+         USING IDOVLY,R1                                           DASD 07500000
+SLIDELOP CLC   IDNAME,=CL8'MACRO' IS THIS GUY USED ?               DASD 07510000
+         BNE   SLIDEUP        YEA MOVE IT UP                       DASD 07520000
+         LA    R1,18(R1)      UP TO NEXT GUY                       DASD 07530000
+         BCT   R15,SLIDELOP                                        DASD 07540000
+* WELL GUY WHAT NOW ???????                                        DASD 07550000
+           JOLERR 501,'MAX ',DDPRIM,' STEPS EXCEEDED'                   07560000
+SLIDEUP  MVC   0(18,R1),18(R1) SLIDE THE REST UP 1                 DASD 07570000
+         LA    R1,18(R1)      INCR TO NEXT SLOT                    DASD 07580000
+         BCT   R15,SLIDEUP    LETS DO EM ALL                       DASD 07590000
+         LH    R1,NOIDS       NOW LOAD NO OF IDS AGAIN             DASD 07600000
+MUVNAME    STH R1,NOIDS                                                 07610000
+           MH  R1,=H'18'                                                07620000
+           LA R1,IDSTART(R1)                                            07630000
+           USING IDOVLY,R1                                              07640000
+           MVC IDSTMT,STMT                                              07650000
+           OC IDSTMT,=C'0000'                                           07660000
+           MVC IDNAME,TASKLABL                                          07670000
+           MVC IDNEST,NEST                                              07680000
+           MVC IDLEVEL,LEVEL                                            07690000
+           MVC IDRETN,=F'-1'                                            07700000
+           CLC =CL8'MACRO',ICOMMAND                                     07710000
+           BNE NOTMACH                                                  07720000
+           MVC IDNAME,=CL8'MACRO'                                       07730000
+           B  E00MAINL                                                  07740000
+NOTMACH  DS    0H                                                       07750000
+         AIF   (&X8).X8050                                              07760000
+* WE MUST NOW WRITE THE PROGRAM NAME IN THE PGM FIELD OF THE SCT        07770000
+*    SO THAT SMF WILL BE OK                                             07780000
+*CVC       GETJOBQ SCTDECB,JCTSSTR GET SCT,AFTER POINT                  07790003
+*CVC       CLC =C'$JOLMN',SCTPGMNM    FIRST PROGRAM GETS SMF RECORD 3.1 07800003
+*CVC       BNE E00SMF1                                                  07810003
+*CVC       MVC SCTPGMNM,RUNNAME                                         07820003
+E00SMF1  DS    0H                                                       07830000
+*CVC       PUTJOBQ SCTDECB     RE-WRITE SCT                             07840003
+* OK LET'S XCTL                                                         07850000
+         AGO   .NX8050                                                  07860000
+.X8050   ANOP                                                           07870000
+         FIX   'FIDDLE SMF RECORDS HERE'                                07880000
+.NX8050  ANOP                                                           07890000
+           POINT  RETN,TTR$RETN                                         07900000
+           WRITE DECBRET1,SF,RETN,READAREA,'S'                          07910000
+           CHECK  DECBRET1                                              07920000
+         AGO   .VS050                                                   07930000
+           SPACE 1                                                74365 07940000
+           CLI VS,C' '         ARE WE RUNNING UNDER VS ?          74365 07950000
+* IF WE ARE,WE WILL ATTACH NOW RATHER THAN XCTLING AND CLOSING    74365 07960000
+*          AS THIS IS FASTER AND VS CAN ROLL US OUT QUICKLIY      74365 07970000
+           BNE E00ISVS         IS VS,DO THINGS DIFFERENTLY        74365 07980000
+           CLI IBMRTN,C' '     ARE WE USING AN IBM ROUTINE TO     ***** 07990000
+*                              ACCESS JOBQ ?                      ***** 08000000
+           BE  E00NDEL2                                           ***** 08010000
+           DELETE EPLOC=IBMRTN YES, DELETE IT                     ***** 08020000
+E00NDEL2 DS    0H                                                 ***** 08030000
+*          CLOSE (INSTRUCT,,PRINT,,RETN,,JOBQ)                    *DASD 08040000
+           BAL   R11,UJEFILES   GO CLOSE ALL FILES                 DASD 08050000
+           MVC DBL(4),STMT    SAVE STATEMENT NUMBER WHILE         75128 08060000
+*                              PROBLEM PROGRAM IS EXECUTING             08070000
+           L   R1,ATASKPRM                     LOAD ADDR OF PARAMETER   08080000
+           ST R1,CALLAREA                                               08090000
+           MVI CALLAREA,X'80'                                           08100000
+           L   R13,4(R13)                      RESET SAVE ADDR          08110000
+           L   R14,12(R13)                     RESET RETURN ADDR        08120000
+           XCTL (2,12),DE=RUNNAME,DCB=0,MF=(E,CALLAREA)                 08130000
+.VS050     SPACE 3                                                75311 08140000
+E00ISVS    MVC DBL,STMT        SHIFT STATEMENT NUMBER             75311 08150000
+* 3.0 - MVS CODE                                                  75311 08160000
+*                                                                 75311 08170000
+* FOR 3.0 WE WILL ATTACH THE PROBLEM PROGRAM UNDER THE MONITOR,   75311 08180000
+* THAT IS, WE SHALL RETURN AS USUAL.                              75311 08190000
+*                                                                 75311 08200000
+* LATER, WHEN THIS CODE IS RE-ENTRANT, IT WILL BE MORE            75311 08210000
+* EFFICENT TO ATTACH IT HERE, BUT VS1 IS A BIT OF A PROBLEM       75311 08220000
+* BECAUSE IT DOESN'T HAVE 16MEGABYTES TO PLAY WITH.               75311 08230000
+           BAL   R11,UJEFILES   GO CLOSE ALL FILES                 DASD 08240000
+*          JOLRETN RC=0        UJEMON WILL LOOK AT 'VS' TOO.      75311 08250033
+           MVC CALLAREA(4),ATASKPRM                                DASD 08260033
+           MVI CALLAREA,X'80'                                      DASD 08270033
+           XC TASK2ECB,TASK2ECB                                    DASD 08280033
+           LA R1,CALLAREA                                          DASD 08290033
+           ATTACH DE=RUNNAME,ECB=TASK2ECB          74365           DASD 08300033
+           LR  R11,R1          SAVE TCB ADDRESS                    DASD 08310033
+           WAIT 1,ECB=TASK2ECB                                     DASD 08320033
+           MVC TASKRETN(1),X'1D'(R11) SHIFT IN ABEND CODE          DASD 08330033
+           MVC TASKRETN+1(3),TASK2ECB+1 AND RETURN CODE            DASD 08340033
+           ST R11,CALLAREA                                         DASD 08350033
+           DETACH CALLAREA                                         DASD 08360033
+           B E00VSSTR          BACK TO MAINLINE                    DASD 08370033
+           B *+4                                                   DASD 08380033
+           B *+4                                                   DASD 08390033
+           B *+4                                                   DASD 08400033
+*************************************************************      DASD 08410000
+*  CLOSE ANY OPEN FILES BEFORE RETURNING TO THE MONITOR     *      DASD 08420000
+*        MVS  WILL ABEND-C03                                *      DASD 08430000
+*************************************************************      DASD 08440000
+         FIX 'CLOSE TOGETHER'                                           08450000
+UJEFILES DS    0H                                                  DASD 08460000
+         FIX 'DON''T CLOSE'                                             08470003
+         BR    R11   **** DON'T CLOSE FOR DYNAMIC SCHEDULER             08480003
+         ST    R11,CALLAREA+4                                           08490000
+         LA    R10,INSTRUCT                                        DASD 08500000
+         BAL   R11,UJEFCLSE                                        DASD 08510000
+         LA    R10,PRINT                                           DASD 08520000
+         BAL   R11,UJEFCLSE                                        DASD 08530000
+         LA    R10,RETN                                            DASD 08540000
+         BAL   R11,UJEFCLSE                                        DASD 08550000
+*        AIF   (&X8).X8060                                              08560008
+         LA    R10,JOBQ                                            DASD 08570000
+         BAL   R11,UJEFCLSE                                        DASD 08580000
+         L     R11,CALLAREA+4                                           08590000
+         BR    R11                                                 DASD 08600000
+UJEFCLSE DS    0H                                                  DASD 08610000
+         TM    48(R10),X'10'  IS FILE OPEN ??                      DASD 08620000
+         BZ    0(R11)         NOPE  RETURN                         DASD 08630000
+         JOLCLOSE ((R10)),MF=(E,CALLAREA) CLOSE THIS GUY           DASD 08640000
+         BR    R11            RETURN                               DASD 08650000
+         LTORG                                                          08660003
+*                                                                       08670000
+ISRUN      DC C' '                                                      08680000
+RETNBLKS   DS  H                                                        08690000
+PDQDSNNO   DS  H                                                        08700000
+GOTOLAB    DS  CL8                                                      08710000
+APDQDIR    DS  A                                                        08720000
+           SPACE 3                                                      08730000
+LABEL      DS  CL8                                                      08740000
+COMMAND    DS  CL8                                                      08750000
+CURRTIME   DS  CL8                                                      08751017
+ZERO       DC  F'0'                                                     08752024
+GETATKN   LA R1,TKNX                                                    08760000
+          L  R15,=V(UJCGETKN)                                           08770000
+          BR R15                                                  75128 08780000
+           SPACE 3                                                      08790000
+E00FXVOL   MVI   VOL,C' '  CLEAR TO BLANKS                         DASD 08800000
+           MVC   VOL+1(L'VOL-1),VOL                                DASD 08810000
+           LA R1,VOL-1                                            74365 08820000
+           LA R15,DDVOLUME                                        74365 08830000
+E00SHFTC   MVI 0(R1),C','     SHIFT IN COMMA TO SEPARATE VOLS    74365  08840000
+           MVC 1(6,R1),0(R15)  SHIFT IN A VOLUME                  74365 08850000
+           LA  R1,6(R1)        STEP OVER ',VOLUME'                 DASD 08860000
+           LA R15,6(R15)       STEP OVER VOLUME                   74365 08870000
+           CLI 0(R1),C' '      DROP EXTRA BLANKS (IF L'VOL<6)     74365 08880000
+           BNE *+8             NOT BLANK                          74365 08890000
+           BCT R1,*-8          IS BLANK,DROP R1 BY 1              74365 08900000
+           LA  R1,1(R1)        SKIP TO NEXT POSITION              75311 08910000
+           CLI 0(R15),C' '     LAST VOL ?                         74365 08920000
+           BE E00SETVL         YEP, OUT WE GO (NEARLY)            74365 08930000
+           C R15,=A(DDVOLUME+30)   END LIST                       74365 08940000
+           BNH E00SHFTC                                                 08950000
+E00SETVL   S  R1,=A(VOL-1)                                       75003  08960000
+           STH  R1,#VOL                                                 08970000
+           BR R14                                                 74365 08980000
+UJS23EP5   LA  R1,5                                                     08990000
+           B   UJS23SET                                                 09000000
+UJS23EP4   LA  R1,4                                                     09010000
+           B   UJS23SET                                                 09020000
+UJS23EP3   LA  R1,3                                                     09030000
+           B   UJS23SET                                                 09040000
+UJS23EP2   LA  R1,2                                                     09050000
+           B   UJS23SET                                                 09060000
+UJS23EP1   LA  R1,1                                                     09070000
+           B   UJS23SET                                                 09080000
+UJS23EP0   SR  R1,R1                                                    09090000
+UJS23SET DS    0H                                                       09100000
+           STC R1,S23SEV                                                09110000
+           L   R15,=V(UJS23ER)                                          09120000
+           BR  R15                                                      09130000
+* WILL EVENTUALLY RETURN TO R14 ADDRESS                                 09140000
+#S23MAX  DC    H'92'               MAX WTO OR LREC SIZE           76200 09150000
+#S23LNE2 DS    H                   LINE 2 LENGTH                  76200 09160000
+S23LNE2  DS    CL100               LINE 2 WORK AREA               76200 09170000
+S23SEV     DS  CL1                                                      09180000
+S23STMT    DC  XL4'00000000'                                            09190000
+#S23BLKS   DS  H                                                        09200000
+           DS  H                                                        09210000
+#S23LREC   DS  H                                                        09220000
+#S23MSSG   DS  H                                                        09230000
+S23MSSG    DS  CL150                                              74365 09240000
+           DS  F                                                  75003 09250000
+#VOL       DC  H'0'                                               75311 09260000
+VOL        DC  CL50' '                                            75311 09270000
+TASK2ECB   DC  F'0'                                               74365 09280000
+           DS  F               SPARE                                    09290000
+RUNBLDL    DS  0D                                                       09300000
+           DC  H'1'                                                     09310000
+           DC  H'68'                                                    09320000
+RUNNAME    DS  CL8                                                      09330000
+RUNTTRK    DS  CL4                                                      09340000
+RUNZ1      DS  CL1                                                      09350000
+RUNC1      DS  CL1                                                      09360000
+RUNUSDTA   DS  CL68                                                     09370000
+UJ00ANS    DS 3F                                                        09380000
+UJE00DDM    DC CL8'$$PRNT'                                              09390000
+           PRINT NOGEN                                                  09400003
+           ENTRY RETN,INSTRUCT,PRINT  ******FOR LINK MAP ******   75128 09410000
+RETN       DCB DDNAME=&DDINST,DSORG=PO,MACRF=W,                 80290  *09420000
+               DEVD=DA,RECFM=FB,LRECL=80,                              *09430000
+               BLKSIZE=&RETNSIZ                                    DASD 09440000
+INSTRUCT   DCB DDNAME=&DDINST,DSORG=PO,MACRF=(R,W),DEVD=DA              09450000
+PRINT      DCB DDNAME=&DDPRT,DSORG=PS,DEVD=DA,RECFM=VB,LRECL=132,      *09460016
+               BLKSIZE=136,MACRF=W                                      09470000
+JOLCOIN    DCB DDNAME=JOLCOIN,DSORG=PS,MACRF=PM,                80290  *09480000
+               DEVD=DA,RECFM=FB,LRECL=80,                              *09490000
+               BLKSIZE=800                                              09500000
+         AIF   (&X8).X8120                                              09510000
+JOBQ       DCB DDNAME=$$JOBQ,DSORG=PS,MACRF=(WP,RP),DEVD=DA       ***** 09520000
+           ENTRY JOBQ                                             ***** 09530000
+TEMPDCB  DCB   DDNAME=&DDINST,DSORG=PO,MACRF=R,          JOL30116 76200*09540000
+               DEVD=DA,EXLST=TEMPEXIT                    JOL30116 76200 09550000
+TEMPEXIT DC    A(JFCBDSNM+X'87000000')                   JOL30116 76200 09560000
+           PRINT GEN                                                    09570003
+.X8120   ANOP                                                           09590000
+ATIOT      DS  A                                                        09591016
+ATCB       DS  A               ADDRESS OF TCB                           09600000
+AQMRAW     DC  A(0)            ADDRESS OF JOB Q ACCESS RTN              09601013
+IBMRTN     DC  CL8' '          NAME OF ROUTINE THAT ACCESSES JOBQ       09602013
+JCTTTR     DC  A(0)            ADDRESS | TTR OF THE JCT (EACH     ***** 09610000
+*                              SYSTEM IS A LITTLE DIFFERENT)      ***** 09620000
+           SPACE 3                                                      09630000
+* THIS TABLE IS USED BY THE SCRATCH AND CATLG ROUTINES                  09640000
+*     ALTHOUGH THE JOL PROCESSOR KNOWS WHAT TYPE OF UNIT A 'DD' CARD    09650000
+*     IS FOR,TO SAVE SPACE IN THE PROCESSOR IT IS NOT CONVERTED         09660000
+*     TO A FULL IBM UNIT (AND OF COURSE THE USER MAY SPECIFY HIS        09670000
+*     OWN GENERIC UNIT)                                                 09680000
+* THIS TABLE IS USED ONLY WHEN A SCRATCH OR CATALOG WAS GIVEN           09690016
+*     AND THE USER DID NOT CREATE THE DATA-SET IN THIS JOB,AND          09700000
+*     THERE-FORE OS MAY NOT HAVE CONVERTED IT INTO A NICE LOOKING       09710000
+*     UMIT FOR US.                                                      09720000
+HEXUNITS   DC A(*+12)                                                   09730000
+           DC A(5)                                                      09740000
+           DC A(HEXUNITE-5)                                             09750000
+         COPY  UNITABLE                                            DASD 09760000
+HEXUNITE DS    0H                                                       09770000
+.X8140   ANOP                                                           09780000
+           SPACE 3                                                      09790000
+         PRINT GEN                                                      09800035
+HEX      EQU *-240                                                75311 09810035
+         DC  C'0123456789ABCDEF'                                  75311 09820035
+         SPACE 3                                                        09821035
+#DDNAME  DC    H'8'           USED IN SCRATCH AND CATLG ETC             09830035
+DDNAME   DS    CL8                                                      09850035
+#DSNAME  DS    0H                                                       09851035
+#DSN     DC    H'10'         INITED ONLY FOR TESTS                      09852035
+DSN      DS    0CL44                                                    09852135
+DSNAME   DC    CL44'NOT INIT'                                           09852235
+           SPACE 3                                                      09852335
+#ERETDSN DS    H             RETURNED DSNAME FROM ALLOCATION            09852435
+ERETDSN  DS    CL44                                                     09852535
+#ERETDDN DS    H             RETURNED DDNAME FROM ALLOCATION            09862435
+ERETDDN  DS    CL8                                                      09863435
+           SPACE 3                                                      09864435
+RETN8    LA    R15,8                                                    09870000
+         B     RETRN                                                    09880000
+RETN4    LA    R15,4                                                    09890000
+         B     RETRN                                                    09900000
+RETN0    SLR   R15,R15                                                  09910000
+RETRN    JOLRETN RC=(15)                                                09920000
+           SPACE 3                                                      09930000
+          DC    80S(*)                                                  09940000
+           LTORG                                                        09950000
+RETNAREA DS    0D                                                       09960000
+READAREA DS    XL&RETNSIZ                                          DASD 09970000
+         ORG   READAREA                                                 09980000
+TTR$RETN DS    F               CONSTRUCTED BY BLDL IN UJESCHED          09990035
+TTR$INST DS    F               CONSTRUCTED BY BLDL IN UJESCHED          10000035
+NOIDS    DS    H          CURRENT NO OF IDS                             10010035
+LEVEL    DC   H'0'                                                      10020035
+NEST     DC   H'0'                                                      10030035
+COND     DC    CL50' '                                                  10040035
+ERRORIND DC    X'00'          SET ON IF ABEND            CHG26028 76200 10050000
+INERRORL DC    X'00'          ON IF CURRENTLY DOING ERRORCHG26028 76200 10060000
+* NOTE:- DO NOT SEPARATE NEXT TWO LOCATIONS              CHG26028 76200 10070000
+ERRLEVEL DC    H'0'           SET BY 'UJE04IF' WHEN -    CHG26028 76200 10080000
+ERRNEST  DC    H'0'           'IF ERROR' FOUND           CHG26028 76200 10090000
+SAVENEST   DC  XL6'00'                                                  10100000
+         EYEBALL MAXCC                                                  10110000
+MAXCC      DC  F'0'                                                     10120000
+LASTCC     DC  F'0'                                                     10130000
+JOLSVC     DC  X'0A00'         SVC FROM 'OPTION' INSTRUCTION      75311 10140000
+IDSTART  DS    0X                                                       10150000
+         ORG                                                            10160000
+           SPACE 3                                                      10170000
+VOLDETS  CSECT                                                          10180035
+#VOLLIST DC    H'0'                                                     10180135
+VOLLIST  DS    256CL6                                                   10180236
+           SPACE 3                                                      10180335
+TABLES CSECT                                                            10180435
+*        PRINT OFF                                                      10181037
+         COPY  DDDSNDET                                           75128 10190000
+         ORG                                                            10200000
+DDDETLN  EQU   *-DDDSNDET     LENGTH OF THE AREA                        10210000
+         ORG   DDDSNDET                                           75128 10220000
+         COPY  PGMDETS                                            75128 10230000
+         SPACE 3                                                  75128 10240000
+         ORG                                                            10250000
+         DS    0H                                                       10260000
+MAXIDS   DC    AL2((READAREA+L'READAREA-IDSTART)/18)                    10270000
+         DC    AL2(0)                                                   10280000
+BLANKS   DC    CL20' '                                                  10290000
+         LTORG                                                          10300000
+         PRINT NOGEN                                                    10310002
+         EYEBALL JCT                                                    10320000
+JCT      DS    0D                                                       10330000
+         IEFAJCTB                                                       10340000
+           EYEBALL SCT                                                  10350000
+SCT        DS  0D                                                       10360000
+         IEFASCTB                                                       10370000
+           EYEBALL SIOT                                                 10380000
+SIOT     DS    0D                                                       10390000
+         IEFASIOT                                                       10400000
+         ORG                                                            10410000
+         EYEBALL JFCB                                                   10420000
+         IEFJFCBN   LIST=YES                                      76200 10430000
+         PRINT GEN                                                      10440002
+         EYEBALL QMPA                                                   10450000
+QMPA     DS    0D              USED FOR VS CURRENTLY                    10460000
+QMPAJOB  DS    CL8             JOB NAME OR NO-WORK-CHAIN ELEMENT        10470000
+QMPAFUNC DS    CL1             FUNCTION CODE                            10480000
+QMPAFLTR DS    CL2             NN OF 1ST LOGL TRACK ASSIGNED TO ENTRY   10490000
+QMPANOTR DS    CL1             NUMBER OF RECORDS ASSIGNED IN THIS TRACK 10500000
+QMPANXTL DS    CL2             NN OF NEXT LOGICAL TRACK                 10510000
+QMPANOLT DS    CL1             NUMBER OF LOGICAL TRACKS ASSIGNED        10520000
+QMPAJBCD DS    CL1             JOB TYPE CODE                            10530000
+QMPAJBST DS    CL1             JOB STATUS CODE                          10540000
+QMPAPRTY DS    CL1             JOB PRIORITY                             10550000
+QMPANXTQ DS    CL2             NN OF NEXT QUEUE ENTRY                   10560000
+QMPAQID  DS    CL2             QUEUE ENTRY IDENTIFICATION               10570000
+QMPAORCL DS    CL1             ORIGIN CLASS ID                          10580000
+QMPARES1 DS    CL1             RESERVED                                 10590000
+QMPATRKS DS    A               ADDRESS TRACK STACKING PARM LIST         10600000
+QMPAIND  DS    CL1                                                      10610000
+         ORG   QMPAIND                                                  10620000
+QMPAAECB DS    A               ADDRESS OF USERS ECB/IOB                 10630000
+QMPANORC DS    CL1             1ST 4 BITS=NO OF RECORDS TO ASSIGN       10640000
+*                              2ND 4 BITS=NO OF RECORDS TO READ/WRITE   10650000
+QMPAAEXT DS    AL3             ADDRESS OF EXTERNAL PARAMETER AREA       10660000
+IEFQATCB DS    A               ADDRESS OF TCB                           10670000
+IEFQAREC DS    A               ADDRESS OF RECORD BUFFER                 10680000
+IEFQAQMP DC    A(QMPA)         ADDRESS OF QMPA                          10690000
+IEFQTTR  DS    A               TTR OF REQUESTED RECORD                  10700000
+IEFQRCLN DC    AL2(176)                                                 10710000
+IEFQFUNC DC    AL2(0)                                                   10720000
+IEFQDECB DS    A               WORK AREA(NOT REQUIRED BY IEFQMMAC)      10730000
+IEFQRETN DS    A               RETURN ADDRESS                           10740000
+.X8180   ANOP                                                           10750000
+         EYEBALL INST                                                   10760000
+INST     DS    H                               INSTRUCTIONS USE THIS    10770000
+*                                              AREA AS WORK AREA AND    10780000
+*                                              THEY ARE WRITTEN FROM    10790000
+*                                              HERE                     10800000
+         ORG   INST                                                     10810000
+ILENGTH  DS    H                               LENGTH OF RECORD         10820000
+         DC    H'0'                            FOR VB RECORD DESCRIPTOR 10830000
+II       DC    C'I'                            RECORD TYPE              10840000
+ILABEL   DS    CL8                             STATEMENT LABEL          10850000
+ISTMT    DS    CL4                             STATEMENT NUMBER         10860000
+ILEVEL   DS    CL1                                                      10870000
+INEST    DS    CL1                                                      10880000
+ICOMMAND DS    CL8                             INSTRUCTION EG 'TYPE'    10890000
+IBODY    EQU   *-ILENGTH                       LENGTH OF FIXED          10900000
+*                                              PART OF RECORD           10910000
+ITEXT    DS    CL150                                              75128 10920000
+         SPACE 3                                                        10930000
+         EYEBALL TKNX                                                   10940000
+         COPY  TKNX                                                     10950000
+         ORG TKNSTRG-IBODY-2                                            10960000
+INSTRDA  DS    0C                                                       10970000
+         ORG                                                            10980000
+         LTORG                                                          10990000
+         DS    0D                                                       11000000
+INSCSECT CSECT                                                          11010000
+JE00TBL1 DC    A(JE00TBL2)                                              11020000
+         DC    A(12)                                                    11030000
+         DC    A(JE00END2-12)                                           11040000
+JE00TBL2 DC    CL8'RUN     ',V(UJE20RUN)                                11050000
+         DC    CL8'C       ',V(UJE05CAT)        CATLG                   11060000
+         DC    CL8'U       ',V(UJE06UNC)        UNCATLG                 11070000
+         DC    CL8'K       ',V(UJE07KEE)        KEEP                    11080000
+         DC    CL8'S       ',V(UJE08SCR)        SCRATCH                 11090000
+         DC    CL8'D       ',V(UJE09DEL)        DELETE                  11100000
+         DC    CL8'RETURN  ',V(UJE23RET)                          74365 11110000
+         DC    CL8'TYPE    ',V(UJE10TYP)                                11120000
+         DC    CL8'DISPLAY ',V(UJE11DIS)                                11130000
+         DC    CL8'SIGNAL  ',V(UJE12SIG)                                11140000
+         DC    CL8'STOP    ',V(UJE13STP)                                11150000
+         DC    CL8'F       ',V(UJE14FRE)        FREE                    11160000
+         DC    CL8'OPTIONS ',V(UJE31OPT)                          75311 11170000
+JE00END2 DS    0C                                                       11180000
+         EJECT                                                          11190000
+         PRINT NOGEN                                                    11200003
+UCBS     DSECT ,                                            FIX-X 76200 11210003
+         IEFUCBOB  LIST=YES                                 FIX-X 76200 11220003
+         SPACE 3                                                        11230003
+         PRINT GEN                                                      11240003
+PARMAREA DSECT                                                          11250000
+         COPY  UJECOMM                                                  11260000
+IDOVLY   DSECT                                                          11270000
+IDSTMT   DS   CL4                                                       11280000
+IDNAME   DS   CL8                                                       11290000
+IDRETN   DS   CL4                                                       11300000
+IDLEVEL  DS   CL1                                                       11310000
+IDNEST   DS   CL1                                                       11320000
+********  VOLINFO DSECT USED TO REFERENCE A CAMLST *************   DASD 11330000
+VOLINFO  DSECT                                                     DASD 11340000
+NOVOLS   DS    H                                                   DASD 11350000
+CATDEV   DS    XL4  )                                              DASD 11360000
+CATVOL   DS    CL6  )   REPEATS NOVOLS TIMES                       DASD 11370000
+CATLABEL DS    H    )                                              DASD 11380000
+         LTORG                                                          11380117
+         JOLSAVE  CSECT=GETTIME                                         11381017
+         TIME                                                           11381117
+         STM   R0,R1,DBL            AND STORE                           11381523
+         UNPK  TIMEWORK(16),DBL     UNPACK TIME AND DATE                11382123
+         MVC   CURRTIME(2),TIMEWORK+1 HOURS                             11382728
+         MVI   CURRTIME+2,C'.'                                          11382817
+         MVC   CURRTIME+3(2),TIMEWORK+3 MINS                            11382928
+         MVI   CURRTIME+5,C':'                                          11383017
+         MVC   CURRTIME+6(2),TIMEWORK+5 SECS                            11383128
+         SPACE 3                                                        11383817
+         JOLRETN                                                        11383917
+TIMEWORK DS    CL16                                                     11384423
+*        PRINT OFF                                                      11390037
+         COPY     UJE04IF                                               11400000
+*        PRINT ON                                                       11410037
+         LTORG                                                          11420000
+           TITLE 'UJE05CAT:CATALOG DATA SET'                            11440016
+           COPY UJDDISP                                                 11450000
+           COPY UJE10TYP                                                11460000
+           COPY UJD14FRE                                                11470019
+           COPY UJD20RUN                                                11480000
+           COPY UJD21ALL                                                11490000
+           COPY UJE23RET                                                11500000
+           LTORG                                                        11510000
+           COPY UJD30VOL                                                11520000
+           COPY UJE50RD                                                 11530000
+           COPY UJD94CLN                                                11540000
+           LTORG                                                        11540126
+         LTORG                                                          11550000
+*        PRINT OFF                                                      11551037
+         TITLE 'UJE98INI:INITIALISATION ROUTINES'                       11560000
+         JOLSAVE CSECT=UJE98INI                                         11570000
+* THIS CSECT IS CALLED IMMEDIATELY AFTER THE JOL SCHEDULER GETS CONTROL 11580000
+*    AND IT OPENS THE FILES ETC                                         11590003
+* SECOND DETERMINE WHETHER WE ARE RUNNING UNDER 'HASP' OR 'OS'          11600000
+*    IF THERE IS A DD-CARD FOR '$$PRINT' THEN THE SYSOUT FILE           11610000
+*    ASSOCIATED WITH THAT FILE WILL BE USED SIMILIARLY TO THE           11620000
+*    'HASP' SYSTEM LOG,I.E ALL COMMENTS WILL GO OUT TO IT.              11630000
+         SPACE 3                                                        11640000
+* NOTE *** UNDER VS, WE ATTACH RATHER THAN XCTL TO THE USER PROGRAM     11650000
+*     AS WE SAVE TIME THEN BY NOT CLOSING AND RE-OPENING OUR FILES.     11660000
+*     SO, LET'S SEE IF THEY ARE OPEN, AS TO OPEN AGAIN WOULD DEFEAT     11670000
+*     THE WHOLE EXERCISE, WOULDN'T IT?                                  11680000
+         SPACE 1                                                        11690000
+         TM INSTRUCT+48,X'10'                                     74365 11700000
+         BO  SCHEDGO                                              74365 11710000
+         SPACE 1                                                        11720000
+         MVC STMT,=CL4'   0'                                            11730000
+&C1      SETC  (1-&X8)'AQMRAW'                                          11740000
+&C2      SETC  (1-&X8)'IBMRTN'                                          11750000
+&C3      SETC  (1-&X8)'JOBQ'                                            11760000
+&C4      SETC  (1-&X8)'JCTTTR'                                          11770000
+         CALL  UJE70OPN,(&C1,&C2,INSTRUCT,PRINT,RETN,&C3,         ******11780000
+               &C4,VS,ATCB),MF=(E,CALLAREA)                       ***** 11790000
+*** ABOVE OPENS REQUIRED FILES, AND :-                            ***** 11800000
+*    1. SETS 'JCTTTR' TO CORE ADDRESS, OR TTR ON JOBQ.            ***** 11810000
+*    2. LOADS (MAYBE) AN IBM ROUTINE TO ACCESS JOBQ.              ***** 11820000
+*    3. OPENS 'INSTRUCT'                                          ***** 11830000
+*    4. OPENS 'PRINT' IF $$PRNT DD CARD PRESENT                   ***** 11840000
+*    5. OPENS 'JOBQ'  IF $$JOBQ DD CARD PRESENT AND ^MFT |MVT|MVS ***** 11850000
+*    6. SETS 'VS' TO ' ' | '1' | '2' | 'M'                        ***** 11860000
+*    7. SETS 'ATCB' = A(OUR TCB)                                  ***** 11870000
+           SPACE 3                                                ***** 11880000
+         L     R4,ATCB               ADDRESS MY TCB                     11890000
+*        L     R14,TCBJSCB-TCB(,R4)           MY JSCB                   11900010
+*        ICM   R14,7,JSCBCSCA-JSCB(R14)       MY CSCB                   11910010
+*        MVC   JBNAME,CSCBUJNM-CSCB(R14)      WOT IME CALLED            11920010
+SCHEDGO  DS    0H                                                       11930000
+         CALL  UJE97SPC                SPACE UP PRINTING A BIT          11940000
+         L     R1,ATASKPRM      CLEAR USER'S PARM                       11950000
+         XC    0(2,R1),0(R1)                                            11960000
+       SPACE                                                            11970000
+* NOW CHECK THAT THE INSTRUCT AND RETNCODE FILES ARE OPEN               11980000
+         SR    R8,R8                                                    11990000
+         TM    INSTRUCT+48,X'10'                                        12000000
+         BO    FILE1OK                                                  12010000
+         LA    R8,1                                                     12020000
+         JOLERR 501,'NO DD CARD FOR $$INST'                             12030000
+FILE1OK  DS    0H                                                 75128 12040000
+         AGO .SKIP99                                                    12041010
+         L     R4,TCBJSCB-TCB(,R4)          MY JSCB                     12050000
+         ICM   R4,7,JSCBFCTA-JSCB(R4)         FIRST FCT                 12060000
+         BZ    E98NOFCT              EXIT IF NONE ?!! & SSSSSSSSS       12070000
+         SPACE                                                          12080000
+*   FOUND THE FCT CHAIN. NOW FIND A DATASET ENTRY                       12090000
+         SPACE                                                          12100000
+         CALL  READJFCB,=CL8'&DDINST'                                   12120008
+         MVC   SYSINVOL,JFCBVOLS     COPY THE VOLUME SERIAL NUMBER      12290008
+.SKIP99  ANOP                                                           12300003
+         ZAP   DDCTR,=P'0'           INITIALISE DD COUNTER              12310000
+         SPACE 2                                                        12320000
+         FIND  INSTRUCT,MBRRETN,D                                       12330000
+         B     E98INITR(R15)                                            12340000
+E98INITR B     E98GOTMB                                                 12350000
+         B     E98FIND4                                                 12360000
+         B     E98FIND8                                                 12370000
+MBRRETN  DC    CL8'$$RETN'                                              12380000
+         SPACE 3                                                        12390000
+E98FIND8 JOLERR 504,'I/O ERROR READING DIRECTORY'                       12400000
+         SPACE 3                                                        12410000
+E98FIND4 DS    0H                                                       12420000
+* THE $$RETN MEMBER HASN'T BEEN SET UP APPARENTLY                       12430000
+         JOLERR 109,'JOL (COMMAND LANGUAGE) MONITOR VERSION IS ', ++++++12440018
+               '4.0-A  '                                         76200  12450032
+         JOLERR 110,'CREATED ON DAY &SYSDATE. AT &SYSTIME.'             12451032
+         CALL  UJE97SPC                SPACE UP PRINTING A BIT          12460000
+         LA    R0,READAREA                                              12470000
+         L     R1,=A(L'READAREA)                                        12480000
+         SLR   R15,R15        ZEROES TO ALL THE AREA                    12490000
+         MVCL  R0,R14                                                   12500000
+           MVI   COND,C' ' CLEAR COND TO BLANKS                    DASD 12510000
+           MVC   COND+1(L'COND-1),COND                             DASD 12520000
+           WRITE E98DEC9,SF,RETN,READAREA,'S'                           12530000
+           CHECK E98DEC9                                                12540000
+           NOTE RETN                                                    12550000
+           ST  R1,TTR$RETN                                              12560000
+           STOW RETN,STOWBLK,A                                          12570000
+           LTR R15,R15                                                  12580000
+           BZ  E98RDJCT                                                 12590000
+           JOLERR 503                                                   12600000
+E98GOTMB DS    0H                                                       12610000
+* WE HAVE NOW FOUND THE $$RETN MEMBER OF THE DATA SET                   12620000
+           LH R2,INSTRUCT+X'3E'                                         12630000
+           MVC INSTRUCT+X'3E',=Y(&RETNSIZ)                         DASD 12640000
+           READ E98DECBX,SF,INSTRUCT,RETNAREA                           12650000
+           CHECK E98DECBX                                               12660000
+           STH R2,INSTRUCT+X'3E'                                        12670000
+           NOTE INSTRUCT                                                12680000
+           ST  R1,TTR$RETN     FOR REWRITING                            12690000
+* FIND OUT HOW MUCH DATA WE READ (ALSO USED FOR REWRITING)              12700000
+           L  R1,E98DECBX+16   IOB ADDRESS                              12710000
+           LH R14,INSTRUCT+X'3E'  BLOCKSIZE                             12720000
+           SH R14,14(R1)  MINUS RESIDUAL COUNT                          12730000
+           STH R14,RETNBLKS    LENGTH OF RETN BLOCK                     12740000
+           SPACE 3                                                      12750000
+           MVC STMT,DBL                                                 12760000
+         POINT INSTRUCT,TTR$INST                                        12770000
+E98RDJCT DS    0H                                                       12780000
+           AIF   (&X8).X8420                                            12790000
+           SPACE 3                                                      12800000
+* BETTER SET UP THE JOBNAME ETC                                         12810000
+           LA  R4,CALLAREA                                              12820000
+           EXTRACT (4),'S',FIELDS=(TIOT)                                12830000
+           L   R1,CALLAREA                                              12840000
+           ST  R1,ATIOT        SAVE ADDRESS OF TIOT                     12850000
+* NOW READ IN JCT AND SCT                                               12860000
+.X8420     ANOP                                                         12870000
+           SPACE 6                                                      12880000
+           CLI TASKIND,C' '    IS THIS THE FIRST TIME I'VE BEEN CALLED  12890000
+*                              THIS OS STEP ?                           12900000
+           BE  E98RETNX        YES,SO NOW FILES ETC INITIALISED,GO BACK 12910020
+*                              TO THE MAIN-LINE LIKE A GOOD BOY.        12920000
+           SPACE 3                                                      12930000
+* THE SCHEDULER HAS BEEN RE-ATTACHED AFTER AN XCTL TO A PROBLEM         12940000
+*    PROGRAM. THEREFORE WE MUST DO NICE THINGS LIKE PRINT OUT           12950000
+*    THE RETURN CODES ETC,                                              12960000
+* WE HAD BETTER STORE ITS RETURN CODE IN THE TABLE ANYWAY               12970000
+           LH R1,NOIDS                                                  12980000
+           MH R1,=H'18'                                                 12990000
+           LA R1,IDSTART(R1)                                            13000000
+           USING IDOVLY,R1                                              13010000
+           MVC IDRETN,TASKRETN                                          13020000
+           MVI IDRETN,0        TURN OFF HIGH ORDER BITS FOR COMPARISONS 13030000
+*                              IN THE 'IF' STATEMENT LATER              13040000
+******* MORE FOR  MAXCC,LASTCC   SEPT 75                                13050000
+         TM    TASKRETN,X'80'   DID AN ABEND OCCUR?      CHG26028 76200 13060010
+         BO    E98LMAX        YES, SO LEAVE LASTCC AND MACHG26028 76200 13070000
+         MVC  LASTCC,IDRETN   LASTCC DONE                               13080000
+         CLC   MAXCC,LASTCC                                             13090000
+         BH    E98LMAX                                                  13100000
+         MVC   MAXCC,LASTCC   MAXCC DONE                                13110000
+         DROP  R1                                                       13120000
+E98LMAX  UNPK  CALLAREA(9),TASKSSI(5)                                   13130000
+         TR    CALLAREA(8),HEX                                          13140000
+         MVC   ENDMSSI,CALLAREA 3(5)                                    13150000
+*        OI    ENDMSSI+7,X'F0'                                          13160000
+* NOW SEE IF TASK ABENDED OR RETURNED PROPERLY.                         13170000
+         TM    TASKRETN,X'80'                  ABEND ?                  13180010
+         BZ    NOTABND                                                  13190000
+         MVI   ERRORIND,1     TURN ON ABEND INDICATOR    CHG26028 76200 13200000
+* WAS IT A USER ABEND OR A SYSTEM ABEND ?                               13210000
+         L     R1,TASKRETN                                              13220000
+         N     R1,=X'00FFF000'                                          13230000
+         BZ    USERABND                                                 13240000
+         UNPK  CALLAREA(9),TASKRETN(5)                                  13250000
+         TR    CALLAREA(8),HEX                                          13260000
+         MVC   ENDMRETC(4),CALLAREA+1                                   13270000
+         MVC   ENDMRETC+5(3),CALLAREA+5                                 13280000
+         MVI   ENDMRETC,C'S'                                            13290000
+         MVI   ENDMRETC+4,C'-'                                          13300000
+           JOLERR 307,'STEP ',TASKLABL,' LM ',TASKNAME,' SSI ',   74365*13310000
+               ENDSSI,' SYSTEM ABEND ',ENDRETC                    74365 13320000
+E98CLRAB CLEAR TASKRETN    CLEAR ABEND                   CHG26028 76200 13330000
+*        B     E20R16       TAKE BRANCH TO COND CODE TERMINATE   C DASD 13340000
+         B     E98RETN0                                          A DASD 13350000
+           SPACE 3                                                      13360000
+NOTABND    XC TASKRETN(2),TASKRETN                                      13370000
+USERABND DS    0H                                                       13380000
+         L   R0,=X'0000FFFF'  IF NEGATIVE NUMBER LETS SHOW IT      DASD 13390000
+         N   R0,TASKRETN                                                13400000
+         CVD R0,DBL                                                     13410000
+         OI  DBL+7,X'0F'                                           DASD 13420000
+         UNPK ENDRETB,DBL                                          DASD 13430000
+         CLI ENDRETB,C'0'                                          DASD 13440000
+         BNE ENDMSSOK  ITS A BIG ONE                               DASD 13450000
+         MVI ENDRETB,C' '  PRINT AS BEFORE (4 BYTE RETN CODE)      DASD 13460000
+ENDMSSOK DS    0H                                                       13470000
+         TM  TASKRETN,X'80'  ABEND ?                                    13480010
+         BO  E98TYPER                                                   13490000
+         JOLERR 105,'STEP ',TASKLABL,' LM ',TASKNAME,' SSI ',     74365*13500000
+               ENDSSI,' RETURNED ',ENDRETB                         DASD 13510000
+         AIF   (&X8).X8440                                              13520000
+*                                                                 76200 13530000
+* TO HANDLE THE STOP WHEN, WE MUST EXAMINE THE JCT JOB TERMINATION76200 13540000
+* INDICATORS, AND COMPARE THIS RETURN CODE AND IF NECESSARY,      76200 13550000
+* TERMINATE THE RUN.                                              76200 13560000
+*                                                                 76200 13570000
+* WE HAVE RESERVED TO US 1 JOB COND OF 'EQ,4000', AND SO WE CAN   76200 13580000
+* FLUSH THE JOB BY SETTING 4000 ANY TIME WE WISH.                 76200 13590000
+*                                                                 76200 13600000
+*                                                                 76200 13610000
+         LA    R1,JCTJDPCD                                        76200 13620000
+         LA    R15,JCTJDPCD+4+28-1 END LOOP INDIC                 76200 13630000
+         LA    R14,4               LENGTH OF TABLE                76200 13640000
+E98DEPL  CLI   2(R1),0       ANY COND (END LOOP)            76200       13650000
+         BE    E98RETN0            END -> RETURN                  76200 13660000
+         IC    R6,2(R1)            GET DEPENDENCY CODE AND        76200 13670000
+*                                  GET REDY FOR EXECUTE           76200 13680000
+         CLC   0(2,R1),TASKRETN+2 COMPARE                        76200  13690000
+         EX    R6,E98GO40          BRANCH IF TRUE                 76200 13700000
+         BXLE  R1,R14,E98DEPL      LOOP THEN ...                  76200 13710000
+.X8440   ANOP                                                           13720000
+         B     E98RETN0                                           76200 13730000
+         AIF   (&X8).X8460                                              13740000
+E98GO40  BC    0,E98R16       EXECUTED  *****                     76200 13750000
+E98R16   DS    0H                                                       13760000
+E20R16   DS    0H                                                       13770000
+* DUE TO USING MVS MACRO, MUST MOVE JOBNAME BEFORE 'JOLERRINR'          13780000
+            MVC  TASKLABL,JCTJNAME                                      13790000
+           JOLERR 408,'JOB ',TASKLABL,                                 *13800000
+               ' TERMINATED DUE TO CONDITION CODES'                     13810000
+           B   E98RET4K                                                 13820000
+.X8460   ANOP                                                           13830000
+         FIX   '"STOP WHEN ANY" NEEDS TO BE HANDLED: I SUGGEST PASSING .13840000
+               THE INFO FROM THE COMPILER AS FIRST INSTRUCTION'         13850000
+E98TYPER   JOLERR 306,'STEP ',TASKLABL,' LM ',TASKNAME,' SSI ',   74365*13860000
+               ENDSSI,' USER ABEND ',ENDRETB                       DASD 13870000
+         B     E98CLRAB                                  CHG26028 76200 13880000
+E98RET4K  DS    0H                                                      13890000
+           XC TASKRETN(2),TASKRETN                                      13900000
+* THE NEXT MVC WILL STOP MVS FROM RUNNING AFTER A ABEND            DASD 13910000
+* THIS PROBLEM IS BEING WORKED ON AS OF 4/1/77                     DASD 13920000
+* SORRY ABOUT THE "IF ERROR LOGIC"                                 DASD 13930000
+*          MVC TASKRETN(4),=F'&RSVDRC'                             DASD 13940000
+* THIS PROBLEM IS NOW FIXED IN THE MONTOR AS OF 7/10/77            DASD 13950000
+           MVI TASKIND,C'1'                                             13960000
+           JOLRETN RC=&RSVDRC                                           13970000
+E98RETN0 DS    0H                                                       13980000
+         CALL  UJE97SPC                SPACE UP PRINTING A BIT          13990000
+         CALL  GETTIME                                                  13991019
+         MVC   D98DETME,CURRTIME                                        13992019
+         WRITE D981DECB,SF,PRINT,D98HEAD1 WRITE THE DEALLOCN HEADER     13993019
+         CHECK D981DECB                   WAIT TILL IT GOES             13994019
+         CALL  UJE97SPC                SPACE UP PRINTING A BIT          13994119
+         MVC   D98DETM2,CURRTIME                                        13995019
+         WRITE D982DECB,SF,PRINT,D98HEAD2 WRITE THE DEALLOCN HEADER     13996019
+         CHECK D982DECB                   WAIT TILL IT GOES             13997019
+E98RETNX DS    0H                                                       13998020
+           MVI TASKIND,C'1'                                             14000000
+           JOLRETN                                                      14010000
+STOWBLK    DC  CL8'$$RETN'                                              14020000
+STOWTTR    DC  XL3'00'                                                  14030000
+STOWC      DC  X'00'                                                    14040000
+           DS CL50                                                      14050000
+ENDSSI     DS 0CL8                                                      14060000
+ENDMSSI    DS  CL8                                                      14070000
+ENDRETB    DS 0CL5            FOR MINUS RETURN CODES               DASD 14080000
+ENDRETC    DS 0CL8                                                      14090000
+ENDMRETC   DS CL8                                                       14100000
+           DS H                                                         14110000
+* THE FOLLOWING LINES ARE USED TO PRINT OUT DE-ALLOCATION MESSAGES      14126119
+*     FOR THE DYNAMIC ALLOCATION VERSION OF JOL.                        14126219
+D98HEAD1 DC    AL2(D98END1-*,0)                                         14126319
+         DC    AL2(D98END1-*,0)                                         14126419
+D98DETME DC    CL8' '                  TIME GOES HERE                   14126519
+         DC    C' DEALLOCATION '                                        14126619
+D98END1  DS    0H                                                       14126719
+          SPACE                                                         14126819
+D98HEAD2 DC    AL2(D98END2-*,0)                                         14126919
+         DC    AL2(D98END2-*,0)                                         14127019
+D98DETM2 DC    CL8' '                  TIME GOES HERE                   14127119
+         DC    C' --DSID--  -DDNAME-   -ACTION'                         14127231
+D98END2  DS    0H                                                       14127319
+          SPACE                                                         14127419
+           DC   80S(*)                                                  14127519
+           LTORG                                                        14130000
+           TITLE 'UJS23ER:WTP,WTO ERROR MESSAGES'                       14140000
+UJS23ER    CSECT                                                        14150000
+           USING *,R15                                                  14160000
+           STM R14,R12,12(R13)                                          14170000
+           LA  R0,SAVEAREA                                              14180000
+           ST  R0,8(R13)                                                14190000
+           ST  R13,SAVEAREA+4                                           14200000
+           BAL R13,STARTERR                                             14210000
+SAVEAREA DS    18F                                                      14220037
+STARTERR DS      0H                                                     14230037
+         DROP R15                                                       14240037
+         USING SAVEAREA,R13                                             14250037
+* R14 IS THE RETURN ADDRESS BUT IT ALSO POINTS TO A LIST OF             14260037
+* INSTRUCTIONS WHICH ARE TO BE EXECUTED                                 14270037
+* THEY CAN BE :-                                                        14280000
+*    MVC   CONSTANT                                                     14290000
+*    LA    VARYING STRING                                               14300000
+         CLEAR S23MSSG         CLEAR MESSAGE AREA                       14310037
+* NEW, END DEC 1974. IF AN ERROR MESSAGE IS BEING ISSUED, THEN OFFSET   14320000
+*    THE MESSAGE AND PUT '***' IN IT.                                   14330000
+         LA    R1,S23MSSG                                         74365 14340037
+         CLC   =C'DISPLAY ',ICOMMAND                     CHG30062 76200 14350000
+         BE    S23OFF10                                  CHG30062 76200 14360000
+         CLC   =C'TYPE ',ICOMMAND                        CHG30062 76200 14370000
+         BE    S23OFF10                                  CHG30062 76200 14380000
+         CLC   =C'RETURN ',ICOMMAND                      CHG30062 76200 14390000
+         BE    S23OFF10       PUT 10 BLANKS IN START     CHG30062 76200 14400000
+         B     S23TSEV                                   CHG30062 76200 14410000
+S23OFF10 MVC   0(10,R1),BLANKS OFFSET MESSAGE BY 10      CHG30062 76200 14420000
+         LA    R1,10(R1)      SKIP BLANKS                CHG30062 76200 14430000
+         B     S23START       GO FORM UP MESSAGE         CHG30062 76200 14440000
+S23TSEV  CLI   S23SEV,2                                  CHG30062 76200 14450000
+         BNL   S23REALE       REAL ERROR, PUT JOB NAME   CHG30062 76200 14460000
+         MVC   0(5,R1),BLANKS                            CHG30062 76200 14470000
+         LA    R1,5(R1)                                  CHG30062 76200 14480000
+         B     S23START                                  CHG30062 76200 14490000
+S23REALE MVC   0(4,R1),=C'***('  PUT '***('              CHG30062 76200 14500000
+&C       SETC  (&X8)'JBNAME'.(1-&X8)'JCTJNAME'                          14510010
+         MVC   4(8,R1),&C        + JOBNAME               CHG30062 76200 14520000
+         MVI   12(R1),C')'       + ')'                   CHG30062 76200 14530000
+         LA    R1,13(R1)         SKIP ABOVE              CHG30062 76200 14540000
+S23START MVC 0(3,R1),=C'JOL' SHIFT IN 'JOL'                       74365 14550037
+         LA    R1,3(R1)        SKIP OVER IT SO WE WON'T OVER-WRITE IT   14560037
+S23LUP1  DS    0H                                                       14570037
+         CLI   0(R14),X'D2'    MOVE ?                                   14580037
+         BE    S23MUV1                                                  14590037
+         CLI   0(R14),X'41'    LA ?                                     14600037
+         BE    S23LA1                                                   14610037
+         B     S23END1         SHOULD BE '00'                           14620037
+         SPACE                                                          14630037
+S23MUV1  EX    R0,0(R14)        EXECUTE THE MOVE                        14640037
+           SR  R0,R0                                                    14650000
+           IC  R0,1(R14)       LENGTH MOVED                             14660000
+           AR  R1,R0           ADD TO OUTPUT POSN                       14670000
+           LA  R1,1(R1)        COS ASSMBLR REMOVED 1                    14680000
+           LA  R14,6(R14)      SKIP MVC                                 14690000
+           B   S23LUP1                                                  14700000
+           SPACE                                                        14710000
+S23LA1   DS    0H                                                       14720000
+           EX  0,0(R14)        EXECUTE THE LA R15,VARYING STRING        14730000
+           ST  R14,0(R13)      SAVE REGISTER 14 IN SAVE AREA            14740000
+           LH  R14,0(R15)      LOAD LENGTH OF THE STRING                14750000
+           LTR  R14,R14        SEE IF STRING LENGTH = 0                 14760000
+           BZ  RESET14         NO DATA TO MOVE                          14770000
+           BCTR R14,0                                                   14780000
+           EX  R14,ERRMUV                                               14790000
+           LA  R1,1(R14,R1)    STEP 1 SO NEXT MOVE GOES ONTO RIGHT      14800000
+*                              SPOT IN BUFFER                           14810000
+RESET14  DS    0H                                                       14820000
+           L   R14,0(R13)      RELOAD R14                               14830000
+           LA  R14,4(R14)      STEP OVER THE LA                         14840000
+           B   S23LUP1                                                  14850000
+* OOPS   WTO   'JOLE00-99 CANNOT ALLOCATE ERROR AREA'                   14860000
+*        ABEND 16,DUMP,STEP                                             14870000
+ERRMUV   MVC   0(*-*,R1),2(R15) **** EXECUTED                           14880000
+         SPACE                                                          14890000
+S23END1  DS    0H                                                       14900000
+         LA    R14,2(R14)      BRANCH AROUND '0' AT END OF LIST         14910000
+         L     R15,4(R13)       LOAD OLD SAVE ADDRESS                   14920000
+         ST    R14,12(R15)     RESET OLD RETURN ADDRESS                 14930000
+         MVC   0(3,R1),=C' AT'  SHIFT IN 'AT'                           14940000
+         MVC   4(4,R1),S23STMT                                    75003 14950000
+         OC    S23STMT,S23STMT                                          14960000
+         BNZ   S23SETL                                                  14970000
+         MVC   4(4,R1),STMT                                       75003 14980000
+*        OC    4(4,R1),=C'0000' JCS NOTICED BINARY ZEROES IN THERE      14990000
+S23SETL  LA    R14,S23MSSG-12 THE -8 IS FOR THE 'AT STMT'         75128 15000000
+S23TEST0 CLI   4(R1),C'0'     LEADING ZERO?                       75003 15010000
+         BNH   S23SR          -> NO                               75003 15020000
+         MVC   4(4,R1),5(R1)  DROP ZERO                           75003 15030000
+         BCT   R1,S23TEST0                                        75003 15040000
+S23SR    DS    0H                                                 75003 15050000
+         SR    R1,R14                                                   15060000
+         XC    #S23LNE2,#S23LNE2   CLEAR LENGTH                   76200 15070000
+         CH    R1,#S23MAX          CHECK FOR A BIG MESSAGE        76200 15080000
+         BNH   S23SHORT            ITS OK, KEEP GOING             76200 15090000
+* NOW WE HAVE A MESSAGE THATS GREATER THAN 96 BYTES AND IF        76200 15100000
+* WE DONT MAKE TWO LINES OUT OF IT, THE OS WRITER OR HASP...ECT   76200 15110000
+* WILL CHOP IT OFF                                                76200 15120000
+* SO WE ARE NOW GOING TO TAKE A LOOK AT THE MESSAGE FORM +96 BACK       15130000
+* AND WHEN WE FIND A COMMA OR A BLANK THAT WILL END LINE 1 AND          15140000
+* START LINE 2                                                          15150000
+         STH   R1,#S23LNE2         SAVE OLD LENGTH FOR LATER      76200 15160000
+         LA    R15,S23MSSG         POINT TO THE START OF THE MSG  76200 15170000
+         AH    R15,#S23MAX         GET TO +96                     76200 15180000
+         LA    R1,30               STOP LOOKING AFTER 30 BYTES    76200 15190000
+S23LOOK  DS    0H                                                 76200 15200000
+         CLI   0(R15),C' '         IS IT A BLANK                  76200 15210000
+         BE    S23ENDLK                                           76200 15220000
+         CLI   0(R15),C','         HOW ABOUT A COMMA              76200 15230000
+         BE    S23ENDLK                                           76200 15240000
+         BCTR  R15,0               BACKUP,1 BYTE                  76200 15250000
+         BCT   R1,S23LOOK          RETURN                         76200 15260000
+S23ENDLK DS    0H                                                 76200 15270000
+         LR    R1,R15              R1 = NEW END FOR LINE 1        76200 15280000
+         LA    R14,#S23LREC   POINT TO START OF MESSAGE           76200 15290000
+         SR    R1,R14              CALC NEW LENGTH FOR LINE 1     76200 15300000
+         AH    R14,#S23LNE2        POINT R14 TO END OF MESSAGE    76200 15310000
+         SR    R14,R15             CALC LENGTH FOR LINE 2         76200 15320000
+         LA    R14,19(R14) LEAVE SOME BLANKS ON CONT LINE         76200 15330000
+         STH   R14,#S23LNE2        SAVE IT FOR LATER              76200 15340000
+         CLEAR S23LNE2                                            76200 15350000
+         MVC   S23LNE2+15(L'S23LNE2-16),1(R15)      SAVE LINE 2   76200 15360000
+S23SHORT DS    0H                                                 76200 15370000
+         XC    #S23BLKS(8),#S23BLKS CLEAR VB DESCRIPTOR ETC       76200 15380000
+           STH R1,#S23LREC                                              15390000
+           LA  R1,4(R1)                                                 15400000
+           STH R1,#S23BLKS                                              15410000
+           XC S23STMT,S23STMT                                           15420000
+* GREAT,NOW WHERE ARE WE GOING TO PUT THIS FANTASTIC PIECE OF           15430000
+*    INFORMATION ?                                                      15440000
+           TM  PRINT+48,X'10'                                           15450000
+           BZ  S23WTO                                                   15460000
+           WRITE S23DECB,SF,PRINT,#S23BLKS                              15470000
+           CHECK S23DECB                                                15480000
+S23WTO   DS    0H                                                       15490000
+* NOW IF THE SEVERITY IS >=12 THE MESSAGE IS TYPED ON THE CONSOLE,      15500000
+*    OTHERWISE A WTO WITH ROUTCDE=11 IS QUITE SATISFACTORY,UNLESS       15510000
+*    WE HAVE A PRINT DD CARD,IF WHICH CASE WE CAN RETURN NOW            15520000
+           CLI S23SEV,3                                                 15530000
+           BL  S23TPRNT                                                 15540000
+* HERE A REAL WTO IS REQUIRED,SO SET UP ROUTE-CODES 2 & 11              15550000
+           MVC #S23MSSG,=XL2'8000'                                      15560000
+           LH  R15,#S23LREC                                             15570000
+           LA  R15,#S23LREC(R15)                                        15580000
+           MVC 0(4,R15),=X'04004020' DESC 6 RTE 11,2              75311 15590000
+           CLI  VS,C'2'    MVS ?                                   DASD 15600000
+           BNE  S23TNMVS   NOPE                                    DASD 15610000
+           MVC 0(4,R15),=X'04004004' DESC 6 RTE 2,14 JESMSG        DASD 15620000
+S23TNMVS DS    0H                                                  DASD 15630000
+         WTO   MF=(E,#S23LREC)                                          15640000
+           B  S23GOBAK                                                  15650000
+           SPACE 3                                                      15660000
+S23TPRNT DS    0H                                                 75311 15670000
+         TM    PRINT+48,X'10' DID WE PUT MESSAGE ON PRINTER FIX-X 76200 15680000
+         B     DYNP           FOR DYNAMIC VERSION, PRINT AGAIN !        15681030
+         BO    S23GOBAK       YES, DON'T FILL WTP ON JCL LOGFIX-X 76200 15690000
+* SET UP A WTO WITH ROUTCDE=11                                          15700000
+DYNP       MVC #S23MSSG,=XL2'8000'                                      15710030
+           LH  R15,#S23LREC                                             15720000
+           LA  R15,#S23LREC(R15)                                        15730000
+           MVC 0(4,R15),=X'00000020' ROUTCODE   11                75128 15740000
+           CLI  VS,C'2'   MVS ??                                   DASD 15750000
+           BNE  S23NMVS   NOPE                                     DASD 15760000
+           MVC 0(4,R15),=X'00000004' ROUTCODE 14 FOR JESMSG        DASD 15770000
+S23NMVS  DS    0H                                                  DASD 15780000
+*          LA  R1,#S23LREC                                              15790000
+         WTO   MF=(E,#S23LREC)                                          15800000
+S23GOBAK DS    0H                                                       15810000
+         CLC   #S23LNE2,=X'0000'   DO WE HAVE A SECOND LINE       76200 15820000
+         BE    S23GOBK2            NOPE                           76200 15830000
+         LH    R1,#S23LNE2         LOAD LENGTH OF LINE2           76200 15840000
+         XC    #S23LNE2,#S23LNE2   CLEAR                          76200 15850000
+         MVC   S23MSSG,S23LNE2     OVERLAY OLD WITH NEW           76200 15860000
+        CLI  S23LNE2,C' '  CHECK FOR BLANK SECOND LINE             DASD 15870000
+        BNE  S23SHORT                                              DASD 15880000
+        LR   R15,R1        LOAD LENGTH OF MESSAGE                  DASD 15890000
+        BCTR R15,0         SUBTRACT 1 FOR EXECUTE INST             DASD 15900000
+        EX   R15,S23CLCBL                                          DASD 15910000
+        BE   S23GOBK2      ITS BLANK  LETS NOT PRINT IT            DASD 15920000
+         B     S23SHORT            RETURN AND WRITE LINE2         76200 15930000
+S23CLCBL CLC  S23LNE2+1(*-*),S23LNE2                              DASD  15940000
+S23GOBK2 DS    0H                                                 76200 15950000
+         CLI S23SEV,5           JOL TERMINAL ERROR ?                    15960000
+         BNE  S23LMRET                                                  15970000
+         AIF   (&X8).X8480                                              15980000
+         JOLCLOSE (INSTRUCT,,PRINT,,RETN,,JOBQ),MF=(E,CALLAREA)         15990000
+         AGO   .NX8480                                                  16000000
+.X8480   ANOP                                                           16010000
+         JOLCLOSE (INSTRUCT,,PRINT,,RETN),MF=(E,CALLAREA)               16020000
+.NX8480  ANOP                                                           16030000
+         ABEND 1,DUMP STEP                                              16040000
+S23LMRET DS    0H                                                       16050000
+         JOLRETN                                                        16060000
+         LTORG                                                          16070000
+         DC   80S(*)                                                    16080000
+*        PRINT ON                                                       16081015
+       TITLE 'UJELOCAT:LOCATE CATALOGED DATASETS'                  DASD 16090016
+         JOLSAVE CSECT=UJELOCAT                                    DASD 16100000
+*        AIF   (&X8).X8540                                              16110000
+         L     R15,=V(E05VOLS)         LOAD CAMLIST ADDRESS        DASD 16120000
+         USING VOLINFO,R15                                         DASD 16130000
+         ST    R15,ELOLOCAT+12         POINT TO LOCATE AREA        DASD 16140000
+         LA    R6,300(R15)             GO UP A FEW AND SAVE POINTERDASD 16150000
+         MVC   0(44,R6),DSNAME         MOVE TO LOCATE AREA         DASD 16160000
+         MVC   DSNAME,0(R6)            MOVE DSNAME IN              DASD 16170000
+         LOCATE ELOLOCAT                                           DASD 16180000
+         LTR   R15,R15                 DID LOACTE FIND ANYTHING ?? DASD 16190000
+         BNZ   ELORETN4                NOPE                        DASD 16200000
+         JOLRETN RC=0  WE FOUND OUR STIFF LETS LEAVE               DASD 16210000
+ELORETN4 DS    0H                                                  DASD 16220000
+         MVC  DSNAME,0(R6)            MOVE BACK ORGINAL DATA SET NADASD 16230000
+         B    RETN4                   TELL THE CALLER WE FAILED    DASD 16240000
+ELOLOCAT CAMLST NAME,DSNAME,,0                                     DASD 16250000
+.X8540   ANOP                                                           16260000
+*        B    RETN4                                                     16270000
+           LTORG                                                        16271026
+           PRINT ON                                                     16271127
+           COPY UJEALLOC                                                16272026
+           LTORG                                                        16273027
+         DC C'COMPILE DATE=&SYSDATE.,TIME=&SYSTIME.'               DASD 16280000
+         LTORG                                                     DASD 16290000
+         DS    0D                                                       16300000
+         PRINT GEN,NODATA                                               16310000
+         AIF  (NOT &X8).NOX8MAC                                         16320000
+         TITLE 'FIXED LOW CORE'                                         16330000
+         XAMFLC  DSECT=YES                                              16340000
+PSA      EQU   FLC                                                      16350000
+PSATOLD  EQU   FLCTOLD            FOR MVS,F4 COMPATIBILITY              16360000
+         TITLE 'COMMUNICATIONS VECTOR TABLE'                            16370000
+         XAMCVT  DSECT=YES                                              16380000
+         TITLE 'TASK CONTROL BLOCK    '                                 16390000
+         XAMTCB  DSECT=YES                                              16400000
+TCBFLGS1 EQU   TCBFLAG1       EQUIVALENT FIELDS ON F4,X8                16410000
+         TITLE 'REQUEST BLOCK         '                                 16420000
+         XAMRB   DSECT=YES                                              16430000
+         TITLE 'FILE CONTROL TABLE    '                                 16440000
+         XDDFCT                                                         16450000
+         TITLE 'JOB-STEP CONTROL BLOCK'                                 16460000
+         XDDJSCB                                                        16470000
+JSCBLEN  EQU   *-JSCB         MY NAME FOR ITS LENGTH                    16480000
+JSCBDISP EQU   0              MVS,F4 NAME FOR DISPLACEMENT TO START     16490000
+JSCBOPTS EQU   JSCBSTS                                                  16500000
+         TITLE 'COMMAND SCHEDULER CONTROL BLOCK'                        16510000
+         XDDCSCB                                                        16520000
+.NOX8MAC ANOP                                                           16530000
+           END                                                          16540000

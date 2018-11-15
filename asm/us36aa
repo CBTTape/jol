@@ -1,0 +1,38 @@
+* THIS SUBROUTINE CAN BE CALLED FROM A PLI PROGRAM                      00001000
+* AND WILL RETURN INFORMATION FROM THE CATALOG.                         00002000
+       GENSAVE CSECT=US36AA                                             00003000
+           LR  R2,R1                                                    00004000
+           USING PARAM,R2                                               00005000
+           L   R3,P1           DSN POINTER                              00006000
+           L   R4,P2           RETN POINTER                             00007000
+           L   R5,P3           VOL LIST POINTER                         00008000
+           L   R3,0(,R3)                                                00009000
+           L   R4,0(,R4)                                                00010000
+           MVC DSN,0(R3)       MOVE DSNAME TO WORK AREA                 00011000
+           LA R7,DSN                                                    00012000
+           LA R8,DSN+43                                                 00013000
+COMP       CLI 0(R7),C'+'                                               00014000
+           BE BAD                                                       00015000
+           LA R7,1(,R7)                                                 00016000
+           CR R7,R8                                                     00017000
+           BNE    COMP                                                  00018000
+           B LOOK                                                       00019000
+BAD        LA  R15,32                                                   00020000
+           B RETN                                                       00021000
+LOOK   EQU  *                                                           00022000
+           LOCATE INDAB                                                 00023000
+RETN   EQU  *                                                           00024000
+           STH R15,0(,R4)                                               00025000
+           LA  R15,LOCAREA                                              00026000
+           ST  R15,0(,R5)      STORE ADDRESS                            00027000
+           MVC 0(44,R3),DSN    MOVE DSN BACK                            00028000
+           GENRETN  RC=0                                                00029000
+INDAB      CAMLST  NAME,DSN,,LOCAREA                                    00030000
+DSN        DS  CL44                                                     00031000
+LOCAREA    DS  0D                                                       00032000
+           DS  265C                                                     00033000
+PARAM     DSECT                                                         00034000
+P1         DS 1F                                                        00035000
+P2         DS 1F                                                        00036000
+P3         DS 1F                                                        00037000
+           END                                                          00038000

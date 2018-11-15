@@ -1,0 +1,254 @@
+UJD21ALL TITLE 'HANDLE DYNAMIC DATASET ALLOCATION'                      00010001
+* JOL COPYRIGHT CCS-JOL PTY LTD 1988                                    00020001
+* JOL COPYRIGHT CLEMENT CLARKE 2010                                     00021032
+* MODIFIED TO CALL D03 WITH A PARAMETER                           J60   00022032
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-E001.           00030001
+         SPACE 3                                                        00040001
+*                   J             000000            L                   00050001
+*                   J            0      0           L                   00060001
+*                   J           0        0          L                   00070001
+*                   J          0          0         L                   00080001
+*                   J         0            0        L                   00090001
+*                   J         0            0        L                   00100001
+*                   J         0            0        L                   00110001
+*                   J         0            0        L                   00120001
+*                   J         0            0        L                   00130001
+*                   J         0            0        L                   00140001
+*                   J         0            0        L                   00150001
+*        J          J         0            0        L                   00160001
+*         J        J           0          0         L                   00170001
+*          J      J             0        0          L                   00180001
+*           J    J               0      0           L                   00190001
+*            JJJJ                 000000            LLLLLLLLLLL         00200001
+           SPACE 3                                                      00210001
+* LAST SOURCE UPDATE                                                    00220001
+*   CHANGES:-                                                           00230001
+*     1.                                                                00240001
+         COPY  JOLGLOBL                                                 00250001
+         LCLC  &C                                                 J40B  00251022
+         $UJEPARM                                                       00260001
+&TYPE    SETC  'SCHED'                                           88036  00270001
+         PRINT ON,DATA                                                  00280001
+UJECOMM  DSECT                                                          00290001
+         USING UJECOMM,R3,R5                                            00300001
+         COPY  UJECOMM                                                  00310001
+D21WORK  DSECT                                                    J40B  00320028
+         DS    18F                                                J40B  00330001
+D21DDN   DS    CL8                                                J40B  00340028
+D21REPLY DC    C'   '           FOR ALLOCATION REPLIES                  00350028
+D21RPECB DC    F'0'             FOR ALLOCATION REPLIES                  00360028
+D21WORKS EQU   *-D21WORK                                          J40B  00370028
+         JOLSAVE CSECT=UJD21ALL,                                       /00380028
+               SIZE=D21WORKS                                      J40B  00390028
+         USING D21WORK,R13                                        J40B  00400028
+*                                                                       00430000
+*  DYNAMIC ALLOCATION OF DATA SETS.                                     00440000
+*                                                                       00450000
+*  PROBLEMS:-                                                           00460000
+*   1. SYSOUT DATA SETS GET SPUN OFF.                                   00470000
+*      SOLUTION: ALLOCATE WITH SYSNNN NUMBER, THEN CONCATENATE          00480000
+*                REAL DDNAME. AT END, DO NOT FREE, BUT DECONCATENATE.   00490000
+* NO CLEM                                                               00500000
+*        PUT OUT REAL DD CARDS WITH DDNAMES NOT USED BY PGMS            00510000
+*              MODIFY DDNAMES  AS REQUIRED                              00520000
+         FIX   'SOME PROBLEMS  WITH SYSOUT HERE'                        00530000
+*                                                                       00540000
+*   2. TAPE SCRATCH VOLUMES WRITING LABEL 1 THEN 2 IN SAME STEP.        00550000
+*      SVC99 CAN'T RETURN VOLUME NAME.                                  00560000
+*      SOLUTION: ALLOCATE WITH SYSNNN NUMBER, OPEN FOR OUTPUT,          00570000
+*                ALLOCATE REAL DDNAME, FREE SYSNNN, PRESS ON.           00580000
+*                                                                       00590000
+*        HOW ABOUT OPEN OUT,  READ LABEL, CLOSE W/- LEAVE               00600000
+*              OPEN OUT GETS TMS'S OK TO WRITE.                         00610000
+*              CLOSE W/- LEAVE KEEPS TAPE MOUNTED                       00620000
+*                                                                       00630000
+         FIX   'IF DATASET IS TO BE RE-WRITTEN, CALL DELETE NEAR HERE'  00640000
+*            AND THEN ALLOCATE AS A NEW DATASET                         00650000
+         LA    R0,WORK                                                  00660000
+         LA    R1,L'WORK                                                00670000
+         SLR   R15,R15                                                  00680000
+         MVCL  R0,R14                                                   00690000
+*        CLI   DDTYPE,DDSYSOUT       IS IT A SYSOUT FILE                00700020
+*        BNE   D21NPRT               NO, BYPASS CLEARING DDNAME         00710028
+D21NPRT  DS    0H                                                       00720028
+         CLC   =C'PRGLIB  ',DDDDNAME Q... PRGLIB?                       00760000
+         BE    D21MVDDN              A... YES                           00770028
+         CLC   =C'STEPLIB ',DDDDNAME Q... STEPLIB?                      00780000
+         BE    D21STEPL              A... YES                           00790028
+         CLC   =C'JOBLIB  ',DDDDNAME Q... JOBLIB?                       00800000
+         BE    D21JOBL               A... YES                           00810028
+         B     D21TSYS               A... NO, SEE WHAT IT IS            00820028
+         FIX   'WE JUST FOUND A STEPLIB'                                00830000
+D21STEPL MVC   DDDDNAME,=CL8'STEPLIB$' CHANGE FOR DYN ALLOC             00840028
+D21MVDDN MVC   STEPLBDD,DDDDNAME      MOVE IN THE DDNAME                00850028
+         B     D21NSSIN                                                 00860028
+D21JOBL  MVC   DDDDNAME,=CL8'JOBLIB$' CHANGE FOR DYN ALLOC              00870028
+         MVC   JOBLBDD,DDDDNAME       MOVE IN THE DDNAME                00880000
+D21TSYS  CLI   DDTYPE,DDSYSIN      Q... SYSIN DATASET?                  00890028
+         BNE   D21NSSIN            A.. NO                               00900028
+         MVC   DDMBR,DDDSNAME+2    ESTABLISH MEMBER NAME                00910000
+         CLEAR DDDSNAME,DSN                                             00920000
+*        MVC   DDDSNAME(L'DDDSNAME),=CL44'&&INST'                       00930000
+         MVC   DDDSNAME,SYSINDSN                                        00940000
+         MVC   #DSN(28),#SYSINDS                                        00950000
+         CLEAR DDVOLUME                                                 00960000
+         MVC   DDVOLUME(6),SYSINVOL                                     00970000
+         MVI   DDUSE,B'00001000'   DISP=(SHR,KEEP)                      00980000
+         MVI   DDTYPE,DDMEMSPC                                          00990000
+         MVI   DDUNITYP,X'80'         TELL ALLOC THAT IT IS A DISK.     01000000
+&C       SETC  (&X8)'DA'.(1-&X8)'SYSDA'                           J40B  01001031
+*        MVC   DDUNIT(3),SYSINUNI     UNIT ADDRESS                      01010031
+         MVC   DDUNIT,=CL8'&C'   UNIT NAME                        J40B  01010131
+         MVC   DDUNIT,=CL8'0A83' UNIT NAME                        J60Z  01010234
+         B     D21GO                                              J40B  01011028
+         B     D21X8A4                                                  01020028
+D21NSSIN DS    0H                                                       01030028
+         SPACE 2                                                        01040000
+*  BEFORE GOING ANY FURTHER, WHY NOT HAVE A LOOK AROUND TO SEE          01050000
+*   WHAT IS ALREADY AVAILABLE?                                          01060000
+* ****** UNLESS THIS IS A CONCATENATED FILE, IN WHICH CASE WE SHALL     01070000
+*        DO A PROPER ALLOCATION      CVC                                01080000
+         AGO   .Z                                                 J40B  01090002
+         CLC   =CL8' ',DDDDNAME     CONCATENATED ?                      01100000
+         B     XXXALLOC             YES, GO THROUGH NORMAL ALLOC        01110000
+         BE    D21X8A4              YES, GO THROUGH NORMAL ALLOC        01120028
+         SPACE 2                                                        01130000
+XXXALLOC DS    0H                                                       01140002
+.Z       ANOP                                                     J40B  01150002
+         FIX   'THIS HAS TO BE MADE TO WORK'                      J40B  01150223
+         CLI   DDVOLUME,C' '    Q,,, DO WE KNOW ITS VOLUME?       J40B  01151008
+         BNE   D21GO            A... YES                          J40B  01152028
+         DBGMSG 0001,'SEARCHING DSABS'                            J40B  01153026
+         FINDQDB D21DDN,                                          J40B .01160028
+               DDDSNAME,ERRET=D21GO,MF=(E,CALLAREA)               J40B  01170028
+         AIF   (&X8).X80010                                       J40B  01171025
+         LR    R15,R0                                             J40B  01182029
+         USING JFCB-16,R15                                        J40B  01190002
+         MVC   DDVOLUME,JFCBVOLS COPY VOLUMES RETURNED BY SRCHQDB J40B  01200003
+         DROP  R15                                                J40B  01210002
+         DBGMSG 201,'I FOUND ',DDDSNAME,' ON ',DDVOLUME                 01210117
+         AGO   .NX8010                                            J40B  01210225
+.X80010  ANOP                                                     J40B  01211017
+         MVC   DDVOLUME(6),X'094'(R1)                             J40B  01211126
+         DBGMSG 0001,'SRCHQDB SAYS ',DDVOLUME                     J40B  01211226
+.NX8010  ANOP                                                     J40B  01212025
+D21GO    DS    0H                                                 J40B  01220028
+         CLC   =CL8' ',DDDDNAME      Q... CONCATENATED FILE?            01220120
+         BE    D21NOTCT              A... NO                            01220228
+         MVC   SAVEDD,DDDDNAME       COPY THE DDNAME                    01220320
+D21NOTCT DS    0H                                                       01220428
+         SPACE 2                                                        01221015
+*  NOW CHECK FOR VOLREF                                                 01222015
+         SPACE                                                          01223015
+         DBGMSG 201,'COMPILER SAYS DS IS ON ',DDVOLUME            J40B  01224015
+         CLI   DDVOLUME,C'*'         VOLREF USED?                       01225015
+         BNE   D21G010             NO                                   01226028
+         CALL  UJD24VRF        RESOLVE VOLUME REF                 J40B  01227028
+         DBGMSG 200,'VOLREF RESOLVED TO ',DDVOLUME                J40B  01228015
+*        BAL   R14,D21VREF         GO AND FIX VOLREF                    01229028
+D21G010  DS    0H                                                 J40B  01229128
+*        CALL  UJD03DS1         ALLOCATE THE DATA SET                   01230032
+        $CALL  UJD03DS1,DDDSNDET                                  J60   01240033
+         SPACE 3                                                        01250000
+         LTR   R15,R15                                           88036  01260000
+         BNZ   U21CVCAF                                          88036  01270000
+         B     D21RETN                                                  01280028
+         SPACE                                                          01290000
+D21X8A4  DS    0H                                                       01310028
+D21X8A5  DS    0H                                                       01380028
+*        CALL  UJD03DS1         ALLOCATE THE DATA SET                   01390032
+        $CALL  UJD03DS1,DDDSNDET                                  J60   01400033
+         LTR   R1,R15                                                   01410000
+         BZ    D21DDOK          ALLOCATED PROPERLY                      01420028
+         AGO   .XXXX                                              J40B  01421008
+*        CALL  UJD03X8A,(DDOSVB,CALLARE2),VL,MF=(E,CALLAREA)            01430028
+*        ST    R15,TASKRETN                                             01440000
+*        LTR   R1,R15                                                   01450000
+*        BZ    D21DDOK          ALLOCATED PROPERLY                      01460028
+*        CH    R15,=H'172'      FAIL BECAUSE OF NO DEVICE AVAIL?        01470000
+*        BNE   U21CVCAF         NO, GIVE FAILURE MESSAGE                01480000
+*        XC    D21RPECB,D21RPECB                                        01490028
+*  WTOR  'WHEN A TAPE DRIVE IS AVAILABLE, PLEASE REPLY GO',D21REPLY,   *01500028
+               2,D21RPECB                                               01510028
+*        WAIT  ECB=D21RPECB                                             01520028
+*        B     D21X8A4          TRY AGAIN                               01530028
+.XXXX    ANOP                                                     J40B  01531008
+U21CVCAF DS    0H                                                       01540007
+         AGO   .XXXY                                              J40B  01540109
+         CVD   R15,DBL                                                  01541008
+         MVC   TASKSSI,=X'40202120'                                     01550008
+         ED    TASKSSI,DBL+6                                            01560008
+         JOLERR 406,'DSID ',DDDSID,', DDNAME ',                        .01570008
+               DDDDNAME,', DS ',#DSN,' FAILED WITH RETURN CODE',       .01580000
+               TASKSSI                                                  01590000
+.XXXY    ANOP                                                     J40B  01600009
+         JOLERR 600,'RUN TERMINATED DUE TO ALLOCATION ERROR'            01610027
+*        JOLRETN                                                        01630007
+D21RETN  DS    0H                                                       01640028
+         TM    DDUNITYP,X'80'                                           01650000
+         BZ    D21NPROP       DON'T PROPOGATE VOLUME AS IT MAY          01660028
+*                             BE A SCRATCH TAPE (IE NO VOLUME YET)      01670000
+         CALL  UJD30VOL       PROPOGATE VOLS DOWN JOL 'JOBQ'            01680028
+D21NPROP MVI   D21FLAG,0                                                01690028
+         L     R15,TASKRETN                                             01700000
+D21DDOK  DS    0H                                                       01701028
+         B     JRETN                                                    01710000
+         AGO   .X821FCT                                                 01711010
+         SPACE 3                                                        01720000
+*  IT IS NECESSARY TO LOCATE THE FCT FOR THE DATASET WHOSE NAME IS      01730000
+*    IN DDVOLUME, TO FIND THE CURRENT VOLUMES AND COPY THE LIST TO      01740000
+*    THE ALLOCATION REQUEST FOR THIS DATASET                            01750000
+D21VREF  DS    0H                                                       01760028
+         BR    R14             ALREADY DONE                       87150 01770000
+         LR    R10,R14              SAVE RETURN ADDRESS                 01790000
+         L     R4,ASHTCB            ADDRESS MY TCB                      01800000
+         L     R4,TCBJSCB-TCB(,R4)          MY JSCB                     01810000
+         ICM   R4,7,JSCBFCTA-JSCB(R4)         FIRST FCT                 01820000
+         BZ    D21VNFCT              EXIT IF NONE ?!! & SSSSSSSSS       01830028
+         SPACE                                                          01840000
+*   FOUND THE FCT CHAIN. NOW FIND THE DATASET ENTRY                     01850000
+         SPACE                                                          01860000
+         USING FCT,R4                                                   01870000
+D21VNXTF DS    0H                                                       01880028
+         CLC   FCTFLN,DDVOLUME+1   Q... IS THIS IT?                     01890000
+         BE    D21VFFCT            A... YES, GO AND GET THE VOLUME INFO 01900028
+         SPACE                                                          01910000
+         ICM   R4,7,FCTNFCTA         NEXT FCT                           01920000
+         BNZ   D21VNXTF              GO AND TEST THE NEXT ONE           01930028
+D21VNFCT DS    0H                    END OF CHAIN, AND NOT FOUND        01940028
+         JOLERR 507,'DSID ',DDDSID,',DS ',#DSN,                        .01950000
+               ' IS NOT ALLOCATED,',' VOLREF COULD NOT BE RESOLVED'     01960000
+D21VFFCT DS    0H                                                       01970028
+         SPACE 3                                                        01980000
+* NOW I HAVE FOUND THE FCT, COPY THE VOLUME SERIAL NUMBERS              01990000
+         SPACE 2                                                        02000000
+         CLEAR DDVOLUME                                                 02010000
+         SLR   R8,R8                                                    02020000
+         ICM   R8,1,FCTVOLNO        LOAD VOLUME COUNT                   02030000
+         BZ    D21VNFCT             EXIT IF THERE ARE NO VOLUMES        02040028
+         LA    R0,L'DDVOLUME/6      LOAD NUMBER OF VOLUMES ALLOWED      02050000
+         CR    R0,R8                CHECK THAT THE SERIAL NUMBERS FIT   02060000
+         BH    D21VOK               BE IF OK                            02070028
+         JOLERR 512,'DS ',DDDSID,',',#DSN,                             .02080000
+               ' IS NOT ALLOCATED,',' REFERS TO TOO MANY VOLUMES'       02090000
+D21VOK   DS    0H                                                       02100028
+         L     R6,FCTVCT                                                02110000
+         LA    R15,DDVOLUME         ADDRESS FOR VOLUMES                 02120000
+D21VNXTV DS    0H                                                       02130028
+         MVC   0(6,R15),8(R6)       COPY THE VOLUME SERIAL NUMBER       02140000
+         LA    R15,6(,R15)          ADDRESS FOR NEXT AREA               02150000
+         L     R6,4(,R6)            ADDRESS THE NEXT VCT                02160000
+         BCT   R8,D21VNXTV          CONTINUE UNTIL ALL AREA DONE        02170028
+         SPACE 2                                                        02180000
+*  WELL, THAT SHOULD BE ALL: NOW FREE THE ORIGINAL DATASET              02190000
+         SPACE                                                          02200000
+         MVC   SAVEDDET,DDDSNDET                                        02210000
+         MVC   DDDDNAME,FCTACSN                                         02220000
+         MVI   DDDISP+1,C'L'      LAST USE                              02230000
+         CALL  UJD14FRE           FREE THE FILE, ASSUME IT WORKED       02240028
+         MVC   DDDSNDET(256),SAVEDDET RESTORE THE ORIGINAL              02250000
+         UJD22UPD FCTFLN,DDVOLUME FIX FUTURE VOLUME REFERENCES          02260028
+.X821FCT ANOP                                                           02270000
+         SPACE 5                                                        02280000
+         DC    20S(*)   FOR PATCHES                                     02290000
+         END                                                            02350001

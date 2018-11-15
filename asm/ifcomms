@@ -1,0 +1,146 @@
+     IF:PROC;                                                           00000100
+           PUT    PAGE DATA;                                            00000200
+           DO  J=1 TO STACKNO;                                          00000300
+           IF X(J)='&' THEN                                             00000400
+               DO; PUT DATA(X)SKIP(3);                                  00000500
+                   X(J)=X(J)||X(J+1);                                   00000600
+                   DO I=J+1 TO STACKNO -1;                              00000700
+                       X(I)=X(I+1);                                     00000800
+                   END;                                                 00000900
+                   PUT DATA(X)SKIP(3);                                  00001000
+                   J=J+1;                                               00001100
+                   STACKNO=STACKNO-1;                                   00001200
+               END;                                                     00001300
+           END;                                                         00001400
+           PUT SKIP(5) DATA;                                            00001500
+           DO J=1 TO STACKNO;                                           00001600
+               IF X(J)='.'                                              00001700
+               THEN DO;                                                 00001800
+                   X(J-1)=X(J-1)||'.'||X(J+1);                          00001900
+                   DO I=J TO STACKNO -2;                                00002000
+                       X(I)=X(I+2);                                     00002100
+                   END;                                                 00002200
+                   STACKNO=STACKNO-2;                                   00002300
+                   PUT SKIP(5) DATA;                                    00002400
+               END;                                                     00002500
+           END;                                                         00002600
+     /* NOW WE SHOULD HAVE SOMETHING LIKE                               00002700
+           IF X.DSN = &SYMBOL  ETC                                      00002800
+     */                                                                 00002900
+     /* NOW IN AN IF STATEMENT (WHICH INCIDENTLY FOR THIS               00003000
+           IMPLEMENTATION MUST BE IF X=Y THEN IF ... THEN IF ETC)       00003100
+           THERE ARE 5 CASES X 5.                                       00003200
+     CASE 1 A  IF &SYMBOL = &SYMBOL                                     00003300
+            B  IF &SYMBOL = NUMBER                                      00003400
+            C  IF &SYMBOL = ALPHA LIT                                   00003500
+            D  IF &SYMBOL = IDENT.LOCN                                  00003600
+            E  IF &SYMBOL = RETNCODE                                    00003700
+     CASE 2 A  IF INDENT.LOCN = IDENT.LOCN                              00003800
+            B  IF INDENT.LOCN = &SYMBOL                                 00003900
+            C  IF INDENT.LOCN = NUMBER                                  00004000
+            D  IF INDENT.LOCN = ALPHA LIT                               00004100
+            E  IF INDENT.LOCN = RETN CODE                               00004200
+     CASE 3 A  IF RETNCODE = RETNCODE                                   00004300
+            B  IF RETNCODE = NUMBER                                     00004400
+            C  IF RETNCODE = ALPHA LIT                                  00004500
+            D  IF RETNCODE = &SYMBOL                                    00004600
+            E  IF RETNCODE = INDENT.LOCN                                00004700
+     CASE 4 A  IF NUMBER = NUMBER                                       00004800
+            B  IF NUMBER = ALPHA LIT                                    00004900
+            C  IF NUMBER = &SYMBOL                                      00005000
+            D  IF NUMBER = INDENT.LOCN                                  00005100
+            E  IF NUMBER = RETNCODE                                     00005200
+     CASE 5 A  IF ALPHALIT = ALPHALIT                                   00005300
+            B  IF ALPHALIT = NUMBER                                     00005400
+            C  IF ALPHALIT = &SYMBOL                                    00005500
+            D  IF ALPHALIT = INDENT.LOCN                                00005600
+            E  IF ALPHALIT = RETNCODE                                   00005700
+     NOW YOU SAY THESE LAST CASES ARE UNLIKELY.                         00005800
+           VERY TRUE BUT WHAT WE WILL DO IS TO DO THIS IF COMMAND       00005900
+               VERY SLOWLY AND ASSIGN THE VALUES TO ANY &SYMBOL         00006000
+               OR INDENT.LOCN BEFORE WE ACTUALLY DO THE IF COMMAND      00006100
+     BUT BEFORE WE DO THIS WE MUST FIND THE END OF THE IF COMMAND       00006200
+           AND THEN DETERMINE IF ANY RETURN CODE TESTING IS USED        00006300
+           WITHIN AN ASSIGNMENT(THAT,SENOR,IS NOT LEGAL)           */   00006400
+     /*  FIND END OF IF */                                              00006500
+     /* NOW AN IF STATEMENT MAY BE :-                                   00006600
+           IF <LOCN> <OPERATOR> <LOCN> THEN <COMMAND>                   00006700
+       OR  IF <LOCN> <OPERATOR> <LOCN> <COMMAND>                        00006800
+       **                                                               00006900
+           IE THE 'THEN' MAY NOT BE PRESENT                    */       00007000
+           DO  ENDIF=1 TO STACKNO;                                      00007100
+               IF X(ENDIF)='IF'                                         00007200
+               THEN DO;                                                 00007300
+                   IF X(ENDIF+4)='THEN'                                 00007400
+                   &  X(ENDIF+5)='IF'                                   00007500
+                   THEN DO;                                             00007600
+                       ENDIF=ENDIF+5;                                   00007700
+                   END;                                                 00007800
+                   ELSE IF X(ENDIF+4)='IF'                              00007900
+                   THEN DO;                                             00008000
+                       ENDIF=ENDIF+4;                                   00008100
+                   END;                                                 00008200
+                   ELSE DO;                                             00008300
+                       ENDIF=ENDIF+4;                                   00008400
+                       GO TO ENDLOOP;                                   00008500
+                   END;                                                 00008600
+               END;                                                     00008700
+           END;                                                         00008800
+           PUT SKIP EDIT('CANNOT FIND END OF IF')(A);                   00008900
+           PUT DATA;                                                    00009000
+    /*     RETURN;         *****************/                           00009100
+     ENDLOOP:PUT SKIP DATA(ENDIF);                                      00009200
+     /* NOW WE WILL GO THRU AND ASSIGN VALUES TO ANY SYMBOLIC PARAS     00009300
+        OR INDENT.LOCNS WE FIND */                                      00009400
+           DO I=1 TO ENDIF;                                             00009500
+               IF SUBSTR(X(I),1,1)='&'                                  00009600
+               THEN X(I)=ABSVAL(X(I));                                  00009700
+               ELSE IF INDEX(X(I),'.')^=0                               00009800
+               THEN X(I)=IDVAL(X(I));                                   00009900
+           END;                                                         00010000
+           PUT SKIP(2) DATA;                                            00010100
+     /* NOW FINALLY SEE IF ANY RETURNCODE PROCESSING.                   00010200
+        IF SO SET SWITCH SO NO ASSIGNMENTS CAN BE DONE */               00010300
+           DO I=1 TO ENDIF;                                             00010400
+               IF VERIFY(X(I),'0123456789')^=0                          00010500
+               THEN GO TO OK;                                           00010600
+               IF SUBSTR(X(I),1,1)='&' THEN GO TO OK;                   00010700
+               IF SUBSTR(X(I),1,1)=''''THEN GO TO OK;                   00010800
+               RETNCODE='1'B;                                           00010900
+     OK:   END;                                                         00011000
+     /* NOW LETS HAVE A GO AT THE IF STMT */                            00011100
+           TRUE='0'B;                                                   00011200
+           DO  I=2 TO ENDIF;   /* 2 TO SKIP 'IF' IN X(1) */             00011300
+               IF VERIFY(X(I),'0123456789')=0                           00011400
+               |  VERIFY(X(I+2),'0123456789')=0                         00011500
+               THEN DO; /*HERE ONE OR BOTH NUMERIC */                   00011600
+                   BEGIN;                                               00011700
+                       ON CONVERSION BEGIN;                             00011800
+                           PUT SKIP EDIT('CONVERSION ERROR X(I)=',X(I), 00011900
+                          'X(2)=',X(2))(A);                             00012000
+                           GO TO FALSE;                                 00012100
+                       END;                                             00012200
+                       NO1=X(I);                                        00012300
+                       NO2=X(I+2);                                      00012400
+                       IF X(I+1)='=' & NO1=NO2 THEN GO TO NOSOK;        00012500
+                       IF X(I+1)='>' & NO1>NO2 THEN GO TO NOSOK;        00012600
+                       IF X(I+1)='<' & NO1<NO2 THEN GO TO NOSOK;        00012700
+                       IF X(I+1)='^=' & NO1^=NO2 THEN GO TO NOSOK;      00012800
+                       IF X(I+1)='^>' & NO1^>NO2 THEN GO TO NOSOK;      00012900
+                       IF X(I+1)='^<' & NO1^<NO2 THEN GO TO NOSOK;      00013000
+                       PUT SKIP EDIT('INVALID OPERATOR')(A);            00013100
+                   END;                                                 00013200
+               END;                                                     00013300
+     /* NEITHER NUMERIC THEREFORE NOW SEE IF ANY ARE RETURN CODES */    00013400
+               IF SUBSTR(X(I),1,1)=''''                                 00013500
+               |  SUBSTR(X(I+2),1,1)=''''                               00013600
+               THEN DO;                                                 00013700
+               END;                                                     00013800
+           END;                                                         00013900
+     ABSVAL:PROC RETURNS CHAR(20);                                      00014000
+       RETURN('ABSVAL');                                                00014100
+     END;                                                               00014200
+     IDVAL :PROC RETURNS CHAR(20);                                      00014300
+      RETURN('IDVAL');                                                  00014400
+     END;                                                               00014500
+     EOJ:  END;                                                         00014600

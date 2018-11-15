@@ -1,0 +1,131 @@
+TIOTDUMP TITLE 'JOL ** DYNAMIC ALLOCATION ** RESIDENT JOB STEP MONITOR' 00010000
+         MACRO                                                          00020000
+&L       $DMP &FROM,&SIZE,&TITLE=                                       00030000
+         LCLC  &C                                                       00040000
+         AIF   (T'&L EQ 'O').N                                          00050000
+&L       DS    0H                                                       00060000
+.N       ANOP                                                           00070000
+         AIF   (K'&TITLE EQ 0).NOTITLE                                  00080000
+&C       SETC  'KCP'.'&SYSNDX'                                          00090000
+         BAL   R0,&C           BRANCH AROUND THE MESSAGE                00100000
+         DC    Y(&C-*,0),C&TITLE                                        00110000
+&C       PUT   PRINT,(0)                                                00120000
+.NOTITLE ANOP                                                           00130000
+         IHBINNRA &FROM,&SIZE                                           00140000
+         L     R15,=V(UJE21DMP)                                         00150000
+         BALR  R14,R15                                                  00160000
+         MEND                                                           00170000
+         COPY  JOLGLOBL                                                 00180000
+         PUNCH '   PAGE         TIO00DMP'                         J40B  00181000
+         $UJEPARM                                                       00190000
+TIO00DMP CSECT                                                          00200000
+         USING PSA,0                                                    00210000
+         SPACE 2                                                        00220000
+         SAVE  (14,12),,TIOT.DUMP                                       00230000
+         USING TIO00DMP,R11     ADDRESS OURSELVES                       00240000
+         LR    R11,R15         AND FIX UP BASE REGISTER                 00250000
+         LR    R2,R1                                                    00260000
+         LR    R13,R1          LINKAGE SET UP NOW                       00290000
+         LA    R0,8(,R1)                                                00300000
+         OPEN  (PRINT,OUTPUT)                                           00310000
+         L     R2,PSATOLD    LOAD TCB ADDRESS                           00320000
+         USING TCB,R2        ADDRESSIBILITY FOR TASK CONTROL BLOCK      00330000
+         L     R1,TCBTIO                                                00340000
+*        SL    R1,=A(32)                                                00350000
+         $DMP  (1),256,TITLE='TIOT PREFIX AND TIOT'                     00360000
+RETNOS   DS    0H                                                       00370000
+BADRETN  DS    0H                                                       00380000
+INITERR  DS    0H                                                       00390000
+M00NCLSJ DS    0H                                                       00400000
+         CLOSE PRINT                                                    00410000
+         L     R13,4(,R13)       DRATTED THING                          00420000
+         LM    R14,R12,12(R13)                                          00430000
+         SLR   R15,R15                                                  00440000
+         BR    R14             AND BACK WE GO                           00450000
+         PRINT DATA                                                     00460000
+         DC    28S(*)                                                   00470000
+         LTORG                                                          00480000
+PRINT    DCB   DDNAME=PRINT,DSORG=PS,MACRF=PM,                         .00490000
+               LRECL=137,                                              .00500000
+               BLKSIZE=141,                                            .00510000
+               RECFM=VAB                                                00520000
+CONSTART DS    0D                                                       00540000
+SAVEAREA DS    18F                                                      00550000
+MSGAREA  DS    XL256                                                    00560000
+         DS    0D                                                       00570000
+CONEND   DS    0X                                                       00580000
+         COPY  UJECBS                                                   00600000
+.END     ANOP                                                           00610000
+         TITLE 'UJE21DMP: DUMP A STORAGE AREA'                          00620000
+         GENSAVE CSECT=UJE21DMP,BASE=R12                                00630000
+         ALR   R0,R1           CALCULATE END ADDRESS                    00650000
+         STM   R0,R1,ENDADDR      STORE PARAMETER ADDRESSES             00660000
+         CLEAR DPDATA                                                   00670000
+         LA    R0,DPBLKL                                                00680000
+         SLL   R0,16                                                    00690000
+         ST    R0,DPBLOCK                                               00700000
+         LA    R0,DPLINEL                                               00710000
+         SLL   R0,16                                                    00720000
+         ST    R0,DPLINE                                                00730000
+         L     R2,STARTADD     ADDRESS OF THE AREA                      00740000
+         MVI   DPDATA,C' '     SINGLE SPACE                             00750000
+E21LP0   DS    0H                                                       00760000
+         ST    R2,TEMP                                                  00770000
+         UNPK  HEXCONV,TEMP                                             00780000
+         TR    HEXCONV,HEX                                              00790000
+         MVC   DPADDR,HEXCONV+2                                         00800000
+         S     R2,STARTADD        SUBTRACT ORIGINAL ADDRESS             00810000
+         ST    R2,TEMP            STORE OFFSET                          00820000
+         A     R2,STARTADD        RESTORE IT                            00830000
+         UNPK  HEXCONV,TEMP                                             00840000
+         TR    HEXCONV,HEX                                              00850000
+         MVC   DPOFFS,HEXCONV+5                                         00860000
+         MVC   DPCHARS,0(R2)   COPY DATA IN CHARACTERS                  00870000
+         TR    DPCHARS,TRTAB   REMOVE SOME HARD-TO-PRINT DATA           00880000
+         LA    R14,DPHEX       ADDRESS FOR HEX DATA                     00890000
+         LA    R1,2                                                     00900000
+E21LP1   DS    0H                                                       00910000
+         LA    R0,4            4 SEGMENTS                               00920000
+E21LP2   DS    0H                                                       00930000
+         UNPK  HEXCONV,0(5,R2) CONVERT SOME TO HEX                      00940000
+         TR    HEXCONV,HEX                                              00950000
+         MVC   0(8,R14),HEXCONV INTO THE PRINT LINE                     00960000
+         LA    R14,9(,R14)     NEXT FOR OUTPUT                          00970000
+         LA    R2,4(,R2)       NEXT FOR INPUT                           00980000
+         BCT   R0,E21LP2                                                00990000
+         LA    R14,1(,R14)    AN EXTRA SKIP IN PAGE CENTRE              01000000
+         BCT   R1,E21LP1                                                01010000
+         PUT   PRINT,DPBLOCK                                            01020000
+         MVI   DPDATA,C' '        SINGLE SPACE                          01030000
+         C     R2,ENDADDR      Q... ANY MORE?                           01040000
+         BNH   E21LP0          A... YES                                 01050000
+         GENRETN RC=0                                                   01060000
+         DC    20S(*)   FOR PATCHES                                     01070000
+TRTAB    DC    256AL1(*-TRTAB) ALL THINGS TO ALL THINGS                 01080000
+         ORG   TRTAB                                                    01090000
+         DC    64X'40'         FIX THE FIRST ONES                       01100000
+         ORG   TRTAB+C'9'+1                                             01110000
+         DC    6C' '           AND THE LAST ONES                        01120000
+         ORG                                                            01130000
+         LTORG                                                          01140000
+HEX      DC    C'0123456789ABCDEF'                                      01141000
+E21WORK  DS    0D                                                       01150000
+         DS    18F             SAVE AREA                                01160000
+ENDADDR  DS    A                                                        01170000
+STARTADD DS    A                                                        01180000
+TEMP     DS    XL5                                                      01190000
+HEXCONV  DS    CL9                                                      01200000
+DPBLOCK  DS    F                                                        01210000
+DPLINE   DS    F                                                        01220000
+DPDATA   DS    0CL125                                                   01230000
+         DS    C                                                        01240000
+DPADDR   DS    CL6                                                      01250000
+         DS    C                                                        01260000
+DPOFFS   DS    CL3,2C                                                   01270000
+DPHEX    DS    CL75                                                     01280000
+DPCHARS  DS    CL32                                                     01290000
+DPLINEL  EQU   *-DPLINE                                                 01300000
+DPBLKL   EQU   *-DPBLOCK                                                01310000
+         DS    0D                                                       01320000
+E21WORKL EQU   *-E21WORK                                                01330000
+         END   TIO00DMP                                                 01340000

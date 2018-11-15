@@ -1,0 +1,130 @@
+*************** NOW CHECK THE DEVICE NAME TABLE **************          00010000
+*                                                                       00020000
+* NEW JAN 16TH 1976                                                     00030000
+* PART OF VERSION 3.0                                                   00040000
+* SUGGESTED BY STANDARD OIL(INDIANA) AND NEARLY CANCELLED               00050000
+* DUE TO LACK OF TIME BUT WITH ALL THE TROUBLE WE RUN INTO              00060000
+* FROM CARUS WITH NEW DEVICES, NOW IT GOES IN HERE.                     00070000
+          L    R1,AJOLGEN                                               00080000
+         L     R1,ADEVNAME    GET ADDRESS OF TABLE                      00090000
+         LTR   R1,R1          IS IT THERE?                              00100000
+         BZ    C03USER        NO,GIVE CONTROL TO USER EXIT              00110000
+         L     R15,0(R1)      LOAD NUMBER OF ENTRIES IN TABLEEL         00120000
+         MH    R15,=H'12'     MULT BY L'TABLE                           00130000
+         LA    R1,4(R1)       SKIP TABLE START                          00140000
+         AR    R15,R1         AND SET TABLE END                         00150000
+         LA    R14,12         L'TABLE                                   00160000
+         CLC   TKN(8),0(R1)  IS IT A UNIT NAME??                        00170000
+         BE    C03DEVUN       YEP                                       00180000
+         BXLE  R1,R14,*-10 CHECK FURTHER                                00190000
+* OK,GIVE CONTROL TO A USER EXIT                                        00200000
+         SPACE 2                                                  75128 00210000
+* OK NOW WE REALLY HAVE A PROBLEM COS WE HAVEN'T A CLUE WHAT            00220000
+*    IT IS BUT WE SHALL PRESS ON REGARDLESS.                            00230000
+WHATISIT   EQU *                                                        00240000
+* NOW WE HAVE A WORD THAT WE DON'T UNDERSTAND SO CALL THE USER          00250000
+* TO DO AS HE WISHES                                                    00260000
+           SPACE                                                        00270000
+C03USER    EQU *                                                        00280000
+         L     R15,ACOMPEXI   GET COMPILER EXIT ROUTINE ADDRESS   75128 00290000
+         L     R15,8(R15)                                         75128 00300000
+           LTR R15,R15                                                  00310000
+           BZ C03ERR                                                    00320000
+         $CALL (15),(CALLAREA,TKNX,DDDSNDET)                      75128 00330000
+           LTR R15,R15                                                  00340000
+         BNZ   C03ERR         EXIT DIDN'T FIX IT                  75128 00350000
+* NOW WE MUST SEARCH THE TABLE (KEYWORD) AND TRY AND FIND         75128 00360000
+*  THE KEYWORD THE USER GAVE BACK TO US                           75128 00370000
+         L     R1,=V(UJCDDKEY) GET A(KEYWORDS)                    75128 00380000
+         LM    R14,R15,4(R1)   LOAD BXLE LOOP                     75128 00390000
+         L     R1,0(R1)                                           75128 00400000
+         CLC   DBL(8),0(R1)                                       75128 00410000
+         BE    GOTKEYUS                                           75128 00420000
+         BXLE  R1,R14,*-10                                        75128 00430000
+* WELL, ERROR HERE I'M AFRAID                                     75128 00440000
+               B  C03INV                                                00450000
+         B     C                                                  75128 00460000
+GOTKEYUS EQU *                                                          00470000
+       LH  R15,TKNCURR                                                  00480000
+       BCTR R15,0                                                       00490000
+       STH  R15,TKNCURR                                                 00500000
+       B    GOTKEYWD                                                    00510000
+C03ERR     EQU *                                                        00520000
+         MVC   #WORK(L'TKN),#TKN                                  75128 00530000
+C03NERR2 GETTKN TKNCURR                                           75128 00540000
+         CLI   TKN,C'='                                           75128 00550000
+         BE    C03CONEQ                                           75128 00560000
+         CLI   TKN,C'('                                           75128 00570000
+         BE    C03CONEQ                                           75128 00580000
+C03INV   CLI   WORK,C'*'                                                00590000
+         BE    C                                                        00600000
+         JOLERR 301,'''',#WORK,''' IS NOT A VALID KEYWORD:-IGNORED'     00610000
+         B     C              BACK TO MAINLINE                    75128 00620000
+         SPACE 1                                                  75128 00630000
+C03CONEQ BAL   R14,CONCAT                                         75128 00640000
+C03CONE2 GETTKN (R1)                                              75128 00650000
+         BAL   R14,CONCAT                                         75128 00660000
+         CLI   TKN,C'('                                           75128 00670000
+         BE    C03CONE2                                           75128 00680000
+         STH   R1,TKNCURR                                         75128 00690000
+         B     C03NERR2                                           75128 00700000
+         SPACE 2                                                  75128 00710000
+GOTKEYWD   EQU *                                                        00720000
+* PREVIOUSLY, THERE USED TO BE TWO TABLES, ONE CONTAINING         75128 00730000
+*  KEYWORDS SUCH AS VB (IE NO KEYWORD EXPECTED AFTER) AND         75128 00740000
+*  KEYWORDS SUCH AS DSN.                                          75128 00750000
+* THE NEW TABLE CONTAINS AND INDICATOR TO SAY WHETHER WE HAVE     75128 00760000
+*  TO FIND THE VALUE AFTER THE KEYWORD, OR NOT                    75128 00770000
+         MVC   #WORK(L'TKN+2),#TKN SAVE KEYWORD FOR ERR-MSSGE     75128 00780000
+         MVC   DBL(2),C03LA10 MOVE LA R10 INSTRUCTION TO DBL      75128 00790000
+         MVC   DBL+2(2),10(R1) SHIFT IN S(RTN)                    75128 00800000
+         EX    R0,DBL         LOAD R10 WITH RTN                   75128 00810000
+         SPACE 1                                                        00820000
+* NOW WE HAD BETTER CHECK OUR INDICATORS TO SAY WHETHER THIS      75128 00830000
+*  KEYWORD WE HAVE GOT IS EXPECTING A VALUE AFTER IT OR NOT       75128 00840000
+         SPACE 1                                                  75128 00850000
+         ST    R1,DBL         SAVE POINTER TO TABLE FOR NOW       75128 00860000
+         TM    8(R1),X'01'    IF 0 MEANS NO VALUE AFTER KEYWORD   75128 00870000
+         BZ    C03BALR        NO VALUE, JUST BRANCH TO ROUTINE    75128 00880000
+           GETTKN LOCN=TKNCURR                                          00890000
+           CLI TKN,C'='                                                 00900000
+           BNE GOTTOKEY                                                 00910000
+           GETTKN REG=R1                                                00920000
+GOTTOKEY    EQU *                                                       00930000
+         CLI   TKN,C'('       '(' FOLLOWING KEYWORD ?             75128 00940000
+         BNE   C03GOTRK       NO,USE WHATS HERE                   75128 00950000
+         GETTKN (R1)          YES, SKIP IT                        75128 00960000
+C03GOTRK EQU   *                                                  75128 00970000
+           STH R1,TKNCURR                                               00980000
+C03BALR  EQU   *                                                  75128 00990000
+         L     R1,DBL         RELOAD POINTER TO TABLE ENTRY       75128 01000000
+         TM    8(R1),X'04'    SYSOUT ONLY KEYWORD ?               75128 01010000
+         BZ    C03NSYS9       NOPE                                75128 01020000
+         CLI   DDTYPE,DDSYSOUT IS THIS A SYSOUT DECLARE ?          SOCO 01030000
+         BL    C03PRONL       NOPE,BALR                            SOCO 01040000
+         CLI   DDTYPE,DDSPECOU IS THIS A SPECIAL SYSOUT ?          SOCO 01050000
+         BNH   C03BALR2        YES, I AM ONE OF THEM, SO BRANCH    SOCO 01060000
+C03PRONL JOLERR 311,'''',#WORK,'=',#TKN,''' IGNORED:- FOR SYSOUT ONLY'  01070000
+         B     C              BACK TO MAIN-LINE                  75128  01080000
+         SPACE 1                                                  75128 01090000
+C03NSYS9 TM    8(R1),X'08'    KEY ONLY FOR NON-SYSOUT DATA SET ?  75128 01100000
+         BZ    C03BALR2                                           75128 01110000
+         CLI   DDTYPE,DDSYSOUT  WELL, IS THIS A SYSOUT DATA SET?  75128 01120000
+         BH    C03BALR2         NOPE, GO TO ROUTINE               75128 01130000
+         JOLERR 312,'''',#WORK,'=',#TKN,''' IGNORED:- FOR',       75128*01140000
+               ' NON-SYSOUT FILES ONLY'                           75128 01150000
+         B     C                                                        01160000
+C03BALR2 EQU   *                                                        01170000
+         LTR   R15,R10                                            75128 01180000
+           BZ  C03NOTIM        NOT YET IMPLEMENTED MESSAGE,MATE         01190000
+         MVC   #WORK(L'TKN+2),#TKN                                75128 01200000
+            BALR R14,R15                                                01210000
+           B C                                                          01220000
+         SPACE 3                                                        01230000
+C03DEVUN EQU   *              UNIT FOUND IN DEVNAMET                    01240000
+         MVI  DDUNITYP,X'80'    PREPARE FOR DISK                        01250000
+         CLI   8+2(R1),X'80' TAPE UNIT IN DEVNAMET?                     01260000
+         BNE   C03SET8        SET L'TKN TO 8                            01270000
+         MVI   DDUNITYP,4     SET TO ANY TAPE UNIT                      01280000
+         B     C03SET8                                                  01290000
+GOTGENU    MVC TKN(8),8(R1) SWAP UNIT NAMES                             01300000

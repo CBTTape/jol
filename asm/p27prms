@@ -1,0 +1,736 @@
+P27PRMS  TITLE 'Analyse PANEL Parameters'                               00010001
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1980.                          00020000
+* JOL COPYRIGHT CCS-JOL 1988      1990                                  00030000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00040000
+           SPACE 3                                                      00050000
+*                   J             000000            L                   00060000
+*                   J            0      0           L                   00070000
+*                   J           0        0          L                   00080000
+*                   J          0          0         L                   00090000
+*                   J         0            0        L                   00100000
+*                   J         0  ^     ^   0        L                   00110000
+*                   J         0  O     O   0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0     V      0        L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0   <____>   0        L                   00160000
+*        J          J         0            0        L                   00170000
+*         J        J           0          0         L                   00180000
+*          J      J             0        0          L                   00190000
+*           J    J               0      0           L                   00200000
+*            JJJJ                 000000            LLLLLLLLLLL         00210000
+         SPACE 3                                                        00220000
+         PRINT OFF                                                J50   00230000
+         COPY  JOLCOM                                                   00240000
+*      COPY CPY/JOLCOMD.CPY                                             00250000
+         PRINT ON                                                 J50   00260000
+         COPY  P28PARMS                                           J50   00270000
+UJP27PRM JOLSAVE CSECT=UJP27PRM                                         00280000
+         TITLE 'UJP27PRMS: Analyse PANEL Parameters'                    00281001
+         L    R10,P27GBL                                                00290000
+         USING PANELWRK,R10                                             00300000
+         USING #PARM,R4                                                 00310000
+         USING DITEM,R5                                                 00320000
+*       L       R6,=V(P29POPWK)                                         00330000
+@HERE1   EQU    *                                                       00340000
+*        ORG   UJP27PRM                                           J50   00350000
+*P27PARMS EQU    *                                                      00360000
+*         ENTRY P27PARMS                                           J50  00370000
+*         ORG   @HERE1                                                  00380000
+*        WTO   'P27PARMS Called'                                        00390000
+         XC    TXTROWNO(LFIXED),TXTROWNO                          J51   00400000
+*        CLEAR RPLYLEN         THERE IS NO REPLY....                    00410000
+         SR    R1,R1                                                    00420000
+         STH   R1,SPCPROW        Clear specified Prompt Row             00430000
+         STH   R1,SPCPCOL        Clear specified Prompt Column          00440000
+         STH   R1,SPCRROW        Clear specified Reply Row              00450000
+         STH   R1,SPCRCOL        Clear specified Reply Column           00460000
+*cvc     LH    R15,CURRROW                                              00470000
+*        LA    R15,1(R15)                                               00480000
+*        STH   R15,CURRROW                                              00490000
+         MVC   TXTCOLNO,LHSMARG                                         00500000
+* Reset attributes                                                      00510000
+         MVI   P27ATTR,0         TURN OFF HIGHLIGHTS              J50   00520000
+         MVI   P27COLOR,4 {      SET DEFAULT COLOUR               J50   00530000
+         CALL$ UJP27TXT         Get the attributes and text             00540000
+         MVC   #OUTTXT(L'OUTTXT),#DEFTXT  shift to prompt area          00550000
+         MVC   #OUTTXTA(L'OUTTXT),#DEFTXTA  and the copy with ATTRS     00560000
+*        WTO   'OUTTXT IS:'                                             00570000
+*        WTO   OUTTXT                                                   00580000
+*                                                                       00590000
+* Test if Center or CTR was specified.                                  00600000
+*                                                                       00610000
+         TM    P27FLAGS,P27F1CTR                                  J50   00620000
+         BZ    P27NOCTR                                           J50   00630000
+*                                                                       00640000
+* Here we must centre the code.                                         00650000
+*                                                                       00660000
+* John Summerfield set the offset for the column to the centre, and     00670000
+*  let the 3270 handle it.                                              00680000
+*                                                                       00690000
+* I'll do it a little differently (the way the C and PL/I versions do   00700000
+*  it, in case attributes have been set in the string.                  00710000
+* We should also get the whole line in the same color.                  00720000
+*                                                                       00730000
+         MVI   OUTTXT,C' '                                              00740000
+         MVC   OUTTXT+1(100),OUTTXT                                     00750000
+         MVI   OUTTXTA,C' '                                             00760000
+         MVC   OUTTXTA+1(100),OUTTXT                                    00770000
+*                                                                       00780000
+* Get the length of the string                                          00790000
+*                                                                       00800000
+         LH    R15,#OUTTXT        Get length                            00810000
+         LTR   R15,R15           Stop Abends if no text           J51   00820000
+         BNZ   P27CTROK                                           J51   00830000
+         MVC   #OUTTXT(3),=X'000140' Make at least one blank      J51   00840000
+         MVC   #OUTTXTA(3),=X'000140' Make at least one blank     J51   00850000
+         MVC   #DEFTXT(3),=X'000140' Make at least one blank      J51   00860000
+         MVC   #DEFTXTA(3),=X'000140' Make at least one blank     J51   00870000
+         LA    R15,1                                              J51   00880000
+P27CTROK DS    0H                                                 J51   00890000
+         SRL   R15,1              DIVIDE BY 2                           00900000
+         SH    R15,=H'40'                                         J50   00910000
+         BNM   P27NOCTR           Hmm.  Pretend not centered, too big   00920000
+         LPR   R15,R15            Make positive                         00930000
+MAKECTR  DS    0H                                                       00940000
+         ENTRY MAKECTR                                                  00950000
+* R15 contains the amount to offset it to CENTRE it.                    00960000
+*        LA    R1,OUTTXT(R15)     Points to spot to copy to.            00970000
+         LA    R1,OUTTXT          Points to spot to copy to.            00980000
+         AR    R1,R15                                                   00990000
+         MVC   0(100,R1),DEFTXT   Shift and centre the string           01000000
+         LR    R1,R15             Get offset again (length of blanks)   01010000
+         AH    R1,#DEFTXT         New string length                     01020000
+         STH   R1,#OUTTXT         Set in OUTTXT string.                 01030000
+* Now repeat for the string with attributes                             01040000
+*        LA    R1,OUTTXTA(R15)    Points to spot to copy to.            01050000
+         LA    R1,OUTTXTA         Points to spot to copy to.            01060000
+         AR    R1,R15                                                   01070000
+         MVC   0(100,R1),DEFTXTA  Shift and centre the string           01080000
+         LR    R1,R15             Get offset again (length of blanks)   01090000
+         AH    R1,#DEFTXTA        New string length                     01100000
+         STH   R1,#OUTTXTA        Set in OUTTXTA string.                01110000
+* Now treat the string as normal.                                       01120000
+P27NOCTR DS    0H                                                       01130000
+         MVC   #DEFTXT,ZERO                                             01140000
+         MVC   #DEFTXTA,ZERO      Clear the strings P27GETXT gets.      01150000
+* in c we set up videobackground and highlight.  Do it differently.     01160000
+***************** cvc fix                                               01170000
+*                                                                       01180000
+         MVC   REPROWNO,CURRROW      Set default reply row              01190000
+         CLC   TKNCURR,TKNNO                                            01200000
+*        TOMASM ' ja p27pret0'                                          01210000
+         BH    P27PRET0                                                 01220000
+         CLI   TKN,C')'                                                 01230000
+         BE    P27PRET0                                                 01240000
+*                                                                       01250000
+* Here is an ordinary panel line                                        01260000
+*                                                                       01270000
+         MVC   REPROWNO,CURRROW   Set Reply Row                         01280000
+         LH    R1,LHSMARG         Set the reply column                  01290000
+         AH    R1,#OUTTXT         Plus current length of prompt string  01300000
+         STH   R1,REPCOLNO        OK.                                   01310000
+*                                                                       01320000
+*Save Symbolic name                                                     01330000
+*                                                                       01340000
+         MVC   SYMBOLIC,TKN                                             01350000
+         CLC   #TKN,=H'9'    CHECK IF SYMBOLIC NAME TOO LONG            01360000
+         BL    P27NAME2                                                 01370000
+         JOLERR 404,'SYMBOLIC NAME ''',#TKN,''' TOO LONG'               01380000
+P27NAME2 DS    0H                                                       01390000
+*        WTO   'SYMBOLIC IS:'                                           01400000
+*        WTO   SYMBOLIC                                                 01410000
+*                                                                       01420000
+* Skip the comma, and get to the length                                 01430000
+*                                                                       01440000
+         GETTKN TKNCURR           Skip comma                            01450000
+         STH   R1,TKNCURR                                               01460000
+*        WTO   'SKIP COMMA - Tkn is'                                    01470000
+*        WTO   TKN                                                      01480000
+         CLI   TKN,C','                                                 01490000
+         BE    GETRLEN                                                  01500000
+         JOLRETN  RC=0                                                  01510000
+*                                                                       01520000
+GETRLEN  DS    0H                                                       01530000
+*                                                                       01540000
+         GETTKN TKNCURR           Get the length specified              01550000
+         STH   R1,TKNCURR                                               01560000
+*        WTO   'Getting Number- Tkn is'                                 01570000
+*        WTO   TKN                                                      01580000
+         TNUM  #TKN                                                     01590000
+         LTR   R15,R15                                                  01600000
+         BZ    P27GOTL                                                  01610000
+         JOLERR 442,'Invalid Reply Length:-',#TKN                       01620000
+         JOLRETN RC=16                                                  01630000
+*                                                                       01640000
+P27GOTL  DS    0H                                                       01650000
+*                                                                       01660000
+         STH   R1,RPLYLEN         Save it                               01670000
+         AH    R1,REPCOLNO                                              01680000
+         MVI   TESTR,1                                             J60  01681005
+         CH    R1,=H'80'                                                01690000
+         BNH   P27NBUMP                                                 01700000
+         LH    R1,CURRROW                                               01710000
+         LA    R1,1(R1)                                                 01720000
+         STH   R1,CURRROW                                               01730000
+*                                                                       01740000
+P27NBUMP DS    0H                                                       01750000
+*                                                                       01760000
+         GETTKN TKNCURR           See if we have a default reply        01770000
+         STH   R1,TKNCURR                                               01780000
+         CLI   TKN,C','                                                 01790000
+         BNE   PINVALID           Should be a comma                     01800000
+         GETTKN TKNCURR           See if we have a default reply        01810000
+         STH   R1,TKNCURR                                               01820000
+*        WTO   'Default reply - Tkn is'                                 01830000
+*        WTO   TKN                                                      01840000
+*                                                                       01850000
+         CLC   TKNCURR,TKNNO                                            01860000
+*        TOMASM ' ja p27pret0'                                          01870000
+         BH    P27PRET0                                                 01880000
+         CLI   TKN,C')'                                                 01890000
+         BE    P27PRET0                                                 01900000
+*                                                                       01910000
+* Check if *, means use symbolic name (new for 370)                     01920000
+*                                                                       01930000
+         CLI   TKN,C'*'                                                 01940000
+         BE    P27ASTNM                                                 01950000
+         CALL$ UJP27TXT           OK, get the text                      01960000
+         B     P27GOTRT           Got the reply text                    01970000
+*                                                                       01980000
+P27ASTNM DS    0H                 Here is an asterisk                   01990000
+*cvc fix MVC   THISIF,1           Naughty, but stops error messages     02000000
+*cvc fix GETSYM SYMBOLIC                                                02010000
+*cvc fix MVC   THISIF,0           Reset IF INDIC to 0                   02020000
+         MVC   #DEFTXT,#OP        Copy default                          02030000
+         MVC   #DEFTXTA,#OP       Copy default                          02040000
+*                                                                       02050000
+* Check if specific row and column specified                            02060000
+*                                                                       02070000
+P27GOTRT DS    0H                                                       02080000
+*                                                                       02090000
+         CLC   TKNCURR,TKNNO                                            02100000
+*        TOMASM ' ja p27pret0'                                          02110000
+         BH    P27PRET0                                                 02120000
+         CLI   TKN,C')'                                                 02130000
+         BE    P27PRET0                                                 02140000
+*                                                                       02150000
+         TNUM  #TKN                                                     02160000
+         LTR   R15,R15                                                  02170000
+         BZ    P27ROW10 K                                               02180000
+         JOLERR 206,'ROW NUMBER ''',#TKN,''' INVALID - DEFAULTS USED'   02190000
+         SR    R1,R1                                                    02200000
+P27ROW10 STH   R1,SPCPROW                                               02210000
+         GETTKN TKNCURR                                                 02220000
+         STH   R1,TKNCURR                                               02230000
+*cvc     BAL   R9,P27GETTK                                              02240000
+         LTR   R15,R15                                                  02250000
+         BNZ   P27ENDIT                                                 02260000
+         TNUM  #TKN                                                     02270000
+         BZ    P27COL10                                                 02280000
+       JOLERR 207,'COLUMN NUMBER ''',#TKN,''' INVALID - DEFAULTS USED'  02290000
+         SR    R1,R1                                                    02300000
+P27COL10 STH   R1,SPCPCOL                                               02310000
+         GETTKN TKNCURR                                                 02320000
+         STH   R1,TKNCURR                                               02330000
+*        BAL   R9,P27GETTK                                              02340000
+         LTR   R15,R15                                                  02350000
+         BNZ   P27ENDIT                                                 02360000
+         TNUM  #TKN                                                     02370000
+         BZ    P27ROW20                                                 02380000
+         JOLERR 208,'REPLY ROW NUMBER ''',#TKN,                        *02390000
+               '''INVALID - DEFAULT USED'                               02400000
+         SR    R1,R1                                                    02410000
+P27ROW20 STH   R1,SPCRROW                                               02420000
+         GETTKN TKNCURR                                                 02430000
+         STH   R1,TKNCURR                                               02440000
+*        BAL   R9,P27GETTK                                              02450000
+         LTR   R15,R15                                                  02460000
+         BNZ   P27ENDIT                                                 02470000
+         TNUM  #TKN                                                     02480000
+         LTR   R15,R15                                                  02490000
+         BZ    P27COL20                                                 02500000
+         JOLERR 209,'REPLY COLUMN NUMBER ''',#TKN,                     *02510000
+               '''INVALID - DEFAULT USED'                               02520000
+*        JOLERR 209,'REPLY COLUMN NUMBER ''',#TKN                       02530000
+*              '''INVALID - DEFAULT USED'                               02540000
+         SR    R1,R1                                                    02550000
+P27COL20 DS    0H                                                       02560000
+         STH   R1,SPCRCOL                                               02570000
+P27ENDIT DS    0H                                                       02580000
+P27PRET0 JOLRETN RC=0                                                   02590000
+PINVALID DS    0H                                                       02600000
+         JOLERR 412,'Symbol ''',#TKN,''' Invalid in Panel'              02610000
+         JOLRETN RC=16                                                  02620000
+*                                                                       02630000
+         LTORG                                                          02640000
+         DC   140S(*)                                                   02641004
+*                                                                       02650000
+*                                                                       02660000
+*                                                                       02670000
+*                                                                       02680000
+XX5           DSECT                                                     02690000
+*        JOLSAVE CSECT=P27DISPL                                         02700000
+UJP27DIS JOLSAVE CSECT=UJP27DIS                                         02710000
+         TITLE 'UJP27DIS: Prepare SCREEN LINE'                          02711001
+*@HERE2   EQU    *                                                      02720000
+*         ORG   UJP27DIS                                           J50  02730000
+*P27DISPL EQU    *                                                      02740000
+*        ENTRY P27DISPL                                           J50   02750000
+*         ORG   @HERE2                                                  02760000
+* This code fixes up the text stream for the 3270                       02770000
+*                                                                       02780000
+         ST    R5,SAVER4R5            P27DISPL alters R5 & R7           02790000
+         ST    R7,SAVER4R5+4          P27DISPL alters R5 & R7           02800000
+         CLI   P27MENUB,0              Menu Bar specified?              02810000
+         BZ    P27NOMEN                not here                         02820000
+         MVI   P27MENUB,0              Menu Bar specified?              02830000
+         CALL$ UJP27BAR               Fix up Menu Bar                   02840000
+*        MVC   TXTATTR,P27ATTR         COPY ATTRIBUTE,                  02850000
+         MVC   TXTATTR,=X'F2'          Reverse = F2, Underline=   F4    02860000
+         MVC   TXTCOLR,P27COLOR        COPY COLOUR                      02870000
+         MVI   TXTCOLR,7               Set COLOUR                       02880008
+         LH    R1,#MENTXT                                               02890000
+         MEMCPY LITERAL,MENTXT,R1                                       02900000
+         LH    R1,#WORK                                                 02910000
+         MEMCPY LITERAL,WORK,R1                                         02920000
+         MVC   TXTROWNO,=H'1'          Set up lines for menu bar        02930000
+         MVC   TXTCOLNO,=H'4'                                     J52   02940003
+         MVC   REPROWNO,=H'1'          Set up lines for menu bar        02950000
+         MVC   REPCOLNO,=H'2'                                           02960000
+         MVC   RPLYLEN,=H'1'                                            02970000
+*        LH    R1,#MENTXT              Get length of Menu Text          02980000
+         STH   R1,TXTLEN               Put in Screen Area               02990000
+         LH    R14,TXTLEN        LOAD THE LENGTH OF THE MESSAGE TEXT    03000000
+         LA    R14,LITERAL(R14)  CALCULATE END OF CURRENT STRING.       03010000
+         LA    R15,1          LOAD THE LENGTH OF THE DEFAULT REPLY      03020000
+         STH   R15,RLITLEN    STORE LENGTH FOR SCREEN HANDLER           03030000
+         MVI   0(R14),C'_'    MOVE DEFAULT REPLY                        03040000
+         MVI   TESTR,X'01'     TELL ROUTINE THAT THERE IS A REPLY       03050000
+         MVC   REPATTR,P27ATTR    COPY ATTRIBUTE                  J50   03060000
+         MVI   REPCOLR,5          COPY ATTRIBUTE, COLOUR          J50   03070000
+         MVI   P27ATTR,0         TURN OFF HIGHLIGHTS              J50   03080000
+         MVI   P27COLOR,6 {      SET DEFAULT COLOUR               J50   03090000
+         AH    R1,RLITLEN                                               03100000
+         AR    R5,R1                   Point to new SCRN area           03110000
+*        LA    R5,LFIXED(R5)           Add the fixed length area        03120000
+         AH    R5,=AL2(LFIXED)         Add the fixed length area        03130000
+* Store symbolic SYSMENU                                                03140000
+         SH    R7,=H'8'       BACKTRACK IN TABLE                        03150000
+         MVC   0(8,R7),=CL8'SYSMENU'                                    03160000
+         LH    R1,#SCITEMS             Increment number of items        03170000
+         LA    R1,1(R1)                                                 03180000
+         STH   R1,#SCITEMS                                              03190000
+         ST    R5,SAVER4R5            P27DISPL alters R5 & R7           03200000
+         ST    R7,SAVER4R5+4          P27DISPL alters R5 & R7           03210000
+         MVC   CURRROW,=H'2'           Set up lines for NEXT item .     03220000
+         MVC   CURRCOL,=H'1'           As above                         03230000
+         JOLRETN RC=0                  And return !                     03240000
+*                                                                       03250000
+P27NOMEN DS    0H                      Not Menu Bar                     03260000
+*                                                                       03270000
+         CLI   P27HELPL,0              Help Line specified?             03280000
+         BZ    P27NOHLP                No,                              03290000
+*                                                                       03300000
+* Here we have a HELP Line                                              03310000
+*                                                                       03320000
+         MVI   P27HELPL,0              Turn it off                      03330000
+         CLC   #OUTTXTA,#OUTTXT        Were attributes on HELP line?    03340000
+         BNE   HLPATR                  Yes.                             03350000
+         MVI   P27COLOR,6              SET Hilite COLOUR                03360000
+HLPATR   DS    0H                                                       03370000
+         CLC   #OUTTXT,=H'76'          Line > 76?                       03380000
+         BL    LT76                                                     03390000
+         MVC   #OUTTXT,=H'76'                                           03400000
+LT76     DS    0H                                                       03410000
+         LH    R1,#OUTTXT                                               03420000
+         SRL   R1,1                    / 2                        J60   03430006
+         SH    R1,=H'40'                                                03440000
+         LPR   R1,R1                                                    03450000
+         STH   R1,TXTCOLNO                                              03460000
+         MVC   TXTATTR,P27ATTR         COPY ATTRIBUTE,                  03470000
+         MVC   TXTCOLR,P27COLOR        COPY COLOUR                      03480000
+         LH    R1,#OUTTXT              Get length of Menu Text          03490000
+         MEMCPY LITERAL,OUTTXT,R1                                       03500000
+         MVC   TXTROWNO,=H'24'         Set up line for help line  J60   03510009
+         MVC   REPROWNO,ZERO           Set up lines for menu bar        03520000
+         MVC   REPCOLNO,ZERO                                            03530000
+         MVC   RPLYLEN,ZERO                                             03540000
+         LH    R1,#OUTTXT              Get length of Menu Text          03550000
+         STH   R1,TXTLEN               Put in Screen Area               03560000
+         AR    R5,R1                   Point to new SCRN area           03570000
+*        LA    R5,LFIXED(R5)           Add the fixed length area        03580000
+         AH    R5,=AL2(LFIXED)         Add the fixed length area        03590000
+         LH    R1,#SCITEMS             Increment number of items        03600000
+         LA    R1,1(R1)                                                 03610000
+         STH   R1,#SCITEMS                                              03620000
+         ST    R5,SAVER4R5            P27DISPL alters R5 & R7           03630000
+         ST    R7,SAVER4R5+4          P27DISPL alters R5 & R7           03640000
+         JOLRETN RC=0                  And return !                     03650000
+P27NOHLP DS    0H                      Ordinary Panel to put out here   03660000
+         ENTRY P27NOHLP                                                 03670000
+*                                                                       03680000
+*        JOLERR 412,'Symbol ''',#TKN,''' Invalid in Panel'              03690000
+         LH    R15,#OUTTXTA            LOAD LITERAL LENGTH              03700000
+         STH   R15,TXTLEN              STORE IT                         03710000
+*        BCTR  R15,0                                                    03720000
+*        EX    R15,*+4                 MOVE STRING TO 'LITERAL'         03730000
+*        MVC   LITERAL(0),OUTTXTA      MOVE TOKEN TO 'LITERAL'          03740000
+         MEMCPY LITERAL,OUTTXTA,R15  MOVE TOKEN TO 'LITERAL'            03750000
+         MVC   TXTROWNO,CURRROW        Set up row number                03760000
+         MVC   TXTCOLNO,CURRCOL        and column number                03770000
+         MVC   TXTATTR,P27ATTR         COPY ATTRIBUTE,                  03780000
+         MVC   TXTCOLR,P27COLOR        COPY COLOUR                      03790000
+         MVI   P27ATTR,0               TURN OFF HIGHLIGHTS              03800000
+         MVI   P27COLOR,6 {            SET DEFAULT COLOUR               03810000
+         TM    P27FLAGS,P27F1CTR                                        03820000
+         BZ    P27NOCOL                                                 03830000
+         B     P27NOCOL                cvc fix                          03840000
+         SRL   R15,1                   DIVIDE BY 2                      03850000
+         SH    R15,=H'40'                                               03860000
+         LCR   R15,R15                                                  03870000
+         STH   R15,TXTCOLNO                                             03880000
+         SPACE 2                                                        03890000
+P27NOCOL DS    0H                                                       03900000
+         CLC   RPLYLEN,ZERO                                       J51   03910000
+         BE    P27NOREP                                           J51   03920000
+P27NAME  SH    R7,=H'8'       BACKTRACK IN TABLE                        03930000
+         MVC   0(8,R7),SYMBOLIC                                         03940000
+         SPACE                                                          03950000
+* WE HAVE A DEFAULT REPLY TO PUT OUT.                                   03960000
+         SPACE                                                          03970000
+         LH    R14,TXTLEN        LOAD THE LENGTH OF THE MESSAGE TEXT    03980000
+         LA    R14,LITERAL(R14)  CALCULATE END OF CURRENT STRING.       03990000
+         LH    R15,#DEFTXTA   LOAD THE LENGTH OF THE DEFAULT REPLY      04000000
+         STH   R15,RLITLEN    STORE LENGTH FOR SCREEN HANDLER           04010000
+         LTR   R15,R15         SEE IF THERE IS ONE (MAY BE 0 LENGTH)    04020000
+         BZ    P27CHKRO       CHECK ROW AND COLUMN NUMBERS              04030000
+         BCTR  R15,0                                                    04040000
+*        EX    R15,*+4         SHIFT TO END OF MESSAGE TEXT             04050000
+*        MVC   0(0,R14),DEFTXTA MOVE DEFAULT REPLY                      04060000
+         MVC   0(100,R14),DEFTXTA MOVE DEFAULT REPLY                    04070000
+         MVI   TESTR,X'01'     TELL ROUTINE THAT THERE IS A REPLY       04080000
+P27CHKRO DS    0H                                                       04090000
+         MVC   REPATTR,P27ATTR    COPY ATTRIBUTE                  J50   04100000
+         MVC   REPCOLR,P27COLOR   COPY ATTRIBUTE, COLOUR          J50   04110000
+         MVI   P27ATTR,0         TURN OFF HIGHLIGHTS              J50   04120000
+         MVI   P27COLOR,6 {      SET DEFAULT COLOUR               J50   04130000
+         MVC   #WORK(L'TKN+2),#DEFTXT  Move DEFAULT REPLY TO SAVE AREA  04140000
+         CALL$ UJP85ASN      SET UP DEFAULT REPLY IN THE SYMBOLIC       04150000
+         SPACE 2                                                        04160000
+P27NOREP DS    0H                                                 J51   04170000
+*        LH    R1,TXTLEN        NOT HERE, SO WE WILL PUT ONE IN.        04180000
+         LH    R1,#OUTTXT       Get length WITHOUT attributes           04190000
+         LA    R1,2(R1)                                                 04200000
+         TM    P27FLAGS,P27F1CTR                                  J50   04210000
+*        BZ    P27NCOL                                            J50   04220000
+         B     P27NCOL           NOTE: This code done ealier      J51   04230000
+         DS    0H                                                       04240000
+*        AH    R1,RPLYLEN       NOW CHECK IF IT WILL RUN OVER A LINE.   04250000
+         AH    R1,#DEFTXT       NOW CHECK IF IT WILL RUN OVER A LINE.   04260000
+*                                NOTE - length without attributes J51   04270000
+         SRL   R1,1              DIVIDE BY 2                      J50   04280000
+         SH    R1,=H'40'                                          J50   04290000
+         LCR   R1,R1                                              J50   04300000
+         STH   R1,TXTCOLNO                                              04310000
+         AH    R1,TXTLEN        NOT HERE, SO WE WILL PUT ONE IN.        04320000
+         LA    R1,2(R1)                                                 04330000
+P27NCOL  DS    0H                                                 J50   04340000
+         STH   R1,REPCOLNO                                              04350000
+         AH    R1,RPLYLEN       NOW CHECK IF IT WILL RUN OVER A LINE.   04360000
+         SLR   R0,R0          CLEAR FOR DIVIDE                          04370000
+         D     R0,#COLUMNS    FIND REMAINDER                            04380000
+         AH    R1,CURRROW     ADD TO CURRENT LINE NUMBER                04390000
+         STH   R1,CURRROW                                               04400000
+P27RCOLO DS    0H                                                       04410000
+*                                                                       04420000
+* Test if we had specific row and columns specified.                    04430000
+*                                                                       04440000
+         CLC   SPCPROW,ZERO      Was Prompt Row specified?              04450000
+         BE    P27NOSP           No.                                    04460000
+         MVC   CURRROW,SPCPROW   Copy to Current Row                    04470000
+         MVC   TXTROWNO,SPCPROW  and screen Row                         04480000
+         MVC   TXTCOLNO,SPCPCOL  and column number                      04490000
+         CLC   SPCRROW,ZERO      Was Reply Row specified?               04500000
+         BE    P27NOSP           No.                                    04510000
+         MVC   REPROWNO,SPCRROW  Copy to screen area                    04520000
+         MVC   REPCOLNO,SPCRCOL  and column number                      04530000
+P27NOSP  LH    R1,TXTLEN                                                04540000
+         AH    R1,RLITLEN                                               04550000
+         AR    R5,R1          BUMP UP TO POINT TO NEW SPOT IN TABLE     04560000
+*        LA    R5,LFIXED(R5)  POINT OVER FIXED AREA IN PARM LIST        04570000
+         AH    R5,=AL2(LFIXED) POINT OVER FIXED AREA IN PARM LIST       04580000
+        XC    TXTROWNO(LFIXED),TXTROWNO next item row and col numbers   04590000
+         LH    R1,#SCITEMS             Increment number of items        04600000
+         LA    R1,1(R1)                                                 04610000
+         STH   R1,#SCITEMS                                              04620000
+         B     P27NTEST                                                 04630000
+*        LA    R1,TKN+100                                               04640000
+*        TGET  (1),1                                                    04650000
+         SPACE 2                                                        04660000
+P27NTEST LH    R15,CURRROW                                              04670000
+         LA    R15,1(R15)                                               04680000
+         STH   R15,CURRROW                                              04690000
+         ST    R5,SAVER4R5            P27DISPL alters R5 & R7           04700000
+         ST    R7,SAVER4R5+4          P27DISPL alters R5 & R7           04710000
+         JOLRETN RC=0                                                   04720000
+         HALT                                                           04730000
+P27RETNF DS    0H                                                       04740000
+         JOLRETN RC=16                                                  04750000
+         LTORG                                                          04760000
+         DC   140S(*)                                                   04761004
+         TITLE 'CALL$ SCREEN MANAGER'                                   04770000
+XX6           DSECT                                                     04780000
+UJP27SCR JOLSAVE CSECT=UJP27SCR                                         04790000
+         TITLE 'UJP27SCR: Display Panel Subroutine'                     04791001
+* CHECK IF WE ARE UNDER TSO, OR IF THE PANELS HAVE BEEN TURNED          04800000
+*  OFF BEFORE ACTUALLY DISPLAYING THEM.                                 04810000
+*        IFNULL IFTSO,P27RETN0 OK, NOT TSO, SO RETURN                   04820000
+         CLC    IFTSO,ZERO     OK, NOT TSO, SO RETURN                   04830000
+         BZ     P27RETN0                                                04840000
+         CLI   IFFULLSC,C'Y'  HAVE PANELS BEEN TURNED OFF ANYWAY?       04850000
+         BNE   P27RETN0       YES, SO OUT WE GO                         04860000
+         SPACE 2                                                        04870000
+         SH    R7,=H'8'                                                 04880000
+         MVC   0(8,R7),BLANKS TO ACT AS A STOP ON RETURN FROM SCREEN    04890000
+         LA    R0,4000(R4)    GET WORK AREA FOR SCREEN HANDLER FIX DJD  04900000
+         LR    R1,R4          POINT TO START OF PARAMETER AREA          04910000
+         CALL$ UJP28SCR                                                 04920000
+         FIX   'If MENUBAR, call UJP27TBR'                              04930000
+         CLC   SYSPFK,=H'0'                                             04940000
+         BNE   NOBAR                                                    04950000
+         CLC   #MENTXT,ZERO      Was Menu BAr Specified?                04960000
+         BE    NOBAR             No.                                    04970000
+         CLC   WHEREY,=H'1'                                       PC    04980000
+         BNE   NOBAR                                              PC    04990000
+         CLC   WHEREX,=H'4'      cursor column < 4 ?              PC    05000000
+         BL    NOBAR                                              PC    05010000
+         FIX 'Check for returned key'                             PC    05020000
+         CALL$ UJP27TBR                                                 05030000
+         JOLRETN RC=0                                                   05040000
+NOBAR    DS    0H                                                       05050000
+         LR    R9,R15       SAVE THE RETURN CODE                        05060000
+         CVD   R0,DBL                                                   05070000
+         UNPK  WORK(2),DBL                                              05080000
+         OI    WORK+1,X'F0'  SET ZONE BITS                              05090000
+         MVC   #WORK,=H'2'                                              05100000
+         MVC   SYMBOLIC,=CL8'SYSPFK'                                    05110000
+         CALL$ UJP85ASN                                                 05120000
+*        LA    R1,WORK                                            J40B  05130000
+*        TPUT  (1),2                                              J40B  05140000
+*        LA    R1,WORK+2                                          J40B  05150000
+*        TGET  (1),2                                              J40B  05160000
+         LTR   R9,R9          CHECK RETURN CODE FROM 28                 05170000
+         BZ    P27REC         RECIEVE DATA BACK                         05180000
+P27SERR  JOLERR 410,'Error Occurred in Screen Handler'                  05190000
+         JOLRETN RC=16                                                  05200000
+         TITLE 'RETURN INFORMATION TO JOL SYMBOLICS'                    05210000
+P27REC   EQU   *                                                        05220000
+         LR    R8,R1          SAVE R1 (RETURNED STRINGS)                05230000
+         LH    R9,CURRROW     LOAD THE LAST ROW OUTPUT        **CVC     05240000
+         LA    R9,1(R9)       SET +1 SO CURSOR ENDS UP THERE  **CVC     05250000
+         LA    R9,1           SET LINE TO 1  ****************           05260000
+* the code to clear the screen is not necessary on 3270's         J60   05260110
+* as the clear screen is part of the initial output to the 3270.  J60   05260210
+* Clem Clarke, Jan 11, 2010.                                            05260310
+         B     IBM            IF ON IBM, DON'T DO NEXT BIT    **CVC     05261010
+         STLINENO LINE=(R9),MODE=OFF SET LINE, AND TURN OFF FS **CVC    05270007
+         STFSMODE   OFF                                                 05280007
+         B     IBM            IF ON IBM, DON'T DO NEXT BIT    **CVC     05290000
+         LA    R0,1           FACOM ERROR, PUT SOMETHING ON THE SCREEN  05300000
+         LA    R1,=C' '       FACOM ERROR, PUT SOMETHING ON THE SCREEN  05310000
+         SVC   93             TPUT                                      05320000
+* ON RETURN, R1 POINTS TO THE RETURNED STRINGS.                         05330000
+IBM      LH    R9,#SCITEMS    LOAD THE NUMBER OF ITEMS RETURNED         05340000
+         LA    R7,4000-8(R4)  POINT TO TABLE CONTAINING SYMBOLICS       05350000
+P27STRN  MVC   SYMBOLIC,0(R7) SHIFT NAME TO JOL SYMBOLIC NAME ADDRESS   05360000
+*        IFNULL SYMBOLIC,P27RETN0 REACHED END, JUST RETURN              05370000
+         CLC    SYMBOLIC,BLANKS   REACHED END, JUST RETURN              05380000
+         BZ     P27RETN0                                                05390000
+         LA    R1,#WORK       LOAD RECIEVE ADDRESS                      05400000
+         CLC   =H'0',0(R8)    IS THERE A PARAMETER TO RETURN?           05410000
+         BE    P85SKIP        NOPE, SO LEAVE VALUE THE WAY IT WAS.      05420000
+         TM    0(R8),X'80'    IS HIGH ORDER BIT ON?                     05430000
+         BZ    P27STR         YES MEANS A FIELD WAS CANCELLED           05440000
+         NI    0(R8),X'FF'-X'80' SO... STORE 0 FILED IN IT.             05450000
+P27STR   LR    R0,R8          LOAD SEND ADDRESS                         05460000
+         BAL   R14,MOVEDATA   MOVE TO WORK                              05470000
+         CLI   P27CAPS,0         Caps turned off?                 J51   05480000
+         BE    P27NOUPR          Yes, leave lowercase             J51   05490000
+         OC    WORK(256),=CL256' ' MAKE UPPER CASE                      05500000
+         FIX   'PROPERLY LATER'                                         05510000
+P27NOUPR DS    0H                                                 J51   05520000
+         CLC   =C'SYSMENU ',SYMBOLIC Is this SYSMENU?             J51   05530000
+         BNE   STORE99                                            J51   05540000
+         OC    WORK(2),BLANKS                                     J51   05550000
+         CLI   WORK,C'_'         Default                          J51   05560000
+         BNE   DOMEN3                                             J51   05570000
+         MVC   #WORK,ZERO                                         J51   05580000
+         B     STORE99                                            J51   05590000
+DOMEN3   DS    0H                                                 J51   05600000
+         CALL$ UJP27TBR                                                 05610000
+         JOLRETN RC=0                                                   05620000
+STORE99  DS    0H                                                 J51   05630000
+         CALL$ UJP85ASN       STORE IN SYMBOLIC FIELD                   05640000
+P85SKIP  SH    R7,=H'8'       BACK TO NEXT SYMBOLIC NAME                05650000
+         AH    R8,0(R8)       BUMP UP TO NEXT RETURNED ITEM.            05660000
+         LA    R8,2(R8)       SKIP LENGTH OF STRING (VARYING|)          05670000
+         BCT   R9,P27STRN     GO BACK AND STORE NEXT SYMBOLIC           05680000
+P27RETN0 DS    0H                                                       05690000
+*        FREEMAIN R,LV=9288,A=(R4)                                      05700000
+         JOLRETN                                                        05710000
+*   else    if ((clclit(Tkn, "MENUBAR") == 0))                          05720000
+*   {                                                                   05730000
+*       if (currrow < 3)                                                05740000
+*       {                                                               05750000
+*           menubar = true;                                             05760000
+*           centre = true;                                              05770000
+*       }                                                               05780000
+*       else                                                            05790000
+*       {                                                               05800000
+*           jolerrlit("P27325", "MENUBAR must be specified first");     05810000
+*           return false;                                               05820000
+*       }                                                               05830000
+*   }                                                                   05840000
+*                                                                       05850000
+*   else    if ((clclit(Tkn, "HELPLINE") == 0))                         05860000
+*   {                                                                   05870000
+*           helpline = true;                                            05880000
+*           centre = true;                                              05890000
+*   }                                                                   05900000
+*   if ((clclit(Tkn, "LM") == 0)) {                                     05910000
+*       p27getnum(); /* get LHS Margin  */                              05920000
+*                                                                       05930000
+*       if (number == 0)                                                05940000
+*       {                                                               05950000
+*           cpylit(errtext, "LM incorrect:");                           05960000
+*           cat   (errtext, Tkn);                                       05970000
+*           jolerr("P27315");                                           05980000
+*           return false;                                               05990000
+*       }                                                               06000000
+*       lhs_margin = number;                                            06010000
+*       if (draw_box)                                                   06020000
+*            screen_width = 78 - (lhs_margin + rhs_margin);             06030000
+*       else screen_width = 80 - (lhs_margin + rhs_margin);             06040000
+*       return true;                                                    06050000
+*   }                                                                   06060000
+*   else                                                                06070000
+*   if ((clclit(Tkn, "RM") == 0))                                       06080000
+*   {                                                                   06090000
+*       p27getnum(); /* get LHS Margin  */                              06100000
+*                                                                       06110000
+*       if (number == 0) {                                              06120000
+*           cpylit(errtext, "RM incorrect:");                           06130000
+*           cat   (errtext, Tkn);                                       06140000
+*           jolerr("P27316");                                           06150000
+*           return false;                                               06160000
+*       }                                                               06170000
+*       rhs_margin = number;                                            06180000
+*       if (draw_box)                                                   06190000
+*       screen_width = 78 - (lhs_margin + rhs_margin);                  06200000
+*       else screen_width = 80 - (lhs_margin + rhs_margin);             06210000
+*       return true;                                                    06220000
+*   }                                                                   06230000
+*                                                                       06240000
+         EJECT                                                          06250000
+P27GETTK GETTKN TKNCURR                                                 06260000
+         STH   R1,TKNCURR     UP IT BY 1                                06270000
+         CLI   TKN,C','       COMMA ?                                   06280000
+         BE    P27GETTK       YES, SKIP IT                              06290000
+         SR    R15,R15                                                  06300000
+         CLI   TKN,C'('                                                 06310000
+         BNE   P27GT010                                           J40B  06320000
+         NI    P27FLAGS,255-P27F1CTR                              J40B  06330000
+         MVI   P27ATTR,0         TURN OFF HIGHLIGHTS              J50   06340000
+         MVI   P27COLOR,4        SET DEFAULT COLOUR               J50   06350000
+         B     P274                                               J40B  06360000
+P27GT010 DS    0H                                                 J40B  06370000
+*        BE    P274           RETURN 4     NEW SUB PARAMETER            06380000
+         CLI   TKN,C')'                                                 06390000
+         BE    P278           RETURN 8     END OF SUB PARAMETER         06400000
+         CLC   =C'CTR ',TKN                                       J40B  06410000
+         BE    P27CTR                                             J40B  06420000
+         CLC   =C'CENTRE ',TKN                                    J40B  06430000
+         BE    P27CTR                                             J40B  06440000
+         CLC   =C'CENTER ',TKN                                    J40B  06450000
+         BNE   P27GT020                                           J40B  06460000
+P27CTR   DS    0H                                                 J50   06470000
+         OI    P27FLAGS,P27F1CTR CENTRE THE LINE                  J40B  06480000
+         B     P27GETTK                                           J40B  06490000
+P27GT020 DS    0H                                                 J40B  06500000
+         CH    R1,TKNNO                                                 06510000
+         BH    P2712          RETURN 12    END OF STATEMANT             06520000
+*        MVC   #DEFTXTA(L'DEFTXTA),#TKN                                 06530000
+*        MVC   #DEFTXT(L'DEFTXT),TKN                                    06540000
+         MVC   #DEFTXTA,ZERO                                            06550000
+         MVC   #DEFTXT,ZERO                                             06560000
+         CALL$ UJP27TXT       get text, fixes colors etc                06570000
+         MVC   #TKN(L'TKN),#DEFTXTA       shift fixed string back       06580000
+         SR    R15,R15                                                  06590000
+         BR    R9                                                       06600000
+*cvc cvc                                                                06610000
+         L     R1,=A(UJCOLOUR)                                    J40B  06620000
+         LM    R14,R15,4(R1)                                      J40B  06630000
+         L     R6,0(,R1)                                          J40B  06640000
+P27GT030 DS    0H                                                 J40B  06650000
+         CLC   0(12,R6),TKN                                       J40B  06660000
+         BNL   P27GT040                                           J40B  06670000
+         BXLE  R6,R14,P27GT030                                    J40B  06680000
+P27GT040 DS    0H                                                 J40B  06690000
+         BNE   P27GT050                                           J40B  06700000
+XXXX     CLI   12(R6),X'FF'      RESET ATTRIBUTE?                 J50   06710000
+         BNE   P27NORES          NO                               J50   06720000
+         MVI   P27ATTR,0         SET NO HIGHLIGHTING              J50   06730000
+P27NORES DS    0H                                                 J40B  06740000
+         TM    12(R6),X'F8'      TEST ATTR BITS                   J50   06750000
+         BNZ   P27ATTRX                                           J50   06760000
+COLOUR   MVC   P27COLOR,12(R6)   COPY NEW COLOUR                  J40B  06770000
+         NI    P27COLOR,X'07'                                     J50   06780000
+XXXX1    B     P27GETTK                                           J40B  06790000
+P27ATTRX DS    0H                                                 J40B  06800000
+         OC    P27ATTR,12(R6)    MASK NEW ATTRIBUTE               J40B  06810000
+XXXX2    B     P27GETTK                                           J40B  06820000
+P27GT050 DS    0H                                                 J40B  06830000
+         DROPQUSR #TKN                 Drop Quote                 J50   06840000
+*        BAL   R14,DROPQUOT   DROP QUOTES IF THERE ARE ANY              06850000
+         SLR   R15,R15                                            J40B  06860000
+         BR    R9                                                       06870000
+P2712    LA    R15,4(R15)                                               06880000
+P278     LA    R15,4(R15)                                               06890000
+P274     LA    R15,4(R15)                                               06900000
+         BR    R9                                                       06910000
+         DS    0D                                                 J40B  06920000
+         LTORG                                                          06930000
+*        DC    20S(*)                                                   06940000
+UJCOLOUR CSECT                                                    J40B  06950000
+COLOURTB DC    A(CTSTA,13,CTEND)                                  J40B  06960000
+CTSTA    DC    CL12'BLACK     ',X'00'                             J40B  06970000
+         DC    CL12'BLINK     ',X'80'                             J40B  06980000
+         DC    CL12'BLINKING  ',X'80'                             J40B  06990000
+         DC    CL12'BLUE      ',X'01'                             J40B  07000000
+         DC    CL12'BOLD      ',X'06'                             J40B  07010000
+         DC    CL12'BRIGHT    ',X'06'                             J40B  07020000
+         DC    CL12'BROWN     ',X'02'                             J40B  07030000
+         DC    CL12'CYAN      ',X'03'                             J40B  07040000
+         DC    CL12'FLASH     ',X'80'                             J40B  07050000
+         DC    CL12'FLASHING  ',X'80'                             J40B  07060000
+         DC    CL12'GREEN     ',X'04'                             J40B  07070000
+         DC    CL12'HI        ',X'06'                             J40B  07080000
+         DC    CL12'INVERSE   ',X'40'                             J40B  07090000
+         DC    CL12'INVISIBLE ',X'00'                             J40B  07100000
+         DC    CL12'MAGENTA   ',X'05'                             J40B  07110000
+         DC    CL12'NORMAL    ',X'01'                             J40B  07120000
+         DC    CL12'OVERLINE  ',X'20'                             J40B  07130000
+         DC    CL12'OVERSCORE ',X'20'                             J40B  07140000
+         DC    CL12'RED       ',X'06'                             J40B  07150000
+         DC    CL12'RESET     ',X'FF'                             J40B  07160000
+         DC    CL12'UNDERLINE ',X'10'                             J40B  07170000
+         DC    CL12'UNDERSCORE',X'10'                             J40B  07180000
+         DC    CL12'REVERSE   ',X'40'                             J40B  07190000
+         DC    CL12'VERTLINE  ',X'08'                             J40B  07200000
+         DC    CL12'WHITE     ',X'07'                             J40B  07210000
+         DC    CL12'YELLOW    ',X'02'                             J40B  07220000
+CTEND    DC    12X'FF',X'00'                                      J40B  07230000
+         DC   140S(*)                                                   07231004
+*        END                                                            07240000
+*                                                                       07250000

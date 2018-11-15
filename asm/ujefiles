@@ -1,0 +1,26 @@
+*************************************************************      DASD 07220000
+*  CLOSE ANY OPEN FILES BEFORE RETURNING TO THE MONITOR     *      DASD 07230000
+*        MVS  WILL ABEND-C03                                *      DASD 07240000
+*************************************************************      DASD 07250000
+         FIX 'CLOSE TOGETHER'                                           07260000
+UJEFILES DS    0H                                                  DASD 07270000
+*        FIX 'DON''T CLOSE'                                             07280000
+*        BR    R11   **** DON'T CLOSE FOR DYNAMIC SCHEDULER             07290000
+         ST    R11,CALLAREA+4                                           07300000
+         LA    R10,INSTRUCT                                        DASD 07310000
+         BAL   R11,UJEFCLSE                                        DASD 07320000
+         LA    R10,PRINT                                           DASD 07330000
+         BAL   R11,UJEFCLSE                                        DASD 07340000
+         LA    R10,RETN                                            DASD 07350000
+         BAL   R11,UJEFCLSE                                        DASD 07360000
+         AIF   (&X8).X8060                                              07370000
+         LA    R10,JOBQ                                            DASD 07380000
+         BAL   R11,UJEFCLSE                                        DASD 07390000
+.X8060   ANOP                                                    88036  07391000
+         L     R11,CALLAREA+4                                           07400000
+         BR    R11                                                 DASD 07410000
+UJEFCLSE DS    0H                                                  DASD 07420000
+         TM    48(R10),X'10'  IS FILE OPEN ??                      DASD 07430000
+         BZ    0(R11)         NOPE  RETURN                         DASD 07440000
+         JOLCLOSE ((R10)),MF=(E,CALLAREA) CLOSE THIS GUY           DASD 07450000
+         BR    R11            RETURN                               DASD 07460000

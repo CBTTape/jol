@@ -1,0 +1,212 @@
+        PRINT OFF                                                       00010000
+        COPY  JOLCOM                                                    00020000
+        PRINT ON,GEN,DATA                                               00030000
+* THIS ROUTINE ALLOCATES 3 WORK DATA SETS FOR BUILDJOB                  00040000
+*                                                                       00050000
+* NOTE  THESE ARE FOR BUILDJOB USE ONLY *******                         00060000
+*                                                                       00070000
+* THEY WILL NOT BE DOCUMENTED AS THEY WILL BE REPLACED LATER            00080000
+* BY MORE CONVENTIAL ROUTINES.*******                                   00090000
+          JOLSAVE CSECT=UJY01AL                                         00100002
+* ALLOCATION ROUTINE ONLY                                               00110000
+          L    R8,ADCBS                                                 00120009
+          USING DCBS,R8                                                 00130009
+           LA    R9,SPRDCB2                                             00140009
+           USING  IHADCB,R9                                             00150009
+           MVI   DCBRECFM,0                                             00160009
+           MVC   DCBLRECL,=H'0'                                         00170009
+           MVC   DCBBLKSI,=H'0'                                         00180009
+           LA    R9,SPRDCB3                                             00190009
+           USING  IHADCB,R9                                             00200009
+           MVI   DCBRECFM,0                                             00210009
+           MVC   DCBLRECL,=H'0'                                         00220009
+           MVC   DCBBLKSI,=H'0'                                         00230009
+           LA    R9,SPRDCB4                                             00240009
+           USING  IHADCB,R9                                             00250009
+           MVI   DCBRECFM,0                                             00260009
+           MVC   DCBLRECL,=H'0'                                         00270009
+           MVC   DCBBLKSI,=H'0'                                         00280009
+           LA    R9,SPRDCB5                                             00290009
+           USING  IHADCB,R9                                             00300009
+           MVI   DCBRECFM,0                                             00310009
+           MVC   DCBLRECL,=H'0'                                         00320009
+           MVC   DCBBLKSI,=H'0'                                         00330009
+          DYNPARM DDNAME=SPARE2,SPACE=(TRK,(5,5)),DISP=(NEW,DELETE),  ==00340027
+               DCB=(RECFM=FB,LRECL=80,BLKSIZE=1600) UNIT=SYSDA          00350017
+          LTR  R15,R15                                                  00351017
+          BNZ  YUK                                                      00352017
+          DYNPARM DDNAME=SPARE3,SPACE=(TRK,(5,5)),DISP=(NEW,DELETE),  ==00360027
+               DCB=(RECFM=FB,LRECL=80,BLKSIZE=1600) UNIT=SYSDA          00370017
+          LTR  R15,R15                                                  00371017
+          BNZ  YUK                                                      00372017
+          DYNPARM DDNAME=SPARE4,SPACE=(TRK,(5,5)),DISP=(NEW,DELETE),  ==00380027
+               DCB=(RECFM=FB,LRECL=80,BLKSIZE=1600) UNIT=SYSDA          00390017
+          LTR  R15,R15                                                  00400001
+          BZ   Y01OK1                                                   00410001
+YUK       JOLERR 402,'CANNOT WORK ALLOCATE FILES FOR BUILDJOB'          00420017
+          JOLRETN RC=16                                                 00430001
+Y01OK1    L    R8,ADCBS                                                 00440005
+          USING DCBS,R8                                                 00450000
+*         OPEN (SPRDCB2,(OUTPUT),SPRDCB3,(OUTPUT),SPRDCB4,(OUTPUT))     00460005
+          LA   R1,SPRDCB2                                               00470005
+          ST   R1,CALLAREA                                              00480005
+          LA   R1,SPRDCB3                                               00490005
+          ST   R1,CALLAREA+4                                            00500005
+          LA   R1,SPRDCB4                                               00510005
+          ST   R1,CALLAREA+8                                            00520005
+          MVI  CALLAREA+8,X'8F'                                         00530005
+          MVI  CALLAREA,X'0F'                                           00540005
+          MVI  CALLAREA+4,X'0F'                                         00550005
+          LA   R1,CALLAREA                                              00560005
+          SVC  19                                                       00570005
+          LTR  R15,R15                                                  00580000
+          BZ   R010                                                     00590000
+          JOLERR 101,'CANNOT OPEN OUTPUT FILES FOR BUILDJOB'            00600001
+          LA   R15,4                                                    00610000
+R010      DS   0H                                                       00620005
+R010      JOLRETN RC=(15)                                               00630005
+          DROP  R8                                                      00640000
+          EJECT                                                         00650000
+          JOLSAVE  CSECT=UJY02P                                         00660025
+* OUTPUT CARD IMAGE TO 'SPRDCB2'                                        00670001
+*        LA    1,=C'UJY02P'                                      88036  00671025
+*        LA    0,6                                               88036  00672025
+*        SVC   93                                                88036  00673025
+          L    R1,ASPR2DCB                                              00680000
+          $CALL UJY05P                                                  00690000
+          JOLRETN                                                       00700009
+          JOLSAVE  CSECT=UJY03P                                         00710000
+*        LA    1,=C'UJY03P'                                      88036  00711025
+*        LA    0,6                                               88036  00712025
+*        SVC   93                                                88036  00713025
+* OUTPUT CARD IMAGE TO 'SPRDCB3'                                        00720001
+          L    R1,ASPR3DCB                                              00730000
+          $CALL UJY05P                                                  00740000
+          JOLRETN                                                       00750009
+          JOLSAVE  CSECT=UJY04P                                         00760000
+*        LA    1,=C'UJY04P'                                      88036  00761025
+*        LA    0,6                                               88036  00762025
+*        SVC   93                                                88036  00763025
+* OUTPUT CARD IMAGE TO 'SPRDCB4'                                        00770001
+          L    R1,ASPR4DCB                                              00780000
+          $CALL UJY05P                                                  00790000
+          JOLRETN                                                       00800009
+          JOLSAVE CSECT=UJY05P                                          00810000
+* THIS ROUTINE SIMPLY PUTS A CARD IMAGE TO THE DCB 'SPRDCB2'            00820001
+          LR    R8,R1      SAVE DCB ADDRESS                             00830000
+          GETTKN  3                                                     00840000
+          CLI   TKN,C' '    IS IT BLANK?                                00850000
+          BE    Y05OK1                                                  00860000
+          JOLERR 101,'TOO MANY PARAMETERS ON UJY05P ''',#TKN,''''       00870000
+          JOLRETN  RC=4                                                 00880000
+Y05OK1    GETTKN 2                                                      00890008
+          CLC   =H'80',#TKN                                             00900000
+          BH    Y05OK2                                                  00910008
+          JOLERR 102,'LENGTH OF TOKEN ''',#TKN,''' > 80 CHARS'          00920000
+Y05OK2    BAL   R14,DROPQUOT                                            00930010
+          PUT   (R8),TKN                                                00940010
+          JOLRETN                                                       00950000
+          JOLSAVE  CSECT=UJY06E                                         00960000
+          L    R8,ADCBS                                                 00970000
+          USING DCBS,R8                                                 00980000
+*         CLOSE (SPRDCB2,(REREAD),SPRDCB3,(REREAD),SPRDCB4,(REREAD))    00990005
+          LA   R1,SPRDCB2                                               01000005
+          ST   R1,CALLAREA                                              01010005
+          LA   R1,SPRDCB3                                               01020005
+          ST   R1,CALLAREA+4                                            01030005
+          LA   R1,SPRDCB4                                               01040005
+          ST   R1,CALLAREA+8                                            01050005
+          MVI  CALLAREA+8,X'80'                                         01060005
+          LA   R1,CALLAREA                                              01070005
+          SVC  20                                                       01080005
+*         OPEN (SPRDCB2,(INPUT),SPRDCB3,(INPUT),SPRDCB4,(INPUT))        01090005
+          LA   R1,SPRDCB2                                               01100005
+          ST   R1,CALLAREA                                              01110005
+          LA   R1,SPRDCB3                                               01120005
+          ST   R1,CALLAREA+4                                            01130005
+          LA   R1,SPRDCB4                                               01140005
+          ST   R1,CALLAREA+8                                            01150005
+          MVI  CALLAREA+8,X'80'                                         01160005
+          LA   R1,CALLAREA                                              01170005
+          SVC  19                                                       01180005
+          LTR  R15,R15                                                  01190000
+          BZ   Y06OK1                                                   01200001
+          JOLERR 101,'CANNOT OPEN INPUT FILES FOR BUILDJOB'             01210001
+          JOLRETN RC=4                                                  01220001
+Y06OK1    DS   0H                                                       01230001
+* NOW ALLOCATE OUTPUT FILE FOR BUILDJOB OUTPUT TO GO TO                 01240001
+*                                                                       01250001
+           GETTKN 2                                                     01260001
+           BAL   R14,DROPQUOT                                           01270010
+           MVC  #WORK(50),#TKN   SAVE DSNAME                            01280001
+           GETTKN 3              GET MEMBER NAME                        01290001
+           $CALL  UJY08ALL       ALLOCATE WITH SHR (ENQ?)               01300001
+           LTR   R15,R15                                                01310001
+           BZ    Y06OK2                                                 01320001
+           JOLERR 202,'CANNOT ALLOCATE DSN ''',#WORK,''' MEMBER ',  ++++01330001
+               #TKN,''''                                                01340001
+           JOLRETN  RC=16                                               01350001
+Y06OK2     DS   0H                                                      01360005
+*         OPEN  (SPRDCB5,(OUTPUT))                                      01370005
+          LA   R1,SPRDCB5                                               01380005
+          ST   R1,CALLAREA                                              01390005
+          MVI  CALLAREA,X'8F'                                           01400012
+          LA   R1,CALLAREA                                              01410005
+          SVC  19                                                       01420005
+           LA    R9,SPRDCB2                                             01430001
+           USING  IHADCB,R9                                             01440001
+           MVC   DCBEODA,=AL3(Y06EOF1)                                  01450003
+Y06LUP1    GET   (R9),TKN                                               01460001
+           PUT   SPRDCB5,TKN                                            01470001
+           B     Y06LUP1                                                01480001
+Y06EOF1    DS    0H                                                     01490001
+           LA    R9,SPRDCB3                                             01500001
+           USING  IHADCB,R9                                             01510001
+           MVC   DCBEODA,=AL3(Y06EOF2)                                  01520003
+Y06LUP2    GET   (R9),TKN                                               01530001
+           PUT   SPRDCB5,TKN                                            01540001
+           B     Y06LUP2                                                01550001
+Y06EOF2    DS    0H                                                     01560001
+           LA    R9,SPRDCB4                                             01570001
+           USING  IHADCB,R9                                             01580001
+           MVC   DCBEODA,=AL3(Y06EOF3)                                  01590003
+Y06LUP3    GET   (R9),TKN                                               01600001
+           PUT   SPRDCB5,TKN                                            01610001
+           B     Y06LUP3                                                01620001
+Y06EOF3    DS    0H                                                     01630001
+*         CLOSE (SPRDCB2,(REREAD),SPRDCB3,(REREAD),SPRDCB4,(REREAD), +  01640006
+*              SPRDCB5,(REREAD))                                        01650005
+          LA   R1,SPRDCB2                                               01660005
+          ST   R1,CALLAREA                                              01670005
+          LA   R1,SPRDCB3                                               01680005
+          ST   R1,CALLAREA+4                                            01690005
+          LA   R1,SPRDCB4                                               01700005
+          ST   R1,CALLAREA+8                                            01710005
+          LA   R1,SPRDCB5                                               01720005
+          ST   R1,CALLAREA+12                                           01730005
+          MVI  CALLAREA+12,X'80'                                        01740005
+          LA   R1,CALLAREA                                              01750005
+          SVC  20                                                       01760005
+          FREEPOOL SPRDCB2                                              01770001
+          FREEPOOL SPRDCB3                                              01780001
+          FREEPOOL SPRDCB4                                              01790001
+          FREEPOOL SPRDCB5                                              01800001
+          DYNPARM DDNAME=SPARE2,VRB=UN                                  01810026
+          DYNPARM DDNAME=SPARE3,VRB=UN                                  01820026
+          DYNPARM DDNAME=SPARE4,VRB=UN                                  01830026
+          DYNPARM DDNAME=SPARE5,VRB=UN                                  01840026
+          DROP  R9                                                      01850003
+          DROP  R8                                                      01860003
+          JOLRETN                                                       01870013
+          JOLSAVE CSECT=UJY08ALL                                        01880001
+          L    R8,ADCBS                                                 01890003
+          USING DCBS,R8                                                 01900003
+* DSNAME IS IN #WORK(50)                                                01910001
+* MEMBER NAME IS IN #TKN (IF PRESET)                                    01920001
+          DYNPARM DDNAME=SPARE5,DISP=(SHR),DSN=(44,#WORK),        ++++++01930007
+               MEMB=(10,#TKN)                                           01940001
+          DROP  R8                                                      01950003
+          JOLRETN                                                       01980014
+          LTORG                                                         01990002
+          DCBD DSORG=PS,DEVD=DA                                         02000001
+          END                                                           02010005

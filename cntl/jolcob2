@@ -1,0 +1,46 @@
+//CLARKEJ JOB (NONE),CVC,CLASS=A,NOTIFY=CLARKE,MSGCLASS=X               00010000
+//JOLC     PROC PROG=$JOLCP35,PRINTS=,SYMS=,JOB=X                       00020000
+//JOL  EXEC PGM=&PROG,                                                  00030000
+// PARM='NPC NOSRDR &PRINTS/&SYMS SYSUID=CLARKE SYSPREF=CLARKE',        00040000
+// TIME=(,5)                                                            00050000
+//STEPLIB  DD  DSN=CLARKE.JOL35.LOAD,DISP=SHR                           00060000
+//$$JLOAD  DD  DSN=CLARKE.JOL35.LOAD,DISP=SHR                           00070000
+//SYSUDUMP   DD   SYSOUT=*                                              00080000
+//$$JPRINT DD  SYSOUT=*,DCB=BLKSIZE=1330                                00090000
+//*$$JCL    DD  SYSOUT=(*),DCB=(BLKSIZE=80,BUFNO=1)                     00100001
+//$$JCL    DD  SYSOUT=(*,INTRDR),DCB=(BLKSIZE=80,BUFNO=1)               00110001
+//$$JINCL  DD  DSN=CLARKE.JOL,DISP=SHR                                  00120000
+//$$JMACRO DD  DSN=CLARKE.JOL35.CMDLIB,DISP=SHR                         00130000
+//$$JWORK1 DD  UNIT=SYSDA,SPACE=(CYL,(5,1)),DCB=BLKSIZE=800             00140000
+//$$JWORK2 DD  UNIT=SYSDA,SPACE=(CYL,(5,1))                             00150000
+//$$JIN   DD   DDNAME=SYSIN                                             00160000
+//SYSIN    DD  DSN=CLARKE.JOL(&JOB),DISP=SHR                            00170000
+// PEND                                                                 00180000
+// EXEC JOLC,SYMS='TSOCLASS=X'                                          00190000
+$JOB H;                                                                 00200000
+DCL   PRINTER  PRINTER;                                                 00210000
+DCL   OUTPUT   PRINTER FB 80,800;                                       00220000
+DCL   TEST1    PROG    LIB CLARKE.JOL35.LOAD                            00230000
+      SYSOUT   WRITES  PRINTER;                                         00240000
+DCL   TEST2    PROG    LIB CLARKE.JOL35.LOAD                            00250000
+      SYSOUT   WRITES  PRINTER                                          00260000
+      INDATA   READS   MEL333.MCC.COBOL(TEST1)                          00270000
+      OUTDATA  WRITES  PRINTER;                                         00280000
+                                                                        00290001
+  /* SET GLOBAL STOP STATEMENT */                                       00300001
+  STOP WHEN ANY^=0;                                                     00310000
+                                                                        00320001
+  /* START OF PROCESSING */                                             00330001
+                                                                        00340001
+  COBOL MEL333.MCC.COBOL(TEST1);                                        00350000
+  LINK OBJ LOAD CLARKE.JOL35.LOAD(TEST1 ) COBLIB;                       00360000
+  DELETE OBJ;                                                           00370000
+  COBOL MEL333.MCC.COBOL(TEST2);                                        00380000
+  LINK OBJ LOAD CLARKE.JOL35.LOAD(TEST2)  COBLIB;                       00390000
+                                                                        00400001
+  /* RUN THE PROGRAMS */                                                00410001
+                                                                        00420001
+RUN1:RUN TEST1 '00';                                                    00430001
+     IF RUN1=0 THEN RUN TEST2;                                          00440001
+RUN2:RUN TEST1 '16';                                                    00450001
+     IF RUN2=0 THEN RUN TEST2;                                          00460001

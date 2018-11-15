@@ -1,0 +1,195 @@
+UJD05CAT TITLE 'CATALOG DATA SET'                                       00010001
+* JOL COPYRIGHT CCS-JOL PTY LTD 1988                                    00020001
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-E001.           00030001
+         SPACE 3                                                        00040001
+*                   J             000000            L                   00050001
+*                   J            0      0           L                   00060001
+*                   J           0        0          L                   00070001
+*                   J          0          0         L                   00080001
+*                   J         0            0        L                   00090001
+*                   J         0            0        L                   00100001
+*                   J         0            0        L                   00110001
+*                   J         0            0        L                   00120001
+*                   J         0            0        L                   00130001
+*                   J         0            0        L                   00140001
+*                   J         0            0        L                   00150001
+*        J          J         0            0        L                   00160001
+*         J        J           0          0         L                   00170001
+*          J      J             0        0          L                   00180001
+*           J    J               0      0           L                   00190001
+*            JJJJ                 000000            LLLLLLLLLLL         00200001
+           SPACE 3                                                      00210001
+* LAST SOURCE UPDATE                                                    00220001
+*   CHANGES:-                                                           00230001
+*     1.                                                                00240001
+         COPY  JOLGLOBL                                                 00250001
+         $UJEPARM                                                       00260001
+&TYPE    SETC  'SCHED'                                           88036  00270001
+         PRINT ON,DATA                                                  00280001
+UJECOMM  DSECT                                                          00290001
+         USING UJECOMM,R3,R5                                            00300001
+         COPY  UJECOMM                                                  00310001
+D05WORK  DSECT                                                    J40B  00320004
+         DS    18F                                                J40B  00330001
+D05WORKS EQU   *-D05WORK                                          J40B  00340004
+         JOLSAVE CSECT=UJD05CAT,                                       .00350004
+               SIZE=D05WORKS,                                     J40B .00360004
+               BASE=R11                                                 00370001
+         L     R9,AWINST                                         88036  00380000
+         USING INST,R9                                           88036  00390000
+         L     R6,AE05VOLS             LOAD CAMLIST ADDRESS        DASD 00400000
+         USING D05VOLS,R6                                        88036  00410004
+         L     R7,AJFCB                                          88036  00420000
+         USING INFMJFCB,R7                                       88036  00430000
+* THIS ROUTINE DOES THE CATALOGUING                                     00440000
+*                                                                       00450000
+* NOW:- WE FACE MANY PROBLEMS WHEN DOING A 'CATLG' (OR A KEEP)          00460000
+* FIRST, WE SHALL CALL THE TALLOC ROUTINE WHICH READS THE ODD           00470000
+*     JFCB,FIXES VOLUME LISTS ETC                                       00480000
+         CLI   ICOMMAND,C'U'   UNCATALOG CALLING ME TO PRINT            00490000
+*                              ERROR MESSAGES ?                         00500000
+*        BNE   D05DOCAT                                                 00510004
+         BE    D05PRNTE                                                 00520004
+         CLI   ICOMMAND,C'D'   DELETE CALLING ME TO PRINT ERR?          00530000
+         BE    D05PRNTE                                                 00540004
+D05DOCAT DS    0H                                                       00550004
+         SPACE 3                                                        00560000
+         CALL  UJD48TAL      TEST IF THE DATA SET IS ALLOCATED TO US    00570005
+         LTR   R15,R15                                                  00580000
+         BZ    D05TVOLS      YES, IT WAS ALLOCATED TO US                00590004
+         BNE   D05KEEPE      NO,THERE WAS A REAL ERROR                  00600004
+         JOLRETN RC=4                                                   00610000
+D05KEEPE LA  R2,32                                                      00620004
+D05UNSUC DS    0H                                                       00630004
+         JOLERR 202,                                                   *00640000
+               'DSID ''',DDDSID,''' DSNAME ''',#DSNAME,''' KEPT ON VOL(*00650000
+               S) ',#VOL,' BUT NOT CATALOGED BECAUSE:-'           74365 00660000
+         B     D05PRNTE                                                 00670004
+D05TVOLS DS    0H                                                       00680004
+         ST    R15,TASKRETN    SAVE FOR LASTC TESTS                     00690000
+         FIX ' CHECK THIS'                                              00700000
+         CALL  UJD49VOL      GET DATA SET VOLUMES                       00710005
+* NOW TEST RE-CATLG FUNCTION                                            00720000
+         IFNULL DDLABTYP,D05NALWA                                       00730004
+* ALWAYS HERE                                                           00740000
+         MVI D05CAT,X'54'  TURN ON RE-CATLG BIT                   75311 00750004
+D05NALWA DS    0H                                                       00760004
+D05FREE  DYNPARM DSN=(44,#DSN),ID=D05CAT,DDNAME=(8,#DDNAME),      ******00770004
+               VRB=UN,DISP=(CATLG),UNALLOC=YES                          00780003
+         LTR     R15,R15   DID WE RECATLG IT?                     75311 00790000
+         BZ   D05SUCES YES                                        75311 00800004
+* NOW RECATLG FAILED, SO ATTEMPT STRAIGHT CATLG THEN              75311 00810000
+         MVI   D05CAT,X'64'                                       75311 00820004
+* D05NALWA DS    0H                                                     00830004
+         $CTLG D05CAT                    DO THE CATALOG                 00840004
+         LTR R15,R15                                                    00850000
+         BNZ D05ERR                                                     00860004
+D05SUCES DS   0H                                                        00870004
+* NOW WE MUST CHECK AGAIN FOR GREATER THAN 5 VOLUMES BECAUSE       DASD 00880000
+* ALL OF THE VOLUMES MIGHT NOT FIT ON 1 MESSAGE                    DASD 00890000
+         LH    R14,D05#VOLS         LOAD VOL COUNT                 DASD 00900004
+         XC    D05#VOLS,D05#VOLS    CLEAR VOL COUNT                DASD 00910004
+         CH    R14,=H'5'            > 5 VOLUMES                    DASD 00920000
+         BNH   D05SUCE2             NO   LETS DOIT THE OLD WAY     DASD 00930004
+         SH    R14,=H'5'            SUBTRACT 5                     DASD 00940000
+         STH   R14,D05#VOLS         STORE BACK FOR LATER           DASD 00950004
+         MVI   DDVOLUME,C' '        MOVE IN JUST THE 1ST FIVE      DASD 00960000
+         MVC   DDVOLUME+1(L'DDVOLUME-1),DDVOLUME                   DASD 00970000
+         MVC   DDVOLUME(L'JFCBVOLS),JFCBVOLS                       DASD 00980000
+         L     R14,=V(E00FXVOL)                                   J40B  00981002
+         BALR  R14,R14                                            J40B  00982002
+*        BAL   R14,E00FXVOL         MOVE TO #VOL,VOL EDITTED       DASD 00990002
+         LA    R15,D05UNIT+60       POINT TO 6TH VOLSER IN CAMLST  DASD 01000004
+         ST    R15,D05START         SAVE FOR LATER                 DASD 01010004
+D05SUCE2 DS    0H                                                  DASD 01020004
+         JOLERR 101,'DSID ''',DDDSID,''' DSNAME ''',                   *01030000
+               #DSNAME,''' CATALOGED ON VOL(S) ',#VOL             74365 01040000
+         LH    R14,D05#VOLS         LOAD NUMBER OF VOLS LEFT       DASD 01050004
+         LTR   R14,R14              ALL DONE                       DASD 01060000
+         BZ    D05GOODR             YES SIR LETS GO                DASD 01070004
+D05LMSGS DS    0H                                                  DASD 01080004
+         L     R15,D05START         POINT TO NEXT AREA             DASD 01090004
+         MVI   DDVOLUME,C' '        CLEAR CONSTRUCT AREA           DASD 01100000
+         MVC   DDVOLUME+1(L'DDVOLUME-1),DDVOLUME                   DASD 01110000
+         LA    R1,DDVOLUME          POINT TO CONSTRUCT AREA        DASD 01120000
+         LA    R2,5                 LETS STOP AFTER 5              DASD 01130000
+D05LMSG  MVC   0(6,R1),4(R15)       MOVE IN NEXT VOLUME SERIAL     DASD 01140004
+         LA    R1,6(R1)             BUMP DDVOLUME BY 6             DASD 01150000
+         LA    R15,12(R15)          BUMP CAMLST BY 12              DASD 01160000
+         SH    R14,=H'1'            BACKOFF VOL COUNT BY 1         DASD 01170000
+         BZ    D05LMSGD             IF ALL DONE GET OUT EARLY      DASD 01180004
+         BCT    R2,D05LMSG          RETURN FOR THE REST            DASD 01190004
+D05LMSGD DS    0H                                                  DASD 01200004
+         STH    R14,D05#VOLS        SAVE # OF VOLS LEFT            DASD 01210004
+         ST     R15,D05START        STORE NEXT AREA ADDRESS        DASD 01220004
+         L     R14,=V(E00FXVOL)                                   J40B  01221002
+         BALR  R14,R14                                            J40B  01222002
+*        BAL    R14,E00FXVOL        MOVE TO #VOL,VOL EDITTED       DASD 01230002
+         B      D05SUCE2            GO PRINT THE  MESSAGE          DASD 01240004
+D05GOODR DS    0H                                                  DASD 01250004
+         JOLRETN                                                        01260000
+D05ERR   LR    R2,R15                                                   01270004
+         B     D05UNSUC                                                 01280004
+         SPACE 3                                                        01290000
+D05PRNTE DS    0H                                                       01300004
+         B  D05RETNC(R2)                                                01310004
+D05RETNC B     D05SUCES                                                 01320004
+         B     D05RET4                                                  01330004
+         B     D05RET8                                                  01340004
+         B     D05RET12                                                 01350004
+         B     D05RET16                                                 01360004
+         B     D05RET20                                                 01370004
+         B     D05RET24                                                 01380004
+         B     D05RET28                                                 01390004
+         B     D05RET32                                                 01400004
+         B     D05RET36                                                 01410004
+D05RET4  JOLERR 203,'CATALOG VOLUME NOT MOUNTED'                        01420006
+         B  D05RETN0                                                    01430004
+         FIX  'NOTE R0=0 IF C AND ALREADY CATLGD'           FIX-X 76200 01440000
+         FIX  'NOTE R0=60 IF U/D AND YSAM'                  FIX-X 76200 01450000
+D05RET8  JOLERR 204,'DATA SET NAME FOUND AT LOWER LEVEL'                01460004
+         B     D05RETN0                                                 01470004
+D05RET12 DS    0H                                                       01480004
+         JOLERR 205,'CATLG RETURNED 12'                                 01490000
+         B     D05RETN0                                                 01500004
+D05RET16 JOLERR 206,'NO INDEX LEVEL FOR DATA SET'                       01510004
+         B     D05RETN0                                                 01520004
+D05RET20 JOLERR 407,'CATALOG DATA SET IS FULL'                          01530006
+         B     D05RETN0                                                 01540004
+D05RET24 JOLERR 208,'INVALID GENERATION NAME'                           01550006
+         B     D05RETN0                                                 01560004
+D05RET28 JOLERR 409,'PERMANENT I/O ERROR ON CATALOG DATA SET'           01570004
+         B     D05RETN0                                                 01580004
+D05RET32 JOLERR 210,'KEEP FAILED FOR DATA SET'                          01590004
+         B     D05RETN0                                                 01600004
+D05RET36 JOLERR 211,'NO VOLUMES WERE SUPPLIED'                          01610004
+         B     JRETN0                                                   01620000
+         SPACE 3                                                        01630000
+* WHILE HERE, COPY THE VOLUME SERIAL NUMBERS TO RESOLVE FUTURE VOLREFS  01640000
+         SPACE 2                                                        01650000
+         CLEAR DDVOLUME                                                 01660000
+         CALL  UJD49VOL             GET THE DATA SET VOLUMES            01670005
+         SPACE 2                                                        01680000
+D05CVC9  DS    0H                                                       01690004
+         L     R14,=V(E00FXVOL)                                   J40B  01690102
+         BALR  R14,R14                                            J40B  01690202
+*        BAL   R14,E00FXVOL         COPY VOLS TO #VOLS                  01691002
+         SPACE                                                          01700000
+         UJE22UPD DDDSNAME,DDVOLUME,DDDDNAME FIX VOLUME REFERENCES      01710000
+         MVI   DDDISP+1,C'L' LAST USE                                  .01720000
+                                (A LIE OF COURSE, BUT HE WON'T KNOW)    01730000
+*        MVC   DDDDNAME,FCTACSN    ENSURE HE USES THE CORRECT DDNAME    01740000
+*        CALL  UJD14FRE            FREE THE DATASET                     01750005
+         B     JRETN0                                                   01760000
+D05NVCT  JOLERR 212,                                                   .01770004
+               'DSID ',DDDSID,' NOT CATALOGED, HAS NO VOLUMES  '        01780000
+.NX8220  ANOP                                                           01790000
+D05RETN0 B     JRETN0                                                   01800004
+D05NOFCT CLC   DDVOLUME,=C'     '     DOES IT HAVE A VOLUME             01810004
+         BNE   D05CVC9                YES                               01820004
+         JOLERR 213,                                                   .01830000
+               'DSID ',DDDSID,' NOT CATALOGED, IS NOT ALLOCATED'        01840000
+         B     JRETN0                                                   01850000
+         LTORG                                                     DASD 01860000
+         DC    20S(*)                                              DASD 01870001
+         END                                                            01880001

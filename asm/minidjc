@@ -1,0 +1,384 @@
+* MINIDJC WAS WRITTEN TO ALLOW TWO JOBS TO COMPLETE AND THEN            00000010
+* ALLOW A THIRD DEPENDANT JOB TO EXECUTE/COMPILE.                       00000020
+* WRITTEN BY M.GRAHOVAC  CCS                                            00000030
+* TAB ON(10 16 40                                                       00000050
+MINIDJC  START 0                                                        00000060
+R0       EQU   0                                                        00000070
+R1       EQU   1                                                        00000080
+R2       EQU   2                                                        00000090
+R3       EQU   3                                                        00000100
+R4       EQU   4                                                        00000110
+R5       EQU   5                                                        00000120
+R6       EQU   6                                                        00000130
+R7       EQU   7                                                        00000140
+R8       EQU   8                                                        00000150
+R9       EQU   9                                                        00000160
+R10      EQU   10                                                       00000170
+R11      EQU   11                                                       00000180
+R12      EQU   12                                                       00000190
+R13      EQU   13                                                       00000200
+R14      EQU   14                                                       00000210
+R15      EQU   15                                                       00000220
+         SAVE  (14,12),,*                                               00000230
+         USING MINIDJC,R11                                              00000240
+         USING PARM,R6                                                  00000250
+         USING RECORD1,R2                                               00000260
+         LR    R11,R15                 R11 BASE REGISTER                00000270
+         CNOP  0,4                                                      00000280
+         BAL   R15,*+76                -> JUMP OVER SAVE AREA           00000290
+         DC    18F'0'                  SAVE AREA                        00000300
+         ST    R15,8(,R13)             STORE ADDRESS OF MY SAVE         00000310
+         ST    R13,4(,R15)             STORE ADDRESS OF CALLERS SAVE    00000320
+         LR    R13,R15                 R13 POINTS TO MY SAVE            00000330
+         L     R6,0(R1)                R6 POINTS TO PARM FIELD          00000340
+         BAL   R10,ENQ                 ENQ AND OPEN DJCFILE1            00000350
+         SR    R5,R5                   SET R5 = 0                       00000360
+         CLI   PARMLEN,X'1A'           IS PARM 26 BYTES                 00000370
+         BE    DJC1                    -> -> DJC ROUTINE                00000380
+         OPEN  SYSIN                                                    00000390
+         MVC   ABEND16+32(8),=C'SYSIN   '                               00000400
+         TM    DCBOFLGS-IHADCB+SYSIN,X'10'                              00000410
+         BZ    ABEND16                                                  00000420
+         CLI   PARMLEN,X'03'           IS PARM 03 BYTES                 00000430
+         BE    NEWFILE3                -> NEW FILE UPDATE RTN           00000440
+         OPEN  (SYSWORK,(OUTPUT))                                       00000450
+         MVC   ABEND16+32(8),=C'SYSWORK '                               00000460
+         TM    DCBOFLGS-IHADCB+SYSWORK,X'10'                            00000470
+         BZ    ABEND16                                                  00000480
+         CLI   PARMLEN,X'06'           IS PARM 06 BYTES                 00000490
+         BE    UPDFILE4                -> FILE UPDATE RTN               00000500
+         B     ABEND1                  -> TERMINATE RC = 8              00000510
+         EJECT                                                          00000520
+**********************************************************************  00000530
+********** DEPENDANT JOB CONTROL ROUTINE                    **********  00000540
+**********************************************************************  00000550
+DJC1     LA    R5,4                    SET RETURN CODE AS INCOMPLETE    00000560
+GET      BAL   R10,GETDJC1             -> GET A RECORD FROM DCJFILE     00000570
+         LR    R2,R1                   SAVE LOCATION OF RECORD          00000580
+         CLC   PARMJOB1,NEXTJOB1       LOCATE DEPENDANT JOB             00000590
+         BNE   GET                     -> IF WE DONT HAVE IT TRY AGAIN  00000600
+         LA    R7,THISJOB1             POINT R7 TO DATA-CARD            00000610
+         SR    R4,R4                   CLEAR R4                         00000620
+         MVC   BYTE,JOBCOUNT           INSERT NO OF PRE-DECESSORS       00000630
+         NI    BYTE,X'0F'              TURN OFF F IN 'FX'               00000640
+         IC    R4,BYTE                 SET COUNTER                      00000650
+LOOP     CLC   PARMJOB2,0(R7)          IS IT THIS ONE ?                 00000660
+         BE    PUT                     -> YEP FOUND IT.                 00000670
+         LA    R7,18(R7)               POINT TO NEXT JOBNAME            00000680
+         BCT   R4,LOOP                 GO BACK INTO LOOP IF R4 ^= 0     00000690
+WTO1     WTO   'MINIDJC : PREDECESSOR NOT ON RECORD'                    00000700
+         LA    R5,8                    SET BAD RET CODE                 00000710
+         B     DEQ                     DEQ DJCFILE1 AND RETURN          00000720
+PUT      CLC   PARMRUNO,COMMENT2       CHECK LAST VALID UPDATE          00000730
+         BNE   PUT1                    -> NOT LVU                       00000740
+         IC    R4,BYTE                 INS NO. OF JOBIDS ON RECORD      00000750
+         LA    R8,THISRUN1             POINT R8 TO RECORD               00000760
+LOOP0009 CLC   FILLER1,0(R8)           IS IT FULL OF ASTERISKS          00000770
+         BNE   PUT1                    -> NOT FULL OF ASTERISKS         00000780
+         LA    R8,18(R8)               POINT R8 TO NEXT FIELD           00000790
+         BCT   R4,LOOP0009             -> LOOP ON TILL LAST JOBID       00000800
+         SR    R5,R5                   SET R5 TO ZERO                   00000810
+         B     DJCFILE2                CLOSE FILE                       00000820
+         SPACE 2                                                        00000830
+PUT1     IC    R4,BYTE                                                  00000840
+         MVC   8(8,R7),PARMRUNO        INSERT THE RUNNO                 00000850
+         LA    R8,THISRUN1             POINT TO FIELD 1                 00000860
+LOOP0010 CLC   PARMRUNO,0(R8)          CHECK ALL RUNNO'S EQUAL          00000870
+         BNE   PUTX                    -> NO SO OUTPUT RECORD           00000880
+         LA    R8,18(R8)               POINT TO NEXT FIELD              00000890
+         BCT   R4,LOOP0010             LOOK AT NEXT RUNNO               00000900
+         MVC   COMMENT2,PARMRUNO       INSERT LAST VALID RUNO           00000910
+         SR    R5,R5                   SET RC=0                         00000920
+         IC    R4,BYTE                                                  00000930
+         LA    R8,THISRUN1                                              00000940
+LOOP0011 MVC   0(8,R8),FILLER1         FILL RUNNO'S WITH ASTERISKS      00000950
+         LA    R8,18(R8)                                                00000960
+         BCT   R4,LOOP0011             -> UNTILL ALL FILLED             00000970
+PUTX     LR    R1,R2                   -> RESURRECT R1                  00000980
+         PUTX  DJCFILE1                                                 00000990
+         PUT   SYSPRINT,RECORD1                                         00001000
+DJCFILE2 MVI   DRECORD1,C'*'                                            00001010
+         MVC   DRECORD1+1(131),DRECORD1                                 00001020
+         PUT   SYSPRINT,DRECORD1                                        00001030
+DJCFILE3 BAL   R10,GETDJC1             -> LOOP THRU FILE                00001040
+         CLC   NEXTJOB1(8),=C'ZZZZZZZZ'                                 00001050
+         BNE   DJCFILE3                LOOP THRU UNTIL FOUND            00001060
+         LR    R1,R2                   RESURRECT REG 1                  00001070
+         PUTX  DJCFILE1                                                 00001080
+*********************************************************************** 00001090
+* THIS RECORD IS OUTPUT BECAUSE QSAM UPDATE IN PLACE SOMETIMES DROPS  * 00001100
+* OFF THE LAST PUTX RECORD WHEN THE FILE IS CLOSED                    * 00001110
+*********************************************************************** 00001120
+         B DJCFILEY                                                     00001130
+DJCFILEX WTO   'MINIDJC: RECORD NOT ON FILE FOR DJC.'                   00001140
+         LA    R5,8                    SET BAD RETURN CODE.             00001150
+DJCFILEY CLOSE (DJCFILE1,,SYSPRINT)                                     00001160
+         B     DEQ                     -> -> TERMINATE PROGRAM          00001170
+         EJECT                                                          00001180
+**********************************************************************  00001190
+********** FILE AMENDMENT ROUTINE                           **********  00001200
+**********************************************************************  00001210
+NEWFILE3 BAL   R10,GETSYSIN                                             00001220
+         CLI   TYPE,C'I'               ONLY INSERT RECORDS ARE VALID    00001230
+         BNE   NEWFILE5                -> PRINT ERROR MESSAGE           00001240
+         BAL   R10,BUILDREC            BUILD A RECORD                   00001250
+         BAL   R10,PUTLNK3             AND OUTPUT IT                    00001260
+         B     NEWFILE3                -> GET ANOTHER RECORD            00001270
+NEWFILE5 MVC   RECORD3+112(15),=C'CANNOT INSERT  '                      00001280
+         PUT   SYSPRINT,RECORD3                                         00001290
+         B     NEWFILE3                -> TRY THE NEXT RECORD           00001300
+         SPACE 3                                                        00001310
+UPDFILE4 ZAP   COUNTER1,=P'0'                                           00001320
+         LA    R2,DRECORD1                                              00001330
+         MVI   FLAG2,X'00'             SET SYSIN OPEN FLAG              00001340
+         MVI   FLAG1,X'00'             SET LINKCNTL OPEN FLAG           00001350
+LOOP0002 BAL   R10,GETUPDFL                                             00001360
+LOOP0003 BAL   R10,GETSYSIN                                             00001370
+LOOP0004 LA    R10,GETLNK              POINT R10 TO GETLNK FOR SUB-RTN. 00001380
+         CLC   JOBID,NEXTJOB1          SEARCH FOR >= JOBIDS             00001390
+         BH    PUTLNK1                 NOT FOUND OUTPUT THEM            00001400
+         CLI   TYPE,C'I'               INSERT ?                         00001410
+         BE    INSERT1                 IF SO -> INSERT1                 00001420
+         CLI   TYPE,C'U'               UPDATE ?                         00001430
+         BE    UPDATE                  IF SO -> UPDATE                  00001440
+         CLI   TYPE,C'D'               DELETE ?                         00001450
+         BE    DELETE                  IF SO -> DELETE                  00001460
+         MVC   RECORD3+112(15),=C'C1 NOT I,U OR D'                      00001470
+ERROR1   PUT   SYSPRINT,RECORD3                                         00001480
+         B     LOOP0003                GET ANOTHER SYSIN RECORD         00001490
+         SPACE 2                                                        00001500
+INSERT1  MVC   RECORD3+112(15),=C'CANNOT INSERT  '                      00001510
+         CLC   JOBID,NEXTJOB1          CHECK JOBIDS NOT EQUAL           00001520
+         BE    ERROR1                  -> IF EQUAL                      00001530
+         BAL   R10,BUILDREC            -> BUILD A RECORD                00001540
+         BAL   R10,PUTLNK2             OUTPUT THE RECORD                00001550
+         B     LOOP0003                -> RETURN & GET NEXT SYSIN       00001560
+         SPACE 2                                                        00001570
+UPDATE   MVC   RECORD3+112(15),=C'CANNOT UPDATE  '                      00001580
+         CLC   JOBID,NEXTJOB1          CHECK JOBIDS EQUAL               00001590
+         BNE   ERROR1                  -> IF NOT EQUAL                  00001600
+         BAL   R10,BUILDREC            -> BUILD A RECORD                00001610
+         BAL   R10,PUTLNK2             OUTPUT THE RECORD                00001620
+         MVI   FLAG3,X'00'             RECORD1 IS RUBBISH               00001630
+         B     LOOP0002                RETURN & GET NEXT LINKCNTL       00001640
+         SPACE 2                                                        00001650
+DELETE   MVC   RECORD3+112(15),=C'CANNOT DELETE  '                      00001660
+         CLC   JOBID,NEXTJOB1          CHECK JOBIDS EQUAL               00001670
+         BNE   ERROR1                  -> IF NOT EQUAL                  00001680
+         MVI   FLAG3,X'00'             RECORD1 IS RUBBISH               00001690
+         B     LOOP0002                RETURN & GET NEXT LINKCNTL       00001700
+ABEND1   WTO   'MINIDJC: INVALID PARM FIELD LENGTH',ROUTCDE=(11)        00001710
+         LA    R5,8                    SET UP RETURN CODE OF 8          00001720
+         B     END                     -> SKIP RC = 0                   00001730
+ABEND3   WTO   'MINIDJC: RECORD NOT FOUND',ROUTCDE=(11)                 00001740
+         LA    R5,8                    SET UP RETURN CODE OF 8          00001750
+         B     DEQ                                                      00001760
+         EJECT                                                          00001770
+**********************************************************************  00001780
+**********          END OF FILES ROUTINES                   **********  00001790
+**********************************************************************  00001800
+EOFSYSIN CLOSE SYSIN                                                    00001810
+         CLI   PARMLEN,X'06'                                            00001820
+         BE    UPDFILEY                                                 00001830
+         CLI   PARMLEN,X'03'                                            00001840
+         BE    NEWFILE8                                                 00001850
+         B     DEQ                                                      00001860
+         SPACE 2                                                        00001870
+NEWFILE8 CLOSE (SYSPRINT,,LINKCNTL)                                     00001880
+         B     DEQ                     -> -> -> TERMINATE PROGRAM       00001890
+UPDFILEX MVI   FLAG2,X'FF'             INDICATE EOF ON LINKCNTL         00001900
+         CLOSE (LINKCNTL,REREAD)                                        00001910
+         CLI   FLAG1,X'FF'             IS SYSIN CLOSED ALSO ?           00001920
+         BE    EOJ1                    -> TERMINATE JOB                 00001930
+         CLI   FLAG4,X'FF'                                              00001940
+         BE    CLI                                                      00001950
+LOOP0005 BAL   R10,GETSYSIN                                             00001960
+CLI      CLI   TYPE,C'I'               INSERT ??                        00001970
+         BE    INSERT2                 -> YES                           00001980
+         PUT   SYSPRINT,RECORD3                                         00001990
+         B     LOOP0005                GET ANOTHER SYSIN                00002000
+INSERT2  BAL   R10,BUILDREC            BUILD A RECORD                   00002010
+         BAL   R10,PUTLNK2             OUTPUT THE RECORD                00002020
+         B     LOOP0005                GET ANOTHER SYSIN                00002030
+         SPACE 2                                                        00002040
+UPDFILEY MVI   FLAG1,X'FF'             INDICATE EOF ON SYSIN            00002050
+         CLI   FLAG2,X'FF'             IS LINKCNTL CLOSED ALSO ?        00002060
+         BE    EOJ1                    -> TERMINATE JOB                 00002070
+LOOP0006 BAL   R10,GETUPDFL                                             00002080
+         BAL   R10,PUTLNK1             OUTPUT THE RECORD                00002090
+         B     LOOP0006                UNTIL END OF FILE                00002100
+         SPACE 2                                                        00002110
+EOJ1     CLOSE (SYSWORK,REREAD)                                         00002120
+         CP    COUNTER1,=P'0'                                           00002130
+         BE    ERRORZQ                                                  00002140
+         MVI   RECORD1,C'*'                                             00002150
+         MVC   RECORD1+1(131),RECORD1                                   00002160
+         PUT   SYSPRINT,RECORD1                                         00002170
+         OPEN  (SYSWORK,(INPUT),LINKCNTL,(OUTPUT))                      00002180
+LOOP0007 GET   SYSWORK,RECORD2                                          00002190
+         BAL   R10,PUTLNK3             OUTPUT THE RECORD                00002200
+         B     LOOP0007                LOOP TILL END OF FILE            00002210
+ERRORZQ  WTO   'NO DATA TO OUTPUT TO CONTROL FILE',ROUTCDE=(11)         00002220
+         LA    R5,8                                                     00002230
+         B     DEQ                     DEQ & TERMINATE                  00002240
+         SPACE 2                                                        00002250
+UPDFILEZ CLOSE (SYSWORK,,SYSPRINT,,LINKCNTL)                            00002260
+         LA    R5,0                    SET RETURN CODE TO 0             00002270
+         B     DEQ                     DEQ & TERMINATE PROGRAM          00002280
+         EJECT                                                          00002290
+**********************************************************************  00002300
+**********          SUB ROUTINES                            **********  00002310
+**********************************************************************  00002320
+ENQ      OPEN  (SYSPRINT,(OUTPUT))                                      00002330
+         MVC   ABEND16+32(8),=C'SYSPRINT'                               00002340
+         TM    DCBOFLGS-IHADCB+SYSPRINT,X'10'                           00002350
+         BZ    ABEND16                 -> SYSPRINT NOT OPEN O.K.        00002360
+         MVC   ABEND16+32(8),=C'LINKCNTL'                               00002370
+ENQ1     ENQ   (QNAME,RNAME,E,,SYSTEM)                                  00002380
+         CLI   PARMLEN,X'06'           IS IT A UPD FILE TO UPDATE ??    00002390
+         BE    UPDFILE6                -> YES OPEN LINKCNTL.            00002400
+         CLI   PARMLEN,X'03'           IS IT A NEW FILE TO UPDATE ??    00002410
+         BE    NEWFILE6                -> YES OPEN LINKCNTL.            00002420
+         OPEN  (DJCFILE1,(UPDAT))                                       00002430
+         TM    DCBOFLGS-IHADCB+DJCFILE1,X'10'                           00002440
+         BO    0(R10)                  -> RETURN TO CALLER              00002450
+         B     ABEND16                                                  00002460
+UPDFILE6 OPEN  (LINKCNTL,(INPUT))                                       00002470
+         TM    DCBOFLGS-IHADCB+LINKCNTL,X'10'                           00002480
+         BO    0(R10)                  -> RETURN TO CALLER              00002490
+         B     ABEND16                                                  00002500
+NEWFILE6 OPEN  (LINKCNTL,(OUTPUT))                                      00002510
+         TM    DCBOFLGS-IHADCB+LINKCNTL,X'10'                           00002520
+         BO    0(R10)                  -> RETURN TO CALLER              00002530
+ABEND16  WTO   'MINIDJC: NO DD CARD FOR LINKCNTL',ROUTCDE=(11)          00002540
+         ABEND 16                                                       00002550
+DEQ      DEQ   (QNAME,RNAME,,SYSTEM)                                    00002560
+END      LR    R15,R5                  PUT RETURN CODE INTO R15         00002570
+         L     R13,4(R13)              POINT R13 TO HIGH SAVE AREA      00002580
+         RETURN (14,12),,RC=(15)                                        00002590
+         SPACE 2                                                        00002600
+PUTLNK1  PUT   SYSWORK,RECORD1                                          00002610
+         PUT   SYSPRINT,RECORD1                                         00002620
+         AP    COUNTER1,=P'1'                                           00002630
+         MVI   FLAG3,X'00'             RECORD1 IS RUBBISH               00002640
+         BR    R10                     -> RETURN TO CALLER              00002650
+         SPACE 2                                                        00002660
+PUTLNK2  PUT   SYSWORK,RECORD2                                          00002670
+         PUT   SYSPRINT,RECORD2                                         00002680
+         AP    COUNTER1,=P'1'                                           00002690
+         BR    R10                     -> RETURN TO CALLER              00002700
+         SPACE 2                                                        00002710
+PUTLNK3  PUT   LINKCNTL,RECORD2                                         00002720
+         PUT   SYSPRINT,RECORD2                                         00002730
+         BR    R10                     -> RETURN TO CALLER              00002740
+         SPACE 2                                                        00002750
+GETLNK   BAL   R10,GETUPDFL                                             00002760
+         B     LOOP0004                -> GO TO NEXT                    00002770
+         SPACE 2                                                        00002780
+BUILDREC MVI   RECORD2,C' '                                             00002790
+         MVC   RECORD2+1(119),RECORD2  CLEAR RECORD2                    00002800
+         MVC   RECORD2(10),JOBID                                        00002810
+         MVC   BYTE,JOBNO              INSERT NO. OF JOBIDS             00002820
+         MVC   RECORD3+112(15),=C'C12 NOT NUMERIC'                      00002830
+         TM    JOBNO,X'F0'                                              00002840
+         BNO   ERROR1                  -> IF BYTE IS NOT NUMERIC        00002850
+         NI    BYTE,X'0F'              TURN OF JUNK BYTES               00002860
+         SR    R4,R4                   R4 = 0                           00002870
+         IC    R4,BYTE                                                  00002880
+         LA    R8,REC2JOB1                                              00002890
+         LA    R9,REC3JOB1                                              00002900
+LOOP0012 MVC   0(8,R8),0(R9)                                            00002910
+         MVC   8(8,R8),FILLER1         FILL WITH *****                  00002920
+         LA    R8,18(R8)                                                00002930
+         LA    R9,9(R9)                                                 00002940
+         BCT   R4,LOOP0012                                              00002950
+         BR    R10                     -> RETURN TO CALLER              00002960
+         SPACE 2                                                        00002970
+GETSYSIN MVI   FLAG4,X'00'             SYSIN RECORD IS RUBBISH          00002980
+         MVI   RECORD3,X'40'                                            00002990
+         MVC   RECORD3+1(131),RECORD3                                   00003000
+         GET   SYSIN,RECORD3                                            00003010
+         PUT   SYSPRINT,RECORD3                                         00003020
+         MVC   RECORD3+80(32),=C'MINIDJC: RECORD INVALID BECAUSE '      00003030
+         MVI   FLAG4,X'FF'             SYSIN RECORD IS VALID            00003040
+         BR    R10                     -> -> RETURN TO CALLER           00003050
+         SPACE 2                                                        00003060
+GETUPDFL CLI   FLAG3,X'00'             IS RECORD1 STILL VALID ??        00003070
+         BNE   0(R10)                  -> -> YES RETURN TO CALLER       00003080
+         GET   LINKCNTL,RECORD1                                         00003090
+         MVI   FLAG3,X'FF'             RECORD1 IS VALID                 00003100
+         BR    R10                     -> -> RETURN TO CALLER           00003110
+         SPACE 2                                                        00003120
+GETDJC1  GET   DJCFILE1                                                 00003130
+         LR    R2,R1                   SAVE THE LOACTION OF THE RECORD  00003140
+         PUT   SYSPRINT,RECORD1                                         00003150
+         BR    R10                     -> -> RETURN TO CALLER           00003160
+         EJECT                                                          00003170
+**********************************************************************  00003180
+**********          DATA DECLARATIONS                       **********  00003190
+**********************************************************************  00003200
+DRECORD1 DC    CL132' '                                                 00003210
+RECORD2  DS    0CL132                                                   00003220
+         DS    CL12                                                     00003230
+REC2JOB1 DS    CL18                                                     00003240
+REC2JOB2 DS    CL18                                                     00003250
+REC2JOB3 DS    CL18                                                     00003260
+REC2JOB4 DS    CL18                                                     00003270
+REC2JOB5 DS    CL18                                                     00003280
+REC2JOB6 DS    CL18                                                     00003290
+REC2DATA DC    CL12'LVU=********'                                       00003300
+         SPACE 2                                                        00003310
+RECORD3  DS    0CL132                                                   00003320
+TYPE     DS    CL2                                                      00003330
+JOBID    DS    CL8                                                      00003340
+         DS    CL1                                                      00003350
+JOBNO    DS    CL1                                                      00003360
+         DS    CL1                                                      00003370
+REC3JOB1 DS    CL9                                                      00003380
+REC3JOB2 DS    CL9                                                      00003390
+REC3JOB3 DS    CL9                                                      00003400
+REC3JOB4 DS    CL9                                                      00003410
+REC3JOB5 DS    CL9                                                      00003420
+REC3JOB6 DS    CL9                                                      00003430
+         DS    CL13                                                     00003440
+         DS    CL52                                                     00003450
+         SPACE 2                                                        00003460
+FLAG1    DC    X'00'                                                    00003470
+FLAG2    DC    X'00'                                                    00003480
+FLAG3    DC    X'00'                                                    00003490
+FLAG4    DC    X'00'                                                    00003500
+COUNTER1 DC    PL2'0'                                                   00003510
+BYTE     DC    CL1' '                                                   00003520
+FILLER   DC    CL8' '                                                   00003530
+FILLER1  DC    CL8'********'                                            00003540
+QNAME    DC    CL8'USERDSN'                                             00003550
+RNAME    DC    C'P.W$.DJCFILE1'                                         00003560
+         PRINT NOGEN                                                    00003570
+LINKCNTL DCB   DSORG=PS,MACRF=(GM,PM),DDNAME=LINKCNTL,              ****00003580
+               RECFM=F,LRECL=132,BLKSIZE=132,EODAD=UPDFILEX             00003590
+SYSIN    DCB   DSORG=PS,MACRF=(GM),DDNAME=SYSIN,EODAD=EOFSYSIN          00003600
+SYSWORK  DCB   DSORG=PS,MACRF=(PM,GM),DDNAME=SYSWORK,EODAD=UPDFILEZ, ***00003610
+               RECFM=F,LRECL=132,BLKSIZE=132                            00003620
+SYSPRINT DCB   DSORG=PS,MACRF=(PM),DDNAME=SYSPRINT,                 ****00003630
+               RECFM=F,LRECL=132,BLKSIZE=132                            00003640
+DJCFILE1 DCB   DSORG=PS,MACRF=(GL,PL),DDNAME=LINKCNTL,EODAD=DJCFILEX    00003650
+PARM     DSECT                                                          00003660
+         DS    CL1                                                      00003670
+PARMLEN  DS    CL1                                                      00003680
+PARMJOB1 DS    CL8                                                      00003690
+         DS    CL1                                                      00003700
+PARMJOB2 DS    CL8                                                      00003710
+         DS    CL1                                                      00003720
+PARMRUNO DS    CL8                                                      00003730
+         DCBD  DSORG=PS                                                 00003740
+RECORD1  DSECT                                                          00003750
+NEXTJOB1 DS    CL8                                                      00003760
+         DS    CL1                                                      00003770
+JOBCOUNT DS    CL1                                                      00003780
+TWOSPACE DS    CL2                                                      00003790
+THISJOB1 DS    CL8                                                      00003800
+THISRUN1 DS    CL8                                                      00003810
+         DS    CL92                    ABOVE 3 LINES REPEAT 5 TIMES     00003820
+COMMENT1 DS    CL4                                                      00003830
+COMMENT2 DS    CL8                                                      00003840
+         END   MINIDJC                                                  00003850

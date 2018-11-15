@@ -1,0 +1,116 @@
+*********************************************************************** 00010000
+* WRITTEN BY K.M. (SAM) BASS (SBASS,SJB,KBASS,KMB)                    * 00020000
+*********************************************************************** 00030000
+*--------------------------------------------------------------------*  00040000
+*              ROUTINE TO CONVERT  SWA SVA'S TO READ ADDRESSES       *  00050000
+*--------------------------------------------------------------------*  00060000
+*                  INPUT           R1 =  SVA @/TOKEN;FMT=00NNNNNN    *  00070000
+*                  OUTPUT          R1 =  CONVERTED SVA, NOPREFIX     *  00080000
+*                                  R15 = 0  ALL OK                   *  00090000
+*                                  R15 = 12 SWAREQ ERROR             *  00100000
+*                                  R15 = 20 GETMAIN ERROR            *  00110000
+*--------------------------------------------------------------------*  00120000
+*        WRITTEN BY:   SAM BASS                                      *  00130000
+*--------------------------------------------------------------------*  00140000
+*        ATTRIBUTES:  RENT,REUS, RMODE=24, AMODE=31                  *  00150000
+*--------------------------------------------------------------------*  00160000
+SWAREQ   RMODE 24                                                       00170000
+SWAREQ   AMODE 31                                                       00180000
+SWAREQ   CSECT                                                          00190000
+         SAVE  (14,12),T,SWAREQ_&SYSDATC._&SYSTIME.                     00200000
+         LR    R11,R1                                                   00210000
+         LR    R12,R15                                                  00220000
+         USING SWAREQ,R12                                               00230000
+         SPACE 2                                                        00240000
+         LTR   R1,R1                                                    00250000
+         BNZ   GETSVA                                                   00260000
+         RETURN (14,12),RC=0                                            00270000
+GETSVA   DS    0H                                                       00280000
+         L     R15,=A(X'80000000'+SWAR0100)                             00290000
+         BSM   R0,R15              SET TO AMODE 31                      00300000
+SWAR0100 DS    0H                                                       00310000
+         SPACE 2                                                        00320000
+         GETMAIN RC,LV=LWORK,SP=1,LOC=ANY                               00330000
+         LTR   R15,R15                                                  00340000
+         BNZ   SWARC20                                                  00350000
+         SPACE 1                                                        00360000
+         ST    R1,8(,R13)          CHAIN FWD                            00370000
+         ST    R13,4(,R1)          CHAIN PREV                           00380000
+         LR    R13,R1                                                   00390000
+         USING WORK,R13                                                 00400000
+SWAR0200 DS    0H                                                       00410000
+         LA    R7,WEPA                                                  00420000
+         ST    R7,WEPAP                                                 00430000
+         USING ZB505,R7                                                 00440000
+         XC    WEPA,WEPA                                                00450000
+         STCM  R11,7,SWVA          PUT SVA 00FFFFFF INTO FFFFFF00       00460000
+         SWAREQ FCODE=RL,EPA=WEPAP,UNAUTH=YES,MF=(E,WSWA)               00470000
+         LTR   R15,R15                                                  00480000
+         BNZ   SWAR0900                                                 00490000
+         SPACE 3                                                        00500000
+         L     R1,SWBLKPTR         @ OF HIGH SVA                        00510000
+         DROP  R7                                                       00520000
+         LA    R15,0                                                    00530000
+         SPACE 3                                                        00540000
+SWARCXX  DS    0H                  R1,R15 MUST BE SAVED                 00550000
+         L     R14,4(,R13)         RESTORE PREV SAVE ADDR               00560000
+         ST    R1,X'18'(,R14)      SET R1                               00570000
+         LR    R1,R13                                                   00580000
+         L     R13,4(,R13)         RESTORE PREV SAVE ADDR               00590000
+         ST    R15,X'10'(,R13)     SAVE RETURN CODE                     00600000
+         FREEMAIN RU,LV=LWORK,A=(R1),SP=1 FREE STORAGE                  00610000
+         LM    R14,R12,12(R13)     RESTORE REGS                         00620000
+         BSM   R0,R14              AND RETURN                           00630000
+*--------------------------------------------------------------------*  00640000
+*              GETMAIN ERROR                                         *  00650000
+*--------------------------------------------------------------------*  00660000
+SWARC20  DS    0H                  GETMAIN ERROR                        00670000
+         LM    R14,R12,12(R13)     RESTORE REGS                         00680000
+         LA    R1,0                                                     00690000
+         LA    R15,20                                                   00700000
+         BSM   R0,R14              AND RETURN                           00710000
+*--------------------------------------------------------------------*  00720000
+*              SWAREQ ERROR                                          *  00730000
+*--------------------------------------------------------------------*  00740000
+SWAR0900 DS 0H                     ERROR                                00750000
+         ST    R15,WDEC+8                                               00760000
+         UNPK  WDEC(5),WDEC+8+2(3)                                      00770000
+         TR    WDEC(4),TRANS-240                                        00780000
+         MVC   WWTO(SWARWTOL),SWARWTO                                   00790000
+         MVC   WWTO+MSG11(4),WDEC+0                                     00800000
+         WTO   ,MF=(E,WWTO)                                             00810000
+         SLR   R1,R1                                                    00820000
+         LA    R15,12                                                   00830000
+         B     SWARCXX                                                  00840000
+*--------------------------------------------------------------------*  00850000
+*              DATA AREAS                                            *  00860000
+*--------------------------------------------------------------------*  00870000
+SWARWTO  WTO   'SWAREQ10 SWAREQ ERROR, RC=0000 HEX',                   X00880000
+               ROUTCDE=11,MF=L                                          00890000
+MSG11    EQU   30,5                                                     00900000
+SWARWTOL EQU   *-SWARWTO                                                00910000
+TRANS    DC    C'01234567890ABCDEF'                                     00920000
+         LTORG ,                                                        00930000
+*--------------------------------------------------------------------*  00940000
+*              D S E C T S                                           *  00950000
+*--------------------------------------------------------------------*  00960000
+WORK     DSECT                                                          00970000
+WSAVE    DS    9D                                                       00980000
+WDEC     DS    2D                                                       00990000
+WEPAP    DS    A                                                        01000000
+WEPA     DS    CL(ZB505LEN),0F'0'                                       01010000
+WSWA     SWAREQ MF=L                                                    01020000
+WWTO     DS    CL(SWARWTOL),0F'0'                                       01030000
+LWORK    EQU   *-WORK                                                   01040000
+         SPACE 3                                                        01050000
+*--------------------------------------------------------------------*  01060000
+*        MVS   D S E C T S                                           *  01070000
+*--------------------------------------------------------------------*  01080000
+         IEFZB505 LOCEPAX=YES                                           01090000
+ZB505LEN EQU   *-ZB505                                                  01100000
+         PRINT NOGEN                                                    01110000
+         CVT   DSECT=YES                                                01120000
+         IEFJESCT TYPE=DSECT                                            01130000
+         PRINT GEN                                                      01140000
+         REGEQU                                                         01150001
+         END   ,                                                        01160000

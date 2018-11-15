@@ -1,0 +1,373 @@
+PANEL    TITLE 'JOL PANEL INSTRUCTION'                                  00001000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1980.                          00002000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00003000
+           SPACE 3                                                      00004000
+*                   J             000000            L                   00005000
+*                   J            0      0           L                   00006000
+*                   J           0        0          L                   00007000
+*                   J          0          0         L                   00008000
+*                   J         0            0        L                   00009000
+*                   J         0            0        L                   00010000
+*                   J         0            0        L                   00011000
+*                   J         0            0        L                   00012000
+*                   J         0            0        L                   00013000
+*                   J         0            0        L                   00014000
+*                   J         0            0        L                   00015000
+*        J          J         0            0        L                   00016000
+*         J        J           0          0         L                   00017000
+*          J      J             0        0          L                   00018000
+*           J    J               0      0           L                   00019000
+*            JJJJ                 000000            LLLLLLLLLLL         00020000
+           SPACE 3                                                      00021000
+         COPY  JOLCOM                                                   00022000
+         TITLE 'JOL PANEL INSTRUCTION'                                  00023000
+P27DSAVE DSECT                                                          00024000
+         DS    18F                                                      00025000
+CURRROW  DS    H                                                        00026000
+CURRCOL  DS    H                                                        00027000
+P27DSVEN EQU   *                                                        00028000
+         USING P27DSAVE,R13                                             00029000
+UJP27PNL JOLSAVE  SIZE=P27DSVEN-P27DSAVE                                00030000
+* THIS COMMAND PUTS INFORMATION ON A SCREEN IN A MANNER SUCH THAT       00031000
+*  FILL IN THE BLANKS CAN BE DONE.                                      00032000
+*  COPYRIGHT  CLARKE COMPUTER SOFTWARE PTY. LTD. 1980                   00033000
+         MVC      ICOMMAND,=CL8'MACRO' MAKE ASSIGN BETTER.              00034000
+         MVC   #WORK,=H'0'                                              00035000
+         MVC   SYMBOLIC,=CL8'SYSPFK'                                    00036000
+         $CALL UJP85ASN                                                 00037000
+         MVC   CURRROW,=H'2'  SET THE CURRENT ROW NUMBER COUNTER        00038000
+         MVC   CURRCOL,=H'1'  SET THE CURRENT COLUMN NUMBER COUNTER     00039000
+         GETMAIN  R,LV=9288   GET 9K OF MEMORY FIX DJD 22/08/83 CVC     00040000
+         LR    R4,R1          SAVE ADDRESS OF 'GOTTEN' STORAGE          00041000
+         LA    R5,2(R4)                                                 00042000
+         USING DITEM,R5                                                 00043000
+         USING #ITEMS,R4                                                00044000
+         LA    R7,4000(R4)    POINT TO END OF WORK AREA                 00045000
+* OK, JUST CHECK IF WE HAVE ANY PARAMETERS                              00046000
+         GETTKN 2                                                       00047000
+*        CLEAR #ITEMS                                                   00048000
+         XC    #ITEMS(LFIXED+3),#ITEMS                                  00049000
+         CLI   TKN,C'('                                                 00050000
+         BE    P27NOHED       NO HEADING                                00051000
+         CLI   TKN,C'/'                        P FOLEY,DJD & CVC 84029  00050000
+         BE    P27NOHED       NO HEADING       P FOLEY,DJD & CVC 84029  00051000
+* OK, HERE WE HAVE A HEADING                                            00052000
+         SPACE 2                                                        00053000
+* PUT IT IN THE CENTRE OF THE SCREEN                                    00054000
+         BAL   R14,DROPQUOT               FIX HEADER  DJD 22/08/83
+         LH    R15,#TKN       GET THE LENGTH OF THE MESSAGE TEXT        00055000
+         LA    R14,80                                                   00056000
+         SR    R14,R15        GIVES AMOUNT LEFT                         00057000
+         BNP   P27LONGH       LONG HEADING, JUST PUT IT OUT.            00058000
+         SRL   R14,R1         DIVIDE BY TWO. GIVES A START COLUMN       00059000
+         STH R14,COLNO                                                  00060000
+         LA    R14,1          SET UP ROW NUMBER                         00061000
+         STH   R14,ROWNO                - DONE                          00062000
+         STH   R14,CURRROW    SAVE CURRENT ROW NUMBER                   00063000
+         STH   R15,MSGLEN     SET UP MSG LENGTH                         00064000
+         MVC   RROW,=H'0'                                               00065000
+         MVC   RCOL,=H'0'                                               00066000
+         MVC   RPLYLEN,=H'0'                                            00067000
+         MVC   RLITLEN,=H'0'                                            00068000
+         MVC   TEST,=H'0'                                               00069000
+P27MUVH  BCTR  R15,0          -1 FOR R15                                00070000
+         EX    R15,P27MUV     MOVE LITERAL TO CORRECT SPOT              00071000
+         B     P27STRT2                                                 00072000
+         SPACE 3                                                        00073000
+P27LONGH MVC   ROWNO,=H'1'    SET ROW=1                                 00074000
+         MVC   COLNO,=H'2'    SET COL=2                                 00075000
+         MVC   CURRROW(2),=H'1' SAVE CURRENT ROW NUMBER                 00076000
+         STH   R15,MSGLEN     SET MSG LENGTH                            00077000
+         XC    RROW(TEST-RROW),RROW  CLEAR EVERYTHING ELSE              00078000
+         B     P27MUVH        MOVE THE HEADING                          00079000
+P27STRT2 MVC   TKNCURR,=H'3'                                            00080000
+         B     P27ENDIT
+         TITLE 'HANDLE SUB-PARAMETERS OF PANEL INSTRUCTION'             00081000
+P27NOHED  EQU *                                                         00082000
+         MVC   TKNCURR,=H'2'  GET TKN NUMBER 2 IF NO HEADING            00083000
+* NOW, THE SUBPARAMETERS ARE LIKE THIS:-                                00084000
+*        (>:- START                                                     00085000
+*        'LITERAL TO BE DISPLAYED'.                                     00086000
+*        SYMBOLIC NAME TO RECEIVE DATA,                                 00087000
+*        MAX LENGTH TO RECEIVE,                                         00088000
+*         OPTIONAL DEFAULT REPLY , (IN QUOTES)                          00089000
+*         OPTIONAL ROW AND COLUMN NUMBERS OF MESSAGES                   00090000
+*         OPTIONAL ROW AND COLUMN NUMBERS OF REPLY ,                    00091000
+*        )     END OF SUBPARAMETER                                      00092000
+         SPACE 2                                                        00093000
+* OK, LET'S GO                                                          00094000
+P27STAR  XC    DITEM(LFIXED),DITEM                                      00095000
+         BAL   R9,P27GETTK                                              00096000
+         CLC   #TKN(3),=X'000161' IS IT A '/' (SKIP CONTROL CHARACTER?) 00106000
+         BNE   P27MAIN        NO, SO DEAL WITH LITERAL                  00107000
+         LH    R15,CURRROW        LOAD CURRENT ROW COUNTER              00108000
+         LA    R15,1(R15)     ADD ONE TO IT                             00109000
+         STH   R15,CURRROW        SAVE IT BACK AGAIN                    00110000
+         B     P27STAR        ROUND TO LOOP AGAIN                       00111000
+         SPACE 2                                                        00112000
+P27MAIN  XC    DITEM(LFIXED),DITEM                                      00095000
+         BAL   R9,P27GETTK                                              00096000
+         B     *+4(R15)                                                 00097000
+         B     P27MSG1        GET FIRST LITERAL                         00098000
+         B     P27MAIN        '(' FOUND, SKIP IT                        00099000
+         B     P27MAIN        ')' FOUNG, INVALID                        00100000
+         B     P27WRAP        END OF INSTRUCTION                        00101000
+         SPACE                                                          00102000
+P27RETNF FREEMAIN R,LV=9288,A=(R4)              FIX DJD 22/08/83        00103000
+         JOLRETN RC=16                                                  00104000
+         SPACE 2                                                        00105000
+P27MSG1  LH    R15,#TKN       LOAD LITERAL LENGTH                       00113000
+         STH   R15,MSGLEN     STORE IT                                  00114000
+         BCTR  R15,0                                                    00115000
+         EX    R15,P27MUV     MOVE STRING TO 'LITERAL'                  00116000
+         BAL   R9,P27GETTK    GET NEXT TOKEN                            00117000
+         B     *+4(R15)                                                 00118000
+         B     P27NAME        WE HAVE SYMBOLIC NAME, SAVE IT            00119000
+         B     P27ERR2        '(' FOUND                                 00120000
+         B     P27ERR3        ')' FOUND                                 00121000
+         B     P27ERR3        ' 'FOUND (END OF PANEL)                   00122000
+         SPACE 2                                                        00123000
+P27ERR2  JOLERR 402,'NEW SUB-COMMAND FOUND'                             00124000
+         B     P27RETNF                                                 00125000
+P27ERR3  EQU   *     NO SYMBOLIC NAME FOUND TO RETURN VALUES TO HERE    00126000
+*                    THEREFORE HE IS JUST PUTTING OUT TEXT.             00127000
+         CLEAR RPLYLEN         THERE IS NO REPLY....                    00128000
+         B     P27ENDIT        GO TO END OF ITEM                        00129000
+         SPACE 2                                                        00130000
+P27NAME  SH    R7,=H'8'       BACKTRACK IN TABLE                        00131000
+         MVC   0(8,R7),TKN                                              00132000
+         MVC   SYMBOLIC,TKN    SAVE SYMBOLIC NAME AGAIN SO THAT WE CAN  00133000
+*                             STORE THE DEFAULT VALUE OF THE SYMBOLIC   00134000
+         CLC   #TKN,=H'9'    CHECK IF SYMBOLIC NAME TOO LONG            00135000
+         BL    P27NAME2                                                 00136000
+         JOLERR 404,'SYMBOLIC NAME ''',#TKN,''' TOO LONG'               00137000
+         B     P27RETNF                                                 00138000
+         SPACE                                                          00139000
+P27NAME2 EQU   *                                                        00140000
+         BAL   R9,P27GETTK    GET NEXT TOKEN                            00141000
+         B     *+4(R15)                                                 00142000
+         B     P27GOTLN       GOT LENGTH (MAX) TO ALLOW USER TO TYPE    00143000
+         B     P27NOLEN       '('                                       00144000
+         B     P27NOLEN       ')'                                       00145000
+         B     P27NOLEN       ' '                                       00146000
+P27NOLEN LH    R1,=H'100'                                               00147000
+         B     P27STRLN                                                 00148000
+P27GOTLN LR    R9,R15                                                   00149000
+         TNUM  #TKN                                                     00150000
+         LTR   R15,R15                                                  00151000
+         BNZ   P27ERR4                                                  00152000
+         LR    R15,R9                                                   00153000
+P27STRLN STH   R1,RPLYLEN                                               00154000
+         B     *+4(R15)                                                 00155000
+         B     P27GETRP       GET REPLY (DEFAULT)                       00156000
+         B     P27ENDIT       '(' ->                                    00157000
+         B     P27ENDIT       ')' ->                                    00158000
+         B     P27ENDIT       ' ' ->                                    00159000
+P27ERR4  JOLERR 205,'REPLY LENGTH IN ERROR;-''',#TKN,''''               00160000
+         B     P27RETNF                                                 00161000
+         SPACE 2                                                        00162000
+P27GETRP BAL   R9,P27GETTK    GET NEXT TOKEN                            00163000
+         LTR   R15,R15                                                  00164000
+         BNZ   P27ENDIT       END ITEM                                  00165000
+* WE HAVE A DEFAULT REPLY TO PUT OUT.                                   00166000
+         SPACE                                                          00167000
+         LH    R15,MSGLEN     LOAD THE LENGTH OF THE MESSAGE TEXT       00168000
+         LA    R14,LITERAL(R15)  CALCULATE END OF CURRENT STRING.       00169000
+         LH    R15,#TKN       LOAD THE LENGTH OF THE DEFAULT REPLY      00170000
+         LTR   R1,R15         SEE IF THERE IS ONE (MAY BE 0 LENGTH)     00171000
+         BE    P27CHKRO       CHECK ROW AND COLUMN NUMBERS              00172000
+         BCTR  R1,0           -1                                        00173000
+         EX    R1,P27MUV2     SHIFT TO END OF MESSAGE TEXT              00174000
+         STH   R15,RLITLEN    STORE LENGTH FOR SCREEN HANDLER           00175000
+         MVI   TEST,X'01'     TELL ROUTINE THAT THERE IS A REPLY        00176000
+         MVC   #WORK(L'TKN+2),#TKN  MOVE DEFAULT REPLY TO SAVE AREA     00177000
+         $CALL  UJP85ASN      SET UP DEFAULT REPLY IN THE SYMBOLIC      00178000
+         SPACE 2                                                        00179000
+P27CHKRO BAL   R9,P27GETTK                                              00180000
+         LTR   R15,R15                                                  00181000
+         BNZ   P27ENDIT       END OF ITEM                               00182000
+         TNUM  #TKN                                                     00183000
+         LTR   R15,R15                                                  00184000
+         BZ    P27ROW10 K                                               00185000
+         JOLERR 206,'ROW NUMBER ''',#TKN,''' INVALID - DEFAULTS USED'   00186000
+         SR    R1,R1                                                    00187000
+P27ROW10 STH   R1,ROWNO                                                 00188000
+         BAL   R9,P27GETTK                                              00189000
+         LTR   R15,R15                                                  00190000
+         BNZ   P27ENDIT                                                 00191000
+         TNUM  #TKN                                                     00192000
+         BZ    P27COL10                                                 00193000
+         JOLERR 207,'COLUMN NUMBER ''',#TKN,''' INVALID - DEFAULTS USED*00194000
+               '                                                        00195000
+         SR    R1,R1                                                    00196000
+P27COL10 STH   R1,COLNO                                                 00197000
+         BAL   R9,P27GETTK                                              00198000
+         LTR   R15,R15                                                  00199000
+         BNZ   P27ENDIT                                                 00200000
+         TNUM  #TKN                                                     00201000
+         BZ    P27ROW20                                                 00202000
+         JOLERR 208,'REPLY ROW NUMBER ''',#TKN,                        *00203000
+               '''INVALID - DEFAULT USED'                               00204000
+         SR    R1,R1                                                    00205000
+P27ROW20 STH   R1,RROW                                                  00206000
+         BAL   R9,P27GETTK                                              00207000
+         LTR   R15,R15                                                  00208000
+         BNZ   P27ENDIT                                                 00209000
+         TNUM  #TKN                                                     00210000
+         LTR   R15,R15                                                  00211000
+         BZ    P27COL20                                                 00212000
+         JOLERR 209,'REPLY COLUMN NUMBER ''',#TKN,                     *00213000
+               '''INVALID - DEFAULT USED'                               00214000
+         SR    R1,R1                                                    00215000
+P27COL20 STH   R1,RCOL                                                  00216000
+P27ENDIT EQU   *                                                        00217000
+* HERE IS THE END OF THE ITEM.                                          00218000
+         SPACE 2                                                        00219000
+* WE MUST                                                               00220000
+* 1. UPDATE THE ITEM COUNT                                              00221000
+* 2. FIX UP R5 TO POINT TO THE NEXT HOLE (AFTER THE LITERAL             00222000
+*        STRINGS)                                                       00223000
+* 3. PUT IN DEFAULT ROW, COLUMN ETC IF NONE PROVIDED                    00224000
+         SPACE 2                                                        00225000
+         LH    R1,#ITEMS                                                00226000
+         LA    R1,1(R1)                                                 00227000
+         STH   R1,#ITEMS                                                00228000
+P27ROW2  DS    0H                                                       00228900
+         IFVALUE ROWNO,P27ROW30                                         00229000
+         MVC   ROWNO,CURRROW   SHIFT CURRENT ROW NUMBER                 00230000
+         MVC   RROW,CURRROW    AS ABOVE                                 00231000
+P27ROW30 DS    0H                                                       00232000
+         MVC   CURRROW,ROWNO   ENSURE CURRENT ROW IS SAME AS ONE USED   00232001
+         IFVALUE COLNO,P27ROW35                                         00232100
+         LA    R1,1                                                     00233000
+         STH   R1,COLNO                                                 00234000
+P27ROW35 DS    0H                                                       00234500
+         IFVALUE RCOL,P27RCOLO  USER HARD CODE REPLY COLUMN?            00235000
+         LH    R1,MSGLEN        NOT HERE, SO WE WILL PUT ONE IN.        00236000
+         LA    R1,2(R1)                                                 00237000
+         STH   R1,RCOL                                                  00238000
+         AH    R1,RPLYLEN       NOW CHECK IF IT WILL RUN OVER A LINE.   00239000
+         SLR   R0,R0          CLEAR FOR DIVIDE                          00239100
+         D     R0,=F'80'      FIND REMAINDER                            00240000
+         AH    R1,CURRROW     ADD TO CURRENT LINE NUMBER                00242000
+         STH   R1,CURRROW                                               00244000
+P27RCOLO LH    R1,MSGLEN                                                00245000
+         AH    R1,RLITLEN                                               00246000
+         AR    R5,R1          BUMP UP TO POINT TO NEW SPOT IN TABLE     00247000
+         LA    R5,LFIXED(R5)  POINT OVER FIXED AREA IN PARM LIST        00248000
+         B     P27NTEST                                                 00249000
+*        JOLERR 111,'ROW=',ROWNO,'COLNO=',COLNO,'MSGLEN=',MSGLEN        00250000
+*        JOLERR 112,'RROW=',RROW,'RCOL=',RCOL,'RPLYLEN=',RPLYLEN        00251000
+*        JOLERR 113,'RLITEN=',RLITLEN,'LITERAL=',LITERAL                00252000
+*        LA    R1,TKN+100                                               00253000
+*        TGET  (1),1                                                    00254000
+         SPACE 2                                                        00255000
+P27NTEST LH    R15,CURRROW                                              00256000
+         LA    R15,1(R15)                                               00257000
+         STH   R15,CURRROW                                              00258000
+         CLI   TKN,C' '                                                 00259000
+         BNE   P27STAR                                                  00260000
+P27WRAP  EQU   *                                                        00261000
+         SH    R7,=H'8'                                                 00262000
+         MVC   0(8,R7),BLANKS TO ACT AS A STOP ON RETURN FROM SCREEN    00263000
+         TITLE 'CALL SCREEN MANAGER'                                    00264000
+* CHECK IF WE ARE UNDER TSO, OR IF THE PANELS HAVE BEEN TURNED          00265000
+*  OFF BEFORE ACTUALLY DISPLAYING THEM.                                 00266000
+         IFNULL IFTSO,P27RETN0 OK, NOT TSO, SO RETURN                   00267000
+         CLI   IFFULLSC,C'Y'  HAVE PANELS BEEN TURNED OFF ANYWAY?       00268000
+         BNE   P27RETN0       YES, SO OUT WE GO                         00269000
+         SPACE 2                                                        00270000
+         LA    R0,4000(R4)    GET WORK AREA FOR SCREEN HANDLER FIX DJD  00271000
+         LR    R1,R4          POINT TO START OF PARAMETER AREA          00272000
+         CALL  UJP28SCR                                                 00273000
+         LR    R9,R15       SAVE THE RETURN CODE                        00274000
+         CVD   R0,DBL                                                   00275000
+         UNPK  WORK(2),DBL                                              00276000
+         OI    WORK+1,X'F0'  SET ZONE BITS                              00277000
+         MVC   #WORK,=H'2'                                              00278000
+         MVC   SYMBOLIC,=CL8'SYSPFK'                                    00279000
+         $CALL UJP85ASN                                                 00280000
+         LTR   R9,R9          CHECK RETURN CODE FROM 28                 00281000
+         BZ    P27REC         RECIEVE DATA BACK                         00282000
+P27SERR  JOLERR 410,'ERROR OCCURRED IN SCREEN HANDLER'                  00283000
+         B     P27RETNF                                                 00284000
+         TITLE 'RETURN INFORMATION TO JOL SYMBOLICS'                    00285000
+P27REC   EQU   *                                                        00286000
+         LR    R8,R1          SAVE R1 (RETURNED STRINGS)                00287000
+         LH    R9,CURRROW     LOAD THE LAST ROW OUTPUT        **CVC     00288000
+         LA    R9,1(R9)       SET +1 SO CURSOR ENDS UP THERE  **CVC     00289000
+         LA    R9,1           SET LINE TO 1  ****************           00290000
+         STLINENO LINE=(R9),MODE=OFF SET LINE, AND TURN OFF FS **CVC    00291000
+*        STFSMODE   OFF                                                 00292000
+         B     IBM            IF ON IBM, DON'T DO NEXT BIT    **CVC     00293000
+         LA    R0,1           FACOM ERROR, PUT SOMETHING ON THE SCREEN  00294000
+         LA    R1,=C' '       FACOM ERROR, PUT SOMETHING ON THE SCREEN  00295000
+         SVC   93             TPUT                                      00296000
+* ON RETURN, R1 POINTS TO THE RETURNED STRINGS.                         00297000
+IBM      LH    R9,#ITEMS      LOAD THE NUMBER OF ITEMS RETURNED         00298000
+         LA    R7,4000-8(R4)  POINT TO TABLE CONTAINING SYMBOLICS       00299000
+P27STRN  MVC   SYMBOLIC,0(R7) SHIFT NAME TO JOL SYMBOLIC NAME ADDRESS   00300000
+         IFNULL SYMBOLIC,P27RETN0 REACHED END, JUST RETURN              00301000
+         LA    R1,#WORK       LOAD RECIEVE ADDRESS                      00302000
+         CLC   =H'0',0(R8)    IS THERE A PARAMETER TO RETURN?           00303000
+         BE    P85SKIP        NOPE, SO LEAVE VALUE THE WAY IT WAS.      00304000
+         TM    0(R8),X'80'    IS HIGH ORDER BIT ON?                     00305000
+         BNO   P27STR         YES MEANS A FIELD WAS CANCELLED           00306000
+         NI    0(R8),X'FF'-X'80' SO... STORE 0 FILED IN IT.             00307000
+P27STR   LR    R0,R8          LOAD SEND ADDRESS                         00308000
+         BAL   R14,MOVEDATA   MOVE TO WORK                              00309000
+         OC    WORK(256),=CL256' ' MAKE UPPER CASE                      00310000
+         FIX PROPERLY LATER                                             00311000
+         $CALL UJP85ASN       STORE IN SYMBOLIC FIELD                   00312000
+P85SKIP  SH    R7,=H'8'       BACK TO NEXT SYMBOLIC NAME                00313000
+         AH    R8,0(R8)       BUMP UP TO NEXT RETURNED ITEM.            00314000
+         LA    R8,2(R8)       SKIP LENGTH OF STRING (VARYING|)          00315000
+         BCT   R9,P27STRN     GO BACK AND STORE NEXT SYMBOLIC           00316000
+P27RETN0 FREEMAIN R,LV=9288,A=(R4)                                      00317000
+         JOLRETN                                                        00318000
+         EJECT                                                          00319000
+P27GETTK GETTKN TKNCURR                                                 00320000
+         STH   R1,TKNCURR     UP IT BY 1                                00322000
+         CLI   TKN,C','       COMMA ?                                   00323000
+         BE    P27GETTK       YES, SKIP IT                              00324000
+         SR    R15,R15
+         CLI   TKN,C'('                                                 00325000
+         BE    P274           RETURN 4     NEW SUB PARAMETER            00326000
+         CLI   TKN,C')'                                                 00327000
+         BE    P278           RETURN 8     END OF SUB PARAMETER         00328000
+         CH    R1,TKNNO                                                 00332000
+         BH    P2712          RETURN 12    END OF STATEMANT             00333000
+         BAL   R14,DROPQUOT   DROP QUOTES IF THERE ARE ANY              00329000
+         BR    R9                                                       00334000
+P2712    LA    R15,4(R15)                                               00335000
+P278     LA    R15,4(R15)                                               00336000
+P274     LA    R15,4(R15)                                               00337000
+         BR    R9                                                       00338000
+P27MUV   MVC   LITERAL(*-*),TKN  MOVE TOKEN TO 'LITERAL'                00339000
+P27MUV2  MVC   0(*-*,R14),TKN MOVE DEFAULT REPLY                        00340000
+         LTORG                                                          00341000
+         DC    S(*,*,*,*)                                               00342000
+         DC    S(*,*,*,*)                                               00343000
+         DC    S(*,*,*,*)                                               00344000
+         DC    S(*,*,*,*)                                               00345000
+         DC    S(*,*,*,*)                                               00346000
+         DC    S(*,*,*,*)                                               00347000
+         DC    S(*,*,*,*)                                               00348000
+         DC    S(*,*,*,*)                                               00349000
+         DC    S(*,*,*,*)                                               00350000
+         DC    S(*,*,*,*)                                               00351000
+         DC    S(*,*,*,*)                                               00352000
+#PARM    DSECT                                                          00353000
+#ITEMS   DS    H                                                        00354000
+DITEM    DSECT                                                          00355000
+ROWNO    DS    H              ROWNO OF MESSAGE                          00356000
+COLNO    DS    H              COLNO OF MESSAGE                          00357000
+MSGLEN   DS    H              ACTUAL MESSAGE LENGTH                     00358000
+RROW     DS    H              REPLY ROWNO                               00359000
+RCOL     DS    H              REPLY COLUMN                              00360000
+RPLYLEN  DS    H              MAX LENGTH OF REPLY                       00361000
+RLITLEN  DS    H              DEFAULT REPLY LENGTH                      00362000
+TEST     DS    CL1            1= DEFAULT SUPPLIED, 0= NO DEFAUKT REPLY  00363000
+LITERAL  DS    CL100                                                    00364000
+LFIXED   EQU   LITERAL-DITEM +1                                         00365000
+         END                                                            00366000

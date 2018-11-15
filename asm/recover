@@ -1,0 +1,360 @@
+RECOVER  TITLE 'PROGRAM TO AID RECOVERY OF A FLATTENED PDS'             00010000
+         LCLA  &A                                                       00020000
+         LCLB  &B                                                       00030000
+         LCLC  &C                                                       00040000
+         SPACE 3                                                        00050000
+* COPYRIGHT 1982, KURRAWANG COMPUTER PROGRAMMING PTY LTD                00060000
+* ALL RIGHTS RESERVED                                                   00070000
+         SPACE 2                                                        00080000
+*THIS PROGRAM IS THE PROPERTY OF KURRAWANG COMPUTER PROGRAMMING PTY LTD 00090000
+* AND MAY NOT BE USED BY ANY PERSON, BODY CORPORATE OR OTHER            00100000
+* OR OTHER ORGANISATION WITHOUT WRITTEN PERMISSION FROM THE OWNER.      00110000
+         SPACE 2                                                        00120000
+RECOVER  CSECT                                                          00130000
+.LP      ANOP                                                           00140000
+&B       SETB  (&A LT 10)                                               00150000
+&C       SETC  'R'.(&B)'0'.'&A'                                         00160000
+&C       EQU   &A                                                       00170000
+&A       SETA  &A+1                                                     00180000
+         AIF   (&A LT 16).LP                                            00190000
+         STM   R14,R12,12(R13)                                          00200000
+         LR    R12,R15                                                  00210000
+         USING RECOVER,R12                                              00220000
+         GETMAIN R,LV=WRKLEN                                            00230000
+         ST    R13,4(,R01)                                              00240000
+         ST    R01,8(,R13)                                              00250000
+         LR    R13,R01          SAVE AREA ADDRESS TO REGISTER 13        00260000
+         USING WORK,R13                                                 00270000
+         BAL   R14,INIT                                                 00280000
+         SPACE 2                                                        00290000
+*   ALL SET, I HOPE                                                     00300000
+         SPACE 1                                                        00310000
+         B     NB050                                                    00320000
+NEXTBLK  DS    0H                                                       00330000
+         MVC   CCHHR,COUNT       ADDRESS OF THE NEXT RECORD TO READ     00340000
+         CLC   TRAKPREV,CCHHR    Q... BACK TO START OF TRACK?           00350000
+         BL    NB050             A... NO                                00360000
+         BAL   R14,TRAKUP                                               00370000
+         LTR   R15,R15           Q... END OF DATA                       00380000
+         BNZ   DONE              A... YES                               00390000
+NB050    DS    0H                                                       00400000
+         BAL   R14,READ          GO AND READ A BLOCK                    00410000
+         B     DONE              EXIT IF ALL DONE                       00420000
+         B     PUTPAD            BR IF NO DATA READ                     00430000
+         BAL   R14,WRITE         GO AND WRITE THE BLOCK                 00440000
+         B     MORE              GO AND DO THE NEXT                     00450000
+         SPACE 2                                                        00460000
+PUTPAD   DS    0H                PUT A MARK BETWEEN MEMBERS             00470000
+         AP    COUNTER,ONE                                              00480000
+         OI    COUNTER+L'COUNTER-1,X'0F' SET ZONE BITS                  00490000
+         UNPK  MEMBERNO,COUNTER   MEMBER NUMBER TO THE RECORD           00500000
+         MVC   MEMBERNM,MEMBERNO-3                                      00510000
+         XC    MBRPAD,MBRPAD                                            00520000
+         STOW  SYSUT2,MEMBERNM,A  UPDATE THE DIRECTORY                  00530000
+         CH    R15,=H'4'          TEST RC                               00540000
+         BL    PP030              < 4 MEANS OK                          00550000
+         BH    PP020              > 4 MEANS DIRECTORY FULL, OR CORRUPT  00560003
+         XC    MBRPAD,MBRPAD      = 4 MEANS ALREADY THERE, SO REPLACE   00570000
+         STOW  SYSUT2,MEMBERNM,R  UPDATE THE DIRECTORY                  00580000
+         LTR   R15,R15            Q... OK THIS TIME?                    00590000
+         BZ    PP030                                                    00600000
+PP020    DC    H'0'                                                     00610000
+PP030    DS    0H                                                       00620000
+         PUT   SYSPRINT,MBRMSG    TELL THE READER                       00630000
+         IC    R15,R              INCREMENT THE RECORD NUMBER           00640000
+         LA    R15,1(,R15)                                              00650000
+         STC   R15,R                                                    00660000
+         MVC   COUNT(5),CCHHR                                           00670000
+MORE     B     NEXTBLK            GO AND GET THE NEXT BLOCK             00680000
+         SPACE 3                                                        00690000
+DONE     DS    0H                                                       00700000
+         SPACE 1                                                        00710000
+*   ITS ALL OVER, FOLKS                                                 00720000
+         SPACE 1                                                        00730000
+         CLOSE SYSUT1                                                   00740000
+         CLOSE SYSUT2                                                   00750000
+         CLOSE SYSPRINT                                                 00760000
+         LR    R01,R13                                                  00770000
+         L     R13,4(,R13)                                              00780000
+         FREEMAIN R,LV=WRKLEN,A=(1)                                     00790000
+         LM    R14,R12,12(R13)                                          00800000
+         SLR   R15,R15                                                  00810000
+         BR    R14                                                      00820000
+         SPACE 4                                                        00830000
+TRAKUP   DS    0H                                                       00840000
+         MVI   R,0               FIRST RECORD TO SEARCH                 00850000
+         LA    R00,1                                                    00860000
+         AH    R00,HH                                                   00870000
+         STH   R00,HH            STORE NEW HEAD NUMBER                  00880000
+         CH    R00,=H'19'        MAX HEAD NUMBER                        00890000
+         BL    TU010                                                    00900000
+         XC    HH,HH                                                    00910000
+         LA    R00,1                                                    00920000
+         AH    R00,CC                                                   00930000
+         STH   R00,CC            STORE NEW HEAD NUMBER                  00940000
+TU010    DS    0H                                                       00950000
+         CLC   CCHH,EXT@E        Q... END OF EXTENT?                    00960000
+         BNH   TU020             A... NO                                00970000
+         SLR   R01,R01                                                  00980000
+         IC    R01,M                                                    00990000
+         LA    R01,1(,R01)       INCREMENT EXTENT NUMBER                01000000
+         STC   R01,M                                                    01010000
+         SLR   R00,R00                                                  01020000
+         L     R15,SYSUT1+X'2C'                                         01030000
+         IC    R00,X'010'(,R15)  NUMBER OF EXTENTS                      01040000
+         CR    R01,R00           Q... END OF DATASET?                   01050000
+         BNL   TU050             A... YES                               01060000
+         MH    R01,=H'16'        MULTIPLY BY SIZE OF EN EXTENT ENTRY    01070000
+         LA    R01,32(R01,R15)   ADDRESS THE EXTENT ENTRY               01080000
+         MVC   EXT@S,6(R01)                                             01090000
+         MVC   EXT@E,10(R01)                                            01100000
+         MVC   CCHH,EXT@S        INIT ADDRESS FOR NEW EXTENT            01110000
+TU020    DS    0H                                                       01120000
+         MVC   TRAKPREV,CCHHR    ADDRESS OF FIRST RECORD ON THE TRACK   01130000
+         MVC   TRAKPREV+4,0      RECORD 0                               01140000
+         SLR   R15,R15                                                  01150000
+         BR    R14                                                      01160000
+TU050    DS    0H                                                       01170000
+         LA    R15,4                                                    01180000
+         BR    R14                                                      01190000
+         TITLE 'INITIALISATION'                                         01200000
+INIT     ST    R14,INRETN                                               01210000
+         SPACE 2                                                        01220000
+*   OPEN FILES REQUIRED                                                 01230000
+         OPEN  SYSUT1           FILE TO BE RECOVERED                    01240000
+         OPEN  (SYSPRINT,OUTPUT) PRINT FILE                             01250000
+         OPEN  (SYSUT2,OUTPUT)   RECOVERED FILE (SEQUENTIAL)            01260000
+         SPACE 2                                                        01270000
+*   INITIALISE IOB FOR THE INPUT (EXCP) FILE                            01280000
+         SPACE                                                          01290000
+         XC    IOBAREA,IOBAREA                                          01300000
+         MVI   IOBFLG0,X'42'     COMMAND CHAINING+UNRELATED             01310000
+         LA    R00,EXCPECB                                              01320000
+         ST    R00,IOBECBAD      ADDRESS OF MY ECB                      01330000
+         XC    MBBCCHHR,MBBCCHHR                                        01340000
+         LA    R00,SYSUT1                                               01350000
+         ST    R00,IOBDCBAD      ADDRESS OF DCB                         01360000
+         L     R15,SYSUT1+X'2C'  ADDRESS THE DEB                        01370000
+         MVC   EXT@S,32+6(R15)   FIRST DISK ADDRESS                     01380000
+         MVC   EXT@E,32+10(R15)  LAST DISK ADDRESS                      01390000
+         MVC   CCHH,EXT@S        AND TO IOB                             01400000
+         MVI   R,1               TO READ RECORD 2 (SKIP LABEL)          01410000
+         MVC   TRAKPREV,CCHHR    ADDRESS OF FIRST RECORD ON THE TRACK   01420000
+         MVC   TRAKPREV+4,0      RECORD 0                               01430000
+         LA    R02,CPAREA                                               01440000
+         ST    R02,IOBSTART      ADDRESS OF CHANNEL PROGRAM             01450000
+         SPACE 2                                                        01460000
+*  SET UP THE CHANNEL PROGRAM                                           01470000
+         SPACE 1                                                        01480000
+         MVI   0(R02),X'31'      SET UP SEARCH CCW                      01490000
+         LA    R00,CCHHR                                                01500000
+         STCM  R00,7,1(R02)                                             01510000
+         MVI   4(R02),X'60'      MORE + SILI                            01520000
+         LA    R00,5                                                    01530000
+         STCM  R00,7,5(R02)                                             01540000
+         SPACE 1                                                        01550000
+         LR    R00,R02           SAVE FOR THE NEXT CCW                  01560000
+         LA    R02,8(,R02)       ADDRESS FOR NEXT CCW                   01570000
+         MVI   0(R02),X'08'      SET UP TRANSFER-IN-CHANNEL             01580000
+         STCM  R00,7,1(R02)                                             01590000
+         MVI   4(R02),X'00'                                             01600000
+         SPACE 1                                                        01610000
+         LA    R02,8(,R02)       ADDRESS FOR NEXT CCW                   01620000
+         MVI   0(R02),X'12'      SET UP COUNT                           01630000
+         LA    R00,COUNT                                                01640000
+         STCM  R00,7,1(R02)                                             01650000
+         MVI   4(R02),X'40'      MORE                                   01660000
+         MVC   6(2,R02),=Y(8) DATA LENGTH                               01670000
+         SPACE 1                                                        01680000
+         LA    R02,8(,R02)       ADDRESS FOR NEXT CCW                   01690000
+         MVI   0(R02),X'0E'      SET UP READ KEY + DATA                 01700000
+         LA    R00,BUFFER                                               01710000
+         STCM  R00,7,1(R02)                                             01720000
+         MVI   4(R02),X'20'             SILI                            01730000
+         MVC   6(2,R02),=Y(13165) DATA LENGTH                           01740000
+         ST    R02,READCCWA      SAVE ADDRESS OF THE READ COMMAND       01750000
+         SPACE 1                                                        01760000
+*        LA    R02,8(,R02)       ADDRESS FOR NEXT CCW                   01770000
+*        MVI   0(R02),X'12'      SET UP COUNT                           01780000
+*        LA    R00,COUNT                                                01790000
+*        STCM  R00,7,1(R02)                                             01800000
+*        MVI   4(R02),X'00'      NO MORE                                01810000
+*        MVC   6(2,R02),=Y(8)    DATA LENGTH                            01820000
+         SPACE 1                                                        01830000
+*   OTHER INITIALISATION                                                01840000
+         ZAP   COUNTER,=P'0'     ZERO MEMBER COUNTER                    01850000
+         L     R14,INRETN                                               01860000
+         BR    R14                                                      01870000
+         TITLE 'EXCP READ ROUTINE'                                      01880000
+*  READ RETURNS AT (14)                                                 01890000
+*    +0 => NO MORE DATA                                                 01900000
+*    +4 => EOF READ                                                     01910000
+*    +8 => NORMAL BLOCK READ                                            01920000
+         SPACE 2                                                        01930000
+READ     ST    R14,RDRETN         SAVE RETURN ADDRESS                   01940000
+RD010    DS    0H                                                       01950000
+         LA    R00,BUFFER      CLEAR THE BUFFER                  88036  01960003
+         L     R01,=A(L'BUFFER)                                  88036  01970003
+         SLR   R15,R15                                           88036  01980003
+         ICM   R15,8,=X'CC'                                      88036  01990003
+         MVCL  R00,R14                                           88036  02000003
+         MVC   TRAKPREV,CCHHR     SAVE ADDRESS OF THE PREVIOUS RECORD   02010000
+         MVC   IOBSEEK,MBBCCHHR   MOVE SEEK ADDRESS                     02020000
+         XC    EXCPECB,EXCPECB    CLEAR THE ECB                         02030000
+         EXCP  IOBAREA            ISSUE EXCP REQUEST                    02040000
+         WAIT  ECB=EXCPECB        AIT FOR SOMETHING TO HAPPEN           02050000
+*        L     R15,READCCWA       ADDRESS THE READ CCW                  02060000
+*        LH    R14,6(,R15)        LENGTH REQUESTED                      02070000
+*        SH    R14,IOBCSW+6       - RESIDUAL                            02080000
+         LH    R14,COUNT+6        LOAD THE DATA LENGTH                  02090000
+         ST    R14,DATALEN        GIVES THE DATA LENGTH                 02100000
+         CLI   EXCPECB,X'7F'      Q... NORMAL END?                      02110000
+         BE    RD200              A... YES                              02120000
+         CLI   EXCPECB,X'41'      Q... PERMANENT ERROR?                 02130000
+         BNE   RD050              A... NO                               02140000
+         NI    IOBCSW+4,X'DF'     TURN OFF CONTROL UNIT END             02150000
+         CLC   =X'0C40',IOBCSW+4  CE+DE+INCORR LEN?                     02160000
+         BE    RD200               YES, ACCEPT AS NORMAL END            02170000
+         CLI   IOBCSW+4,X'0D'     CE+DE+UE?                             02180000
+         BE    RD300               YES, THIS IS EOF                     02190000
+         CLC   =X'0E40',IOBCSW+4  CE+DE+UNIT CHECK+ INCOR LEN?          02200000
+         BE    RD040               YES, CHECK FOR NRF                   02210000
+         CLC   =X'0E00',IOBCSW+4  CE+DE+UNIT CHECK?                     02220000
+         BNE   RD050               NO, DIE                              02230000
+RD040    DS    0H                                                       02240000
+         CLI   IOBSNS1,X'08'       Q... NO RECORD FOUND?                02250000
+         BNE   RD050               NO, DIE                              02260000
+         SPACE 1                                                        02270000
+*   NO RECORD FOUND: ASSUME STORAGE IS OK, AND STEP TO NEXT TRACK       02280000
+         SPACE 1                                                        02290000
+AGAIN    DS    0H                                                88036  02291003
+         BAL   R14,TRAKUP                                               02300000
+         LTR   R15,R15                                                  02310000
+         BZ    RD010                                                    02320000
+         L     R14,RDRETN                                               02330000
+         B     0(R14)             END OF DATA RETURN TO CALLER          02340000
+RD050    DS    0H                                                       02350000
+         L     R15,IOBCSW                                               02360000
+         SH    R15,=H'24'                                               02370000
+         MVC   TEMP,0(R15)                                              02380000
+         PUT   SYSPRINT,ERR1                                     88036  02381003
+         B     AGAIN                                             88036  02382003
+*        DC    H'0'               ABEND FOR DIAGNOSIS                   02390000
+RD200    DS    0H                                                       02400000
+         L     R14,RDRETN                                               02410000
+         B     8(R14)             NORMAL RETURN TO CALLER               02420000
+RD300    DS    0H                                                       02430000
+         PUT   SYSPRINT,EOFMSG                                          02440000
+         L     R14,RDRETN                                               02450000
+         B     4(R14)             EOF RETURN                            02460000
+         TITLE 'WRITE ROUTINE'                                          02470000
+WRITE    ST    R14,WRRETN                                               02480000
+         CLI   COUNT+5,0           Q... KEYED RECORD?                   02490000
+         BNE   WRT090              A... YES: SKIP IT                    02500000
+         CLI   R,0                 Q... SEARCH TO FIRST ON TRACK?       02510003
+         BE    WRT010              A... YES                             02520003
+         CLC   TRAKPREV,COUNT      Q... BACK TO START OF TRACK?         02530000
+         BH    WRT090              A... YES                             02540000
+WRT010   DS    0H                                                       02550000
+         BAL   R14,READMSG       ISSUE MSG ABOUT THE BLOCK              02560000
+         L     R02,DATALEN                                              02570000
+         STH   R02,SYSUT2+X'3E'    STORE THIS BLOCK'S SIZE              02580000
+         WRITE WRIT,SF,SYSUT2,BUFFER,(R02),MF=E                         02590000
+         CHECK WRIT                                                     02600000
+WRT090   DS    0H                                                       02610000
+         L     R14,WRRETN                                               02620000
+         BR    R14                                                      02630000
+         TITLE 'SUBROUTINE TO ISSUE MESSAGE ABOUT THE BLOCK JUST READ'  02640000
+READMSG  ST    R14,RMRETN                                               02650000
+         UNPK  HEXCONV,COUNT(5)                                         02660000
+         TR    HEXCONV,HEXTAB                                           02670000
+         MVC   RMCNT1,HEXCONV                                           02680000
+         UNPK  HEXCONV,COUNT+4(5)                                       02690000
+         TR    HEXCONV,HEXTAB                                           02700000
+         MVC   RMCNT2,HEXCONV                                           02710000
+         UNPK  HEXCONV,IOBSEEK(5)                                       02720000
+         TR    HEXCONV,HEXTAB                                           02730000
+         MVC   RMSEEK1,HEXCONV                                          02740000
+         UNPK  HEXCONV,IOBSEEK+4(5)                                     02750000
+         TR    HEXCONV,HEXTAB                                           02760000
+         MVC   RMSEEK2,HEXCONV                                          02770000
+         L     R00,DATALEN                                              02780000
+         CVD   R00,DOUBLE                                               02790000
+         MVC   RMLEN,=X'4020206B202120'                                 02800000
+         ED    RMLEN,DOUBLE+5                                           02810000
+         PUT   SYSPRINT,RMMSG                                           02820000
+         L     R14,RMRETN                                               02830000
+         BR    R14                                                      02840000
+SYSUT1   FCB   ACNAME=SYSUT1,MACRF=E,IMSK=CLEM                          02850000
+SYSUT2   FCB   ACNAME=SYSUT2,DSORG=PO,MACRF=W,LRECL=80,RECFM=FB,       .02860000
+               BLKSIZE=06080                                            02870000
+         WRITE WRIT,SF,SYSUT2,MF=L                                      02880000
+SYSPRINT FCB   ACNAME=SYSPRINT,DSORG=PS,MACRF=PM,LRECL=121,RECFM=VBA,  .02890000
+               BLKSIZE=4000                                             02900000
+ONE      DC    P'1'                                                     02910000
+RMMSG    DC    Y(RMMSGL,0),C' '                                         02920000
+         DC    C'SEEK: '                                                02930000
+RMSEEK1  DS    CL8                                                      02940000
+RMSEEK2  DS    CL8                                                      02950000
+         DC    C' COUNT: '                                              02960000
+RMCNT1   DS    CL8                                                      02970000
+RMCNT2   DS    CL8                                                      02980000
+         DC    C'. BLOCK LENGTH:'                                       02990000
+RMLEN    DS    CL7                                                      03000000
+RMMSGL   EQU   *-RMMSG                                                  03010000
+         ORG   *-240                                                    03020000
+HEXTAB   DS    0CL256,240C                                              03030000
+         DC    C'0123456789ABCDEF'                                      03040000
+ERR1     DC    Y(ERR1L,0),C'0ERROR ON THIS BLOCK'                       03050003
+ERR1L    EQU   *-ERR1                                            88036  03050104
+EOFMSG   DC    Y(08,0),C'0EOF'                                          03051003
+MBRMSG   DC    Y(84,0),C' '                                             03060000
+MEMBERMK DS    0CL80                                                    03070000
+         DC    C'MEMBER $$$'                                            03080000
+MEMBERNO DC    CL5' ',CL65' WRITTEN TO OUTPUT DATASET'                  03090000
+         TITLE 'WORK AREAS'                                             03100000
+WORK     DSECT                                                          03110000
+         DS    18F       SAVE AREA                                      03120000
+MEMBERNM DS    0CL8                                                     03130000
+MBRPREF  DS    CL3                                                      03140000
+MBRNO    DS    CL5                                                      03150000
+MBRPAD   DS    XL80                                                     03160000
+COUNTER  DS    PL3                                                      03170000
+MBBCCHHR DS    0CL8                                                     03180000
+M        DC    X'00'                                                    03190000
+BB       DC    X'0000'                                                  03200000
+CCHHR    DS    0XL5                                                     03210000
+CCHH     DS    0XL4                                                     03220000
+CC       DC    X'0000'                                                  03230000
+HH       DC    X'0000'                                                  03240000
+R        DC    X'01'                                                    03250000
+TRAKPREV DS    CL5         ADDRESS OF PREVIOUS RECORD                   03260000
+READCCWA DS    A                                                        03270000
+EXT@S    DS    F                                                        03280000
+EXT@E    DS    F                                                        03290000
+DOUBLE   DS    D                                                        03300000
+EXCPECB  DS    A                                                        03310000
+DATALEN  DS    F                                                        03320000
+IOBAREA  DS    0XL40                                                    03330000
+IOBFLG0  DS    X                                                        03340000
+IOBFLG1  DS    X                                                        03350000
+IOBSNS0  DS    X                                                        03360000
+IOBSNS1  DS    X                                                        03370000
+IOBECBAD DS    A                                                        03380000
+IOBCSW   DS    XL8                                                      03390000
+IOBSTART DS    A                                                        03400000
+IOBDCBAD DS    A                                                        03410000
+         DS    2F                                                       03420000
+IOBSEEK  DS    XL8                                                      03430000
+CPAREA   DS    10XL8         SPACE FOR 10 CCWS                          03440000
+COUNT    DS    0XL8,7X       COUNT FIELD FOR CURRENT RECORD             03450000
+THISR    DS    X                                                        03460000
+RDRETN   DS    A                                                        03470000
+RMRETN   DS    A                                                        03480000
+INRETN   DS    A                                                        03490000
+WRRETN   DS    A                                                        03500000
+HEXCONV  DS    CL9                                                      03510000
+TEMP     DS    XL48                                                     03520000
+BUFFER   DS    32768X'00'    LOTS OF SPARE SPACE                        03530000
+WRKLEN   EQU   *-WORK                                                   03540000
+         END   RECOVER                                                  03550000

@@ -1,0 +1,408 @@
+         EJECT                                           JOL30027 76200 02990000
+S20SAVE  DSECT                                           JOL30027 76200 03000000
+         DS    18F            SAVE AREA                  JOL30027 76200 03010000
+S20QUOTI DS    CL1            SET ^=' ' IF IN QUOTED STRGJOL30027 76200 03020000
+S20SAVEL EQU   *-S20SAVE                                 JOL30027 76200 03030000
+         TITLE 'REPLACE SYMBOLICS'                                      03040000
+         JOLSAVE CSECT=UJS20REP,SIZE=S20SAVEL            JL30027 76200  03050000
+         USING S20SAVE,R13                               JL30027 76200  03060000
+         CLEAR S20QUOTI                                  JOL30027 76200 03070000
+* THE FOLLOWING SECTION OF CODE REPLACES THE OLD MODULE CALLED          03080000
+*    UJS20REP,WHICH IS USED TO REPLACE SYMBOLIC PARAMETERS              03090000
+*    IN A STRING                                                        03100000
+* R1 POINTS TO THE INPUT STRING ADDRESS,WHICH MUST BE A VARYING         03110000
+*    LENGTH STRING                                                      03120000
+* THE OUTPUT STRING ALWAYS GOES TO #WORK.                               03130000
+           SPACE 1                                                      03140000
+* DATE 74303                                                            03150000
+           SPACE 1                                                      03160000
+* LETS DO A LITTLE INITIALISATION,SHALL WE ?                            03170000
+           SR  R15,R15                                                  03180000
+           STH R15,#WORK                                                03190000
+* CHECK THAT THE INPUT STRING IS NOT ZERO (NO WORK FOR US)              03200000
+           L   R5,0(R1)        LOAD A(INPUT)                            03210000
+           CH  R15,0(R5)       INPUT STRING 0 ?                         03220000
+           BNZ S20INIT2                                                 03230000
+           JOLRETN RC=0        GO HOME,NO WORK.                         03240000
+* NOW SET UP A LITTLE BXLE LOOP SCANNING DOWN THE INPUT STRING.         03250000
+*    R5 MUST EQUAL THE ADDRESS OF THE FIRST DATA BYTE                   03260000
+*    R7 MUST EQUAL THE ADDRESS OF THE LAST DATA BYTE                    03270000
+*    R6 MUST EQUAL 1,THE INCREMENT.                                     03280000
+S20INIT2   LH  R7,0(R5)        LOAD CURRENT LENGTH OF STRING.           03290000
+           LA  R7,1(R7,R5)     R7= STOP ADDR (ACTUAL,IE LAST BYTE)      03300000
+           LA  R5,2(R5)        SKIP LENGTH HALFWORD                     03310000
+           LA  R6,1            R6= INCREMENT NOW.                       03320000
+           LA  R9,WORK         A(OUTPUT STRING)                         03330000
+* NOW WE CAN START GOING DOWN THE INPUT STRING TILL WE FIND             03340000
+*    A % (START OF SYMBOLIC)                                            03350000
+S20MAIN    LR  R1,R5           SAVE STARTING POSITION FOR THE           03360000
+*                              MOMENT,AS WE WILL MOVE THE LENGTH        03370000
+*                              OF THE STRING WITH-OUT SYMBOLICS         03380000
+*                              TO THE OUTPUT STRING.                    03390000
+           CR  R5,R7           REACHED END OF STRING ?                  03400000
+           BNH S20FINDP        NO -> FIND A %                           03410000
+* HERE WE HAVE REACHED THE END OF THE STRING                            03420000
+           LA  R1,WORK         GET THE START ADDRESS OF OUTPUT          03430000
+           SR  R9,R1           R9=LENGTH OF STRING                      03440000
+           STH R9,#WORK        STORE IT.                                03450000
+           JOLRETN RC=0        RETURN TO CALLER.                        03460000
+           SPACE 2                                                      03470000
+S20FINDP   EQU *                                                        03480000
+           CLI 0(R5),C'%'      IS CHARACTER A % ?                       03490000
+           BE  S20GOTP         YES ->                                   03500000
+         CLI   0(R5),C''''    QUOTE (START   END) ?      JOL30027 76200 03510000
+         BNE   S20BXLE1       NO, CARRY ON               JOL30027 76200 03520000
+* WE HAVE A QUOTE.                                       JOL30027 76200 03530000
+         IFNULL S20QUOTI,S20SETQU                        JOL30027 76200 03540000
+* OK,WE ARE ALREADY IN A QUOTED STRING.                  JOL30027 76200 03550000
+         CLI   1(R5),C''''    DOUBLE QUOTES ?            JOL30027 76200 03560000
+         BNE   S20CLRQU       NOPE, CLEAR QUOTE IND      JOL30027 76200 03570000
+* '' FOUND IN QUOTED STRING.                             JOL30027 76200 03580000
+         AR    R5,R6          SKIP QUOTE 1               JOL30027 76200 03590000
+         B     S20BXLE1       GO SKIP 2ND NOW            JOL30027 76200 03600000
+S20CLRQU CLEAR S20QUOTI       CLEAR QUOTEIND             JOL30027 76200 03610000
+         B     S20BXLE1                                  JOL30027 76200 03620000
+S20SETQU MVI   S20QUOTI,C'1'  SET QUOTE INDICATOR        JOL30027 76200 03630000
+S20BXLE1 EQU   *                                         JOL30027 76200 03640000
+           BXLE R5,R6,S20FINDP NO,CONTINUE SCANNING.                    03650000
+* HERE WE HAVE REACHED THE END OF THE INPUT STRING.                     03660000
+* R5 POINTS TO THE END CHARACTER                                        03670000
+* R7 POINTS TO THE END CHARACTER AS WELL                                03680000
+* R1 POINTS TO THE START OF THE STRING                                  03690000
+S20MOVE    LR  R15,R5          R15=R5 =END CHARACTER.                   03700000
+           SR  R15,R1          R15=1 LESS THAN # CHARS TO MOVE          03710000
+           BM  S20ERR6         -VE ? WHAT'S THIS THEN ?                 03720000
+* R9 CONTAINS ADDRESS TO WHICH DATA MUST BE MOVED                       03730000
+           LR  R14,R9          R14= CURRENT OUTPUT POSITION.            03740000
+           AR  R14,R15         FINAL ADDRESS IF WE DO THE MOVE          03750000
+           LA  R10,WORK                                          80290  03760000
+           A   R10,LWORK                                         80290  03770000
+           CR  R10,R14         CHECK FINAL ADDRESS WITH END OF WORK     03780000
+           BNH S20ERR7         ERROR,WON'T FIT IF WE MOVE STRING        03790000
+           CH  R15,=H'250'     MOVE THAN 250 BYTES TO MOVE ?            03800000
+           BH  S20BIGMV                                                 03810000
+           EX  R15,S20MUVDT    MOVE DATA IN.                            03820000
+           AR  R9,R15      RESET NEW LOCATION                           03830000
+           B   S20MAIN         BACK TO MAIN LOOP.                       03840000
+           SPACE 2                                                      03850000
+S20BIGMV   MVC 0(250,R9),0(R1)                                          03860000
+           LA  R9,250(R9)                                               03870000
+           LA  R1,250(R1)                                               03880000
+           B   S20MOVE                                                  03890000
+S20MUVDT   MVC 0(*-*,R9),0(R1)                                          03900000
+           SPACE 3                                                      03910000
+S20GOTP    EQU *                                                        03920000
+* R5 POINTS TO A % SIGN. IF R1=R5,THEN THERE IS NO RESIDUE DATA         03930000
+*    TO MOVE TO THE OUTPUT STRING,OTHERWISE THERE IS.                   03940000
+           CR  R1,R5                                                    03950000
+           BE  S20REALP        OK,GO PROCESS SYMBOLIC PARM.             03960000
+* HERE,WE'LL HAVE TO SHIFT THE OLD DATA TO THE OUTPUT STRING.           03970000
+           B   S20MOVE                                                  03980000
+           SPACE 1                                                      03990000
+S20REALP   EQU *                                                        04000000
+* OK,WE HAVE R5 POINTING TO A % AND ALL OTHER DATA HAS                  04010000
+*    BEEN MOVED TO THE OUTPUT STRING.                                   04020000
+* NEW FEATURE 3.0                                                 75128 04030000
+*  IF %% IS CODED, WE WILL PASS ONE THROUGH                       75128 04040000
+*                                                                 75128 04050000
+         CLI   1(R5),C'%'     2%'S ?                              75128 04060000
+         BNE   S200NEPE       ONE PERCENT                         75128 04070000
+         MVI   0(R9),C'%'     SHIFT 1 PERCENT                     75128 04080000
+         LA    R9,1(R9)       SET OUTPUT STRING ONE HIGHER        75128 04090000
+         LA    R5,2(R5)       SKIP BOTH %'S ON INPUT STRING       75128 04100000
+         B     S20MAIN                                            75128 04110000
+         SPACE 2                                                  75128 04120000
+S200NEPE EQU   *                                                  75128 04130000
+           BAL R12,S20SETUP    SETS UP SYMBOLIC NAME IN CALLAREA+32     04140000
+           CLC =CL8'LIST',CALLAREA+32 IS IT 'LIST'                      04150000
+           BE  S20LIST         YES,REQUIRES SPECIAL PROCESSING.         04160000
+             CLC =CL8'CARD',CALLAREA+32 ISIT CARD?                75128 04170000
+            BE  S20LIST         YES,IT TOO WANTS SPECIAL PROCESSIN75128 04180000
+S20GETIT   BAL R12,S20FINDN    FIND THE SYMBOLIC PARM.                  04190000
+           LTR R15,R15         DID WE FIND IT ?                         04200000
+           BZ  S20GOTS1        YES.                                     04210000
+S20ERR2    LA  R12,CALLAREA+32                                          04220000
+           USING S20NAME,R12                                            04230000
+           CLC =C'IF ',ICOMMAND  WAS IT AN IF STATEMENT ?               04240000
+           BE  S20IF                                                    04250000
+* NEW FEATURE 3.0                                                 75128 04260000
+*  %SYSSTMT RETURNS A 4 CHARACTER STRING CONTAINING THE CURRENT   75128 04270000
+*        STATEMENT NUMBER.                                        75128 04280000
+         SPACE 1                                                  75128 04290000
+         CLC   =C'SYSSTMT ',S20NAME IS MISSING NAME %SYSTMT ?     75128 04300000
+         BNE   S20GIVE2       NO, ISSUE ERROR MESSAGE NUMBER 2    75128 04310000
+         MVC   0(4,R9),STMT   SHIFT CURRENT STATEMENT NUMBER      75128 04320000
+         OC    0(4,R9),=C'0000' ADD LEADING ZEROES                75128 04330000
+         LA    R9,4(R9)       RESET OUTPUT STRING ADDRESS         75128 04340000
+         B     S20MAIN        BACK TO MAIN LOOP NOW               75128 04350000
+         SPACE 1                                                  75128 04360000
+S20GIVE2 EQU   *                                                  75128 04370000
+         JOLERR 402,'CANNOT FIND ''%',S20NAME,''' SET TO NULL'          04380000
+           B   S20MAIN         CONTINUE EVER ONWARDS                    04390000
+S20IF      MVI 0(R9),0         *** SPECIAL FOR IF STATEMENT ***         04400000
+           AR  R9,R6           ADD 1 TO R9                              04410000
+           B   S20MAIN                                                  04420000
+           SPACE 2                                                      04430000
+S20LIST    EQU *                                                        04440000
+           CLEAR INST,INEST    USED AS WORK AREA ONLY *********   75311 04450000
+***THIS IS TO ALLOW FOR %LIST(1+%2-%X) TYPE CODE                  75311 04460000
+* A %LIST AND %CARD ITEM REQUIRES VERY SPECIAL ATTENTION.         75128 04470000
+*    IT MAY BE %LIST(NUMBER) OR %LIST(%NAME).                           04480000
+*    IF NO ( ) FOLLOW,IT IS ASSUMMED TO BE A %LIST PROPERLY DECLARD5049 04490000
+* NOW WE HAVE A PROBLEM COS WE HAVE HAVE TO SAVE THE 'LIST' [ 'CARD'    04500000
+* AND I AM HAVING TROUBLE DETERMINING WHERE TO PUT IT.                  04510000
+*** IT GOES IN 'AUVALID', WHICH IS ONLY USED IN THE COMPILE             04520000
+* PHASE.                                                                04530000
+           MVC  AUVALID,CALLAREA+32                                     04540000
+S20FBRAC   CLI 0(R5),C'('                                               04550000
+           BE  S20GOTB1                                                 04560000
+           CLI 0(R5),C' '                                               04570000
+          BNE  S20GETIT            ASSUME %LIST                   75049 04580000
+           BXLE R5,R6,S20FBRAC                                          04590000
+          B    S20GETIT            ASSUME %LIST                   75049 04600000
+           SPACE 1                                                      04610000
+S20GOTB1   EQU *                                                        04620000
+* NOW FIND IF NEXT CHARACTER IS A <NUMBER> [ ANOTHER SYMBOLIC.          04630000
+           BXLE R5,R6,*+8      SKIP '('                                 04640000
+           B   S20ERR5         NOTHING AFTER IT -> ERROR                04650000
+           CLI 0(R5),C' '      FIND NEXT NON-BLANK                      04660000
+           BNE *+12            GO FIND OUT WHAT IT IS                   04670000
+           BXLE R5,R6,*-8      SKIP BLANKS                              04680000
+           B   S20ERR5         NOTHING AFTER '('                        04690000
+* HERE WE HAVE A NON-BLANK AFTER THE BRACKET                            04700000
+           CLI 0(R5),C'+'                                         75311 04710000
+           BE  S20SIGN                                            75311 04720000
+           CLI 0(R5),C'-'                                         75311 04730000
+           BNE S20TSYM9                                           75311 04740000
+S20SIGN    MVC INEST(1),0(R5)  SAVE '+' [ '-'                     75311 04750000
+           B          S20GOTB1 SKIP TO NEXT NON-BLANK CHAR        75311 04760000
+           SPACE 2                                                      04770000
+S20TSYM9   CLI 0(R5),C'%'      ANOTHER SYMBOLIC ?                       04780000
+           BNE S20TNUM         NO,SHOULD BE A <NUMBER>                  04790000
+           BAL R12,S20SETUP    SET UP NAME PROPERLY IN CALLAREA         04800000
+           BAL R12,S20FINDN    NOW FIND NAME IN TABLE                   04810000
+           LTR R15,R15                                                  04820000
+           BNZ S20ERR2         COULDN'T FIND IT,ERROR                   04830000
+           USING SYMOVLY,R1                                             04840000
+           L   R15,SYMADDR     GET ADDRESS OF SYMBOLIC VARIABLE         04850000
+           MVC CALLAREA(2),0(R15) SHIFT LENGTH SO NO 0C6                04860000
+           LH  R0,CALLAREA                                              04870000
+           LA  R1,2(R15)       R1=ADDRESS                               04880000
+           CLI 0(R1),C''''     MAY HAVE QUOTES AROUND IT                04890000
+           BNE S20NOTL1                                                 04900000
+           AR  R1,R6           ADD 1 TO ADDRESS TO SKIP '               04910000
+           SH  R0,=H'2'        REDUCE LENGTH BY 2 (DROP QUOTES)         04920000
+           BM  S20ERR5         NOT NUMERIC ERROR                        04930000
+S20NOTL1   L   R15,ATNUM      GET ADDRESS OF TEST NUM RTN        75311  04940000
+           BALR R14,R15        CONVERT TO NUMERIC                       04950000
+           LTR R15,R15         DID IT ?                                 04960000
+           BNZ  S20ERR5         DIDN'T GO MY FRIEND                     04970000
+           CLI INEST,C'-'      DO WE HAVE TO SUBTRACT THE NUMBER  75311 04980000
+           BNE *+6                                                75311 04990000
+           LNR R1,R1                                              75311 05000000
+           AH  R1,INST         ADD THE NUMBER WE HAVE BEEN        75311 05010000
+*                              ACCUMULATING TIL NOW               75311 05020000
+           SPACE 1                                                75311 05030000
+           STH R1,INST                                            75311 05040000
+* NOW BEFORE BRANCHING BACK TO FIND THE SYMBOLIC,LETS SKIP THE          05050000
+*    ')' IF THERE IS ONE.                                               05060000
+S20SKIPC   CLI 0(R5),C' '      BLANK ?                                  05070000
+           BNE S20TCLOS        NO,TEST IF ')'                           05080000
+           BXLE R5,R6,*-8      SKIP BLANK.                              05090000
+          B    S20GETLI        END OF STRING,NO ')':- WHO CARES?  75049 05100000
+S20TCLOS   CLI 0(R5),C')'      ')'                                      05110000
+           BE  S20SKIPY        SKIP CLOSE BRACKET THEN            75311 05120000
+           CLI 0(R5),C'-'      MORE ARITHMETIC ?                  75311 05130000
+           BE  S20SIGN         YES                                75311 05140000
+           CLI 0(R5),C'+'      MORE ARITHMETIC ?                  75311 05150000
+           BE  S20SIGN         YES                                75311 05160000
+* HERE, TIS NOT A ')' [ '+' [ '-' , SO IGNORE WHATEVER IT IS NOW  75311 05170000
+           B   S20GETLI        GO GET THE LIST (OR CARD) ITEM     75311 05180000
+S20SKIPY   EQU *                                                  75311 05190000
+           BXLE R5,R6,S20GETLI                                          05200000
+S20GETLI  EQU  *                                                        05210000
+           LH  R1,INST         GET THE BINARY SUBSCRIPT NUMBER    75311 05220000
+           LTR R1,R1                                              75311 05230000
+           BM  S20ERR8         -VE, ERROR                         75311 05240000
+           CVD R1,DBL          MAKE PACKED                        75311 05250000
+           UNPK CALLAREA+36(4),DBL UNPACK NOW                     75311 05260000
+           OI   CALLAREA+39,C'0'   FIX LAST DIGIT                 75311 05270000
+           MVC CALLAREA+32(4),AUVALID SHIFT IN 'LIST' [ 'CARD'   75311  05280000
+* HERE WE HAVE A %LIST ITEM TO GET                                      05290000
+          BAL  R12,S20FINDN   FIND THE SYMBOLIC PARM                    05300000
+          LTR  R15,R15        DID WE GET IT ?                           05310000
+          BNZ  S20ERR2        NO -> ERROR                               05320000
+* NOW CHECK THAT THE LEVELS ARE THE SAME,IF NOT,COULD BE INNER          05330000
+*        MACRO GETTING WRONG LIST ITEM.                                 05340000
+          CLC  LEVEL+1(1),SYMLEVEL                                      05350000
+          BE   S20GOTS1       ALL WELL,GO SHIFT PARM VALUE NOW          05360000
+          B    S20ERR2        WRONG LEVEL,GIVE ERROR MESSAGE            05370000
+           SPACE 2                                                      05380000
+S20TNUM    EQU *                                                        05390000
+* AFTER ( A NON-%SYMBOL FOUND. IT HAD BETTER BE NUMERIC.                05400000
+           CLI 0(R5),C'0'                                               05410000
+           BL  S20ERR4                                                  05420000
+           CLI 0(R5),C'9'                                               05430000
+           BH  S20ERR4                                                  05440000
+           LR  R1,R5           SAVE START ADDRESS OF STRING             05450000
+           BXLE R5,R6,S20TNUM2                                          05460000
+           B  S20ENDN          END NUMBER                               05470000
+S20TNUM2   CLI 0(R5),C'0'                                               05480000
+           BL  S20ENDN         ENDNUM                                   05490000
+           CLI 0(R5),C'9'                                               05500000
+           BH  S20ENDN                                                  05510000
+           BXLE R5,R6,S20TNUM2                                          05520000
+S20ENDN    EQU *                                                        05530000
+           LR  R0,R5                                                    05540000
+           SR  R0,R1                                                    05550000
+           B   S20NOTL1        CONVERT,TEST,FIND LISTNNNN.              05560000
+S20ERR4  JOLERR 404,'%LIST[%CARD SUBSCRIPT NOT NUMERIC OR TOO LARGE'    05570000
+S20SKIPZ   CLI 0(R5),C' '      ' ' ?                                    05580000
+           BNE S20TCL2                                                  05590000
+           BXLE R5,R6,S20SKIPZ SKIP BLANKS                              05600000
+           B   S20MAIN         END OF STRING -> MAIN                    05610000
+S20TCL2    CLI 0(R5),C')'                                               05620000
+           BNE S20MAIN                                                  05630000
+           AR  R5,R6           SKIP ')'                                 05640000
+           B   S20MAIN                                                  05650000
+           SPACE 2                                                      05660000
+S20SETUP   EQU *                                                        05670000
+* THIS ROUTINE WILL FIND THE END OF A SYMBOLIC NAME AND STORE           05680000
+*    THE SYMBOLIC IN CALLAREA+32.                                       05690000
+           SPACE 1                                                      05700000
+* R5 POINTS TO THE '%'                                                  05710000
+           CLI 0(R5),C'%'      JUST CHECK                               05720000
+           BNE S20LR1                                                   05730000
+           BXLE R5,R6,*+8                                               05740000
+           B   S20MAIN         FORGET IT (NO MESSAGE BUT ).             05750000
+S20LR1     LR  R1,R5           LOAD START OF NAME                       05760000
+S20NMLUP CLI   0(R5),C'@'                                JOL30083 76200 05770000
+         BE    S20SYMNO                                  JOL30083 76200 05780000
+         CLI   0(R5),C'$'                                JOL30083 76200 05790000
+         BE    S20SYMNO                                  JOL30083 76200 05800000
+         CLI   0(R5),C'#'                                JOL30083 76200 05810000
+         BE    S20SYMNO                                  JOL30083 76200 05820000
+         CLI   0(R5),X'81'     LOWERCASE 'A'             JOL30083 87150 05830004
+           BL  S20ENDNM                                                 05840000
+           CLI 0(R5),C'9'                                               05850000
+           BH  S20ENDNM                                                 05860000
+S20SYMNO EQU   *                                         JOL30083 76200 05870000
+           BXLE R5,R6,S20NMLUP                                          05880000
+S20ENDNM   LR  R15,R5                                                   05890000
+           SR  R15,R1                                                   05900000
+           CH  R15,=H'8'                                                05910000
+           BH  S20ERR1         NAME TOO LONG                            05920000
+           SR  R15,R6          -1                                       05930000
+           BM  S20MAIN         TWAS A % ON ITS OWN-IGNORE IT.           05940000
+           MVC CALLAREA+32(8),BLANKS CLEAR IT FIRST                     05950000
+           EX  R15,S20MUVNM                                             05960000
+           OC  CALLAREA+32(8),BLANKS  CONVERT TO UPPERCASE        87150 05961004
+           BR  R12             BACK TO CALLER                           05970000
+S20MUVNM   MVC CALLAREA+32(*-*),0(R1)                                   05980000
+           SPACE 2                                                      05990000
+           USING SYMOVLY,R1                                             06000000
+S20FINDN FINDSYM CALLAREA+32   USE NEW BINARY SEARCH FOR SYMBOLICS87150 06010004
+         LR    R1,R0           SET R1 TO RETURNED POINT IN THE TABLE    06010105
+         BR    R12             BACK TO CALLER                     87150 06011004
+           LNR R14,R1           -12 TO R8                               06020000
+           MH  R1,NOSYMS       NOSYMS X 12                              06030000
+           L   R15,ASYMTBL      START OF TABLE                          06040000
+           AR  R1,R15           END                                     06050000
+           AR  R15,R14     SUBTRACT 12                                  06060000
+           LA  R1,12(R1)                                                06070000
+S20BXH     BXH R1,R14,S20TEST                                           06080000
+           LR  R15,R6          LOAD WITH A '1' (ANY NON-ZERO WILL DO)   06090000
+           BR  R12             BACK TO CALLER WITH ERROR CODE.          06100000
+S20TEST    CLC SYMNAME,CALLAREA+32                                      06110000
+           BNE S20BXH          ROUND LOOP AGAIN                         06120000
+           SR R15,R15                                                   06130000
+           BR  R12             BACK TO CALL:- ALL IS WELL               06140000
+           SPACE 2                                                      06150000
+S20GOTS1   EQU *                                                        06160000
+* WE HAVE A SYMBOLIC TO MOVE TO THE OUTPUT STRING.                      06170000
+           LR  R14,R9          R9=STRING OUTPUT                         06180000
+           L   R15,SYMADDR     LOAD ADDRESS OF SYMBOLIC VARIABLE        06190000
+           MVC CALLAREA(2),0(R15) SHIFT LENGTH OF STRING.               06200000
+           LH  R8,CALLAREA     LOAD INTO R8                             06210000
+* THIS ERROR CORRECTS AN ERROR NOTICED BY SHELL - 2.6.                  06220000
+* IT WAS FIXED ONCE BEFORE BUT IT CREPT IN AGAIN WITH 2.7, AND          06230000
+* WAS PICKED UP BY STANDARD - 3.0. HOPEFULLY, THIS WILL FIX IT          06240000
+* FOR ALL TIME.                                                         06250000
+         SPACE 1                                         JOL30067 76200 06260000
+         LTR   R8,R8          ANY DATA TO MOVE?          JOL30067 76200 06270000
+         BZ    S20MAIN        NO ->                      JOL30067 76200 06280000
+         SPACE 1                                         JOL30067 76200 06290000
+           CLI 2(R15),C''''    HAS SYM VAR GOT QUOTES ?                 06300000
+           BNE S20NOTQ1        NO.                                      06310000
+           AR  R15,R6          YES,ADD 1 TO ADDRESS                     06320000
+           SH  R8,=H'2'        AND REDUCE LENGTH BY 2                   06330000
+           BZ  S20MAIN         NOTHING TO MOVE                          06340000
+S20NOTQ1   AR  R14,R8          FIX TOTAL LENGTH                         06350000
+           LA  R0,WORK                                          80290   06360000
+           A   R0,LWORK                                         80290   06370000
+           CR  R14,R0                                                   06380000
+           BH  S20ERR7         WON'T FIT                                06390000
+* THE FOLLOWING CODE CORRECTS AN ERROR NOTICED BY SHELL                 06400000
+*   JOL26                                                               06410000
+         SPACE 1                                                        06420000
+         LTR   R1,R8          LOAD AND TEST R1                          06430000
+         BZ    S20MAIN        NO DATA TO MOVE, SKIP TO MAIN LOOP        06440000
+         BCTR  R1,0           SUBTRACT 1 FROM R1                        06450000
+         EX    R1,S20MUVSY    SHIFT SYMBOLIC TO OUTPUT AREA             06460000
+         IFVALUE S20QUOTI,S20SETR9 NOT IN '' STRING      JOL30027 76200 06470000
+* HERE WE ARE NOT IN A QUOTED STRING, SO WE MUST NOW SEE JOL30027 76200 06480000
+*  IF THE STRING WE MOVED TO THE OUTPUT AREA HAD DOUBLE  JOL30027 76200 06490000
+*  QUOTES, AND IF SO, WE MUST REPLACE DOUBLE QUOTES WITH JOL30027 76200 06500000
+*  SINGLE QUOTES.                                        JOL30027 76200 06510000
+* R9-> START OF REPLACED SECTION                         JOL30027 76200 06520000
+* R8 CONTAINS LENGTH REPLACED                            JOL30027 76200 06530000
+* R1 =R8-1                                               JOL30027 76200 06540000
+         LR    R14,R6         SET R14 TO 1               JOL30027 76200 06550000
+         LA    R15,0(R9,R1)   SET END ADDRESS            JOL30027 76200 06560000
+         LR    R1,R9          SET R1 TO START OF STRING  JOL30027 76200 06570000
+S20TWOQU CLC   0(2,R1),=C'''''' DOUBLE QUOTES ?          JOL30027 76200 06580000
+         BE    S20DBLQU       YES                        JOL30027 76200 06590000
+S20BXLE2 BXLE  R1,R14,S20TWOQU LOOP ROUND                JOL30027 76200 06600000
+S20SETR9 EQU   *                                         JOL30027 76200 06610000
+           AR  R9,R8           RESET                                    06620000
+           B   S20MAIN                                                  06630000
+S20DBLQU EQU   *                                         JOL30027 76200 06640000
+         LR    R0,R8          PUT R8 IN TO WORK REGISTER JOL30027 76200 06650000
+         S     R0,ONE         SUBTRACT ONE               JOL30027 76200 06660000
+         BNP   S20SETR9       NOT POSITIVE -> OUT (ERROR?JOL30027 76200 06670000
+         LR    R8,R15         LOAD STOP ADDRESS TO R1    JOL30027 76200 06680000
+         SR    R8,R1          SUBTRACT R1=LENGTH TO MOVE JOL30027 76200 06690000
+         EX    R8,S20MVCQ     SHIFT STRING BACK A BYTE   JOL30027 76200 06700000
+         LR    R8,R0          RESET R8                   JOL30027 76200 06710000
+         B     S20BXLE2       BACK TO BXLE LOOP          JOL30027 76200 06720000
+S20MVCQ  MVC   0(*-*,R1),1(R1) DROP QUOTE EXECUTED MVC   JOL30027 76200 06730000
+         SPACE 3                                                        06740000
+S20ERR8    JOLERR 408,'LIST OR CARD SUBSRIPT NEGATIVE:-IGNORED'   75311 06750000
+           B   S20SKIPZ                                           75311 06760000
+S20ERR1    MVC CALLAREA+32(8),0(R1)                               75311 06770000
+         LA    R12,CALLAREA+32                                    87150 06771004
+         USING S20NAME,R12                                              06772004
+         JOLERR 401,'SYMBOLIC NAME COMMENCING ''',S20NAME,             *06780004
+               ''' IS TOO LONG'                             FIX-X 76200 06790004
+           JOLRETN RC=4                                                 06800000
+S20ERR5  JOLERR 405,'%LIST SUBSCRIPT NOT NUMERIC OR TOO LARGE'          06810000
+           JOLRETN RC=4                                                 06820000
+S20ERR6  JOLERR 506,'STRING -VE'                                        06830000
+           JOLRETN RC=4                                                 06840000
+S20ERR7  JOLERR 407,'STRING TOO LARGE AFTER REPLACING SYMBOLICS'        06850000
+           MVC #WORK,=AL2(L'WORK)                                       06860000
+           JOLRETN RC=4                                                 06870000
+S20MUVSY   MVC 0(*-*,R9),2(R15) SHIFT TO OUTPUT STRING                  06880000
+           DROP R1,R12                                                  06890000
+           DC  S(*),S(*),S(*),S(*)                                      06900000
+           DC  S(*),S(*),S(*),S(*)                                      06910000
+           DC  S(*),S(*),S(*),S(*)                                      06920000
+           DC  S(*),S(*),S(*),S(*)                                      06930000
+           DC  S(*),S(*),S(*),S(*)                                      06940000
+           DC  S(*),S(*),S(*),S(*)                                      06950000
+           LTORG                                                        06960000
+PREPSUBS CSECT                                                          06970000
+         DC   D'0' KILL ALL WHO COME HERE                               06980000
+XX001      DSECT                                                        06990000
+S20NAME    DS  CL8                                                      07000000
+         END                                                            07010000

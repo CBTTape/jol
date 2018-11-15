@@ -1,0 +1,79 @@
+UJS04PAK   CSECT                                                        00000100
+STOP       EQU 4                                                        00000200
+START      EQU 3                                                        00000300
+INPUT      EQU 5                                                        00000400
+OP         EQU 6                                                        00000500
+BLANK      EQU 7                                                        00000600
+CH         EQU 8                                                        00000700
+LIT        EQU 9                                                        00000800
+PARMINIT   EQU 1                                                        00000900
+BASE       EQU 11                                                       00001000
+NOLITS     EQU 10                                                       00001100
+* GENERAL  PURPOSE ROUTINE FOR REMOVING BLANKS FROM CHARACTER STRINGS   00001200
+*    R1 POINTS TO START OF STRING WHICH CONTAINS LENGTH AS FIRST        00001300
+*          2 BYTES(PL1 OPTIMISER VARYING STRING)                        00001400
+* REENTERABLE                                                           00001500
+           SPACE 2                                                      00001600
+           ORG UJS04PAK                                                 00001700
+UJCPACK    EQU  *                                                       00001800
+UJCPAK     EQU  *                                                       00001900
+           ENTRY UJCPACK,UJCPAK                                         00002000
+           ORG                                                          00002100
+           SAVE (14,12),,*                                              00002200
+           LR  BASE,15                                                  00002300
+           USING UJS04PAK,BASE                                          00002400
+           L 1,0(1)            LOAD ADDR OF PARM                        00002500
+           SPACE 2                                                      00002600
+* FIX UP STARTING POSN,STOP POSN ETC                                    00002700
+           LA  START,2(,PARMINIT)                                       00002800
+           LH 15,0(PARMINIT)                                            00002900
+           LR  STOP,START                                               00003000
+           AR  STOP,15         ADD LENGTH,STOP NOW=STOP ADDRESS         00003100
+           MVI  0(STOP),C' '   CLEAR EXTRA BYTE AT END OF STRING        00003200
+           LA  STOP,1(,STOP)                                            00003209
+           SPACE 2                                                      00003400
+* NOW FIX UP INPUT,OP POINTERS                                          00003500
+           LR  INPUT,START                                              00003600
+           LR  OP,INPUT        POP BACK IN SAME POSNS                   00003700
+           SPACE 2                                                      00003800
+* FIX REGISTERS WITH ' ' & ''''                                         00003900
+           LA  BLANK,C' '                                               00004000
+           LA  LIT,C''''                                                00004100
+           SPACE 2                                                      00004200
+* CLEAR CH                                                              00004300
+           SR  CH,CH                                                    00004400
+* NOW WE CAN GET UNDER WAY                                              00004500
+LOOP       IC  CH,0(INPUT)                                              00004600
+           CR  CH,BLANK        BLANK ?                                  00004700
+           BE  BLNKCH          YES                                      00004800
+           CR  CH,LIT          LITERAL SIGN ''''                        00004900
+           BE  LITCH           YES                                      00005000
+           STC CH,0(OP)                                                 00005100
+NEXT       LA  OP,1(,OP)                                                00005200
+ADD1IN     LA  INPUT,1(,INPUT)                                          00005300
+           CR  INPUT,STOP      GONE FAR ENOUGH ?                        00005400
+           BE  RETN            YES                                      00005500
+           B   LOOP                                                     00005600
+BLNKCH     EQU *                                                        00005700
+           B   ADD1IN          JUST IGNORE IT                           00005800
+LITCH      EQU *                                                        00005900
+           STC CH,0(OP)        STORE THE QUOTE SIGN                     00006000
+* NOW WE MUST LOOP AROUND AND AROUND UNTIL WE FIND ANOTHER ONE,         00006100
+*    STORING ALL OTHER CHARACTERS UNTIL THE NEXT ' APPEARS              00006200
+LOOP2      LA  OP,1(,OP)                                                00006300
+           LA  INPUT,1(,INPUT)                                          00006400
+           CR  INPUT,STOP                                               00006500
+           BE  RETN                                                     00006600
+           IC  CH,0(INPUT)                                              00006700
+           STC CH,0(OP)                                                 00006800
+           CR  CH,LIT                                                   00006900
+           BE  NEXT                                                     00007000
+           B   LOOP2                                                    00007100
+           SPACE 3                                                      00007200
+RETN       EQU *                                                        00007300
+*NOW RESET  THE LENGTH OF THE STRING                                    00007400
+           SR  START,OP                                                 00007500
+           LCR START,START                                              00007600
+           STH START,0(PARMINIT)                                        00007700
+           RETURN (14,12),T,RC=(15)                                     00007800
+           END                                                          00007900

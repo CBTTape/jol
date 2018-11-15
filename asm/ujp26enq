@@ -1,0 +1,154 @@
+***  ENQUEUE OR ENQ JOL INSTRUCTION FOR ENQUING             *********** 00010026
+*          ON DATA SETS OR ANY RESOURCE                               * 00020002
+*                                                                     * 00030002
+*    MODIFIED FROM US26ENQ BY MIKE STRAHAN, SHELL OIL, MELBOURNE.     * 00040002
+*                                                                     * 00050002
+*                                                                     * 00060002
+*    FUNCTION:                                                        * 00070002
+*                                                                     * 00080002
+*         TO ISSUE AN ENQUEUE ON MAJOR AND MINOR NAMES AS             * 00090026
+*         SPECIFIED BY THE USER.                                      * 00100026
+*                                                                     * 00110002
+*         THIS IS A COMPILER INSTRUCTION, NOT EXECUTION.              * 00120002
+*                                                                     * 00130002
+*         ALTHOUGH REALLY DESIGNED FOR SAVESYMS, IT IS APPLICABLE     * 00140002
+*         TO MANY MANY FUNCTIONS.                                     * 00150002
+*                                                                     * 00160002
+*    LINKAGE:                                                         * 00170002
+*                                                                     * 00180002
+*         INVOKED BY ENQUE MAJOR-NAME,MINOR-NAME {OPTIONS}            * 00190002
+*                                                                     * 00200002
+*           WHERE OPTIONS ARE:-                                       * 00210002
+*                                                                     * 00220002
+*              WAIT ¦ NOWAIT                                            00230029
+*              ----                                                   * 00240002
+*                                                                     * 00250002
+*         ON ENTRY, REGISTERS CONTAIN STANDARD JOL REGISTER VALUES.   * 00260002
+*                                                                     * 00270002
+*         ON RETURN, %LASTCC IS SET TO :-                             * 00280002
+*         REGISTER 15 CONTAINS A RETURN CODE :                        * 00290002
+*                                                                     * 00300002
+*         RC = 0   CONTROL OF RESOURCE HAS BEEN ASSIGNED.             * 00310002
+*                                                                     * 00320002
+*         RC = 4   APPLICABLE ONLY FOR BACKGROUND TASKS.              * 00330002
+*                  CONTROL OF THE RESOURCE HAS BEEN ASSIGNED,         * 00340002
+*                  BUT THE TASK WAITED FOR THE RESOURCE TO            * 00350002
+*                  BECOME AVAILABLE.                                  * 00360002
+*                  THE OPERATOR WAS INFORMED THAT THE TASK WAITED     * 00370002
+*                  AND THAT PROCESSING SUBSEQUENTLY CONTINUED.        * 00380002
+*                                                                     * 00390002
+*         RC = 8   A PREVIOUS REQUEST FOR THE RESOURCE HAS BEEN       * 00400002
+*                  MADE. THIS REQUEST IS IGNORED.                     * 00410002
+*                                                                     * 00420002
+*         RC = 12  APPLICABLE ONLY TO FOREGROUND TASKS.               * 00430002
+*                  CONTROL OF THE RESOURCE WAS NOT ASSIGNED           * 00440002
+*                  BECAUSE THE TASK WOULD HAVE WAITED FOR CONTROL     * 00450002
+*                  OF THE RESOURCE.                                   * 00460002
+*                  THE FOREGROUND USER WAS INFORMED THAT THE          * 00470002
+*                  RESOURCE WAS NOT IMMEDIATELY AVAILABLE.            * 00480002
+* NOTE:            IT IS UP TO THE MODULE INVOKING US26ENQ TO         * 00490002
+* *****            DECIDE WHAT ACTION IS TO BE TAKEN.                 * 00500002
+*                                                                     * 00510002
+*                                                                     * 00520002
+*                                                                     * 00530002
+*    MODULE ATTRIBUTES:                                               * 00540002
+*                                                                     * 00550002
+*         RE-ENTERABLE.                                               * 00560002
+*                                                                     * 00570002
+*********************************************************************** 00580002
+UJP26ENQ TITLE 'ENQUE ON NAMES SPECIFIED BY USER'                       00590034
+         PRINT OFF                                                      00600002
+         COPY  JOLCOM                                                   00610002
+         PRINT ON                                                       00620002
+         SPACE                                                          00630002
+P26WORK  DSECT                                                          00640002
+SAVE     DS    18F                 SAVE AREA                            00650002
+WAITBIT  DS    X'0'                NOT 0 IF WE ARE TO WAIT              00660002
+TSOIND   DS    X'0'                NOT 0 IF WE ARE UNDER TSO            00670003
+QNAME    DS    CL8                 MAJOR NAME COPIED HERE               00680002
+LNTHWRK  EQU   *-P26WORK           LENGTH OF WORK AREA                  00690002
+TCBTSFLG EQU   148                                                      00700027
+         SPACE 3                                                        00710002
+         JOLSAVE CSECT=UJP26ENQ,SIZE=LNTHWRK                            00720004
+         USING P26WORK,R13                                              00730004
+         LR    R10,R13             SET TO POINT TO WORK AREA            00740003
+         DROP  R13                                                      00750003
+         USING P26WORK,R10                                              00760004
+         SPACE 1                                                        00770002
+         MVC   ICOMMAND,=CL8'MACRO'                                     00780026
+         MVC   SYMBOLIC,=CL8'LASTCC'                                    00790026
+         MVC   #WORK(3),=X'0001F0' SET UP RC=0                          00800026
+         $CALL UJP85ASN                                                 00810026
+* TEST IF WE ARE RUNNING UNDER TSO OR NOT                               00820026
+         AGO   .X                                                       00822034
+         IFOS  =X8,P26NOTX8                                       88020 00823034
+         L     R15,16                                                   00830026
+         L     R15,0(R15)                                               00840026
+         L     R15,4(R15)          GET TCB ADDRESS VIA THE CVT          00850026
+         L     R15,12(R15)         GET TIOT ADDRESS FROM TCB            00860026
+P26NOTX8 DS    0H                                                 88020 00861034
+.X       ANOP                                                           00862034
+* SET UP DEFAULTS                                                       00870029
+         MVI   WAITBIT,X'1'                                             00880026
+         MVI   TSOIND,X'0'         CLEAR TSO INDICATOR                  00890026
+* IS THIS A TSO TASK?                                                   00900029
+         CLI   IFTSO,C'T'                                         88020 00910035
+         BNE   NOTSO                                              88020 00920035
+         MVI   TSOIND,X'1'         SET TSO TASK FLAG ON                 00930026
+         MVI   WAITBIT,X'1'        DEFAULT WAIT IN BATCH                00940033
+NOTSO    EQU   *                                                        00950026
+         SPACE 2                                                        00960026
+*    FIND THE RESOURCES WE WANT TO ENQ ON                               00970026
+         SPACE 1                                                        00980026
+         GETTKN  2                 GET THE MAJOR QNAME                  00990026
+         MVC   QNAME,TKN                                                01000026
+         GETTKN  3                 GET THE SLASH (/)                    01010026
+         CLI   TKN,C'/'                                                 01020026
+         BE    P26SLASH                                                 01030026
+P26BAD   JOLERR 301,'ENQUEUE/DEQUEUE:- INVALID PARAMETERS'              01040026
+         JOLERR 302,'MUST BE:- MAJOR-NAME/''MINOR-NAME'''               01050026
+         MVC   #WORK(3),=X'0001F4' SET UP RC=4                          01060026
+         $CALL UJP85ASN                                                 01070026
+         JOLRETN RC=4                                                   01080026
+P26SLASH DS    0H                                                       01090026
+         GETTKN  4                 GET THE SLASH (/)                    01100026
+         BAL   R14,DROPQUOT                                             01110026
+         MVC   #WORK(L'TKN),#TKN                                        01120026
+         CLC   =C'   ',TKN                                              01130026
+         BE    P26BAD                                                   01140026
+         GETTKN  5                                                      01150026
+         CLI   TKN,C' '                                                 01160026
+         BE    LEAVWAIT                                                 01170026
+         CLC   =C'NOWAIT',TKN                                           01180026
+         BNE   TWAIT                                                    01190026
+         MVI   WAITBIT,X'0'                                             01200026
+         B     LEAVWAIT                                                 01210026
+TWAIT    CLC   =C'WAIT',TKN                                             01220026
+         BNE   WAITERR                                                  01230026
+         MVI   WAITBIT,X'1'                                             01240026
+         B     LEAVWAIT                                                 01250026
+WAITERR  JOLERR 306,'WAIT OR NOWAIT EXPECTED, NOT ''',#TKN,''''         01260026
+         MVI   WAITBIT,X'1'                                             01270026
+LEAVWAIT DS    0H                                                       01280026
+         CLI   WAITBIT,X'0'                                             01290026
+         BE    WAITRET                                                  01300026
+         CLI   TSOIND,X'0'                                              01310026
+         BE    WAITRET                                                  01320026
+         B     WAITRET                                    ******        01330030
+         JOLERR 307,'WAIT NULLIFIED UNDER TSO/TSS'                      01340026
+         MVI   WAITBIT,X'0'                                             01350026
+WAITRET  DS    0H                                                       01360026
+*    DO THE ENQUEUE ON REQUIRED RESOURCES                               01370026
+         SPACE 1                                                        01380026
+         $CALL JOLENQ,(QNAME,#WORK,WAITBIT)                             01390028
+         LTR   R15,R15             ENQ'D OK?                            01400026
+         BZ    P26ENOK             YES, OUT WE GO                       01410026
+* HERE WE HAVE AN ERROR                                                 01420026
+         MVC   #WORK(4),=X'0002F1F6' SET UP RC=16                       01430026
+         $CALL UJP85ASN                                                 01440026
+         JOLRETN RC=16                                                  01450026
+P26ENOK  DS    0F                                                       01460027
+RETURN   JOLRETN                                                        01470026
+         SPACE 3                                                        01480002
+         LTORG                                                          01490003
+         END                                                            01500002

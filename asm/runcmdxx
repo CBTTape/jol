@@ -1,0 +1,1204 @@
+         MACRO                                                          00010000
+&NAME    RUNCMD                                                         00020000
+.*                                                                      00030000
+.*             THIS MACRO INVOKES JOL TO RUN UNDER TSO/TSS.             00040000
+.*                                                                      00050000
+         ACTR  400000        SEEMS TO REQUIRE MORE THAN THE DEFAULT     00060000
+         LCLA  &A,&A2                                                   00070000
+         LCLA  &LETVAL                                                  00080000
+         LCLB  &B,&B1          FLAG                                     00090000
+         LCLB  &ERR            ERROR FLAG                               00100000
+         LCLB  &MVSXA,&MVS,&F4                                          00110000
+         LCLC  &LETPR                                                   00120000
+         LCLC  &C,&CX,&WRKUNIT,&PRE,&SOUT                               00130000
+         LCLC  &PE,&PI,&PM,&LT,&SB,&TST                                 00140000
+         LCLC  &FL,&CT,&PJ,&PO,&PC,&SYNT                                00150000
+         LCLC  &TITLE                                                   00160000
+&LETPR   SETC  'PROMPT'            DEFAULT FOR SECOND LET SUBFIELD      00170000
+&TITLE   SETC  'JOL/TSO INTERFACE       '                               00180000
+&NAME    TITLE '&TITLE MAINLINE CODE'                                   00190000
+         PUNCH '         PAGE      &NAME'                               00200000
+&A       SETA  0                                                        00210000
+&NAME    CSECT                                                          00220000
+         SPACE 2                                                        00230000
+* DEFINE SYMBOLIC NAMES FOR THE GENERAL PURPOSE REGISTERS               00240000
+&A       SETA  0                                                        00250000
+         SPACE                                                          00260000
+.EQ010   AIF   (&A GT 15).EQ090                                         00270000
+&C       SETC  'R'.'&A'                                                 00280000
+         AIF   (&A GT 9).EQ020                                          00290000
+&C       SETC  'R'.'0'.'&A'                                             00300000
+.EQ020   ANOP                                                           00310000
+&C       EQU   &A                                                       00320000
+&A       SETA  &A+1                                                     00330000
+         AGO   .EQ010                                                   00340000
+.EQ090   ANOP                                                           00350000
+         SPACE 1                                                        00360000
+CBUFREG  EQU   R07                 REG PTS TO COMMAND BUFFER            00370000
+UPTREG   EQU   R08                 REG PTS TO USER PROFILE TABLE        00380000
+PSCBREG  EQU   R09                 REG PTS TO PSCB                      00390000
+ECTREG   EQU   R10                 REG PTS TO ECT                       00400000
+         SPACE 1                                                        00410000
+         USING &NAME,R15                                                00420000
+         B     &PRE.010                                                 00430000
+         DC    AL1(&PRE.010-*),C'&NAME VERSION 4.0 ASSEMBLED AT &SYSTIM.00440000
+               E ON &SYSDATE'                                           00450000
+         DC    C'   COPYRIGHT 1987 CCS-JOL PTY LTD'                     00460000
+&PRE.010 DS    0H                                                       00470000
+         STM   R14,R12,12(R13)     SAVE REGISTERS                       00480000
+         LR    R12,R15             LOAD                                 00490000
+         LA    R11,2048(0,R12)                                          00500000
+         LA    R11,2048(0,R11)     ADDRESS ANOTHER 4K                   00510000
+         USING &NAME,R12,R11        AND DECLARE BASE                    00520000
+         USING WKAREA,R13                                               00530000
+         USING UPT,UPTREG                                               00540000
+         USING PSCB,PSCBREG                                             00550000
+         USING ECT,ECTREG                                               00560000
+         DROP  R15                                                      00570000
+         LM    R07,R10,0(R01)      LOAD ADDRESSES OF PARAMETERS         00580000
+         GETMAIN R,LV=WKALEN,SP=1  GET A WORK AREA                      00590000
+         ST    R13,4(0,R01)        CHAIN SAVE AREAS                     00600000
+         ST    R01,8(0,R13)                                             00610000
+         LR    R13,R01                                                  00620000
+         LA    R15,WKALEN-8                                             00630000
+         LA    R14,8(0,R13)                                             00640000
+         SLR   R01,R01                                                  00650000
+         MVCL  R14,R00             CLEAR THE WORK AREA                  00660000
+         SPACE                                                          00670000
+         ST    UPTREG,IOPL                                              00680000
+         ST    ECTREG,IOPL+4                                            00690000
+         LA    R14,IOECB                                                00700000
+         LA    R15,IOPB                                                 00710000
+         STM   R14,R15,IOPL+8                                           00720000
+         SPACE                                                          00730000
+         TM    PSCBATR1,PSCBJCL    Q... JCL/JOL USER?                   00740000
+         BZ    &PRE.NJCL           A... NO: EXIT HIM                    00750000
+         SPACE                                                          00760000
+         LA    R01,MYPPL           SET UP ADDRESSABILITY FOR PPL        00770000
+         USING PPL,R01                                                  00780000
+         ST    R01,PPLADDR         STORE PPL ADDR                       00790000
+         ST    UPTREG,PPLUPT       SET UP PARSE PARAMETER LIST          00800000
+         ST    ECTREG,PPLECT                                            00810000
+         LA    R00,MYECB                                                00820000
+         ST    R00,PPLECB                                               00830000
+&C       SETC  '&PRE'.'PARM'                                            00840000
+         L     R00,=V(&C)          LOAD ADDRESS OF PARM DEFINITIONS     00850000
+         ST    R00,PPLPCL                                               00860000
+         LA    R00,PPLREPL                                              00870000
+         ST    R00,PPLANS                                               00880000
+         ST    R13,PPLUWA          STORE ADDRESS OF WORK AREA           00890000
+         ST    CBUFREG,PPLCBUF                                          00900000
+         LINK  EP=IKJPARS          LINK TO PARSE ROUTINE                00910000
+         LTR   R15,R15             CHECK THAT PARSE COMPLETED OK        00920000
+         BZ    &PRE.100            BRANCH IF IT DID                     00930000
+         ST    R15,TEMP            CONVERT RETURN CODE TO HEX           00940000
+         UNPK  HEXCONV(9),TEMP                                          00950000
+         TR    HEXCONV(9),HEXTAB                                        00960000
+         LA    R15,MSGRC                                                00970000
+         ST    R15,OLD1#2                                               00980000
+         MVC   MSGRC(4),=Y(6,13)                                        00990000
+         MVC   MSGRC+4(2),HEXCONV+6                                     01000000
+         LA    R15,MSG3                                                 01010000
+         ST    R15,OLD1#1                                               01020000
+         LA    R15,2                                                    01030000
+         ST    R15,OLD1                                                 01040000
+         PUTLINE MF=(E,IOPL),PARM=IOPB,                                C01050000
+               OUTPUT=(OLD1,TERM,SINGLE,INFOR)                          01060000
+         B     &PRE.900                                                 01070000
+         USING IKJPARMD,R03                                             01080000
+&PRE.100 L     R03,PPLREPL         ADDRESS OF REPLY                     01090000
+         SPACE                                                          01100000
+         SPACE                                                          01110000
+*        CLI   SYNT+1,1             IF SYNTAX CHECK                     01120000
+*        BNE   *+8                  THEN                                01130000
+*        OI    FLAG,QSUB             ASK WHETHER TO SUBMIT              01140000
+         SPACE                                                          01150000
+*   ALLOCATE INPUT DATASET                                              01160000
+         SPACE                                                          01170000
+         LA    R01,DSNAME                                               01180000
+         ST    R01,APDE            SET POINTER TO PDE FOR DSNAME        01190000
+         LA    R00,4                                                    01200000
+         STH   R00,ASUFFIXL                                             01210000
+         MVC   ASUFFIX,=CL9'.JOL'                                       01220000
+         OI    AFLAG1,ASHR                                              01230000
+         MVC   ADDNAME,=CL8'$$JIN'                                      01240000
+         BAL   R14,ALLOCATE        ALLOCATE INPUT DATASET               01250000
+         LTR   R15,R15                                                  01260000
+         BNZ   &PRE.900                                                 01270000
+         CLI   TUDSNENT,C'*'       ALLOCATED TO TERMINAL?               01280000
+         BNE   &PRE.110            NO                                   01290000
+         OI    FLAG,TERMIN         SET FLAG FOR LATER                   01300000
+         SPACE                                                          01310000
+*   ALLOCATE TERMINAL DATASET                                           01320000
+         SPACE                                                          01330000
+&PRE.110 DS    0H                                                       01340000
+         CLI   TERMINAL+1,1                                             01350000
+         BNE   &PRE.120                                                 01360000
+         OI    AFLAG1,ATERM                                             01370000
+         MVC   ADDNAME,=CL8'SYSTERM'                                    01380000
+         BAL   R14,ALLOCATE        ALLOCATE SYSTERM                     01390000
+         LTR   R15,R15                                                  01400000
+         BNZ   &PRE.900                                                 01410000
+         SPACE                                                          01420000
+         BAL   R14,STPARMS         GO AND SET-UP JOL PARAMETERS         01430000
+         SPACE 3                                                        01440000
+         MVC   LINKSFE,LINKSFL                                          01450000
+         MVC   LINKDCBE,LINKDCBL                                        01460000
+         XC    DCBEXLST-IHADCB+LINKDCBE+1(3),DCBEXLST-IHADCB+LINKDCBE+1 01470000
+*        MVI   OPENLIST,X'80'                              CVC          01480000
+         LA    R01,OPENLIST                                CVC          01490000
+         LA    R00,LINKDCBE                                CVC          01500000
+         ST    R00,0(1,0)                                  CVC          01510000
+         MVI   OPENLIST,X'80'                                           01520000
+*        OPEN  LINKDCBE,MF=(E,OPENLIST)                                 01530000
+         OI    PARM,X'80'          MARK END OF LIST                     01540000
+         TM    FLAG,TERMIN         Q... INPUT FROM TERMINAL?            01550000
+         BZ    &PRE.315            A... NO                              01560000
+         LA    R15,MSG8            TIME TO ENTER JOL COMMANDS           01570000
+         ST    R15,OLD1#1             SO TELL THE NICE USER             01580000
+         LA    R15,1                                                    01590000
+         ST    R15,OLD1                                                 01600000
+         PUTLINE MF=(E,IOPL),PARM=IOPB,                                C01610000
+               OUTPUT=(OLD1,TERM,SINGLE,INFOR)                          01620000
+&PRE.315 DS    0H                                                       01630000
+         LINK  EP=&PGM,MF=(E,PARM),SF=(E,LINKSFE) DCB=LINKDCBE          01640000
+&PRE.320 DS    0H                                                       01650000
+*        CLOSE MF=(E,OPENLIST)                                          01660000
+         BAL   R14,QSUBMIT         FIND OUT WHETHER TO SUBMIT OR RUN    01670000
+         B     &PRE.900            IF RETURN HERE THEN NO               01680000
+         DS    0H                  RETURN HERE MEANS YES                01690000
+         MVC   DCBDDNAM-IHADCB+LINKDCBE,=CL8'$$JCL'                     01700000
+         LA    R00,JFCBPTR                                              01710000
+         STCM  R00,7,DCBEXLST-IHADCB+LINKDCBE+1                         01720000
+         LA    R00,WRKJFCB                                              01730000
+         ST    R00,JFCBPTR                                              01740000
+         MVI   JFCBPTR,X'87'                                            01750000
+         RDJFCB MF=(E,OPENLIST)                                         01760000
+         GETMAIN R,LV=64,SP=1                                           01770000
+*        MVC   0(10,R01),=X'00370005D3C9E2E3407D'                       01780000
+         MVC   0(10,R01),=X'00370005E2E4C240407D'                       01790000
+         MVC   10(45,R01),WRKJFCB  COPY DSNAME                          01800000
+         LA    R14,10(0,R01)                                            01810000
+         LA    R00,45                                                   01820000
+         CLI   1(R14),C' '                                              01830000
+         LA    R14,1(0,R14)                                             01840000
+         BE    *+8                                                      01850000
+         BCT   R00,*-12                                                 01860000
+         MVI   0(R14),C''''                                             01870000
+* IF RUNNING NOW UNDER TSO, XCTL TO A DIFFERENT PROGRAM.                01880000
+         CLI   TSO+1,X'01'  RUNNING NOW?                                01890000
+         BNE   DOSUB                                                    01900000
+DOTSO    L     R14,4(0,R13)                                             01910000
+         L     R02,24(0,R14)                                            01920000
+         ST    R01,00(0,R02)                                            01930000
+         LR    R01,R13                                                  01940000
+         LR    R13,R14                                                  01950000
+         FREEMAIN R,LV=WKALEN,SP=1,A=(1)                                01960000
+         LR    R01,R02                                                  01970000
+         XCTL  (2,12),EP=$JOLDY40,MF=(E,(1))                            01980000
+DOSUB    L     R14,4(0,R13)                                             01990000
+         L     R02,24(0,R14)                                            02000000
+         ST    R01,00(0,R02)                                            02010000
+         LR    R01,R13                                                  02020000
+         LR    R13,R14                                                  02030000
+         FREEMAIN R,LV=WKALEN,SP=1,A=(1)                                02040000
+         LR    R01,R02                                                  02050000
+*        XCTL  (2,12),EP=LIST,MF=(E,(1))                                02060000
+         XCTL  (2,12),EP=SUB,MF=(E,(1))                                 02070000
+&PRE.900 DS    0H                                                       02080000
+         LR    R01,R13                                                  02090000
+         L     R13,4(0,R13)                                             02100000
+         ST    R15,16(0,R13)      STORE RETURN CODE                     02110000
+         FREEMAIN R,LV=WKALEN,SP=1,A=(1)                                02120000
+         LM    R14,R12,12(R13)                                          02130000
+         BR    R14                                                      02140000
+         TITLE '&TITLE SUBROUTINE TO SET-UP JOL PARAMETERS'             02150000
+STPARMS  ST    R14,STPRETN                                              02160000
+         LA    R00,PRMOPTNS        SET UP PARM LIST                     02170000
+         ST    R00,PARM                                                 02180000
+         LA    R15,PRMOPTNS+2                                           02190000
+         XC    PRMOPTNS,PRMOPTNS                                        02200000
+STP200   DS    0H                                                       02210000
+         LA    R00,PRMOPTNS+2                                           02220000
+         SR    R15,R00                                                  02230000
+         STH   R15,PRMOPTNS                                             02240000
+         L     R14,STPRETN                                              02250000
+         BR    R14                                                      02260000
+         TITLE '&TITLE DYNAMIC CONCATENATION SUBROUTINE'                02270000
+CONCAT   STM   R02,R14,CONCREGS    SAVE RETURN ADDRESS                  02280000
+         BAL   R14,DECONC          ENSURE DDNAME IS NOT CONCATENATED    02290000
+         SLR   R04,R04             CLEAR DDNAME COUNTER                 02300000
+         L     R05,APDE            LOAD PDE ADDRESS                     02310000
+         USING DSPDE,R05                                                02320000
+         OI    AFLAG1,APDS         INDICATE PARTITIONED DATASET         02330000
+         MVC   CFLAGS,AFLAGS       SAVE ALLOCATION FLAGS                02340000
+         MVC   CSUFFIX,ASUFFIXL    SAVE QUALIFIER SUFFIX                02350000
+         LA    R03,TUCONC          ADDRESS OF TEXT UNIT                 02360000
+         XC    0(TUCONCL,R03),0(R03) CLEAR IT                           02370000
+         MVI   5(R03),8            STORE DDNAME LENGTH                  02380000
+         MVC   6(8,R03),ADDNAME    SAVE CONCATENATION DDNAME            02390000
+CONC0050 DS    0H                                                       02400000
+         MVC   AFLAGS,CFLAGS       STORE ALLOCATION FLAGS               02410000
+         MVC   ASUFFIXL(L'ASUFFIXL+L'ASUFFIX),CSUFFIX                   02420000
+         ST    R05,APDE            STORE PDE ADDRESS                    02430000
+         BAL   R14,ALLOCATE        ALLOCATE A DATASET                   02440000
+         LTR   R15,R15             Q... OK?                             02450000
+         BNZ   CONC0900            A... NO                              02460000
+         LA    R04,1(0,R04)        COUNT THE DDNAME                     02470000
+         CLI   TURETDD,X'00'                                            02480000
+         BE    CONC0060                                                 02490000
+         LA    R03,10(0,R03)       ADDRESS THE NEXT                     02500000
+         MVI   5(R03),8            STORE THE LENGTH                     02510000
+         MVC   6(8,R03),TURETDD    COPY THE DDNAME                      02520000
+CONC0060 DS    0H                                                       02530000
+         ICM   R05,7,DSNEXT+1      POINT TO THE NEXT                    02540000
+         BNZ   CONC0050            PROCESS THE NEXT                     02550000
+CONC0100 DS    0H                                                       02560000
+         CH    R04,=H'1'                                                02570000
+         BNH   CONC0900                                                 02580000
+         BAL   R14,INITS99R        INITIALISE THE REQ BLK               02590000
+         MVI   S99VERB,X'03'       INDICATE CONCATENATION               02600000
+         MVI   TUCONC+1,X'01'      TEXT UNIT TYPE                       02610000
+         STH   R04,TUCONC+2        NUMBER                               02620000
+         LA    R00,TUCONC          BUILD TEXT UNIT LIST                 02630000
+         LA    R15,S99TUPL                                              02640000
+         ST    R00,0(,R15)         ENTRY TO THE LIST                    02650000
+         TM    CFLAG2,APERMC       Q... PERMANENT CONCATENATION?        02660000
+         BZ    CONC0110            A... NO                              02670000
+         LA    R14,=X'00040000'    TEXT UNIT FOR PERMANENT CONCAT       02680000
+         LA    R15,4(,R15)         POINT TO THE NEXT POSITION           02690000
+         ST    R14,0(,R15)                                              02700000
+CONC0110 DS    0H                                                       02710000
+         MVI   0(R15),X'80'        END OF THE LIST                      02720000
+         LA    R01,S99RBPTR                                             02730000
+SVC99B   SVC   99                  ISSUE THE REQUEST                    02740000
+         LTR   R15,R15             Q... OK?                             02750000
+         BZ    CONC0800            A... YES                             02760000
+         BAL   R14,S99MSG          ISSUE AN ERROR MSG                   02770000
+         LA    R15,8                                                    02780000
+         B     CONC0900            EXIT                                 02790000
+CONC0800 DS    0H                                                       02800000
+CONC0900 DS    0H                                                       02810000
+         XC    APT,APT             ENSURE APT IS CLEARED                02820000
+         LM    R02,R14,CONCREGS                                         02830000
+         BR    R14                                                      02840000
+         TITLE '&TITLE DYNAMIC ALLOCATION ROUTINE'                      02850000
+ALLOCATE STM   R02,R14,ALLCREGS                                         02860000
+.*  TEXT UNIT TYPES                                                     02870000
+.*   VOLSER  X'0010'                                                    02880000
+.*   DUMMY   X'00240000'                                                02890000
+         BAL   R14,INITS99R                                             02900000
+         LA    R06,S99TUPL-4       POINTER TO TEXT UNIT POINTER         02910000
+         TM    AFLAG1,ANULL                                             02920000
+         BO    ALLC0100            GO AND ALLOCATE A DUMMY DATASET      02930000
+         TM    AFLAG1,ASOUT                                             02940000
+         BO    ALLC0200            GO AND ALLOCATE A SYSOUT DATASET     02950000
+         L     R05,APDE                                                 02960000
+         USING DSPDE,R05                                                02970000
+         BAL   R14,QUAL            ADD QUALIFIERS AND SET-UP TEXT UNIT  02980000
+         SPACE                                                          02990000
+*   TERMINAL ALLOCATION FLAG MAY BE SET BY QUALIFY S/R                  03000000
+         SPACE                                                          03010000
+         TM    AFLAG1,ATERM        TEST FOR TERMINAL ALLOCATION         03020000
+         BO    ALLC0300            GO AND ALLOCATE A TERMINAL DATASET   03030000
+         MVC   TUDSN(4),=X'00020001'                                    03040000
+         LA    R00,TUDSN                                                03050000
+         LA    R06,4(0,R06)        POINT TO NEXT TEXT UNIT PTR          03060000
+         ST    R00,0(0,R06)                                             03070000
+         MVI   AMBRNAME,C' '       CLEAR MEMBER NAME FOR DSAB SEARCH    03080000
+         MVC   AMBRNAME+1(7),AMBRNAME                                   03090000
+         TM    MBRFLG,X'80'        Q... MEMBER GIVEN?                   03100000
+         BZ    ALLC0030            A... NO                              03110000
+         SPACE                                                          03120000
+*    SET UP TEXT UNIT FOR THE MEMBER                                    03130000
+         SPACE                                                          03140000
+         MVC   TUMBR(14),=X'0003000100084040404040404040'               03150000
+         LH    R14,MBRLEN          LOAD THE LENGTH                      03160000
+         BCTR  R14,0                                                    03170000
+         L     R15,MBRPT                                                03180000
+         MVC   TUMBR+6(0),0(R15)                                        03190000
+         EX    R14,*-6                                                  03200000
+         MVC   AMBRNAME,TUMBR+6    COPY MEMBER FOR DSAB SEARCH          03210000
+         LA    R00,TUMBR                                                03220000
+         LA    R06,4(0,R06)        POINT TO NEXT TEXT UNIT PTR          03230000
+         ST    R00,0(0,R06)                                             03240000
+ALLC0030 DS    0H                                                       03250000
+         SPACE 2                                                        03260000
+* NOW DSN AND MEMBER ARE SET UP. CAN SEARCH FOR EXISTING ALLOCATION     03270000
+         SPACE 1                                                        03280000
+         BAL   R14,SCHDSABQ        GO AND SEARCH DSAB QUEUE             03290000
+         B     ALLC0600            BRANCH IF FOUND                      03300000
+         SPACE 2                                                        03310000
+         TM    PSDFLG,X'80'        Q... PASSWORD?                       03320000
+         BZ    ALLC0040            A... NO                              03330000
+         MVC   TUPSD(4),=X'00500001' SET CODE, NUMBER                   03340000
+         LH    R14,PSDLEN          LOAD THE LENGTH                      03350000
+         STH   R14,TUPSD+4         STORE LENGTH IN TEXT UNIT            03360000
+         BCTR  R14,0                                                    03370000
+         L     R15,PSDPT                                                03380000
+         MVC   TUPSD+6(0),0(R15)                                        03390000
+         EX    R14,*-6                                                  03400000
+         LA    R00,TUPSD                                                03410000
+         LA    R06,4(0,R06)        POINT TO NEXT TEXT UNIT PTR          03420000
+         ST    R00,0(0,R06)                                             03430000
+ALLC0040 DS    0H                                                       03440000
+         OC    AUNIT,AUNIT                                              03450000
+         BZ    ALLC0050            BRANCH IF UNIT NOT GIVEN             03460000
+         MVC   TUUNIT(6),=X'001500010008' SET TU FOR UNIT               03470000
+         MVC   TUUNIT+6(8),AUNIT    COPY UNIT NAME                      03480000
+         LA    R00,TUUNIT                                               03490000
+         LA    R06,4(0,R06)        POINT TO NEXT TEXT UNIT PTR          03500000
+         ST    R00,0(0,R06)                                             03510000
+ALLC0050 DS    0H                                                       03520000
+         MVC   TUDISP(7),=X'00040001000108' DISP=SHR                    03530000
+         TM    AFLAG1,ASHR         CORRECT?                             03540000
+         BO    ALLC0055             YES                                 03550000
+         MVI   TUDISP+6,X'04'      DISP=NEW                             03560000
+         TM    AFLAG1,ATEMP+AMOD   CORRECT?                             03570000
+         BNZ   ALLC0055                                                 03580000
+         MVI   TUDISP+6,X'01'      DISP=OLD                             03590000
+ALLC0055 DS    0H                                                       03600000
+         LA    R00,TUDISP                                               03610000
+         LA    R06,4(0,R06)        POINT TO NEXT TEXT UNIT PTR          03620000
+         ST    R00,0(0,R06)                                             03630000
+         OC    AVOL,AVOL                                                03640000
+         BZ    ALLC0060            BRANCH IF VOL NOT GIVEN              03650000
+         MVC   TUVOL(6),=X'001000010006' SET TU FOR VOLUME SERIAL NO    03660000
+         MVC   TUVOL+6(8),AVOL     COPY VOLUME SERIAL NUMBER            03670000
+         LA    R00,TUVOL                                                03680000
+         LA    R06,4(0,R06)        POINT TO NEXT TEXT UNIT PTR          03690000
+         ST    R00,0(0,R06)                                             03700000
+ALLC0060 DS    0H                                                       03710000
+         SPACE                                                          03720000
+*       INDICATE DSORG IS TO BE RETURNED                                03730000
+         SPACE                                                          03740000
+         MVC   TUDSORG(6),=X'005700010002'                              03750000
+         LA    R00,TUDSORG                                              03760000
+         LA    R06,4(0,R06)        POINT TO NEXT IN LIST                03770000
+         ST    R00,0(0,R06)                                             03780000
+         B     ALLC0500                                                 03790000
+         SPACE 3                                                        03800000
+ALLC0100 DS    0H      ALLOCATE A DUMMY DATASET                         03810000
+         MVC   TUDMY(6),=X'00240000' SET TEXT UNIT FOR DUMMY DSET       03820000
+         LA    R00,TUDMY                                                03830000
+         LA    R06,4(0,R06)        POINT TO NEXT IN LIST                03840000
+         ST    R00,0(0,R06)                                             03850000
+         B     ALLC0500                                                 03860000
+         SPACE 3                                                        03870000
+ALLC0200 DS    0H      ALLOCATE A SYSOUT DATASET                        03880000
+         MVC   TUSOUT(6),=X'001800010001' SET TEXT UNIT FOR SYSOUT      03890000
+         MVC   TUSOUT+6(1),ASOUTC  SYSOUT CLASS                         03900000
+         LA    R00,TUSOUT                                               03910000
+         LA    R06,4(0,R06)        POINT TO NEXT IN LIST                03920000
+         ST    R00,0(0,R06)                                             03930000
+         B     ALLC0500                                                 03940000
+ALLC0300 DS    0H      ALLOCATE THE TERMINAL                            03950000
+         MVI   TUTERM+1,X'28'      INDICATE DSORG REQD                  03960000
+         LA    R00,TUTERM                                               03970000
+         LA    R06,4(0,R06)        POINT TO NEXT IN LIST                03980000
+         ST    R00,0(0,R06)                                             03990000
+         B     ALLC0500                                                 04000000
+ALLC0500 DS    0H      SET FINAL PARAMTERS FOR ALL ALLOCATIONS          04010000
+         OC    ADDNAME,ADDNAME     Q... DDNAME SUPPLIED?                04020000
+         BZ    ALLC0510            A... NO                              04030000
+ALLC0505 DS    0H                                                       04040000
+         MVC   TUDDN(6),=X'000100010008'  SET CODE, NUM, LEN            04050000
+         MVC   TUDDN+6(8),ADDNAME                                       04060000
+         LA    R00,TUDDN                                                04070000
+         B     ALLC0520                                                 04080000
+ALLC0510 DS    0H         REQUEST RETURN OF DDNAME                      04090000
+         MVC   TURETDDN(6),=X'005500010008'  SET CODE, NUM, LEN         04100000
+         MVC   TURETDDN+6(8),=CL8' '                                    04110000
+         LA    R00,TURETDDN                                             04120000
+ALLC0520 DS    0H                                                       04130000
+         LA    R06,4(0,R06)        POINT TO NEXT TEXT UNIT              04140000
+         ST    R00,0(0,R06)                                             04150000
+         OC    ABLKSIZ,ABLKSIZ     Q... BLOCK SIZE SUPPLIED?            04160000
+         BZ    ALLC0530            A... NO                              04170000
+         MVC   TUBLKSI(6),=X'003000010002'                              04180000
+         MVC   TUBLKSI+6(2),ABLKSIZ COPY BLOCK SIZE                     04190000
+         LA    R00,TUBLKSI                                              04200000
+         LA    R06,4(0,R06)        POINT TO NEXT TEXT UNIT              04210000
+         ST    R00,0(0,R06)                                             04220000
+ALLC0530 DS    0H                                                       04230000
+         TM    AFLAG1,AMOD         CATALOG IT?                          04240000
+         BZ    ALLC0540            A... YES                             04250000
+         MVC   TUCATLG(7),=X'00050001000102'                            04260000
+         LA    R00,TUCATLG                                              04270000
+         LA    R06,4(0,R06)        POINT TO NEXT TEXT UNIT              04280000
+         ST    R00,0(0,R06)                                             04290000
+ALLC0540 DS    0H                                                       04300000
+         MVI   0(R06),X'80'        MARK END OF TEXT UNIT LIST           04310000
+         LA    R01,S99RBPTR                                             04320000
+         MVI   S99VERB,1           SET DSNAME ALLOCATION                04330000
+SVC99    DYNALLOC                                                       04340000
+         LTR   R15,R15                                                  04350000
+         BNZ   ALLC0800            BRANCH IF ALLOC'N FAILED             04360000
+ALLC0600 DS    0H         ALLOCATION SUCCESSFUL: VALIDATE DSORG         04370000
+         TM    AFLAG1,ASOUT+ATERM  SKIP IF TERMINAL OR SYSOUT           04380000
+         BNZ   ALLC0900                                                 04390000
+         NI    TUDSORG+6,X'FE'     REMOVE UNMOVABLE BIT                 04400000
+         TM    AFLAG1,APDS         IF PDS ALLOCATION REQUEST            04410000
+         BO    ALLC0730              PROHIBIT MEMBER NAMES              04420000
+         TM    MBRFLG,X'80'                                             04430000
+         BZ    ALLC0720                                                 04440000
+         CLC   =X'0200',TUDSORG+6  Q... PARTITIONED?                    04450000
+         BE    ALLC0900            A... YES                             04460000
+         CLC   =X'0000',TUDSORG+6  Q... UNDEFINED?                      04470000
+         BE    ALLC0900            A... YES                             04480000
+         LA    R15,MSG1                                                 04490000
+         B     ALLC0745                                                 04500000
+ALLC0720 DS    0H                                                       04510000
+         CLC   =X'4000',TUDSORG+6  Q... SEQUENTIAL?                     04520000
+         BE    ALLC0900            A... YES                             04530000
+         CLC   =X'0000',TUDSORG+6  Q... UNDEFINED?                      04540000
+         BE    ALLC0900            A... YES                             04550000
+         LA    R15,MSG2                                                 04560000
+         B     ALLC0745                                                 04570000
+ALLC0730 DS    0H     PDS ALLOCATION REQUEST                            04580000
+         TM    MBRFLG,X'80'                                             04590000
+         BZ    ALLC0740                                                 04600000
+         LA    R15,MSG4  ERROR MSG ABOUT PDS MBR AND JOL LIBRARY        04610000
+         B     ALLC0745                                                 04620000
+ALLC0740 DS    0H                                                       04630000
+         CLC   =X'0200',TUDSORG+6  Q... PARTITIONED?                    04640000
+         BE    ALLC0900            A... YES                             04650000
+         LA    R15,MSG5 ERROR MSG ABOUT SDS AND JOL LIBRARY             04660000
+ALLC0745 DS    0H                                                       04670000
+         ST    R15,OLD1#1                                               04680000
+         LA    R15,1                                                    04690000
+         ST    R15,OLD1                                                 04700000
+         PUTLINE MF=(E,IOPL),PARM=IOPB,                                C04710000
+               OUTPUT=(OLD1,TERM,SINGLE,INFOR)                          04720000
+         B     ALLC0810                                                 04730000
+ALLC0800 DS    0H                                                       04740000
+         BAL   R14,S99MSG                                               04750000
+ALLC0810 DS    0H                                                       04760000
+         XC    IOECB,IOECB                                              04770000
+         XC    IOPB,IOPB                                                04780000
+         STACK PARM=IOPB,DELETE=ALL,MF=(E,IOPL)                         04790000
+         LA    R15,8               INDICATE AN ERROR OCCURRED           04800000
+ALLC0900 LM    R02,R14,ALLCREGS                                         04810000
+         XC    APT(APTL),APT        CLEAR FOR NEXT CALL                 04820000
+         BR    R14                                                      04830000
+         DROP  R05                                                      04840000
+         TITLE '&TITLE SVC99 REQUEST-BLK INITIALISE'                    04850000
+INITS99R DS    0H                                                       04860000
+         XC    S99RB(20),S99RB                                          04870000
+         MVI   S99RBLN,20          SET RB LEN FIELD                     04880000
+         LA    R15,S99TUPL                                              04890000
+         ST    R15,S99TXTPP        STORE TEXT UNIT LIST ADDRESS         04900000
+         LA    R15,S99RB                                                04910000
+         ST    R15,S99RBPTR        LOAD RB ADDRESS IN PARAM LIST        04920000
+         OI    S99RBPTR,X'80'      MARK END OF LIST                     04930000
+         XC    TUAREA(TUAREAL),TUAREA CLEAR ALL TEXT UNITS              04940000
+         XC    TUAREA2(TUAREAL2),TUAREA2 CLEAR ALL TEXT UNITS PF 1983   04950000
+         BR    R14                                                      04960000
+         TITLE '&TITLE SUBROUTINE TO SEARCH THE DSAB QUEUE'             04970000
+SCHDSABQ ST    R14,SDQRETN         SAVE THE RETURN ADDRESS              04980000
+         L     R14,CVTPTR          LOAD CVT ADDRESS                     04990000
+         L     R14,0(0,R14)        TCB WORDS                            05000000
+         L     R14,4(0,R14)        MY TCB ADDRESS                       05010000
+         USING TCB,R14                                                  05020000
+         L     R14,TCBJSCB         MY JSCB ADDRESS                      05030000
+         DROP  R14                                                      05040000
+         USING IEZJSCB,R14                                              05050000
+         L     R14,JSCDSABQ        DSAB Q                               05060000
+         DROP  R14                                                      05070000
+         USING QDB,R14             DSAB Q DESCRIPTOR BLOCK              05080000
+         ICM   R15,15,QDBNELMS     ARE THERE ANY?                       05090000
+         BZ    SDQ090              A... NO                              05100000
+         L     R15,QDBFELMP        LOAD DSAB ADDRESS                    05110000
+         USING DSAB,R15                                                 05120000
+SDQ005   DS    0H                                                       05130000
+         L     R01,DSABTIOT        POINT TO TIOT ENTRY                  05140000
+         CLC   =CL8' ',4(R01)      BLANK DDNAME?                        05150000
+         BE    SDQ020              IF SO, NOT A MATCH                   05160000
+         ICM   R01,7,12(R01)       POINT TO JFCB                        05170000
+         USING JFCB-16,R01                                              05180000
+         CLC   JFCBDSNM,ADSNAME    Q... SAME DSNAME?                    05190000
+         BNE   SDQ020              A... NO                              05200000
+         NI    AFLAG1,FF-AMOD      SAME DSN: CANNOT B NEW               05210000
+         CLC   JFCBELNM,AMBRNAME   Q... SAME MEMBER NAME?               05220000
+         BNE   SDQ020              A... NO                              05230000
+         MVC   TUDSORG+6(2),DSABORG   COPY DSORG                        05240000
+         DROP  R01                                                      05250000
+         L     R01,DSABTIOT        POINT TO TIOT ENTRY                  05260000
+         CLI   4(R01),C'$'         Q... JOL DDNAME?                     05270000
+         BE    SDQ010              A... YES: DO NOT RETURN IT FOR       05280000
+*                                   A GENERAL REQUEST                   05290000
+         TM    DSABFLG1,DSABDCAT+DSABPCAT+DSABCATM+DSABNUSE             05300000
+         BNZ   SDQ010              DO NOT RETURN IT IF:                 05310000
+*                                    DYNAMICALLY CONCATENATED           05320000
+*                                    PERMANENTLY CONCATENATED           05330000
+*                                    MEMBER OF CONCATENATED GROUP       05340000
+*                                    IN USE                             05350000
+         TM    DSABFLG2,DSABOPEN   DO NOT IT RETURN IF OPEN             05360000
+         BNZ   SDQ010                                                   05370000
+         MVC   TURETDDN+6(8),4(R01) OTHERWISE ANY WILL DO               05380000
+         MVC   TURETDDN+4(2),=H'8' SET DDNAME LENGTH                    05390000
+         B     SDQ080              OK TO LEAVE                          05400000
+SDQ010   DS    0H                                                       05410000
+         CLC   ADDNAME,4(R01)  Q... REQUESTED DDNAME?                   05420000
+         BE    SDQ080          A... YES: RETURN                         05430000
+SDQ020   DS    0H        THIS ONE DID NOT MATCH:                        05440000
+         CLM   R15,7,QDBLELMP+1    Q... WAS THAT THE LAST?              05450000
+         BE    SDQ090              A... YES IT WAS: EXIT NOT FOUND      05460000
+         L     R15,DSABFCHN        POINT TO THE NEXT                    05470000
+         B     SDQ005              AND TRY AGAIN                        05480000
+SDQ080   L     R14,SDQRETN         RETURN: FOUND                        05490000
+         SLR   R15,R15                                                  05500000
+         BR    R14                                                      05510000
+SDQ090   L     R14,SDQRETN         RETURN: FOUND                        05520000
+         SLR   R15,R15                                                  05530000
+         B     4(R14)                                                   05540000
+         DROP  R15                                                      05550000
+         TITLE '&TITLE DATASET QUALIFY SUBROUTINE'                      05560000
+QUAL     DS    0H                                                       05570000
+         TM    AFLAG1,ATERM                                             05580000
+         BNZR  R14                                                      05590000
+         STM   R02,R14,QUALREGS                                         05600000
+         MVI   TUDSNENT+2,C' '     CLEAR THE DSNAME                     05610000
+         MVC   TUDSNENT+3(43),TUDSNENT+2                                05620000
+         USING DSPDE,R05                                                05630000
+         L     R03,DSNPT           LOAD DSNAME ADDRESS                  05640000
+         CLI   0(R03),C'&&'        Q... TEMPORARY DATASET?              05650000
+         BNE   QUAL0010            A... NO                              05660000
+         OI    AFLAG1,ATEMP        YES: SET FLAG                        05670000
+QUAL0010 DS    0H                                                       05680000
+         SLR   R15,R15             CLEAR R15 (WILL CONTAIN TU LEN)      05690000
+         TM    DSFLG,X'40'         Q... PREFIX IT?                      05700000
+         BO    QUAL0020            A... NO                              05710000
+         TM    AFLAG1,ATEMP        Q... TEMP?                           05720000
+         BO    QUAL0020            A... YES                             05730000
+         AIF   ('&PREFOUT' EQ 'USERPREFIX').Q010                        05740000
+         AIF   ('&PREFOUT' EQ 'SYSPREF').Q010                           05750000
+         TM    AFLAG1,AMOD         Q... DATASET TO BE WRITTEN?          05760000
+         BZ    QUAL0015            A... NO                              05770000
+         ICM   R15,1,PSCBUSRL      LOAD USERID LENGHT                   05780000
+         BZ    QUAL0015            BRANCH IF NONE: USE PREFIX           05790000
+         MVC   TUDSNENT+2(7),PSCBUSER  MOVE USERID                      05800000
+         B     QUAL0018                                                 05810000
+QUAL0015 DS    0H                                                       05820000
+.Q010    ANOP                                                           05830000
+         ICM   R15,1,UPTPREFL      Q... A PREFIX AVAILABLE?             05840000
+         BZ    QUAL0020            A... NO                              05850000
+         MVC   TUDSNENT+2(7),UPTPREFX MOVE PREFIX                       05860000
+         AIF   ('&PREFOUT' EQ 'USERPREFIX').Q020                        05870000
+         AIF   ('&PREFOUT' EQ 'SYSPREF').Q020                           05880000
+QUAL0018 DS    0H                                                       05890000
+.Q020    ANOP                                                           05900000
+         LA    R01,TUDSNENT+2(R15) ADDRESS NEXT BYTE                    05910000
+         MVI   0(R01),C'.'         INSERT PERIOD IN DSNAME              05920000
+         LA    R15,1(0,R15)        COUNT IT                             05930000
+QUAL0020 DS    0H                                                       05940000
+         SLR   R14,R14                                                  05950000
+         ICM   R14,3,DSLEN         LOAD LENGTH OF DSNAME SUPPLIED       05960000
+         BZ    QUAL0040                                                 05970000
+         BCTR  R14,0                                                    05980000
+         CLI   0(R03),C'*'         Q... TERMINAL REQUEST                05990000
+         BNE   QUAL0030            A... NO                              06000000
+         OI    AFLAG1,ATERM        YES: SET FLAG                        06010000
+         MVI   TUDSNENT,C'*'       SHOW CALLER TERMINAL ALLOCATION      06020000
+         B     QUAL0090              AND EXIT                           06030000
+QUAL0030 DS    0H                                                       06040000
+         LA    R01,TUDSNENT+2(R15) ADDRESS NEXT BYTE                    06050000
+         EX    R14,*+4             MOVE IT                              06060000
+         MVC   0(0,R01),0(R03)                                          06070000
+         LA    R15,2(R14,R15)      COUNT THE LENGTH                     06080000
+QUAL0040 DS    0H                                                       06090000
+         BCTR  R15,0                                                    06100000
+         TM    DSFLG,X'40'         Q... SUFFIX IT?                      06110000
+         BO    QUAL0050            A... NO                              06120000
+         TM    AFLAG1,ATEMP        Q... TEMP?                           06130000
+         BO    QUAL0050            A... YES                             06140000
+         OC    ASUFFIX,ASUFFIX     Q... A SUFFIX GIVEN?                 06150000
+         BZ    QUAL0050            A... NO                              06160000
+         LA    R14,TUDSNENT+2(R15) LOAD ADDRESS OF NEXT BYTE            06170000
+         AIF   ('&VSAMCAT' EQ 'NO').NVSAM01                             06180000
+         LR    R01,R14             ADDRESS END OF NAME                  06190000
+         SH    R01,ASUFFIXL        ADDRESS OF PROBABLE START OF SUFFIX  06200000
+         CLC   ASUFFIX,0(R01)      Q... ALREADY QUALIFIED?              06210000
+         BE    QUAL0050            A... YES                             06220000
+.NVSAM01 ANOP                                                           06230000
+         MVC   0(9,R14),ASUFFIX    COMPLETE QUALIFICATION               06240000
+         AH    R15,ASUFFIXL        COMPUTE REST OF LENGTH               06250000
+QUAL0050 STH   R15,TUDSNENT        STORE IN TEXT UNIT                   06260000
+         LA    R01,TUDSNENT                                             06270000
+         BAL   R14,CATSCH          CALL CATALOG SEARCH                  06280000
+QUAL0090 DS    0H                                                       06290000
+         MVC   ADSNAME,TUDSNENT+2  COPY DSNAME FOR DSAB SEARCH          06300000
+         LM    R02,R14,QUALREGS                                         06310000
+         BR    R14                                                      06320000
+         TITLE '&TITLE CATALOG SEARCH SUBROUTINE'                       06330000
+*  NOTE                                                                 06340000
+*   (1) IS THE ADDRESS OF THE DSNAME TO BE OPERATED ON                  06350000
+*          THERE MUST BE AN EIGHT BYTE PAD AREA AT ITS END              06360000
+         SPACE                                                          06370000
+*  UPON RETURN                                                          06380000
+*   IF DSNAME FOUND IN THE CATALOGUE                                    06390000
+*    THE DSNAME MAY BE CHANGED (IF TOO LONG IT IS SHORTENED)            06400000
+*    APTVOL CONTAINS VOLUME SERIAL NUMBER ACCORDING TO THE CATALOGUE    06410000
+*    APTUNIT CONTAINS THE ADDRESS OF THE UNIT CONTAINING THE VOLUME     06420000
+*   IF DSNAME NOT FOUND                                                 06430000
+*    (R15) REFLECTS THIS FACT                                           06440000
+         SPACE                                                          06450000
+CATSCH   ST    R14,CATRET                                               06460000
+         ST    R01,CATDSPT         SAVE ADDRESS OF DSNAME               06470000
+         SLR   R14,R14             CLEAR REGISTER                       06480000
+         LA    R15,2(0,R01)        ADDRESS OF DSNAME                    06490000
+         SLR   R00,R00             A ZERO ENTRY IN LIST                 06500000
+         LA    R01,CATWORK         ADDRESS OF WORK AREA                 06510000
+         STM   R14,R01,CATPARMS    STORE LIST                           06520000
+         MVI   CATPARMS,X'44'      SET FLAGS                            06530000
+         LOCATE CATPARMS           ISSUE THE REQUEST                    06540000
+         STC   R15,CATRC           STORE RETURN CODE                    06550000
+         STC   R00,CATFLG          AND REASON                           06560000
+         CH    R15,=H'12'                                               06570000
+         BL    CS070               BR IF  OK, NO CVOL OR NOT CAT        06580000
+         BH    CS010               DSN TOO LONG                         06590000
+         SPACE                                                          06600000
+*  SPECIFIED DSNAME IS TOO SHORT AND NEEDS A FURTHER QUALIFIER          06610000
+*     HOWEVER, THAT IS THE JOL USER'S PROBLEM AT PRESENT                06620000
+         B     CS070                                                    06630000
+         SPACE                                                          06640000
+CS010    DS    0H                                                       06650000
+         MVI   CATRC,0             INDICATE DATASET EXISTS              06660000
+         SPACE                                                          06670000
+*   THE NAME PRESENTED IS LONGER THAN AN EXISTING DSNAME                06680000
+*    TO HELP THE USER, IT IS TO BE SHORTENED BY REMOVING THE            06690000
+*       LAST QUALIFIER.                                                 06700000
+         SPACE                                                          06710000
+         L     R14,CATDSPT         ADDRESS DSNAME                       06720000
+         LH    R15,0(0,R14)        LOAD DSNAME LENGTH                   06730000
+CS020    DS    0H                                                       06740000
+         LA    R01,1(R15,R14)      ADDRESS OF END OF DSN TEXT           06750000
+         CLI   0(R01),C'.'         Q... PERIOD?                         06760000
+         MVI   0(R01),C' '         BLANK IT ANYWAY                      06770000
+         BE    CS030               A... YES, IT IS A PERIOD             06780000
+         BCT   R15,CS020 CONTINUE THE SCAN                              06790000
+         B     CSBAD               ERROR EXIT                           06800000
+CS030    DS    0H                  DSNAME IS NO SHORTENED               06810000
+*        LH    R00,0(0,R14)        LOAD LENGTH DSNAME                   06820000
+*        SR    R00,R15             COMPUTE NEW LENGTH                   06830000
+         STH   R15,0(0,R14)        STORE THE NEW LENGTH                 06840000
+CS070    DS    0H                                                       06850000
+         CLI   CATRC,0                                                  06860000
+         BNE   CS095                                                    06870000
+         SPACE                                                          06880000
+*   IF THE DATASET IS CATALOGUED, THEN SAVE ANOTHER LOCATE BY           06890000
+*     DYNAMIC ALLOCATION BY COPYING VOLUME INFO                         06900000
+         SPACE                                                          06910000
+         NI    AFLAG1,X'FF'-AMOD   TURN OFF MOD FLAG IF DS EXISTS       06920000
+         CLI   CATWORK+1,1         Q... JUST ONE VOLUME?                06930000
+         BNE   CS095               A... NO: I DID NOT SEE IT            06940000
+         MVC   AVOL,CATWORK+6      COPY SERIAL NO TO ALLOC PARMS        06950000
+         SPACE                                                          06960000
+*   NOW FIND THE UNIT ADDRESS IF THE VOLUME IS MOUNTED                  06970000
+*    AND SET THAT UP TOO.                                               06980000
+*                                                                       06990000
+* BEFORE DOING SO, CHECK IF WE ARE RUNNING UNDER XA.              84016 07000000
+*  IF SO, BYPASS THE CHECKING OF THE UCB TEMPORARILY.             84016 07010000
+         L     R15,CVTPTR                                         84016 07020000
+         TM    CVTDCB-CVT(R15),X'80' XA SYSTEM?                   87127 07040000
+         BO    CS095               YES, SO IGNORE UCB LOOK UP     84016 07050000
+         AIF   (&MVSXA).NOUCB                                           07060000
+         SPACE                                                          07070000
+         L     R15,CVTPTR          ADDRESS CVT                          07080000
+         L     R15,CVTILK2-CVT(,R15) ADDRESS OF UCB TABLE               07090000
+         SLR   R14,R14                                                  07100000
+CS080    ICM   R14,3,0(R15)        LOAD UCB ADDRESS                     07110000
+         LA    R15,2(,R15)         POINT TO NEXT ENTRY IN TABLE         07120000
+         BZ    CS080               BRANCH IF NOT FILLED IN              07130000
+         C     R14,=A(X'FFFF')     Q... END OF TABLE?                   07140000
+         BNL   CS090               A... YES                             07150000
+*  REGISTER 14 NOW POINTS TO A UNIT CONTROL BLOCK                       07160000
+*   NOW CHECK THE VOLUME SERIAL NUMBER                                  07170000
+         CLC   AVOL,X'01C'(R14)    Q... CORRECT VOLUME?                 07180000
+         BNE   CS080               A... NO: CHECK NEXT UCB              07190000
+         MVI   AUNIT,C' '          CLEAR UNIT NAME                      07200000
+         MVC   AUNIT+1(L'AUNIT-1),AUNIT                                 07210000
+         MVC   AUNIT(3),X'00D'(R14) COPY UNIT ADDRESS FROM UCB          07220000
+         B     CS095                                                    07230000
+CS090    DS    0H                  THE UNIT ADDRESS WAS NOT FOUND       07240000
+         XC    AVOL,AVOL             SO CLEAR THE VOLUME SERIAL TOO     07250000
+* (ALLOCATION PROBLEMS FOR MOUNT-AUTHORISED USERS IF THIS IS NOT DONE)  07260000
+.NOUCB   ANOP                                                           07270000
+CS095    DS    0H                                                       07280000
+         L     R14,CATRET                                               07290000
+         BR    R14                                                      07300000
+         SPACE 2                                                        07310000
+CSBAD    DC    H'0',C'CATALOG SEARCH BUG'                               07320000
+         TITLE '&TITLE TIOT SCAN SOUBROUTINE'                           07330000
+* THIS SUBROUTINE SEARCHES THE TIOT FOR A SPECIFIED DDNAME              07340000
+*  WHOSE ADDRESS IS PASSED IN REGISTER 1                                07350000
+         SPACE                                                          07360000
+SCHTIOT  DS    0H                                                       07370000
+         L     R15,X'010'          ADDRESS OF CVT                       07380000
+         L     R15,0(0,R15)        TCB WORDS                            07390000
+         L     R15,4(,R15)         ADDRESS OF MY TCB                    07400000
+         SLR   R00,R00                                                  07410000
+         L     R15,TCBTIO-TCB(,R15) TIOT ADDRESS                        07420000
+ST010    DS    0H                                                       07430000
+         CLC   28(8,R15),0(R01)    Q... DDNAME MATCH?                   07440000
+         BER   R14                 A... YES:RETURN                      07450000
+         IC    R00,24(,R15)        LENGTH OF THIS ENTRY                 07460000
+         AR    R15,R00                                                  07470000
+         LTR   R00,R00             Q... END OF TIOT?                    07480000
+         BNZ   ST010               A... NO: CHECK THE NEXT ENTRY        07490000
+         CLI   *,0                 SET CC TO SHOW NOT EQUALS            07500000
+         BR    R14                                                      07510000
+         TITLE '&TITLE DYNAMIC ALLOCATION ERROR MESSAGE ROUTINE'        07520000
+S99MSG   ST    R14,S99MRET                                              07530000
+         LA    R01,S99RB                                                07540000
+         ST    R01,DFLIST          STORE S99 REQ BLK ADDR               07550000
+         OC    DFLIST+4(4),DFLIST+4 Q... BEEN HERE BEFORE?              07560000
+         BNZ   S99010              A... YES                             07570000
+         ST    R15,S99RC           SAVE RETURN CODE FROM SVC 99         07580000
+         LA    R00,S99RC           SET POINTER                          07590000
+         ST    R00,DFLIST+4                                             07600000
+         LOAD  EP=IKJEFF02                                              07610000
+         ST    R00,DFEFF02         STORE ADDRESS OF MSG ISSUER          07620000
+         LA    R00,DFEFF02                                              07630000
+         ST    R00,DFLIST+8                                             07640000
+         LA    R00,DFFLAGS         ADDRESS OF FLAGS                     07650000
+         ST    R00,DFLIST+12                                            07660000
+         MVI   DFFLAGS+1,X'32'     SET CALLER ID                        07670000
+         L     R01,4(0,R13)                                             07680000
+         MVC   DFLIST+16(4),24(R01) CPPL ADDRESS                        07690000
+S99010   DS    0H                                                       07700000
+         LINK  EP=IKJEFF18,MF=(E,DFLIST) CALL DAIRFAIL                  07710000
+         LTR   R15,R15             Q... OK?                             07720000
+         BZ    S99020               A... YES                            07730000
+         CVD   R15,DOUBLE          ISSUE ERROR MSG                      07740000
+         OI    DOUBLE+7,X'0F'                                           07750000
+         MVC   DFMSG,=C'DAIRFAIL RETURN CODE NN'                        07760000
+         UNPK  DFMSG+21(2),DOUBLE                                       07770000
+         LA    R01,DFMSG                                                07780000
+         LA    R00,L'DFMSG                                              07790000
+         SVC   93                                                       07800000
+S99020   DS    0H                                                       07810000
+         L     R14,S99MRET                                              07820000
+         BR    R14                                                      07830000
+         TITLE '&TITLE CONSTANTS ETC'                                   07840000
+LINKDCBL DCB   DDNAME=$$JLOAD,MACRF=E,EXLST=4                           07850000
+DCBLEN   EQU   *-LINKDCBL                                               07860000
+LINKSFL  LINK  SF=L                                                     07870000
+MSG1     DC    Y(MSG1LN,0),C'&PRE.001-E'                                07880000
+         DC    C' ERROR: MEMBER SPECIFIED FOR SEQUENTIAL DATASET'       07890000
+MSG1LN   EQU   *-MSG1                                                   07900000
+MSG2     DC    Y(MSG2LN,0),C'&PRE.002-E'                                07910000
+         DC    C' ERROR: MEMBER OMITTED FOR PARTITIONED DATASET'        07920000
+MSG2LN   EQU   *-MSG2                                                   07930000
+MSG3     DC    Y(MSG3LN,0),C'&PRE.003-E PARSE ERROR'                    07940000
+MSG3LN   EQU   *-MSG3                                                   07950000
+MSG4     DC    Y(MSG4LN,0),C'&PRE.004-E'                                07960000
+         DC    C' A MEMBER OF A PARTITIONED DATASET MAY NOT BE PART OF .07970000
+               A JOL LIBRARY'                                           07980000
+MSG4LN   EQU   *-MSG4                                                   07990000
+MSG5     DC    Y(MSG5LN,0),C'&PRE.005-E'                                08000000
+         DC    C' A SEQUENTIAL DATASET MAY NOT BE PART OF A JOL LIBRARY.08010000
+               '                                                        08020000
+MSG5LN   EQU   *-MSG5                                                   08030000
+MSG7     DC    Y(MSG7LN,0),C'&PRE.007-E'                                08040000
+         DC    C' YOU ARE NOT AUTHORISED TO USE THE JOL COMMAND.'       08050000
+MSG7LN   EQU   *-MSG7                                                   08060000
+MSG8     DC    Y(MSG8LN,0),C'&PRE.008-A'                                08070000
+         DC    C' PLEASE ENTER YOUR JOL STATEMENTS AND END WITH A /*'   08080000
+MSG8LN   EQU   *-MSG8                                                   08090000
+         ORG   *-240                                                    08100000
+HEXTAB   DS    0CL256,240C                                              08110000
+         DC    C'0123456789ABCDEF'                                      08120000
+         AIF   (N'&JLOAD EQ 0).NJLOAD                                   08130000
+&C       SETC  '&PRE'.'LOAD'                                            08140000
+&C       CSECT                                                          08150000
+&A       SETA  0                                                        08160000
+.JLOOP   ANOP                                                           08170000
+&A       SETA  &A+1                                                     08180000
+&B       SETB  (&A EQ N'&JLOAD)                                         08190000
+&B1      SETB  ('&JLOAD(&A)'(1,1) EQ '''')                              08200000
+&C       SETC  (1-&B)'A(*+4)'.(&B)'X''FF000000'''                       08210000
+         DC    A(&PRE.&A),Y(L'&PRE&A),B'1&B1.00000000000000',4A(0),&C   08220000
+         AIF   (NOT &B).JLOOP                                           08230000
+&A       SETA  0                                                        08240000
+.JLOOP2  ANOP                                                           08250000
+&A       SETA  &A+1                                                     08260000
+&B1      SETB  ('&JLOAD(&A)'(1,1) EQ '''')                              08270000
+&C       SETC  '&JLOAD(&A)'(1+&B1,K'&JLOAD(&A)-(2*&B1))                 08280000
+&PRE&A   DC    C'&C'                                                    08290000
+         AIF   (&A LT N'&JLOAD).JLOOP2                                  08300000
+.NJLOAD  ANOP                                                           08310000
+         AIF   (N'&CMDLIB EQ 0).NCMDDS                                  08320000
+&C       SETC  '&PRE.CMDL'                                              08330000
+&C       CSECT                                                          08340000
+&A       SETA  0                                                        08350000
+.CMDLOOP ANOP                                                           08360000
+&A       SETA  &A+1                                                     08370000
+&B       SETB  (&A EQ N'&CMDLIB)                                        08380000
+&B1      SETB  ('&CMDLIB(&A)'(1,1) EQ '''')                             08390000
+&C       SETC  (1-&B)'A(*+4)'.(&B)'X''FF000000'''                       08400000
+         DC    A(CMD&A),Y(L'CMD&A),B'1&B1.00000000000000',4A(0),&C      08410000
+         AIF   (NOT &B).CMDLOOP                                         08420000
+&A       SETA  0                                                        08430000
+.CMLOOP2 ANOP                                                           08440000
+&A       SETA  &A+1                                                     08450000
+&B1      SETB  ('&CMDLIB(&A)'(1,1) EQ '''')                             08460000
+&C       SETC  '&CMDLIB(&A)'(1+&B1,K'&CMDLIB(&A)-(2*&B1))               08470000
+CMD&A    DC    C'&C'                                                    08480000
+         AIF   (&A LT N'&CMDLIB).CMLOOP2                                08490000
+.NCMDDS  ANOP                                                           08500000
+         AIF   (N'&INCLIB EQ 0).NINCLDS                                 08510000
+&C       SETC  '&PRE'.'INCL'                                            08520000
+&C       CSECT                                                          08530000
+&A       SETA  0                                                        08540000
+.INCLOOP ANOP                                                           08550000
+&A       SETA  &A+1                                                     08560000
+&B       SETB  (&A EQ N'&INCLIB)                                        08570000
+&B1      SETB  ('&INCLIB(&A)'(1,1) EQ '''')                             08580000
+&C       SETC  (1-&B)'A(*+4)'.(&B)'X''FF000000'''                       08590000
+         DC    A(INC&A),Y(L'INC&A),B'1&B1.00000000000000',4A(0),&C      08600000
+         AIF   (NOT &B).INCLOOP                                         08610000
+&A       SETA  0                                                        08620000
+.INLOOP2 ANOP                                                           08630000
+&A       SETA  &A+1                                                     08640000
+&B1      SETB  ('&INCLIB(&A)'(1,1) EQ '''')                             08650000
+&C       SETC  '&INCLIB(&A)'(1+&B1,K'&INCLIB(&A)-(2*&B1))               08660000
+INC&A    DC    C'&C'                                                    08670000
+         AIF   (&A LT N'&INCLIB).INLOOP2                                08680000
+&NAME    CSECT                                                          08690000
+.NINCLDS ANOP                                                           08700000
+&A       SETA  2                                                        08710000
+.XYZ     ANOP                                                           08720000
+UT&A     DC    A(*+24),X'00078000',4A(0),C'&&JOLWK&A '                  08730000
+&A       SETA  &A-1                                                     08740000
+         AIF   (&A GT 0).XYZ                                            08750000
+         AIF   (T'&JCL NE 'O').JCL010                                   08760000
+JCLSET   DC    A(*+24),X'00048000',4A(0),C'&&JCL '                      08770000
+.JCL010  ANOP                                                           08780000
+         LTORG                                                          08790000
+         TITLE '&TITLE PARAMETER DESCRIPTIONS'                          08800000
+&C       SETC  '&PRE'.'PARM'                                            08810000
+&C       IKJPARM                                                        08820000
+DSNAME   IKJPOSIT  DSTHING,PROMPT='INPUT DATASET NAME',                .08830000
+               HELP='NAME OF DATASET CONTAINING THE INPUT TO THE JOL CO.08840000
+               MPILER',                                                .08850000
+               VALIDCK=&PRE.VC01                                        08860000
+TSO      IKJKEYWD                                                       08870000
+         IKJNAME   'TSO'                                                08880000
+         AIF   (T'&JCL EQ 'O').NJCL030                                  08890000
+JNAME    IKJSUBF                                                        08900000
+JCLDS    IKJPOSIT   DSNAME,PROMPT='NAME OF DATASET TO RECEIVE THE GENER.08910000
+               ATED JCL'                                                08920000
+.NJCL030 ANOP                                                           08930000
+DCTXT    IKJSUBF                                                        08940000
+DCDATA   IKJPOSIT QSTRING,PROMPT='DUMP CARD FOR JOL-GENERATED JOBS'     08950000
+C1TXT    IKJSUBF                                                        08960000
+C1DATA   IKJPOSIT QSTRING,PROMPT='CARD1 FOR JOL-GENERATED JOBS'         08970000
+C2TXT    IKJSUBF                                                        08980000
+C2DATA   IKJPOSIT QSTRING,PROMPT='CARD2 FOR JOL-GENERATED JOBS'         08990000
+C3TXT    IKJSUBF                                                        09000000
+C3DATA   IKJPOSIT QSTRING,PROMPT='CARD3 FOR JOL-GENERATED JOBS'         09010000
+C4TXT    IKJSUBF                                                        09020000
+C4DATA   IKJPOSIT QSTRING,PROMPT='CARD4 FOR JOL-GENERATED JOBS'         09030000
+SYMTXT   IKJSUBF                                                        09040000
+SYMDATA  IKJPOSIT  QSTRING,PROMPT='LIST OF JOL SYMBOLS'                 09050000
+LETSF    IKJSUBF                                                        09060000
+LETVAL   IKJIDENT                                                      .09070000
+               'MAXIMUM SATISFACTORY RETURN CODE FROM THE JOL COMPILER'.09080000
+               ,INTEG,                                                 .09090000
+               MAXLNTH=2,                                              .09100000
+               FIRST=NUMERIC,                                          .09110000
+               OTHER=NUMERIC                                           .09120000
+               DEFAULT=&LETVAL,                                        .09130000
+               HELP=('IF THE RETURN CODE FROM THE JOL COMPILER IS GREAT.09140000
+               ER THAN THE VALUE YOU PROVIDE, I WILL ASK WHETHER TO SUB.09150000
+               MIT YOUR JOB')                                           09160000
+LETPRPT  IKJKEYWD  DEFAULT='&LETPR'                                     09170000
+         IKJNAME   'PROMPT'                                             09180000
+         IKJNAME   'NOPROMPT',ALIAS='NPROMPT'                           09190000
+         IKJENDP                                                        09200000
+         DS    0D                                                       09210000
+         TITLE '&TITLE INPUT DATASET VALIDITY CHECK'                    09220000
+         PUSH  USING                                                    09230000
+         DROP                                                           09240000
+&PRE.VC01 DS   0H                                                       09250000
+         STM   R14,R12,12(R13)     SAVE REGISTERS                       09260000
+         XC    16(4,R13),16(R13)   CLEAR RETURN CODE                    09270000
+         USING &PRE.VC01,R15       DECLARE NEW BASE REGISTERS           09280000
+         USING WKAREA,R03                                               09290000
+         USING DSPDE,R02                                                09300000
+         LM    R02,R03,0(R01)      LOAD PARAMETER ADDRESSES             09310000
+         CLI   DSLEN+1,X'02'       Q... ONE BYTE DSNAME? **JCS 29/09/82 09320000
+         BNH   VC01090             A... YES: IT'S OK     **JCS 29/09/82 09330000
+         LH    R04,DSLEN           LOAD DSNAME LENGTH                   09340000
+         BCTR  R04,0                                                    09350000
+         L     R05,DSNPT           LOAD DSNAME ADDRESS                  09360000
+         TRT   0(0,R05),ASTERTAB   Q... ANY ASTERISKS?                  09370000
+         EX    R04,*-6                                                  09380000
+         BC    8,VC01090           A... NO: IT'S OK                     09390000
+         LA    R00,MSG6            LOAD ADDRESS OF ERROR MSG            09400000
+         L     R01,24(0,R13)                                            09410000
+         ST    R00,8(0,R01)        STORE IT                             09420000
+         MVI   19(R13),X'04'       SET RETURN CODE                      09430000
+VC01090  LM    R14,R12,12(R13)      AND RETURN                          09440000
+         BR    R14                                                      09450000
+         SPACE 2                                                        09460000
+         POP   USING                                                    09470000
+         SPACE                                                          09480000
+ASTERTAB DC    (C'*')X'00',X'04',(255-C'*')X'00'                        09490000
+MSG6     DC    Y(MSG6LN,0),C'&PRE.006-I'                                09500000
+         DC    C' THE DSNAME MUST BE AN ASTERISK ALONE, OR CONTAIN NO A.09510000
+               STERISKS'                                                09520000
+MSG6LN   EQU   *-MSG6                                                   09530000
+         LTORG                                                          09540000
+         AIF   ('&GENCB' EQ 'YES').GENCB                                09550000
+         PUSH  PRINT                                                    09560000
+         PRINT NOGEN                                                    09570000
+.GENCB   ANOP                                                           09580000
+         DS    0D                                                       09590000
+         TITLE '&TITLE DATA CONTROL BLOCK'                              09600000
+         DCBD  DSORG=PS,DEVD=DA                                         09610000
+         TITLE '&TITLE USER PROFILE TABLE'                              09620000
+         IKJUPT                                                         09630000
+         TITLE '&TITLE PROTECTED STEP CONTROL BLOCK'                    09640000
+         IKJPSCB                                                        09650000
+         TITLE '&TITLE ENVIRONMENT CONTROL TABLE'                       09660000
+         IKJECT                                                         09670000
+         TITLE '&TITLE PARSE PARAMETER LIST'                            09680000
+         IKJPPL                                                         09690000
+LENMYPPL EQU   *-PPL                                                    09700000
+         AIF   (&F4).F4CB                                               09710000
+         TITLE '&TITLE COMMUNICATIONS VECTOR TABLE'                     09720000
+         CVT   DSECT=YES,SYS=BOTH                                       09730000
+         TITLE '&TITLE TASK CONTROL BLOCK'                              09740000
+         IKJTCB                                                         09750000
+         TITLE '&TITLE JOB-STEP CONTROL BLOCK'                          09760000
+         IEZJSCB                                                        09770000
+         TITLE '&TITLE DATA-SET ASSOCIATION BLOCK'                      09780000
+         IHADSAB                                                        09790000
+         TITLE '&TITLE DSAB QUEUE DESCRIPTOR BLOCK'                     09800000
+         IHAQDB                                                         09810000
+         TITLE '&TITLE JOB FILE CONTROL BLOCK'                          09820000
+JFCB     DSECT                                                          09830000
+         IEFJFCBN                                                       09840000
+         AGO   .CBDUN                                                   09850000
+.F4CB    ANOP                                                           09860000
+         TITLE '&TITLE COMMUNICATIONS VECTOR TABLE'                     09870000
+         KAACVT   DSECT=YES                                             09880000
+         TITLE '&TITLE TASK CONTROL BLOCK'                              09890000
+         KAATCB                                                         09900000
+         TITLE '&TITLE JOB-STEP CONTROL BLOCK'                          09910000
+         KDJJSCB                                                        09920000
+         ORG  KDJJSCB                                                   09930000
+IEZJSCB  DS   0H                                                        09940000
+         ORG                                                            09950000
+         TITLE '&TITLE DATA-SET ASSOCIATION BLOCK'                      09960000
+         KDJDSAB                                                        09970000
+         TITLE '&TITLE DSAB QUEUE DESCRIPTOR BLOCK'                     09980000
+         KDJQDB                                                         09990000
+         TITLE '&TITLE JOB FILE CONTROL BLOCK'                          10000000
+JFCB     DSECT                                                          10010000
+         KDJJFCBN LIST=YES,DSECT=NO                                     10020000
+.CBDUN   ANOP                                                           10030000
+         AIF   ('&GENCB' EQ 'YES').GENCB2                               10040000
+         POP   PRINT                                                    10050000
+.GENCB2  ANOP                                                           10060000
+         TITLE '&TITLE WORK AREA'                                       10070000
+WKAREA   DSECT                                                          10080000
+         DS    18F                  SAVE AREA                           10090000
+DOUBLE   DS    D                                                        10100000
+LINKDCBE DS    XL(DCBLEN)                                               10110000
+JFCBPTR  DC    A(*+4+X'87000000')                                       10120000
+WRKJFCB  DS    XL176                                                    10130000
+OPENLIST DS    A                                                        10140000
+LINKSFE  DS    XL8                                                      10150000
+ALLCREGS DS    13A                                                      10160000
+QUALREGS DS    13F                                                      10170000
+CONCREGS DS    13F                                                      10180000
+DCONCRGS DS    13F                                                      10190000
+S99MRET  DS    A                                                        10200000
+STPRETN  DS    A                                                        10210000
+SDQRETN  DS    A                                                        10220000
+QSUBRET  DS    A                                                        10230000
+PARM     DS    1F                                                       10240000
+NBRDDN   DS    H                                                        10250000
+FLAG     DC    X'00'                                                    10260000
+QSUB     EQU   X'80'               ASK WHETHER TO SUBMIT                10270000
+TERMIN   EQU   X'40'               INPUT WAS FROM TERMINAL              10280000
+         DS    0F                                                       10290000
+TEMP     DS    XL5                                                      10300000
+HEXCONV  DS    XL19                                                     10310000
+PPLADDR  DS    F                                                        10320000
+MYECB    DS    F                                                        10330000
+         SPACE 4                                                        10340000
+         DS    0F                                                       10350000
+DFLIST   DS    A       -> FAILING SVC 99 RB                             10360000
+         DS    A       -> RETURN CODE                                   10370000
+         DS    A       -> IKJEFF02 PTR OR IS ZERO                       10380000
+         DS    A       -> DAIRFAIL FLAGS                                10390000
+DFCPPL   DS    A       -> CPPL OR IS ZERO                               10400000
+S99RC    DS    F       SVC 99 RETURN CODE                               10410000
+DFFLAGS  DC    X'0032' DAIRFAIL FLAGS                                   10420000
+DFEFF02  DS    A                                                        10430000
+DFMSG    DC    C'DAIRFAIL RETURN CODE NN'                               10440000
+S99RBPTR DS    A                                                        10450000
+S99RB    DS    0XL20                                                    10460000
+S99RBLN  DS    X                                                        10470000
+S99VERB  DS    X                                                        10480000
+S99FLAG1 DS    XL2                                                      10490000
+S99ERROR DS    XL2                                                      10500000
+S99INFO  DS    XL2                                                      10510000
+S99TXTPP DS    XL4                                                      10520000
+S99FLAG2 DS    XL4                                                      10530000
+S99RESVD DS    XL4                                                      10540000
+S99TUPL  DS    20XL4                                                    10550000
+         SPACE 4                                                        10560000
+TUAREA   DS    0D                                                       10570000
+TUDSN    DS    0XL50,XL2                                                10580000
+TUDSNNBR DS    XL2                                                      10590000
+TUDSNENT DS    XL46,CL8                                                 10600000
+TURETDSN DS    XL2                                                      10610000
+TURETDSK DS    XL2                                                      10620000
+TURETDS# DS    XL2                                                      10630000
+TURETDS  DS    CL46                                                     10640000
+TUUNIT   DS    XL14                                                     10650000
+TUDDN    DS    0XL14,2X                                                 10660000
+TUDDNNBR DS    XL2                                                      10670000
+TUDDNENT DS    CL10                                                     10680000
+TURETDDN DS    0XL14,2X                                                 10690000
+TURETDDK DS    XL2                                                      10700000
+TURETDD# DS    XL2                                                      10710000
+TURETDD  DS    CL8                                                      10720000
+TUPSD    DS    0XL14                                                    10730000
+         DS    XL2                                                      10740000
+TUPSDNBR DS    XL2                                                      10750000
+TUPSDLEN DS    XL2                                                      10760000
+TUPSDNM  DS    CL8                                                      10770000
+TUDSORG  DS    XL8                                                      10780000
+TUMBR    DS    0XL14                                                    10790000
+         DS    XL2                                                      10800000
+TUMBRNBR DS    XL2                                                      10810000
+TUMBRLEN DS    XL2                                                      10820000
+TUMBRNM  DS    CL8                                                      10830000
+TUDISP   DS    XL7                                                      10840000
+TUCATLG  DS    XL7                                                      10850000
+TUTERM   DC    X'00280000'                                              10860000
+TUDMY    DC    X'00240000'                                              10870000
+TUSOUT   DC    X'001800010001C1'                                        10880000
+TUBLKSI  DC    X'0030000100020000'                                      10890000
+TUVOL    DC    X'001000010006404040404040'                              10900000
+         DS    0F                                                       10910000
+TUAREAL  EQU   *-TUAREA                                                 10920000
+*                                                                       10930000
+* FOLLOWING CODE BY PETER FOLEY ABS APR 1983                            10940000
+*                                                                       10950000
+TUAREA2  DS    0D                                                       10960000
+TUROUND  DS    XL4                                                      10970000
+TUAVBLK  DS    XL9                                                      10980000
+TUPRIMS  DS    XL9                                                      10990000
+TUSECND  DS    XL9                                                      11000000
+         DS    0F                                                       11010000
+TUAREAL2 EQU   *-TUAREA2                                                11020000
+*                                                                       11030000
+* PREVIOUS CODE BY PETER FOLEY ABS APR 1983                             11040000
+*                                                                       11050000
+         SPACE 3                                                        11060000
+*  THIS AREA IS USED TO BUILD THE TEXT UNIT FOR CONCATENATION           11070000
+         SPACE                                                          11080000
+TUCONC   DC    X'0001'     TYPE                                         11090000
+         DC    X'0000'     NUMBER                                       11100000
+TUCONCDD DS    16CL10      SPACE FOR SIXTEEN ENTRIES                    11110000
+TUCONCL  EQU   *-TUCONC                                                 11120000
+CNDDTABP DS    A                                                        11130000
+CNDDTAB  DS    20CL8       SPACE FOR 20 CONCATENATED DDNAMES            11140000
+         SPACE 3                                                        11150000
+IOPB     DS    4F                                                       11160000
+IOPL     DS    4F                                                       11170000
+IOECB    DS    F                                                        11180000
+OLD1CHN  DS    XL4                                                      11190000
+OLD1     DS    XL4                                                      11200000
+OLD1#1   DS    XL4                                                      11210000
+OLD1#2   DS    XL4                                                      11220000
+OLD1#3   DS    XL4                                                      11230000
+OLD1#4   DS    XL4                                                      11240000
+OLD1#5   DS    XL4                                                      11250000
+MSGRC    DS    XL6                                                      11260000
+MSGDARC  DS    XL8                                                      11270000
+MSGDAFLG DS    XL8                                                      11280000
+MSGCAT   DS    XL8                                                      11290000
+PRMOPTNS DS    XL256                                                    11300000
+USERPLST DS    A                                                        11310000
+USERPRML DS    H                                                        11320000
+USERPRM  DS    CL256                                                    11330000
+MYPPL    DS    XL(LENMYPPL)                                             11340000
+PPLREPL  DS    A                  PTR TO REPLY                          11350000
+         SPACE 2                                                        11360000
+CFLAGS   DS    0XL2                                                     11370000
+CFLAG1   DS    X                                                        11380000
+CFLAG2   DS    X                                                        11390000
+         SPACE 4                                                        11400000
+APTAREA  DS    0X                  ALLOCATION PARAMETER TABLE           11410000
+APDE     DS    A                   ADDRESS OF PDE FOR FILE TO ALLOCATE  11420000
+ADSNAME  DS    CL44                DSNAME TO ALLOCATE                   11430000
+AMBRNAME DS    CL8                 MEMBER NAME TO ALLOCATE              11440000
+ADDNAME  DS    CL8                 DDNAME SUPPLIED TO USE               11450000
+AUNIT    DS    CL8                 UNIT NAME/ADDRESS TO USE             11460000
+AVOL     DS    CL6                 VOLUME CONTAINING DATASET            11470000
+*DEVT    DS    XL4                 UCB DEVICE TYPE OF DEVICE (NOT USED) 11480000
+ASUFFIXL DS    H                   SUFFIX LENGTH                        11490000
+ASUFFIX  DS    CL9                 SUFFIX IF DSN TO BE QUALIFIED        11500000
+AOUTLIM  DS    F                   OUTLIM                               11510000
+ABLKSIZ  DS    H                   BLOCK SIZE                           11520000
+ALRECL   DS    H                   RECORD LENGTH                        11530000
+APRIM    DS    H                   PRIMARY ALLOCATION                   11540000
+ASEC     DS    H                   SECONDARY ALLOCATION                 11550000
+ADIR     DS    H                   DIRECTORY BLOCKS                     11560000
+ADSORG   DS    H                   DSORG REQUIRED                       11570000
+AFLAGS   DS    0XL2                ALLOCATION FLAGS                     11580000
+AFLAG1   DC    X'00'               ALLOCATION FLAG BYTE 1               11590000
+FF       EQU   X'FF'                                                    11600000
+ASOUT    EQU   X'80'               ALLOCATE A SYSOUT DATASET            11610000
+AMOD     EQU   X'40'               ALLOCATE AS NEW IF NO DATASET        11620000
+ATEMP    EQU   X'20'               TEMPORARY DATASET                    11630000
+ANULL    EQU   X'10'               DUMMY DATASET REQUIRED               11640000
+APDS     EQU   X'08'               CONCATENATE REQUEST                  11650000
+ASHR     EQU   X'04'               A DATASET CAN BE SHARED              11660000
+ATERM    EQU   X'02'               ALLOCATE DATASET TO THE TERMINAL     11670000
+         SPACE                                                          11680000
+AFLAG2   DC    X'00'               SECOND BYTE OF ALLOCATION FLAGS      11690000
+APERMA   EQU   X'80'               MARK PERMANENTLY ALLOCATED           11700000
+APERMC   EQU   X'40'               MARK PERMANENTLY CONCATENATED        11710000
+ASOUTC   DS    C                   SYSOUT CLASS                         11720000
+APTL     EQU   *-APTAREA                                                11730000
+         ORG   APTAREA                                                  11740000
+APT      DS    XL(APTL)                                                 11750000
+CSUFFIX  DS    CL(L'ASUFFIXL+L'ASUFFIX)                                 11760000
+         SPACE 4                                                        11770000
+CATRC    DS    X                                                        11780000
+CATFLG   DS    X                                                        11790000
+         DS    0D                                                       11800000
+CATWORK  DS    XL265,0D                                                 11810000
+CATPARMS DS    4XL4                                                     11820000
+CATDSPT  DS    XL4                                                      11830000
+CATRET   DS    XL4                                                      11840000
+         DS    0D                                                       11850000
+WKALEN   EQU   *-WKAREA                                                 11860000
+         EJECT                                                          11870000
+DSPDE    DSECT                                                          11880000
+DSENT    DS    0CL28                                                    11890000
+DSNPT    DS    XL4                                                      11900000
+DSLEN    DS    Y                                                        11910000
+DSFLG    DS    2X                                                       11920000
+MBRPT    DS    XL4                                                      11930000
+MBRLEN   DS    Y                                                        11940000
+MBRFLG   DS    2X                                                       11950000
+PSDPT    DS    XL4                                                      11960000
+PSDLEN   DS    Y                                                        11970000
+PSDFLG   DS    2X                                                       11980000
+DSNEXT   DS    XL4                                                      11990000
+         DROP                                                           12000000
+         LTORG                                                          12010000
+         DROP                                                           12020000
+         END   &NAME                                                    12030000
+.END     MEND                                                           12040000
+UJTSCMD  RUNCMD                                                        .12050000

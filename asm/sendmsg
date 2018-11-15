@@ -1,0 +1,46 @@
+SENDMSG  CSECT                                                          00010001
+         LR    12,15                                                    00020001
+         USING SENDMSG,12                                               00030001
+         ZAP   COUNTER,=P'0'                                            00040001
+*        OPEN  SYSIN                                                    00050001
+*        LTR   15,15                                                    00060001
+*        BNZ   BADOPEN                                                  00070001
+*R        GET   SYSIN                                                   00080001
+         AP    COUNTER,=P'1'                                            00090001
+         L     1,0(1)        LOAD PARAMETER LIST                        00100001
+         L     1,0(1)        LOAD FIRST PARM ADDRESS                    00110001
+         LH    0,0(1)        LOAD LENGTH OF STRING IN PARM              00120001
+*        LH    0,SYSIN+DCBLRECL-IHADCB                                  00130001
+*        SH    0,=H'4'                                                  00140001
+*        LA    1,4(,1)                                                  00150001
+         TPUT  (1),(0),USERIDL==C'T41CCC  '                             00160001
+         LTR   15,15                                                    00170001
+         BZ    END                                                      00180002
+EOF      DS    0H                                                       00190001
+         CLOSE SYSIN                                                    00200001
+         B     FREE                                                     00210001
+BADOPEN  DS    0H                                                       00220001
+         CVD   15,DOUBLE                                                00230001
+         ED    OPENRC,DOUBLE+6                                          00240001
+         TPUT  OPENMSG,OPENMSGL,USERIDL==C'T41CCC  '                    00250001
+FREE     DS    0H                                                       00260001
+         CVD   15,DOUBLE                                                00270001
+         ED    RECSCT,COUNTER                                           00280001
+*        TPUT  RECSMSG,RECSMSGL,USERIDL==C'T41CCC  '                    00290001
+*        FREEFL SYSIN                                                   00300001
+*        FREEFL LIST                                                    00310001
+END      SLR   15,15                                                    00320002
+         SVC   3                                                        00330001
+         DC    0D'0',CL8'SYSINFILE'                                     00340001
+SYSIN    DCB   DDNAME=SYSIN,DSORG=PS,MACRF=GL,EODAD=EOF                 00350001
+COUNTER  DC    PL3'0'                                                   00360001
+RECSMSG  DC    0C' '                                                    00370001
+RECSCT   DC    X'4020206B202120'                                        00380001
+         DC    C' RECORDS PRINTED '                                     00390001
+RECSMSGL EQU   *-RECSMSG                                                00400001
+OPENMSG  DC    C'OPEN RETURN CODE '                                     00410001
+OPENRC   DC    X'40202120'                                              00420001
+OPENMSGL EQU   *-OPENMSG                                                00430001
+DOUBLE   DS    D                                                        00440001
+         DCBD  DSORG=PS,DEVD=DA                                         00450001
+         END                                                            00460002

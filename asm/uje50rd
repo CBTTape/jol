@@ -1,0 +1,192 @@
+UJE50RD  TITLE 'READ A STATEMENT FROM JOL INSTRUCT FILE'         '      00010001
+* JOL COPYRIGHT CCS-JOL PTY LTD 1988                                    00020001
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-E001.           00030001
+         SPACE 3                                                        00040001
+*                   J             000000            L                   00050001
+*                   J            0      0           L                   00060001
+*                   J           0        0          L                   00070001
+*                   J          0          0         L                   00080001
+*                   J         0            0        L                   00090001
+*                   J         0            0        L                   00100001
+*                   J         0            0        L                   00110001
+*                   J         0            0        L                   00120001
+*                   J         0            0        L                   00130001
+*                   J         0            0        L                   00140001
+*                   J         0            0        L                   00150001
+*        J          J         0            0        L                   00160001
+*         J        J           0          0         L                   00170001
+*          J      J             0        0          L                   00180001
+*           J    J               0      0           L                   00190001
+*            JJJJ                 000000            LLLLLLLLLLL         00200001
+           SPACE 3                                                      00210001
+* LAST SOURCE UPDATE                                                    00220001
+*   CHANGES:-                                                           00230001
+*     1.                                                                00240001
+         COPY  JOLGLOBL                                                 00250001
+         $UJEPARM                                                       00260001
+&TYPE    SETC  'SCHED'                                           88036  00270001
+         PRINT ON,DATA                                                  00280001
+UJECOMM  DSECT                                                          00290001
+         USING UJECOMM,R3,R5                                            00300001
+         COPY  UJECOMM                                                  00310001
+         EJECT                                                    J40B  00320001
+E50WORK  DSECT                                                    J40B  00330002
+         DS    18F                                                J40B  00340002
+E50WORD  DS    F                                                  J40B  00350002
+E50WORKS EQU   *-E50WORK                                          J40B  00360002
+         JOLSAVE CSECT=UJE50RD,SIZE=E50WORKS                      J40B  00370002
+         USING E50WORK,R13                                        J40B  00371004
+         USING INST,R4                                           88036  00380001
+         USING RETNAREA,R6                                       88036  00390001
+         L     R4,AWINST                                         88036  00400001
+         L     R6,ARETN                                          88036  00410001
+* THIS CSECT IS CALLED WHEN A NEW INSTRUCTION HAS TO BE                 00420001
+*    READ FROM THE INSTRUCT FILE.                                       00430001
+         MVC   #VOL,=H'0'     STOP SPURIOUS 0C4                  75311  00440001
+         CLC   TTR$INST,=A(0)  FIRST TIME IN,I.E. WE HAVEN'T            00450001
+*                              EVEN REALLY STARTED YET ?                00460001
+         BNE   E50NOTF                                                  00470001
+         MVC   RUNNAME,=CL8'$$INST'                                     00480001
+         L     R1,AFINSTR      LOAD ADDRESS OF INSTRUCTION FILE  88036  00490001
+         $BLDL (1),RUNBLDL                                              00500001
+         B     E5002R(R15)                                              00510001
+E5002R   B     E50GOTIT                                                 00520001
+         B     E5002R4                                                  00530001
+         B     E5002R8                                                  00540001
+E5002R4  JOLERR 501,'MEMBER $$INST ABSENT'                              00550001
+E5002R8  JOLERR 502,'INTERNAL ERROR READING DIRECTORY'                  00560007
+         DS    0D                                                       00570001
+E50GOTIT DS    0H                                                       00580001
+         MVC   TTR$INST,RUNTTRK                                         00590001
+         MVI   TTR$INST+3,0     SET Z=0 FIRST                           00600001
+         L     R1,AFINSTR      LOAD ADDRESS OF INSTRUCTION FILE  88036  00610001
+         $POINT (1),TTR$INST                                            00620001
+         B     E50RD                                                    00630001
+E50NOTF  DS    0H                                                       00640001
+*        L     R1,AFINSTR      LOAD ADDRESS OF INSTRUCTION FILE  88036  00650001
+*        $POINT (1),TTR$INST                                            00660001
+E50RD    DS    0H                                                       00670001
+         L     R15,AFINSTR                                       88036  00680001
+         MVC   33(3,R15),=AL3(EOF)                                      00690001
+         L     R15,ATKNSTRG                                             00700001
+         USING #TKNSTRG,R15                                             00710001
+         L     R7,ATKN                                                  00720001
+         USING #TKN,R7                                                  00730001
+         CLEAR TKNSTRG                                                  00740001
+         DROP  R15                                                      00750001
+         LA    R2,INSTRDA                                               00760001
+*        USING INSTRDA,R2                                               00770001
+         L     R1,AFINSTR                                        88036  00780001
+         $READ (1),(R2)                                                 00790001
+* IF EOF WOULD HAVE GONE ELSE-WHERE                                     00800001
+*******************************************************************DASD 00810001
+*   THIS CALL TO MODULE $$JOLBUG WILL PRINT THE INSTRUCTION        DASD 00820001
+*   JUST READ TO DDNAME '$JOL$BUG$' IF IT'S PRESENT                DASD 00830001
+*   -----MAYBE A GOOD TRACE FACILITY----                           DASD 00840001
+*   YOU MIGHT DO A JOLOPT CARD1='//JOLBUG DD SYSOUT=A'             DASD 00850001
+*   IN THE COMPILE TO GET THIS DD IN EVERY STEP                    DASD 00860001
+****************************************************02-23-78*******DASD 00870001
+         CALL  $$JOLBUG,((2)),  CALL PRINT MODULE                 DASD .00880002
+               MF=(E,E50WORD)                                     J40B  00890002
+         SPACE 3                                                        00900001
+         MVC   INST(IBODY),INSTRDA                                      00910001
+         MVC   DDDSNDET(256),INSTRDA                                    00920001
+         MVC   STMT,ISTMT                                               00930001
+         MVC   GOTOLAB,=CL8'$$'                                         00940001
+         CLI   DDDD1,C'E'      EXEC PGM ?                               00950001
+         BNE   E50TDD                                                   00960001
+         MVC   ICOMMAND,=CL8'RUN'                                       00970001
+         MVC   STMT,PGMESTMT                                            00980001
+         MVC   GOTOLAB,PGMSTEP SHIFT STEPNAME FOR 'REAL' STEPNAME 75311 00990001
+         JOLRETN                                                        01000001
+E50TDD   DS    0H                                                       01010001
+         CLI   DDDD1,C'J'      JOBLIB TYPE ENTRY?                       01020006
+         BE    E50NTEMP                                                 01030006
+         CLI   DDDD1,C'D'      DD-CARD TYPE ENTRY?                      01031006
+         BNE   ISALABEL                                                 01032006
+*      IF TEMPORARY DSN, USE OUR TEMPORARY DSNAME AS THERE ARE          01040001
+*      SOME PROBLEMS WITH SVC 99 DELETING TEMPORARIES BEFORE            01050001
+*      IT SHOULD                                                        01060001
+         CLI   DDDSNAME,C'&&'   TEMPORARY DSNAME?                       01070001
+         BNE   E50NTEMP         NO.                                     01080006
+         SLR   R15,R15                                            J40B  01090001
+         LH    R15,#TEMPDSN     GET LENGTH OF OUR TEMP DSN              01100001
+         ICM   R15,3,#TEMPDSN     GET LENGTH OF OUR TEMP DSN            01110001
+         BZ    E50NTEMP          ON THE OTHER HAND...             J40B  01120006
+         LA    R15,TEMPDSN(R15) POINT TO SPOT TO MOVE &&DSN             01130001
+         MVI   0(R15),C'.'                                              01140001
+         CLI   DDDSNAME+1,C'&&' DOUBLE & CODED ?                        01150001
+         BNE   E20ONEA                                                  01160001
+         MVC   1(8,R15),DDDSNAME+2 DROP 2ND                             01170001
+         B     E20TEMPF        TEMPORARY IS FIXED                       01180001
+E20ONEA  MVC   1(8,R15),DDDSNAME+1 SET UP REAL DSNAME                   01190001
+E20TEMPF MVC   DDDSNAME,TEMPDSN                                         01200001
+E50NTEMP DS    0H                                                       01210006
+* NOW FOR DD-CARD TYPE ENTRIES,WE DON'T SPLIT INTO TOKENS.              01220001
+* SET UP SHORT DSNAME FOR ERROR MESSAGES                                01230001
+         MVC   DSNAME,DDDSNAME                                          01240006
+         LA    R15,L'DDDSNAME-1                                         01250006
+E50TEDSN DS    0H                                                       01260001
+         LA    R14,DDDSNAME(R15)                                        01270006
+         CLI   0(R14),C' '                                              01280006
+         BNE   E50DSNOK                                                 01290006
+         BCT   R15,E50TEDSN                                             01300006
+E50DSNOK DS    0H                                                       01310001
+         LA    R15,1(R15)                                               01320001
+         STH   R15,#DSN                                                 01330001
+         MVC   STMT,DDSTMT     SAVE IN CASE OF ERRORS                   01340001
+         CLI   DDDDNAME,C'%'   CATLG, DELETE ETC INSTRUCTION?           01350001
+         BNE   E50LEAVS        LEAVE STATEMENT NUMBER                   01360001
+         MVC   STMT,DDDDNAME+2 CATLG STAT NUMBERS ARE DIFFERENT !       01370001
+E50LEAVS MVC   GOTOLAB(2),=C'$$'                                        01380001
+         MVC   GOTOLAB+2(6),DDDDNAME+2                                  01390001
+         MVC   #TKN,=H'8'                                               01400001
+         MVC   TKN(8),BLANKS                                            01410001
+         MVC   TKN(1),DDDDNAME+1                                        01420001
+         MVC   ICOMMAND,TKN                                             01430001
+         CLI   DDDDNAME,C'%'                                            01440001
+         BE    E50RETN0                                                 01450001
+         MVI   TKN,C'F'     INDICATE FREE COMMAND                       01460001
+         MVI   ICOMMAND,C'F'                                            01470001
+         CLI   DDDD1,C'J'                                         J40B  01471005
+         BNE   E50RETN0                                           J40B  01472005
+         MVI   TKN,C'J'     INDICATE FREE COMMAND                       01473005
+         MVI   ICOMMAND,C'J'                                            01474005
+E50RETN0 DS    0H                                                       01480001
+         JOLRETN                                                        01490001
+ISALABEL DS    0H                                                       01500001
+         CLC   INST,=AL2(IBODY+1)                                       01510001
+         BH    E50SPLIT                                                 01520001
+         L     R15,ATKNSTRG                                             01530001
+         USING #TKNSTRG,R15                                             01540001
+         XC    #TKNSTRG,#TKNSTRG                                        01550001
+         DROP  R15                                                      01560001
+E50SPLIT DS    0H                                                       01570001
+* THE DOUBLE QUOTE ROUTINE IN THE COMPILER NOW REMOVES            76200 01580001
+* ALL QUOTES FROM THE STRING, AND THEREFORE IF                    76200 01590001
+* SOMEONE HAS QUOTES IN A STRING FOR A PARM, THERE                76200 01600001
+* WILL NOW ONLY BE ONE. THIS CAUSES ALL SORTS OF                  76200 01610001
+* PROBLEMS WHEN THE TOKEN SPLITTER GETS IT.                       76200 01620001
+         CLC   ICOMMAND,=CL8'PARM' PARM?                          76200 01630001
+         BNE   E50SPL2                                            76200 01640001
+         JOLRETN RC=0                                             76200 01650001
+E50SPL2  DS    0H                                                 76200 01660001
+         CALL  UJCTKN,MF=(E,ATKNX)                               88036  01670001
+         B     *+4(R15)                                            DASD 01680001
+         B     GOTINSTR  SUPER INSTRUCTION IS CLEAN                DASD 01690001
+         B     E50BINST  STMT > 1000 BYTES   CANN"T HANDLE THIS    DASD 01700001
+         B     GOTINSTR  TOO MANY TOKENS > 150                     DASD 01710001
+         B     GOTINSTR  TOKEN > 120 BYTES                         DASD 01720001
+         B     GOTINSTR  NO ENDING QUOTE                           DASD 01730001
+E50BINST JOLERR 503,'ERROR IN INSTRUCTION: INTERNAL FORM EXCEEDS 1000 BY01740006
+               YTES'                                              J40B  01741006
+GOTINSTR DS    0H                                                       01750001
+         GETTKN 1                                                       01760001
+         JOLRETN                                                        01770001
+EOF      DS    0H                                                       01780001
+         JOLERR 000,'END OF INSTRUCTIONS'                        88036  01790001
+         JOLRETN RC=4                                                   01800001
+         DROP  R4,R6                                             88036  01810001
+         DC    40S(*)                                                   01820001
+         LTORG                                                          01830001
+         END                                                            01840001

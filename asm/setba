@@ -1,0 +1,36 @@
+         MACRO                                                    J50   00010000
+&L       SETBA &LINE,&COL,&STO=                                   J50   00020000
+&L       MVI   MSGBA,SBA      SET BUFFER ADDR                     J50   00030000
+         AIF   ('&LINE'(1,1) EQ  '(').LLR                         J50   00040000
+         AIF   (T'&LINE EQ 'H').LLH                                     00050000
+         L     R1,&LINE       LOAD LINE NUMBER                    J50   00060000
+         AGO   .COL                                               J50   00070000
+.LLH     LH    R1,&LINE       LOAD LINE NUMBER                    J50   00080000
+         AGO   .COL                                               J50   00090000
+.LLR     AIF   ('&LINE' EQ '(1)' OR '&LINE' EQ '(R1)').COL        J50   00100000
+         LR    R1,&LINE(1)   LOAD LINE NUMBER                     J50   00110000
+.COL     ANOP                                                     J50   00120000
+         AIF   ('&COL'(1,1) EQ  '(').LCR                          J50   00130000
+         AIF   (T'&COL EQ 'H').LCH                                      00140000
+         L     R14,&COL       LOAD COLUMN NUMBERS                 J50   00150000
+         AGO   .ECOL                                              J50   00160000
+.LCH     LH    R14,&COL       LOAD COLUMN NUMBER                  J50   00170000
+         AGO   .ECOL                                              J50   00180000
+.LCR     AIF   ('&COL' EQ '(14)' OR '&COL' EQ '(R14)').ECOL       J50   00190000
+         LR    R14,&COL(1)    LOAD COLUMN NUMBER                  J50   00200000
+.ECOL    ANOP                                                     J50   00210000
+         BCTR  R14,0          BUFFER POSITION STARTS AT ZERO            00220000
+         BCTR  R1,0           SUBTRACT 1                                00230000
+         M     R0,#COLUMNS    MULTIPLY BY NUMBER IF COLUMNS             00240000
+         AR    R1,R14         R1 NOW HAS BUFFER ADDRESS                 00250000
+         AIF   (T'&STO EQ 'O').NSTO                                     00260000
+         LA    R15,1(,R1)                                         J50   00270000
+         STH   R15,&STO                                           J50   00280000
+         LA    R7,2(,R7)                                          J50   00290000
+.NSTO    ANOP                                                     J50   00300000
+         D     R0,=F'64'      R1 NOW HAS 1ST ADDR R14 NOW HAS 2ND ADDR  00310000
+         STC   R1,MSGADDR1    STORE HIGH BYTE                 (JCS)     00320000
+         STC   R0,MSGADDR2      AND LOW BYTE                  (JCS)     00330000
+         TR    MSGADDR1(2),SDATA TRANSLATE PROPERLY           (JCS)     00340000
+         LA    R11,3(,R11)                                        J50   00350000
+         MEND                                                     J50   00360000

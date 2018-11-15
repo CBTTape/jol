@@ -1,0 +1,799 @@
+C01JOB     TITLE '          DECODE JOB STATEMENT'                       00001000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973,1974            00002000
+* COPYRIGHT 1975,1976                                                   00003000
+* COPYRIGHT 1980.                                                       00003005
+* COPYRIGHT 1982.                                                       00003005
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00004000
+           SPACE 3                                                      00008000
+*                   J             000000            L                   00009000
+*                   J            0      0           L                   00010000
+*                   J           0        0          L                   00011000
+*                   J          0          0         L                   00012000
+*                   J         0            0        L                   00013000
+*                   J         0            0        L                   00014000
+*                   J         0            0        L                   00015000
+*                   J         0            0        L                   00016000
+*                   J         0            0        L                   00017000
+*                   J         0            0        L                   00018000
+*                   J         0            0        L                   00019000
+*        J          J         0            0        L                   00020000
+*         J        J           0          0         L                   00021000
+*          J      J             0        0          L                   00022000
+*           J    J               0      0           L                   00023000
+*            JJJJ                 000000            LLLLLLLLLLL         00024000
+           SPACE 3                                                      00025000
+*JOL30051,54   SUBACCT1 KEYWORD STOPS USE OF SUBACCT2 ETC               00005000
+*JOL30052:-    PROGRAMMER NAME LIMITED TO 20 CHARS(EVEN WITH '').       00006000
+*JOL30077:-    IF NO QUALIFIER AFTER TIME=N, NEXT TOKEN LOST            00007000
+*                                                                       00007000
+*JOL40001:-    REMOVE GETMAIN SO AS TO MAKE OS INDEPENDENT      84100   00007000
+*                                                                       00007000
+         COPY JOLCOM                                                    00026000
+C01DSAVE DSECT                                                    75128 00027000
+         DS    18F            SAVE AREA                           75128 00028000
+C01#ACCT  DS   F     LOCATION OF WORK AREA                              00029000
+C01DBRAC DS    CL1            SET TO '(' IF USER CODES ACCT (A,B) 75128 00030000
+C01ACCTB  DSECT                                                    DASD 00032000
+C01ACCTS  DS  0CL1216   ACCT WORK AREA                             DASD 00033000
+#C01ACCT  DS  H                                                    DASD 00034000
+C01ACCT   DS   CL150                                               DASD 00035000
+#C01SUB2  DS  H                                                    DASD 00036000
+C01SUB2   DS   CL150                                               DASD 00037000
+#C01SUB3  DS  H                                                    DASD 00038000
+C01SUB3   DS   CL150                                               DASD 00039000
+#C01SUB4  DS  H                                                    DASD 00040000
+C01SUB4   DS   CL150                                               DASD 00041000
+#C01SUB5  DS  H                                                    DASD 00042000
+C01SUB5   DS   CL150                                               DASD 00043000
+#C01SUB6  DS  H                                                    DASD 00044000
+C01SUB6   DS   CL150                                               DASD 00045000
+#C01SUB7  DS  H                                                    DASD 00046000
+C01SUB7   DS   CL150                                               DASD 00047000
+#C01SUB8  DS  H                                                    DASD 00048000
+C01SUB8   DS   CL150                                               DASD 00049000
+#C01SUB9  DS  H                                                         00049100
+C01SUB9   DS   CL150                                                    00049200
+C01ACCTE EQU   *                                                   DASD 00050000
+C01DSVEN EQU   *                                                        00031000
+         PRINT DATA                                               75128 00051000
+         JOLSAVE CSECT=UJC01JOB,SIZE=C01DSVEN-C01DSAVE            75128 00052000
+* THIS MODULE RECIEVES CONTROL WHEN A JOB CARD HAS BEEN FOUND IN THE    00053000
+* IT MUST DECODE THE'J0L' JOB CARD INTO MORE MANAGEABLE TABLES FOR LATE 00054000
+*    -R PHASES TO VET ETC                                               00055000
+           SPACE 3                                                      00056000
+* ON ENTRY:-                                                      74256 00057000
+* R2 -> JOLCOM                                                    74256 00058000
+* R3 -> TKNX                                                      74256 00059000
+*                                                                 74256 00060000
+           USING TKNX,R3                                                00061000
+           USING JOLCOM,R2                                              00062000
+         USING C01DSAVE,R13                                             00063000
+         L     R4,AJOBDETS                                        75128 00064000
+         USING JOBDETS,R4                                         75128 00065000
+*       GETMAIN R,LV=C01ACCTE-C01ACCTS                             DASD 00066000
+        LA      R1,C01ACCTB                                       84001 00068000
+        ST      R1,C01#ACCT       SAVE AREA POINTER                DASD 00067000
+        USING   C01ACCTB,R1                                        DASD 00068000
+         CLEAR  C01ACCTS  CLEAR JOB ACCOUNT WORK AREA              DASD 00069000
+         CLEAR  #C01ACCT,#C01SUB2,#C01SUB3,#C01SUB4,#C01SUB5,          *00070000
+               #C01SUB6,#C01SUB7,#C01SUB8                          DASD 00071000
+        DROP    R1                                                 DASD 00072000
+         CLI   JOBNAME,C' '   JOB CARD CODED ?                          00073000
+         BE    C01NOVRD       NOPE, NOT YET                             00074000
+         MVI   OVERRIDE,C'1'  TURN ON OVER-RIDE INDICATOR               00075000
+*                             FOR THE GENERAL PURPOSE STORE RTN         00076000
+         JOLERR 101,'JOB DETAILS MERGED'                          75311 00077000
+C01NOVRD   EQU  *                                                       00078000
+           SPACE 2                                                      00079000
+* NOW STORE THE JOBNAME                                                 00080000
+         IFNULL LABEL,C01START                                    75128 00081000
+           JOLSTOR 'JOBNAME',JOBNAME,LABEL                              00082000
+C01START   MVC TKNCURR,=H'2'                   START PROCESSING AT 2    00083000
+A          CLC TKNCURR,TKNNO                   HAVE WE FINISHED ?       00084000
+           BNH FINDKEY                         NO,SO FIND A KEY WORD    00085000
+*                                              OR SOME SUCH.            00086000
+C01RETN0   EQU  *                                                       00087000
+RETN0     EQU   *                                                  DASD 00088000
+***************************************************************    DASD 00089000
+* COPY JOB ACCOUNT FIELDS FROM THE WORK AREA TO JOLS FIXED    *    DASD 00090000
+* AREAS IN COMMON                                             *    DASD 00091000
+***************************************************03-15-78****    DASD 00092000
+         CLI    JOBSUB2,X'00'  DO WE HAVE A QUOTED ACCT='??'       DASD 00093000
+         BE     RETNOW                                             DASD 00094000
+         L      R15,C01#ACCT   POINT TO WORK AREA                  DASD 00095000
+         USING  C01ACCTB,R15                                       DASD 00096000
+         LA     R14,JOBACCT    POINT TO JOLS FIXED AREA            DASD 00097000
+         LA     R7,220         LENGTH OF JOL AREA                  DASD 00098000
+         LA     R8,8           # OF ACCOUNT FIELDS TO MOVE         DASD 00099000
+C01ALOOP EQU    *                                                  DASD 00100000
+         LH     R9,#C01ACCT    GET LENGTH OF FIELD                 DASD 00101000
+         AR     R9,R15         POINT TO END OF FIELD               DASD 00102000
+         MVI    2(R9),C','     END OF THISS FIELD                  DASD 00103000
+         LH     R1,0(R15)                                         80290 00104000
+         EX     R1,C01MVC      MOVE FIELD                         80290 00104005
+         LH     R9,#C01ACCT                                        DASD 00106000
+         LA     R9,1(R9)                                           DASD 00107000
+         SR     R7,R9                                              DASD 00108000
+         BM     RETNOW          RETURN IF WE HAVE EXCEEDED JOLS AEADASD 00109000
+         AR     R14,R9          POINT TO NEXT AREA                 DASD 00110000
+         LA     R15,L'#C01ACCT+L'C01ACCT(R15)  ADJUST TO NEXT AREA DASD 00111000
+         BCT    R8,C01ALOOP     RETURN TO NEXT ACCT FIELD          DASD 00112000
+          DROP   R15                                               DASD 00113000
+*RETNOW    FREEMAIN R,LV=C01ACCTE-C01ACCTS,A=C01#ACCT             DASD  00114000
+RETNOW    DS    0H                                                84100 00114000
+          JOLRETN    RC=0                                          DASD 00115000
+           TITLE 'EXAMINE TOKEN AND BRANCH TO PROCESSING ROUTINE'       00116000
+FINDKEY    GETTKN LOCN=TKNCURR                                          00117000
+           CLC TKNCURR,TKNNO                                            00118000
+           BH  RETN0                           ENDED                    00119000
+           STH R1,TKNCURR                                               00120000
+           CLI TKN,C','                                                 00121000
+           BE  FINDKEY                                                  00122000
+         CLI   TKN,C')'       CLOSING BRACKET TO BE IGNORED ?     75128 00123000
+         BE    FINDKEY        YES                                 75128 00124000
+           SPACE 3                                                      00125000
+* FIRST FIND ITEMS WHICH MAY NOT HAVE KEYWORDS                          00126000
+         CLEAR C01DBRAC ,      CLEAR OPEN BRACKET INDIC           75128 00127000
+         MVC   #WORK(30),#TKN SAVE TOKEN                          75128 00128000
+           LR  R6,R1                           KEEP POINTER TO TOKEN    00129000
+           BCTR R6,0                           -1 COS GETTKN ADDED 1    00130000
+           GETTKN LOCN=TKNCURR                                          00131000
+           CLI TKN,C'.'                        PROGRAMMER NAME ?        00132000
+           BNE TRYTIME                          NO,TRY SOMETHING ELSE   00133000
+           GETTKN REG=R6                                                00134000
+           B   JBPROGRA                                                 00135000
+           SPACE 3                                                      00136000
+TRYTIME    GETTKN REG=R6                       GO BACK 1 TOKEN          00137000
+           CLI TKNTYPE,0                       IS IT A NUMBER ?         00138000
+           BNE TRYKEYWD                         NO,NOW SCAN THE KEYWORD 00139000
+*                                              TABLE                    00140000
+           SPACE 3                                                      00141000
+* NOW IN TKN WE HAVE A NUMBER                                           00142000
+           MVC #WORK(50),#TKN                                           00143000
+           GETTKN REG=R1                       GET THE NEXT TOKEN AFTER 00144000
+*                                              THE NUMBER.              00145000
+         CLC   =C'K',TKN      SIZE NNN K ?                        75128 00146000
+           BE  ISSIZE                                                   00147000
+           CLC TKN(6),=C'BYTES '                                        00148000
+           BE  ISSIZE                                                   00149000
+* NOW ALL WE HAVE LEFT TO CHECK IS 'TIME' SO 1ST SEE IF THIS IS A       00150000
+*    COMMA AND IF SO GET THE NEXT TKN,CHECK IT TO BE A NUMBER AND IF    00151000
+*    SO THE CHECK THE NEXT TKN TO BE'MINUTES' ETC.                      00152000
+           CLI TKN,C','                                                 00153000
+           BNE TRYTIME2                                                 00154000
+           GETTKN REG=R1                                                00155000
+           CLI TKNTYPE,0                       NUMBER ?                 00156000
+           BNE C01WHAT                                                  00157000
+           GETTKN REG=R1                       GET WHAT IS HOPEFULLY    00158000
+*                                              NOW THE QUALIFIIFIER     00159000
+           SPACE                                                        00160000
+TRYTIME2   EQU *                                                        00161000
+         L     R15,=V(UJCTM)  GET TIME KEYWORDS, EG MINS          75128 00162000
+         LM    R7,R9,0(R15)                                       75128 00163000
+C01TRYT3 CLC   TKN(8),0(R7)   IS IT M,MINS,ETC?                   74256 00164000
+         BE    ISTIME         YES,OUT WE GO                       74256 00165000
+         BXLE  R7,R8,C01TRYT3 LOOP LOOKING FOR MORE               74256 00166000
+         GETTKN (R6)          GET ORIGINAL TOKEN AGAIN            75128 00167000
+           TITLE 'CALL USER EXIT TO DEAL WITH UNKNOWN TOKEN'            00168000
+C01WHAT  L     R15,ACOMPEXI   LOAD USERS EXIT ROUTINES ADDRESS    75128 00169000
+         L     R15,0(R15)                                         75128 00170000
+         $CALL  (15),(JOBDETS,TKNX)                               75128 00171000
+           LTR R15,R15                         DID USER DEAL WITH IT ?  00172000
+         BNZ   C01ERR2        ERROR, USER DIDN'T FIX IT           75128 00173000
+* WELL USER DID SOMETHING WITH IT, LETS SEE WHAT                  75128 00174000
+         CLI   TKN,C' '       DID HE STORE INFO HIMSELF ?         75128 00175000
+         BE    A              YES, BACK TO MAIN LINE              75128 00176000
+         LTR   R15,R15        DID HE DO ANYTHING?                 75128 00177000
+         BNZ   C01ERR2        NOPE                                75128 00178000
+         L     R1,=V(UJCJBKEY)                                    75128 00179000
+         LM    R7,R9,0(R1)                                        75128 00180000
+         CLC   TKN(8),0(R7)                                       75128 00181000
+         BE    GOTKEYWD                                           75128 00182000
+         BXLE  R7,R8,*-10                                         75128 00183000
+           GETTKN REG=R6                                                00184000
+         STH   R1,TKNCURR     STORE POINTER NEXT TKN              75128 00185000
+         MVC   #WORK(L'TKN+2),#TKN  SAVE TOKEN                    75128 00186000
+         GETTKN (R1)          GET NEXT, AND IF '=',CONCAT IT AND  75128 00187000
+*                             NEXT                                75128 00188000
+         CLI   TKN,C'='       '='                                 75128 00189000
+         BNE   C01ERR2                                            75128 00190000
+         BAL   R14,CONCAT     CONCAT '='                          75128 00191000
+         GETTKN (R1)          GET NEXT ITEM                       75128 00192000
+         STH   R1,TKNCURR     RESET POINTER                       75128 00193000
+         BAL   R14,CONCAT     CONCAT '='                          75128 00194000
+C01ERR2  JOLERR 302,'''',#WORK,''' IGNORED:- UNRECOGNISABLE'      75128 00195000
+           B   A                                                        00196000
+ISTIME     GETTKN REG=R6                                                00197000
+           B   JBTIME                                                   00198000
+           SPACE                                                        00199000
+ISSIZE     GETTKN (R6)                                                  00200000
+           B  JBSIZE                                                    00201000
+           TITLE 'EXAMINE KEY-WORK AND PARAMETER TABLES'                00202000
+TRYKEYWD   EQU *                                                        00203000
+         GETTKN (R6)          GET KEYWORD                         75128 00204000
+* IN ACTUAL FACT WE SHALL LOOK FOR 'HOLD' ETC FIRST                     00205000
+           L   R1,=V(UJCJBPRM)                 ADDR OF TABLE            00206000
+         LM    R14,R15,4(R1)  LOAD INCR AND STOP ADDRESSES        75128 00207000
+         L     R1,0(R1)       LOAD START ADDR OF TABLE            75128 00208000
+PARMLOOP   CLC TKN(8),0(R1)                                             00209000
+           BE  GOTPARM                                                  00210000
+           BXLE R1,R14,PARMLOOP                                         00211000
+           SPACE 3                                                      00212000
+* NOW LOOK FOR KEYWORDS                                                 00213000
+           L   R1,=V(UJCJBKEY)                 ADDR TABLE               00214000
+         LM    R7,R9,0(R1)    LOAD TABLE BXLE CONS                75128 00215000
+         CLC   TKN(8),0(R7)   KEY IN TABLE = ?                    75128 00216000
+           BE  GOTKEYWD                                                 00217000
+         BXLE  R7,R8,*-10                                         75128 00218000
+         B     C01WHAT                                            75128 00219000
+           SPACE 3                                                      00220000
+GOTPARM    EQU *                                                        00221000
+         MVC   DBL,C01LAR15   SHIFT LA R15,0 INSTRUCTION          75128 00222000
+         MVC   DBL+2(2),8(R1) SHIFT S CONS                        75128 00223000
+         EX    R0,DBL         LA R15,PROCESSING ROUTINE           75128 00224000
+           LTR R15,R15                                                  00225000
+           BZ  C01NIMPL        NOT YET IMPLEMENTED,MATE                 00226000
+           BALR R14,R15                        GO TO PROCESSING ROUTINE 00227000
+* BY RIGHTS WE SHOULD NEVER COME BACK HERE BUT IN CASE THE USER HAS     00228000
+*          PUT HIS OWN KEYWORD HANDLING ROUTINE IN I'LL STICK A BRANCH  00229000
+*          IN                                                           00230000
+           B   A                                                        00231000
+C01NIMPL JOLERR 304,'''',#TKN,''' NOT YET IMPLEMENTED'            75128 00232000
+           B A                                                          00233000
+           SPACE 3                                                      00234000
+C01ISBRA MVI   C01DBRAC,C'('  SHIFT IN BRACKET INDICATOR          75128 00235000
+         STH  R1,TKNCURR                                          75128 00236000
+GOTKEYWD   EQU *                                                        00237000
+         LR    R10,R7                             SAVE TABLE POSN 75128 00238000
+*                                              WE FOUND THE KEY-WORD    00239000
+           GETTKN LOCN=TKNCURR                                          00240000
+         CLI   TKN,C'('       USER CODED ( ) AROUND ITEM ?        75128 00241000
+         BE    C01ISBRA       YES, SAVE '(' IND FOR LATER USE     75128 00242000
+           CLI TKN,C'='                                                 00243000
+           BNE GOTTOKEY                                                 00244000
+           GETTKN REG=R1                                                00245000
+         CLI   TKN,C'('                                           75128 00246000
+         BE    C01ISBRA                                           75128 00247000
+GOTTOKEY   STH R1,TKNCURR                                               00248000
+         MVC   DBL(2),C01LAR15 SHIFT AN LA R15,0 INSTRUCTION      75128 00249000
+         MVC   DBL+2(2),8(R10) AND THE S(ADDR RTN)                75128 00250000
+         EX    R0,DBL         LOAD RTN ADDRESS                    75128 00251000
+           LTR R15,R15                                                  00252000
+         BZ    C01NIMPL                                           75128 00253000
+         MVC   #WORK(L'TKN+2),#TKN SAVE TOKEN AFTER'=('           75311 00254000
+           BALR R14,R15                                                 00255000
+           B   A               EMERGENCY BRANCH ONLY.                   00256000
+           TITLE 'PROCESS PROGRAMMER NAME'                              00257000
+JBNAME     EQU  *                                                       00258000
+JBSUBMIT   EQU  *                                                       00259000
+           ENTRY JBSUBMIT,JBNAME                                        00260000
+JBPROGRA   EQU *                                                        00261000
+           ENTRY JBPROGRA                                               00262000
+           MVC #WORK(50),#TKN                                           00263000
+TMORENME   GETTKN LOCN=TKNCURR                                          00264000
+           CLI TKN,C'.'                        MORE OF THE NAME ?       00265000
+           BE  MORENAME                                                 00266000
+STORNAME MVC   #TKN(L'TKN+2),#WORK COPY TO TKN           JOL30052 76200 00267000
+         SR    R10,R10                                   JOL30052 76200 00268000
+         IC    R10,TKN        LOAD QUOTE (IF ANY)        JOL30052 76200 00269000
+         BAL   R14,DROPQUOT   DROP QUOTES (IF ANY)       JOL30052 76200 00270000
+         JOLSTOR 'PROGRAMMER NAME',JOBPRGMR,#TKN         JOL30052 76200 00271000
+         LTR   R15,R15        DID WE STORE IT ?          JOL30052 76200 00272000
+         BNZ   A              NOPE                       JOL30052 76200 00273000
+         CH    R10,=XL2'007D' WAS IT A QUOTE ?           JOL30052 76200 00274000
+         BE    *+8            YES ->                     JOL30052 76200 00275000
+         LA    R10,C' '       NO, KEEP R10 AS A BLANK    JOL30052 76200 00276000
+         STC   R10,JOBPRGMQ   STORE INDICATOR IN QUOTE INDIC  052 76200 00277000
+           B   A                                                        00278000
+MORENAME BAL   R14,CONCAT     CONCAT THE '.' IN TO #WORK          75128 00279000
+         GETTKN (R1)          GET ITEM AFTER '.'                  75128 00280000
+         STH   R1,TKNCURR                                         75128 00281000
+         BAL   R14,CONCAT                                         75128 00282000
+         B     TMORENME                                           75128 00283000
+           TITLE 'PROCESS ACCOUNTING FIELDS'                            00284000
+JBACCT     EQU *                                                        00285000
+         CLI   TKN,C''''      DID USER SAY ACCT=' '               75311 00286000
+         BE    C01STRAC       YES,JUST STORE IT                   75311 00287000
+         CLI   C01DBRAC,C'('  DID USER SAY ACCT (A,B) ?           75128 00288000
+         BNE   C01STRAC       NOPE,JUST STORE WHATS THERE         75128 00289000
+         SPACE 1                                                  75311 00290000
+* HERE WE HAVE ACCT=(1,2,,5) ETC                                  75311 00291000
+* THIS IS A BIT OF A BORE TO HANDLE UNFORTUNATELY.                75311 00292000
+*        GETTKN TKNCURR       GET THE FIRST ACCT FIELD            75311 00293000
+         BAL   R10,C01TACT   TEST TYPE (GOES TO A IF')' CODED,   75311  00294000
+*                                       R15=0 = VALID ACCT        75311 00295000
+*                                       7=0 IF DUMMY ACCT         75311 00296000
+*                                       AND TKNCURR SET TO GET    75311 00297000
+*                                       NEXT ACCT                 75311 00298000
+         LTR   R15,R15                                            75311 00299000
+         BNZ   C01GET2                                            75311 00300000
+         BAL  R10,C01STRA1    STORE ACCT FIELD 1                  75311 00301000
+         SPACE 1                                                  75311 00302000
+C01GET2  GETTKN TKNCURR       GET SUBACCT2                        75311 00303000
+         BAL   R10,C01TACT    TEST TOKEN TYPE (SEE ABOVE)         75311 00304000
+         LTR   R15,R15        WAS DUMMY CODED ?                   75311 00305000
+         BNZ   C01GET3        YES, DONT STORE SUBACCT2            75311 00306000
+         BAL  R10,C01STRA2    NO,REAL SUBACCT, STORE IT           75311 00307000
+         SPACE 1                                                  75311 00308000
+C01GET3  GETTKN TKNCURR       GET SUBACCT3                        75311 00309000
+         BAL   R10,C01TACT    TEST TYPE                           75311 00310000
+         LTR   R15,R15                                            75311 00311000
+         BNZ   C01GET4                                            75311 00312000
+         BAL  R10,C01STRA3                                        75311 00313000
+         SPACE 1                                                  75311 00314000
+C01GET4  GETTKN TKNCURR                                           75311 00315000
+         BAL   R10,C01TACT                                        75311 00316000
+         LTR   R15,R15                                            75311 00317000
+         BNZ   C01GET5                                            75311 00318000
+         BAL  R10,C01STRA4                                        75311 00319000
+         SPACE 1                                                  75311 00320000
+C01GET5  GETTKN TKNCURR                                           75311 00321000
+         BAL   R10,C01TACT                                        75311 00322000
+         LTR   R15,R15                                            75311 00323000
+         BNZ   C01GET6                                            75311 00324000
+         BAL  R10,C01STRA5                                        75311 00325000
+         SPACE 1                                                  75311 00326000
+C01GET6  GETTKN TKNCURR                                           75311 00327000
+         BAL   R10,C01TACT                                        75311 00328000
+         LTR   R15,R15                                            75311 00329000
+         BNZ   C01GET7                                            75311 00330000
+         BAL  R10,C01STRA6                                        75311 00331000
+         SPACE 1                                                  75311 00332000
+C01GET7  GETTKN TKNCURR                                           75311 00333000
+         BAL   R10,C01TACT                                        75311 00334000
+         LTR   R15,R15                                            75311 00335000
+         BNZ   C01GET8                                            75311 00336000
+         BAL  R10,C01STRA7                                        75311 00337000
+         SPACE 1                                                  75311 00338000
+C01GET8  GETTKN TKNCURR                                           75311 00339000
+         BAL   R10,C01TACT                                        75311 00340000
+         LTR   R15,R15                                            75311 00341000
+         BNZ   C01GET9                                            75311 00342000
+         BAL  R10,C01STRA8                                        75311 00343000
+         SPACE 1                                                  75311 00344000
+C01GET9  GETTKN TKNCURR                                           75311 00345000
+         BAL   R10,C01TACT                                              00345100
+         LTR   R15,R15                                                  00345200
+         BNZ   C01GET10                                                 00345300
+         BAL  R10,C01STRA9                                              00345400
+         SPACE 1                                                  75311 00345500
+C01GET10 GETTKN TKNCURR                                           75311 00345600
+* NOW WE ONLY HANDLE UP TO 9 SUBACCTS - SO ...                    75311 00346000
+         STH   R1,TKNCURR                                         75311 00347000
+         CLI   TKN,C')'                                           75311 00348000
+         BE    A                                                   DASD 00349000
+         JOLERR 305,'MAX OF 9 SUB-ACCTS ALLOWED:-''',#TKN,        75311*00350000
+               ''' IGNORED;BUT '')'' MAY ALSO BE MISSING'         75311 00351000
+         B     A                                                  75311 00352000
+         SPACE 3                                                  75311 00353000
+C01TACT  STH   R1,TKNCURR     SAVE CURRENT POINTER                75311 00354000
+         CLI   TKN,C')'       IS IT END OF ACCT ?                 75311 00355000
+         BE    A                                                   DASD 00356000
+         CLI   TKN,C','       IS THIS A NULL ACCT FIELD ?         75311 00357000
+         BE    C01SKPAC       YES,SO SKIP IT                      75311 00358000
+         MVC   #WORK(L'TKN+2),#TKN SAVE SUBACCT FIELD             75311 00359000
+         GETTKN (R1)          GET NEXT TOKEN,WHICH SHOULD BE ','  75311 00360000
+*                             BUT IF NOT, IGNORE IT               75311 00361000
+         SR    R15,R15        GET READY TO RETURN                 75311 00362000
+         CLI   TKN,C','       ','                                 75311 00363000
+         BNE   0(R10)         NOPE, ACCT=(FC01XXXX 9 2)           75311 00364000
+         STH   R1,TKNCURR     SKIP COMMA NEXT GETTKN              75311 00365000
+         BR    R10            RETURN                              75311 00366000
+         SPACE 3                                                  75311 00367000
+C01SKPAC LA    R15,4          SET R1570                           75311 00368000
+         BR    R10            RETURN                              75311 00369000
+         SPACE 6                                                  75311 00370000
+C01STRAC BAL   R10,C01STRA1   STORE ACCT 1               JOL30051 76200 00372000
+         LTR  R15,R15    STORE OK?                                      00373000
+         BNZ   A                                                        00374000
+         MVC   #JOBACCT,#WORK SAVE LENGTH                         75128 00375000
+           CLI    WORK,C''''  QUOTES CODED?                       75128 00376000
+          BNE     A           NO,SO USER CAN CODE SUBACCTS THEN   75128 00377000
+         XC   JOBACCT(JOBELAP-JOBACCT),JOBACCT CLEAR TO ZEROS           00378000
+*                                              SO NO-ONE CAN STORE      00379000
+*                                              IN SUB ACCOUNTS          00380000
+         MVC  JOBACCT,WORK    SHIFT ADAT BACK IN(COS WE PUT 00 THERE)   00381000
+           B   A                                                        00382000
+JBSUB1   BAL   R10,C01STRA1   STORE SUBACCT1             JOL30051 76200 00383000
+         LTR   R15,R15        DID WE                     JOL30051 76200 00384000
+         BNZ   A              NO ->                      JOL30051 76200 00385000
+         MVC   #JOBACCT,#WORK                            JOL30051 76200 00386000
+         B     A                                         JOL30051 76200 00387000
+JBSUB2   BAL   R10,C01STRA2                                             00388000
+         B     A                                                        00389000
+JBSUB3   BAL   R10,C01STRA3                                             00390000
+         B     A                                                        00391000
+JBSUB4   BAL   R10,C01STRA4                                             00392000
+         B     A                                                        00393000
+JBSUB5   BAL   R10,C01STRA5                                             00394000
+         B     A                                                        00395000
+JBSUB6   BAL   R10,C01STRA6                                             00396000
+         B     A                                                        00397000
+JBSUB7   BAL   R10,C01STRA7                                             00398000
+         B     A                                                        00399000
+JBSUB8   BAL   R10,C01STRA8                                             00400000
+         B     A                                                        00401000
+JBSUB9   BAL   R10,C01STRA9                                             00401100
+         B     A                                                        00401200
+         SPACE 3                                                        00402000
+         USING C01ACCTB,R7                                         DASD 00403000
+C01STRA1  L     R7,C01#ACCT        POINT R7 RO WORK AREA           DASD 00404000
+         JOLSTOR 'ACCOUNTING',C01ACCT,#WORK                        DASD 00405000
+         LTR R15,R15                                               DASD 00406000
+         BNZR R10        IF STORED OK SET UP LENGTH POINTER        DASD 00407000
+         MVC  #C01ACCT,#WORK                                       DASD 00408000
+         BR  R10                                                        00409000
+C01STRA2  L     R7,C01#ACCT    POINT TO ACCT WORK AREA IN SAVE     DASD 00410000
+         JOLSTOR 'SUBACCT2/BOX/ROOM',C01SUB2,#WORK                 DASD 00411000
+         LTR R15,R15                                               DASD 00412000
+         BNZR R10        IF STORED OK SET UP LENGTH POINTER        DASD 00413000
+         MVC  #C01SUB2,#WORK                                       DASD 00414000
+         BR    R10                                                 DASD 00415000
+C01STRA3  L     R7,C01#ACCT    POINT TO ACCT WORK AREA IN SAVE     DASD 00416000
+         JOLSTOR 'SUBACCT3',C01SUB3,#WORK                          DASD 00417000
+         LTR R15,R15                                               DASD 00418000
+         BNZR R10        IF STORED OK SET UP LENGTH POINTER        DASD 00419000
+         MVC  #C01SUB3,#WORK                                       DASD 00420000
+         BR    R10                                                 DASD 00421000
+C01STRA4  L     R7,C01#ACCT    POINT TO ACCT WORK AREA IN SAVE     DASD 00422000
+         JOLSTOR 'SUBACCT4/MAXLINES',C01SUB4,#WORK                 DASD 00423000
+         LTR R15,R15                                               DASD 00424000
+         BNZR R10        IF STORED OK SET UP LENGTH POINTER        DASD 00425000
+         MVC  #C01SUB4,#WORK                                       DASD 00426000
+         BR    R10                                                 DASD 00427000
+C01STRA5  L     R7,C01#ACCT    POINT TO ACCT WORK AREA IN SAVE     DASD 00428000
+         JOLSTOR 'SUBACCT5/MAXCARDS',C01SUB5,#WORK                 DASD 00429000
+         LTR R15,R15                                               DASD 00430000
+         BNZR R10        IF STORED OK SET UP LENGTH POINTER        DASD 00431000
+         MVC  #C01SUB5,#WORK                                       DASD 00432000
+         BR    R10                                                 DASD 00433000
+C01STRA6  L     R7,C01#ACCT    POINT TO ACCT WORK AREA IN SAVE     DASD 00434000
+         JOLSTOR 'SUBACCT6/COPIES',C01SUB6,#WORK                   DASD 00435000
+         LTR R15,R15                                               DASD 00436000
+         BNZR R10        IF STORED OK SET UP LENGTH POINTER        DASD 00437000
+         MVC  #C01SUB6,#WORK                                       DASD 00438000
+         BR    R10                                                 DASD 00439000
+C01STRA7  L     R7,C01#ACCT    POINT TO ACCT WORK AREA IN SAVE     DASD 00440000
+         JOLSTOR 'SUBACCT7',C01SUB7,#WORK                          DASD 00441000
+         LTR R15,R15                                               DASD 00442000
+         BNZR R10        IF STORED OK SET UP LENGTH POINTER        DASD 00443000
+         MVC  #C01SUB7,#WORK                                       DASD 00444000
+         BR    R10                                                 DASD 00445000
+C01STRA8  L     R7,C01#ACCT    POINT TO ACCT WORK AREA IN SAVE     DASD 00446000
+         JOLSTOR 'SUBACCT8',C01SUB8,#WORK                          DASD 00447000
+         LTR R15,R15                                               DASD 00448000
+         BNZR R10        IF STORED OK SET UP LENGTH POINTER        DASD 00449000
+         MVC  #C01SUB8,#WORK                                       DASD 00450000
+         BR    R10                                                 DASD 00451000
+C01STRA9 L     R7,C01#ACCT    POINT TO ACCT WORK AREA IN SAVE           00451100
+         JOLSTOR 'SUBACCT9',C01SUB9,#WORK                               00451200
+         LTR R15,R15                                                    00451300
+         BNZR R10        IF STORED OK SET UP LENGTH POINTER             00451400
+         MVC  #C01SUB9,#WORK                                            00451500
+         BR    R10                                                      00451600
+         DROP  R7                                                  DASD 00452000
+         TITLE 'PROCESS TIME PARAMETER(S)'                              00453000
+         ENTRY JBTIME                                                   00454000
+JBTIME     MVC #WORK(15),#TKN                  SAVE FIRST TIME          00455000
+           GETTKN LOCN=TKNCURR                                          00456000
+*                                                        JOL30077 76200 00457000
+           CLI TKN,C','                        ARE THE 2 TIMES ?        00458000
+           BE  TIME2                                                    00459000
+* THERE IS ONLY ONE TIME PARAMETER.                                     00460000
+           TNUM #WORK                                                   00461000
+           LTR R15,R15                                                  00462000
+         BNZ   TIMERR                                             75128 00463000
+           JOLSTOR 'TIME',JOBELAP,#WORK                                 00464000
+           B   TIMEQUAL                                                 00465000
+TIME2    GETTKN REG=R1                                                  00466000
+         STH   R1,TKNCURR                                               00467000
+         TNUM  #TKN                                                     00468000
+         LR    R5,R1          SAVE BINARY NUMBER                  75128 00469000
+         LTR   R15,R15        DID IT CONVERT OK ?                 75128 00470000
+         BNZ   TIMERR         NO                                  75128 00471000
+*                                                                 75128 00472000
+         TNUM  #WORK                                                    00473000
+         LTR   R15,R15                                                  00474000
+         BNZ   TIMERR                                             75128 00475000
+         CH    R1,=H'1440'    NO CPU TIMING ?                     75128 00476000
+         BE    WORK1440                                                 00477000
+         CH    R5,=H'1440'    NO CPU TIMING ?                     75128 00478000
+         BE    TKN1440                                                  00479000
+* NOW TAKE THE LARGEST TIME AND STORED IT AS THE ELASPED TIME           00480000
+         CR    R5,R1                                              75128 00481000
+         BH    TKNELAP                         TKN CONTAINS ELAPSED TME 00482000
+TKN1440  DS    0H                                                       00483000
+         JOLSTOR 'ELAPSED TIME',JOBELAP,#WORK                           00484000
+         JOLSTOR 'CPU TIME',JOBCPU,#TKN                                 00485000
+           B   TIMEQUAL                                                 00486000
+WORK1440   EQU *                                                        00487000
+TKNELAP    JOLSTOR 'ELAPSED TIME',JOBELAP,#TKN                          00488000
+           JOLSTOR 'CPU TIME',JOBCPU,#WORK                              00489000
+TIMEQUAL L     R1,AJOLGEN                                               00490000
+         USING GENDETS,R1                                               00491000
+         BOX   'THIS AREA MAY NEED MODIFICATION FOR JES ****'     75128 00492000
+         CLI   SPOOL,C'H'     HASP ?                              75128 00493000
+         BE    C01SETSB       SET UP SUBACCOUNT FIELD             75128 00494000
+         CLI   SPOOL,C'2'     JES2 ?                              75128 00495000
+         BE    C01SETSB       YES                                 75128 00496000
+         DROP  R1                                                       00497000
+         B     C01TMQ2                                            75128 00498000
+C01SETSB EQU   *                                                  75128 00499000
+         MVC   WORK(L'JOBELAP),JOBELAP                            80290 00500000
+         MVC   #WORK,=AL2(L'JOBELAP)                              80290 00500005
+         BAL   R14,DRPBWORK   DROP ENDING BLANKS FROM WORK        80290 00500010
+         L      R15,C01#ACCT   POINT TO WORK AREA                  DASD 00500011
+         USING  C01ACCTB,R15                                       DASD 00500012
+         IFVALUE #C01SUB3,C01TMQ2  IF SOMEONE HAS VALUE,LEAVE IT  80290 00500015
+         MVC   #C01SUB3(L'JOBELAP),#WORK  SHIFT TO SUB ACCT3      80290 00500020
+         DROP   R15                                                     00500030
+C01TMQ2  GETTKN LOCN=TKNCURR  SEE IF MINUTES ETC                  75128 00501000
+         L     R15,=V(UJCTM)  LOAD TIME QUALIFIER TABLE           75128 00502000
+         LM    R7,R9,0(R15)                                       75128 00503000
+         CLC   TKN(8),0(R7)                                       74256 00504000
+         BE    ISTIMEQ                                            74256 00505000
+         BXLE  R7,R8,*-10                                         74256 00506000
+* TIME NOT QUALIFIED SO GO TO A AND LEAVE THE TIME THE WAY IT WAS.      00507000
+           B   A                                                        00508000
+ISTIMEQ    MVC JOBTIMEQ,TKN                                             00509000
+           STH R1,TKNCURR                                               00510000
+           B   A                                                        00511000
+TIMERR     EQU   *                                                      00512000
+         JOLERR 303,'ERROR IN TIME PARAMETER'                     75128 00513000
+           B A                                                          00514000
+           TITLE 'PROCESS CLASS PARAMETER'                              00515000
+JBCLASS    EQU *                                                        00516000
+           ENTRY JBCLASS                                                00517000
+           JOLSTOR 'CLASS',JOBCLASS,#TKN                                00518000
+           B  A                                                         00519000
+         TITLE 'FIX PRIORITY'                                           00520000
+JBPRTY   EQU   *                                                        00521000
+         JOLSTOR 'PRIORITY',JOBPRTY,#TKN,NUM                            00522000
+         B     A              BACK TO MAINLINE                    75128 00523000
+JBNOTIME EQU   *                                                        00524000
+         MVC TKN(4),=CL4'1440'                                          00525000
+         MVI   #TKN+1,4                                                 00526000
+         JOLSTOR              'NOTIMING',JOBCPU,#TKN                    00527000
+         B     A              BACK TO MAINLINE                    75128 00528000
+           TITLE 'PROCESS RACF PARAMETERS'                              00529000
+* CODE ADDED OCT 18, 1982 TO SUPPORT RACF
+          ENTRY JBRACFUS,JBRACFGR,JBRACFP1,JBRACFP2
+* USER
+JBRACFUS DS    0H
+           JOLSTOR 'RACF USER',JOBUSER,#TKN                             00566000
+           B   A                                                        00567000
+* GROUP
+JBRACFGR DS    0H
+           JOLSTOR 'RACF GROUP',JOBGRP,#TKN                             00566000
+           B   A                                                        00567000
+* PASSWORD ONE
+JBRACFP1 DS    0H
+           JOLSTOR 'RACF JOB PASSWORD',JOBPASS1,#TKN                    00566000
+           B   A                                                        00567000
+* PASSWORD TWO (NEW PASSWORD)
+JBRACFP2 DS    0H
+           JOLSTOR 'RACF (NEW PASSWORD)',JOBPASS2,#TKN                  00566000
+           B   A                                                        00567000
+           TITLE 'PROCESS REGION/SIZE PARAMETER'                        00529000
+JBREGION   EQU *                                                        00530000
+JBSIZE     EQU *                                                        00531000
+            MVC   #WORK(L'TKN),#TKN                               75128 00532000
+           ENTRY JBREGION                                               00533000
+           ENTRY JBSIZE                                                 00534000
+         GETTKN TKNCURR       GET NEXT TOKEN.                     75128 00535000
+         CLC   =C'K ',TKN     NNNN K ?                            75128 00536000
+         BE    C01SIZEK       YES, K CODED                        75128 00537000
+         CLC   =C'BYTES ',TKN BYTES CODED ?                       75128 00538000
+         BNE   *+8                                                75128 00539000
+         STH   R1,TKNCURR     RESET TOKEN POINTER                 75128 00540000
+         TNUM  #WORK          CONVERT TO NUMERIC                  75128 00541000
+         LTR   R15,R15        DID IT CONVERT ?                    75128 00542000
+         BNZ   C01STRSZ       NOPE, LET JOLSTOR GIVE ERR MESSAGE  75128 00543000
+         SR    R0,R0          PREPARE TO DIVIDE                   75128 00544000
+         D     R0,=F'1024'    DIVIDE BY 1 K                       75128 00545000
+         LTR   R0,R0          ANY REMAINDER ?                     75128 00546000
+         BZ    *+8                                                75128 00547000
+         LA    R1,1(R1)       ADD 1 TO K NUMBER                   75128 00548000
+* NOTE, WE LEAVE ROUNDING UP TO 2K TO OS                          75128 00549000
+         CVD   R1,DBL         CONVERT TO DECIMAL                  75128 00550000
+         UNPK  WORK(5),DBL    NOW ZONED                           75128 00551000
+         OI    WORK+4,C'0'    FIX LAST BYTE                       75128 00552000
+         MVI   #WORK+1,5      SET LENGTH OF #WORK TO 5            75128 00553000
+         SPACE 1                                                  75128 00554000
+C01STRSZ JOLSTOR 'SIZE/REGION',JOBREGN,#WORK,NUM                  75128 00555000
+         LTR   R15,R15                                            75128 00556000
+         BNZ   A                                                  75128 00557000
+         MVI   JOBREGNQ,C'K'  SET UP 'K'                          75128 00558000
+         B     A                                                  75128 00559000
+         SPACE 1                                                  75128 00560000
+C01SIZEK STH   R1,TKNCURR                                               00561000
+         B     C01STRSZ                                                 00562000
+         TITLE 'PROCESS MESSAGE CLASS'                            75128 00563000
+JBMSGCLA   EQU *                                                        00564000
+           ENTRY JBMSGCLA                                               00565000
+           JOLSTOR 'SYSTEM MESSAGE CLASS',JOBMSGCL,#TKN                 00566000
+           B   A                                                        00567000
+           TITLE 'HANDLE JOB ROLL PARAMETERS'                           00568000
+JBROLL     EQU *                                                        00569000
+           ENTRY JBROLL                                                 00570000
+           MVC #TKN,=H'1'                      ONLY STORING 1 CHARACTER 00571000
+*                                              AND DON'T WANT LENGTH ER 00572000
+           JOLSTOR 'ROLL',JOBROLL1,#TKN        -RROR TO BE THROWN UP AT 00573000
+*                                              US                       00574000
+           GETTKN LOCN=TKNCURR                                          00575000
+           CLI TKN,C','                        2ND 1 CODED ?            00576000
+           BNE A                               NO,GET NEXT FIELD        00577000
+           STH R1,TKNCURR                      RESET POINTER            00578000
+           GETTKN LOCN=TKNCURR                 GET THE 2ND ROLL PARM    00579000
+           STH R1,TKNCURR                      POINT TO TOKEN AFTER IT  00580000
+           MVC #TKN,=H'1'                      AGAIN,DON'T WANT LENGTH  00581000
+           JOLSTOR 'ROLL',JOBROLL2,#TKN        ERROR WHEN STORING       00582000
+           B   A                                                        00583000
+           TITLE 'HOLD JOB'                                             00584000
+JBHOLD     EQU  *                                                       00585000
+JBSCAN   EQU   *                                                  75128 00586000
+         ENTRY JBHOLD,JBSCAN                                      75128 00587000
+         JOLSTOR 'HOLD/SCAN',JOBHOLD,#TKN                         75128 00588000
+           B  A                                                         00589000
+JBNOTIFY JOLSTOR 'TSO NOTIFY',JOBNOTFY,#TKN                       75128 00590000
+         B     A              BACK TO MAIN LINE                   75128 00591000
+JBEXTRA  BAL  R14,DROPQUOT                                        75128 00592000
+         JOLSTOR 'EXTRA JOB KEYS',JOBEXTRA,#TKN                   75128 00593000
+         B     A                                                  75128 00594000
+         SPACE 1                                                        00595000
+JBPALLOC MVI   TKN,C'1'                                           75311 00596000
+         B     C01STRAL                                           75311 00597000
+JBNPALLO MVI   TKN,C'0'                                           75311 00598000
+C01STRAL MVI   #TKN+1,1                                           75311 00599000
+         JOLSTOR 'ALLOCATION MESSAGE',JOBMSGL2,#TKN              75311  00600000
+         B     A                                                  75311 00601000
+         SPACE 3                                                  75311 00602000
+JBPJCL   MVI   TKN,C'1'                                           75311 00603000
+         B     C01STAL2                                           75311 00604000
+JBNPJCL  MVI   TKN,C'0'                                           75311 00605000
+C01STAL2 MVI   #TKN+1,1                                           75311 00606000
+         JOLSTOR 'JCL-PRINT',JOBMSGL1,#TKN                        76200 00607000
+         B     A                                                  75311 00608000
+         SPACE 3                                                  75311 00609000
+         SPACE 1                                                  75128 00610000
+JBPERFO  JOLSTOR 'PERFORM GROUP',JOBPERFO,#TKN,255                75128 00611000
+         B     A                                                  75128 00612000
+         SPACE 1                                                  75128 00613000
+JBREAL   EQU   *                                                  75128 00614000
+JBVIRT   EQU   *                                                  75128 00615000
+         MVI   #TKN+1,4       SET L' TO 4 (VIRTUAL MAY BE CODED)  75311 00616000
+         JOLSTOR 'VIRT/REAL',JOBCORE,#TKN                         75128 00617000
+         B     A                                                  75128 00618000
+**** DUMMY JOLSTORS ******                                              00619000
+JBDUM1   JOLSTOR '        ',JOBEXTRA,#TKN                               00620000
+         B     A                                                        00621000
+JBDUM2   JOLSTOR '       ',JOBEXTRA,#TKN                          75311 00622000
+         B     A                                                        00623000
+JBDUM3   JOLSTOR '       ',JOBEXTRA,#TKN                          75311 00624000
+         B     A                                                  75311 00625000
+          TITLE 'FIX ROUTING CODES'                               74256 00626000
+JBROUTE   DS   0H                                                 74256 00627000
+C01LAR15 LA    R15,0          USED TO FIX UP S CONSTANTS BELOW          00628000
+C01MVC   MVC    0(*-*,R14),2(R15)   MOVE                          80290 00628005
+         LTORG                                                    75128 00629000
+         CNOP  0,8                                          FIX-X 76200 00630000
+           DC   S(*),S(*),S(*),S(*)                                     00631000
+           DC   S(*),S(*),S(*),S(*)                                     00632000
+           DC   S(*),S(*),S(*),S(*)                                     00633000
+           DC   S(*),S(*),S(*),S(*)                                     00634000
+           DC   S(*),S(*),S(*),S(*)                                     00635000
+           DC   S(*),S(*),S(*),S(*)                                     00636000
+           DC   S(*),S(*),S(*),S(*)                                     00637000
+           DC   S(*),S(*),S(*),S(*)                                     00638000
+           DC   S(*),S(*),S(*),S(*)                                     00639000
+           DC   S(*),S(*),S(*),S(*)                                     00640000
+           DC   S(*),S(*),S(*),S(*)                                     00641000
+           DC   S(*),S(*),S(*),S(*)                                     00642000
+           DC   S(*),S(*),S(*),S(*)                                     00643000
+           DC   S(*),S(*),S(*),S(*)                                     00644000
+           DC   S(*),S(*),S(*),S(*)                                     00645000
+           DC   S(*),S(*),S(*),S(*)                                     00646000
+           DC   S(*),S(*),S(*),S(*)                                     00647000
+           DC   S(*),S(*),S(*),S(*)                                     00648000
+           DC   S(*),S(*),S(*),S(*)                                     00649000
+           DC   S(*),S(*),S(*),S(*)                                     00650000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*)         75128 00651000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*)               00652000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*)               00653000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*)               00654000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*)               00655000
+UJCTM    CSECT                                                    75128 00656000
+C01TMWDS DC    A(*+12)                                                  00657000
+         DC    A(8)                                                     00658000
+         DC    A(C01TMEND-8)                                            00659000
+         DC    CL8'M'                                                   00660000
+         DC    CL8'S'                                                   00661000
+         DC    CL8'MINS'                                                00662000
+         DC    CL8'SECS'                                                00663000
+         DC    CL8'MIN'                                                 00664000
+         DC    CL8'SEC'                                                 00665000
+         DC    CL8'MINUTES'                                             00666000
+         DC    CL8'SECONDS'                                             00667000
+         DC    CL8'SECOND'                                              00668000
+         DC    CL8'MINUTE'                                              00669000
+C01TMEND EQU *                                                          00670000
+UJCJBPRM CSECT                                                    75128 00671000
+         DC    A(*+12,10,C01PEND-10)  BXLE INCREMENTS             75128 00672000
+         DC     CL8'HOLD        ',S(JBHOLD)                       75128 00673000
+*        DC     CL8'NOIO        ',S(JBNOIO)   NO LABELS: JBNOIO,  7SOCO 00674000
+*        DC     CL8'NOOPT       ',S(JBNOOPT)             JBNOPT   7SOCO 00675000
+*        DC     CL8'PRODUCTION  ',S(JBPROD)              JBPROD   7SOCO 00676000
+*        DC     CL8'PROD        ',S(JBPROD)              JBPROD   7SOCO 00677000
+*        DC     CL8'TEST        ',S(JBTEST)              JBTEST.  7SOCO 00678000
+         DC     CL8'SCAN        ',S(JBSCAN)                       75128 00679000
+         DC     CL8'NOTIMEING   ',S(JBNOTIME)                     75128 00680000
+         DC     CL8'NOTIMING   ',S(JBNOTIME)                     75128  00681000
+         DC     CL8'NOTIME      ',S(JBNOTIME)                     75128 00682000
+         DC     CL8'VIRT        ',S(JBVIRT)                       75128 00683000
+         DC     CL8'VIRTUAL     ',S(JBVIRT)                       75128 00684000
+         DC     CL8'REAL        ',S(JBREAL)                       75128 00685000
+         DC     CL8'REALCORE    ',S(JBREAL)                       75128 00686000
+         DC     CL8'PALLOC    ',S(JBPALLOC)                       75128 00687000
+         DC     CL8'PALL      ',S(JBPALLOC)                       75128 00688000
+         DC     CL8'NPALLOC   ',S(JBNPALLO)                       75128 00689000
+         DC     CL8'NPALL     ',S(JBNPALLO)                       75128 00690000
+         DC     CL8'PJ        ',S(JBPJCL)                               00691000
+         DC     CL8'PJCL      ',S(JBPJCL)                               00692000
+         DC     CL8'NPJ       ',S(JBNPJCL)                              00693000
+         DC     CL8'NPJCL     ',S(JBNPJCL)                              00694000
+         DC     CL8' ZAP      ',S(0)                              75128 00695000
+         DC     CL8' ZAP      ',S(0)                              75128 00696000
+         DC     CL8' ZAP      ',S(0)                              75128 00697000
+         DC     CL8' ZAP      ',S(0)                              75128 00698000
+         DC     CL8' ZAP      ',S(0)                              75128 00699000
+C01PEND  EQU   *                                                  75311 00700000
+UJCJBKEY CSECT                                                    75128 00701000
+         DC    A(*+12,10,C01KEYEN-10)                             75128 00702000
+         DC     CL8'PROGRAMMER  ',S(JBNAME)                       75128 00703000
+         DC     CL8'SUBMITTER   ',S(JBNAME)                       75128 00704000
+         DC     CL8'NAME        ',S(JBNAME)                       75128 00705000
+         DC     CL8'USER        ',S(JBRACFUS)                     82300 00706000
+         DC     CL8'GROUP       ',S(JBRACFGR)                     82300 00706000
+         DC     CL8'PASSWORD    ',S(JBRACFP1)                     82300 00706000
+         DC     CL8'NEWPASS     ',S(JBRACFP2)                     82300 00706000
+         DC     CL8'TIME        ',S(JBTIME)                       75128 00707000
+         DC     CL8'CLASS       ',S(JBCLASS)                      75128 00708000
+         DC     CL8'SIZE        ',S(JBSIZE)                       75128 00709000
+         DC     CL8'REGION       ',S(JBSIZE)                            00710000
+         DC     CL8'ACCOUNT     ',S(JBACCT)                       75128 00711000
+         DC     CL8'ACCT        ',S(JBACCT)                       75128 00712000
+         DC    CL8'DEPT       ',S(JBACCT)                         75128 00713000
+         DC    CL8'CHARGE     ',S(JBACCT)                         75128 00714000
+         DC     CL8'PRTY        ',S(JBPRTY)                       75128 00715000
+         DC     CL8'PRIORITY    ',S(JBPRTY)                       75128 00716000
+         DC    CL8'MSGCLASS',S(JBMSGCLA)                          75311 00717000
+         DC     CL8'NOTIFY         ',S(JBNOTIFY)                  75128 00718000
+         DC     CL8'BOX            ',S(JBSUB2)                    75128 00719000
+         DC     CL8'ROOM           ',S(JBSUB2)                    75128 00720000
+         DC     CL8'MAXLINES       ',S(JBSUB4)                    75128 00721000
+         DC     CL8'MAXCARDS       ',S(JBSUB5)                    75128 00722000
+         DC     CL8'FORM       ',S(JBSUB6)                        80290 00722090
+         DC     CL8'COPIES     ',S(JBSUB7)                        80290 00723000
+         DC     CL8'LOG        ',S(JBSUB8)                        80290 00723005
+         DC     CL8'LINES      ',S(JBSUB9)                        80290 00723010
+         DC    CL8'JOBEXTRA   ',S(JBEXTRA)                        75128 00724000
+         DC    CL8'SUBACCT1   ',S(JBSUB1)                JOL30051 76200 00725000
+         DC     CL8'JOBEXTRA    ',S(JBEXTRA)                      75128 00726000
+         DC     CL8'SUBACCT2  ',S(JBSUB2)                         75128 00727000
+         DC     CL8'SUBACCT3  ',S(JBSUB3)                               00728000
+         DC     CL8'SUBACCT4  ',S(JBSUB4)                               00729000
+         DC     CL8'SUBACCT5  ',S(JBSUB5)                               00730000
+         DC     CL8'SUBACCT6  ',S(JBSUB6)                               00731000
+         DC     CL8'SUBACCT7  ',S(JBSUB7)                               00732000
+         DC     CL8'SUBACCT8  ',S(JBSUB8)                               00733000
+         DC     CL8'PERFORM   ',S(JBPERFO)                              00734000
+         DC     CL8' ZAP           ',S(0)                         75128 00735000
+         DC     CL8' ZAP           ',S(0)                         75128 00736000
+         DC     CL8' ZAP           ',S(0)                         75128 00737000
+         DC     CL8' ZAP           ',S(0)                         75128 00738000
+         DC     CL8' ZAP           ',S(0)                         75128 00739000
+         DC    CL8' ZAP01     ',S(JBDUM1)                         75311 00740000
+         DC    CL8' ZAP02     ',S(JBDUM2)                               00741000
+         DC    CL8' ZAP03     ',S(JBDUM3)                               00742000
+C01KEYEN EQU   *                                                        00743000
+         END                                                            00744000

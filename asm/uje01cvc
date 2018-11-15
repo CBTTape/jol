@@ -1,0 +1,284 @@
+UJE01      TITLE 'CATALOG SEARCHING FOR GDGS AT EXECUTION TIME'         00010008
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1982.                          00020000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00030000
+           SPACE 3                                                      00040000
+*                   J             000000            L                   00050000
+*                   J            0      0           L                   00060000
+*                   J           0        0          L                   00070000
+*                   J          0          0         L                   00080000
+*                   J         0            0        L                   00090000
+*                   J         0            0        L                   00100000
+*                   J         0            0        L                   00110000
+*                   J         0            0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*        J          J         0            0        L                   00160000
+*         J        J           0          0         L                   00170000
+*          J      J             0        0          L                   00180000
+*           J    J               0      0           L                   00190000
+*            JJJJ                 000000            LLLLLLLLLLL         00200000
+           SPACE 3                                                      00210000
+           TITLE 'UJE60CAT:INITIALISATION ROUTINES'                     00220004
+           GENSAVE CSECT=UJE60CAT                                       00230002
+* THIS CSECT IS CALLED TO OPEN THE FILES FOR THE CATALOG FIXING ROUTINE 00240001
+           SPACE 1                                                      00250001
+           LA  R6,RETNAREA                                              00260004
+           USING  DDDSNDET,R6                                           00270004
+          OPEN (INSTRUCT,(UPDAT),PRINT,(OUTPUT))                        00280010
+           TM  INSTRUCT+48,X'10'                                        00290001
+           BO  FILE1OK                                                  00300001
+           WTO 'UJE60-01  NO DD CARD FOR $$INST'                        00310002
+           ABEND  1                                                     00320003
+FILE1OK  EQU   *                                                  75128 00330001
+           FIND INSTRUCT,MBRINST,D                                      00340001
+           B   E99INITR(R15)                                            00350001
+E99INITR   B   E99GOTMB                                                 00360001
+           B   E99FIND4                                                 00370001
+           B   E99FIND8                                                 00380001
+MBRINST    DC  CL8'$$INST'                                              00390001
+           SPACE 3                                                      00400001
+E99FIND8   WTO  'UJE60-02 I/O ERROR READING DIRECTORY'                  00410003
+           ABEND  1                                                     00420003
+           SPACE 3                                                      00430001
+E99FIND4   EQU *                                                        00440001
+           WTO  'UJE60-03 CANNOT FIND MEMBER $$INST'                    00450003
+           ABEND  1                                                     00460003
+E99GOTMB   EQU *                                                        00470001
+* WE HAVE NOW FOUND THE $$RETN MEMBER OF THE DATA SET                   00480001
+           MVC INSTRUCT+X'3E',=AL2(2560)                           DASD 00490001
+READNEXT   READ DECB,SF,INSTRUCT,MF=E                                   00500010
+           CHECK DECB                                                   00510010
+* FIND OUT HOW MUCH DATA WE READ (ALSO USED FOR REWRITING)              00520001
+           L  R1,DECB+16          IOB ADDRESS                           00530011
+           LH R14,INSTRUCT+X'3E'  BLOCKSIZE                             00540001
+           SH R14,14(R1)  MINUS RESIDUAL COUNT                          00550001
+           STH R14,INSTRUCT+X'3E'  SET THE BLOCK SIZE FOR RE-WRITE      00560003
+*    READ FROM THE INSTRUCT FILE.                                       00570003
+           CLI DDDD1,C'D'      DD-CARD TYPE ENTRY?                      00580003
+           BNE READNEXT       ONLY WANT DD TYPE ENTRIES                 00590003
+* NOW FOR DD-CARD TYPE ENTRIES,WE WILL CALL THE CATLG SEARCH            00600003
+*    ROUTINE.                                                           00610003
+           LA   R1,DDDSNDET                                             00620004
+           CALL UJE01CAT                                                00630004
+           LTR  R15,R15                                                 00640010
+           BNZ  READNEXT            DON'T BOTHER TO UPDATE              00650010
+           WRITE DECB,SF,INSTRUCT,MF=E                                  00660010
+           CHECK DECB                                                   00670010
+           B   READNEXT        GET NEXT RECORD                          00680003
+EOF        GENRETN RC=4                                                 00690003
+           READ DECB,SF,INSTRUCT,RETNAREA,'S',MF=L                      00700010
+CALLAREA   DS   12F                                                     00710004
+DBL        DS   D                                                       00720006
+AUJS20     DS   F                                                       00730006
+HEX        EQU *-240                                              75311 00740004
+           DC  C'0123456789ABCDEF'                                75311 00750004
+           DC   S(*),S(*),S(*),S(*)                                     00760004
+           DC   S(*),S(*),S(*),S(*)                                     00770004
+INSTRUCT   DCB DDNAME=$$INST,DSORG=PO,MACRF=(R,W),DEVD=DA,EODAD=EOF     00780010
+PRINT      DCB DDNAME=$$PRNT,DSORG=PS,DEVD=DA,RECFM=VB,LRECL=126,      *00790004
+               BLKSIZE=136,MACRF=W                                      00800004
+WORK       DS  CL400                                                    00810005
+           LTORG                                                        00820009
+RETNAREA   DS   CL2560                                                  00830003
+         COPY DDDSNDET                                                  00840007
+           GENSAVE CSECT=UJE01CAT,BASE=5                                00850005
+* THIS ROUTINE DOES THE CATALOGUE SEARCHING                             00860000
+           SPACE                                                        00870000
+* ON ENTRY R1 CONTAINS A POINTER TO THE FOLLOWING PARAMETER LIST        00880000
+*    1. POINTER TO THE DATA SET IDENTIFIER TO BE SEARCHED               00890000
+*    IF R0 =0 ON ENTRY THEN THIS MODULE MUST PRINT AN ERROR MESSAGE     00900000
+*          STATING THAT THE NAME BEING SEARCHED FOR WAS NOT PRESENT     00910000
+*          OTHER-WISE IT MUST MERELY RETURN THE VALUE FROM REGISTER     00920000
+*          15 THAT THE CATALOGUE ROUTINE RETURNED.                      00930000
+           SPACE 2                                                      00940000
+*                                                                       00950000
+           SPACE                                                        00960000
+           L   R3,0(R1)        LOAD ADDRESS OF DD-CARD            74303 00970000
+           USING DDDSNDET,R3                                            00980000
+           CLI DDDSNAME,C'&&'                  TEMPORARY DSNAME ?       00990000
+           BE    S01RET0                                                01000004
+S01TSYIN EQU   *                                                  75128 01010000
+           CLI DDDSNAME,C'*'                   SYSIN ?                  01020000
+           BE  S01RET0                                            74256 01030000
+           CLI DDDSNAME,C'%'                   NO DSNAME SPECIFIED ?    01040000
+           BE  S01RET0                                            74256 01050000
+           CLC =C'NULLFILE ',DDDSNAME          DUMMY ?                  01060000
+           BE  S01RET0                                            74256 01070000
+*          CLI DDCATLGS,0                      CATALOGUE ALREADY SEARCH 01080006
+*                                              -ED ?                    01090000
+*          BE  S01TGDGA        TEST IF REL GDG NEEDS ALTERING     75311 01100006
+*          CLI DDCATLGS,C' '                   CATLG NOT SEARCHED YET ? 01110006
+*          BE  DOSEARCH                                                 01120006
+* HERE THE CATALOGUE HAS BEEN SEARCHED,BUT RETURNED A NON-ZERO          01130000
+*    CODE                                                               01140000
+           CLI DDMBR,C'+'                      IS THIS THE 2ND TIME     01150000
+*                                              WE WERE CALLED FOR A     01160000
+*                                              + GDG ?                  01170000
+           BNE S01TGDGA        NO,  TEST IF WE HAVE TO ALTER GDG  75311 01180000
+           MVI DDMBR,C' '                                               01190000
+           B  RETND8                           PRINT ERROR MESSAGE      01200000
+RETNOLD    EQU *                                                        01210000
+           SR  R15,R15                                                  01220000
+           IC  R15,DDCATLGS                                             01230000
+S01RET15   GENRETN RC=0                                           74256 01240004
+S01RET0    GENRETN RC=0                                           74303 01250001
+S01RET16   GENRETN RC=16                                          74256 01260001
+* NOW IF THIS IS A GDG, WE MUST ALTER THE DSNAME TO LOOK LIKE     75311 01270000
+*    A REAL GDG                                                   75311 01280000
+* IN FACT, THE GENERATE MODULE WILL FIX THIS FOR US, AS LONG      75311 01290000
+*    AS WE REMOVE THE '(' FROM THE 'DDMBR' FIELD.                 75311 01300000
+S01TGDGA   CLI DDTYPE,DDGDG    IS IT A GDG OF SOME DESCRIPTION ?  75311 01310004
+           BL  S01RET0         NO, -> GO HOME                     75311 01320007
+           MVI DDMBR,C' '      CLEAR INDIC FOR GENERATOR          75311 01330000
+           B   S01RET0                                                  01340006
+           SPACE 3                                                      01350000
+DOSEARCH   EQU *                                                        01360000
+S01NORTN   SR  R8,R8                                                    01370000
+           CLI DDMBR,C'('      IS IT A GDG ?                            01380000
+           BNE S01RET0         GO BACK                                  01390004
+*                                                                 75311 01400000
+* NOW WE HAVE A GDG AND IF IT IS A + GDG, WE WILL CATLG           75311 01410000
+*  SEARCH FOR 0, THEN WE FIX THE GENERATION NUMBER                      01420006
+* IF IT IS NEGATIVE , OR(0),WE WILL CATALOG SEARCH IN THE USUAL   75311 01430000
+*  WAY                                                            75311 01440000
+*                                                                 75311 01450000
+           LA  R1,DDDSNAME                     SEARCH AND SEE IF WE ARE 01460000
+*                                              LOOKING FOR A '+' GEN    01470000
+           LA  R15,L'DDDSNAME-1(R1)                               75311 01480000
+           LA  R14,1                                                    01490000
+FINDEND    CLI 0(R1),C' '      GOT END OF DSN ?                   75311 01500000
+           BE  GOTEND          YES                                75311 01510000
+           BXLE R1,R14,FINDEND LOOK FOR END                       75311 01520000
+GOTEND     ST  R1,AUJS20       USE AS A WORK AREA ***             75311 01530000
+           B   FINDIT                                                   01540000
+           MVC 0(3,R1),=C'(0)'                                    75311 01550000
+           CLI DDMBR+1,C'-'    -VE GENERATION ?                   75311 01560000
+           BNE S01TABS         NO, TEST IF ABSOLUTE GEN           75311 01570000
+           MVC 1(5,R1),DDMBR+1                                    75311 01580000
+           MVI 6(R1),C')'                                         75311 01590000
+           B   FINDIT                                             75311 01600000
+S01TABS    EQU *                                                  75311 01610000
+* NOW WE'D BETTER GET IF IT IS AN ABSOLUTE GENERATION             75311 01620000
+           CLI DDTYPE,DDGDGABS NO, GO SEARCH AS IS                75311 01630000
+           BNE FINDIT                                             75311 01640000
+           MVC 0(9,R1),=C'.G0000V00'                              75311 01650000
+           MVC 2(4,R1),DDMBR+2 SHIFT IN REAL NUMBER               75311 01660000
+FINDIT     EQU *                                                        01670000
+           SPACE 3                                                      01680000
+* NOW SET UP THE EQUIVALENT OF 'CAMLST' MACRO CAUSE WE CAN'T USE IT     01690000
+*    AS IT USES ADDRESS CONSTANTS AND I WANT LOAD ADDRESSES             01700000
+           XC  CALLAREA(20),CALLAREA    CLEAR PARMAREA                  01710001
+           MVI  CALLAREA,68                                             01720000
+           B   S01NOTQU        SEARCH CATLG AS USUAL                    01730000
+           SPACE                                                        01740000
+S01GEQUO   EQU *                                                        01750000
+           MVI 0(R14),C' '                                              01760000
+           MVC DDDSNAME(L'DDDSNAME-1),DDDSNAME+1                        01770000
+S01NOTQU   EQU *                                                        01780000
+           LA R1,DDDSNAME                                               01790000
+           ST R1,CALLAREA+4                                             01800000
+           LA   R1,WORK+200             GET WORK AND ON DOUBLE WD 75311 01810008
+           SRL  R1,3                                                    01820008
+           SLL  R1,3                                                    01830008
+           ST R1,CALLAREA+12                                            01840000
+           LOCATE CALLAREA                                              01850000
+S01STR15   EQU *                                                  74303 01860000
+           STC R15,DDCATLGS                                             01870000
+           SPACE                                                        01880000
+S01TRET1   LTR R15,R15         DID CATALOG FAIL ?                 75128 01890000
+           BZ  RETND0          OK,IT DIDN'T SO GET VOLS ETC             01900000
+           B   RETND4                                                   01910006
+           CH  R15,=H'8'      CATLG SEARCH FAIL??                 75128 01920000
+           BNE RETNTAB(R15)                                       75128 01930000
+*TWO ERROR MESSAGES CAME, UJV08-01 AS WELL, THIS ONE CANCELLED          01940000
+RETNTAB    B   RETND0                                                   01950000
+           B   RETND4                                                   01960000
+           B   RETND8                                                   01970000
+           B   RETND12                                                  01980000
+           B   RETND16                                                  01990000
+           B   RETND20                                                  02000000
+           B   RETND24                                                  02010000
+           B   RETND28                                                  02020000
+           B   RETND32                                                  02030000
+           TITLE 'CATLG SEARCH RETURNED 0'                              02040000
+RETND0     EQU *                                                        02050000
+           LA  R10,WORK+200             GET WORK AND ON DOUBLE WD 75311 02060008
+           SRL  R10,3                                                   02070008
+           SLL  R10,3                                                   02080008
+           SPACE 2                                                      02090008
+           USING VOLINFO,R10                                            02100000
+           SPACE 2                                                      02110000
+* NOW WERE WE AFTER A '+' GENERATION ?                                  02120000
+           CLI DDMBR+1,C'+'                                       75311 02130000
+           BNE TNOVOLS                 NO, FILL IN DSNAME, RETURN       02140006
+* NOW COPY IN THE CORRECT GENERATION NUMBER                       75311 02150000
+           L   R1,AUJS20       LOAD DSN POINT WHERE WE COPIED (0) 75311 02160000
+           PACK DBL(4),0(R1)   PACK THE GENERATION NUMBER RETND   75311 02170000
+           PACK DBL+4(4),DDMBR+2 PACK THE + BIT                   75311 02180000
+           AP  DBL(4),DBL+4(4) ADD THEM BOTH                      75311 02190000
+* IF > 9999 WILL END UP AS 0000, SO OK                            75311 02200000
+           UNPK 0(4,R1),DBL(4)                                    75311 02210000
+           OI  3(R1),C'0'                                         75311 02220000
+* THERE, GENERATION NUMBER FIXED                                  75311 02230000
+           SPACE 1                                                75311 02240000
+TNOVOLS    EQU *                                                        02250000
+           GENRETN RC=0                                           74256 02260006
+S01UNITS   DC  A(S01UNTAB,5,S01UNTBE-5)                           74303 02270000
+S01UNTAB   EQU  *                                                       02280006
+           COPY UNITABLE                                                02290001
+S01UNTBE   EQU *                                                  74303 02300000
+           GENRETN RC=0                                           74256 02310001
+           TITLE 'CATLG SEARCH RETURNED 4'                              02320000
+RETND4     EQU *                                                        02330005
+RETND8     EQU *                                                  75311 02340000
+RETND12    EQU *                                                  75    02350000
+RETND16    EQU *                                                  75    02360005
+RETND20    EQU *                                                  75    02370005
+RETND24    EQU *                                                  75    02380005
+RETND28    EQU *                                                  75    02390005
+RETND32    EQU *                                                  75    02400005
+RETND36    EQU *                                                  75    02410005
+         GENRETN    RC=8                                                02420001
+         SPACE 3                                                  75128 02430000
+           LTORG                                                        02440000
+           DC   S(*),S(*),S(*),S(*)                                     02450000
+           DC   S(*),S(*),S(*),S(*)                                     02460000
+           DC   S(*),S(*),S(*),S(*)                                     02470000
+           DC   S(*),S(*),S(*),S(*)                                     02480000
+           DC   S(*),S(*),S(*),S(*)                                     02490000
+           DC   S(*),S(*),S(*),S(*)                                     02500000
+           DC   S(*),S(*),S(*),S(*)                                     02510000
+           DC   S(*),S(*),S(*),S(*)                                     02520000
+           DC   S(*),S(*),S(*),S(*)                                     02530000
+           DC   S(*),S(*),S(*),S(*)                                     02540000
+           DC   S(*),S(*),S(*),S(*)                                     02550000
+           DC   S(*),S(*),S(*),S(*)                                     02560000
+           DC   S(*),S(*),S(*),S(*)                                     02570000
+           DC   S(*),S(*),S(*),S(*)                                     02580000
+           DC   S(*),S(*),S(*),S(*)                                     02590000
+VOLINFO    DSECT                                                        02600000
+NOVOLS     DS  H                                                        02610000
+CATDEV     DS  XL4                                                      02620000
+CATVOL     DS  CL6                                                      02630000
+CATLABEL   DS  H                                                        02640000
+           DC   S(*),S(*),S(*),S(*)                                     02650001
+           DC   S(*),S(*),S(*),S(*)                                     02660001
+           DC   S(*),S(*),S(*),S(*)                                     02670001
+           DC   S(*),S(*),S(*),S(*)                                     02680001
+           DC   S(*),S(*),S(*),S(*)                                     02690001
+           DC   S(*),S(*),S(*),S(*)                                     02700001
+           DC   S(*),S(*),S(*),S(*)                                     02710001
+           DC   S(*),S(*),S(*),S(*)                                     02720001
+           DC   S(*),S(*),S(*),S(*)                                     02730001
+           DC   S(*),S(*),S(*),S(*)                                     02740001
+           DC   S(*),S(*),S(*),S(*)                                     02750001
+           DC   S(*),S(*),S(*),S(*)                                     02760001
+           DC   S(*),S(*),S(*),S(*)                                     02770001
+           DC   S(*),S(*),S(*),S(*)                                     02780001
+           DC   S(*),S(*),S(*),S(*)                                     02790001
+           DC   S(*),S(*),S(*),S(*)                                     02800001
+           DC   S(*),S(*),S(*),S(*)                                     02810001
+           DC   S(*),S(*),S(*),S(*)                                     02820001
+           DC   S(*),S(*),S(*),S(*)                                     02830001
+         END                                                            02840001

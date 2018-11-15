@@ -1,0 +1,347 @@
+ADDCARD  TITLE 'ADD CARD(S) TO CURRENT CARD DECLARATION FILE'           00000010
+         PRINT OFF                                                      00000020
+         COPY  JOLCOM                                                   00000030
+         PRINT ON,GEN,DATA                                              00000040
+* JUNE 15,1977. C.V.CLARKE                                              00000050
+* THIS MODULE WILL ADD   CARD (OR CARDS) TO THE CURRENT CARD            00000060
+*  FILE DESCRIBED BY A PREVIOUS'DECLARE NAME *' INSTRUCTION.            00000070
+*                                                                       00000080
+*SYNTAX :                                                               00000090
+*                                                                       00000100
+*        ADDCARD   'CARD1','CARD2',...   <OPTIONS>                      00000110
+*        ADDCARDS                                                       00000120
+*                                                                       00000130
+*   WHERE OPTIONS ARE:-                                                 00000140
+*                                                                       00000150
+*        1.    LEN(NN)  LEN   LENGTH DEFAULTS TO 80, UNLESS THE         00000160
+*                             'ASM' OR 'CONTROL' OPTION IS USED, IN     00000170
+*                             WHICH CASE THE LENGTH DEFAULTS TO 71.     00000180
+*        2.    ASM -->1       WHEN A CARD TO BE OUTPUT IS GREATER       00000190
+*        3.    CONTROL1       THAN THE LENGTH SPECIFIED (OR DEFAULTED), 00000200
+*        4.    TSO->1 1       IT IS SPLIT INTO AS MANY CARDS AS ARE     00000210
+*                   1 1       NECESSARY TO CONTAIN THE DATA.            00000220
+*                   1 1>ASM    IF THE ASM OR CONTROL OPTION IS          00000230
+*                   1 1>CONT  SPECIFIED, THE CARD WILL BE SPLIT AT THE  00000240
+*                   1         NEAREST COMMA FOUND BEFORE COLUMN 71, AND 00000250
+*                   1         AN ASTERISK PLACED IN COLUMN 72, AND THE  00000260
+*                   1         CONTINUATION CARD WILL COMMENCE IN COLUMN 00000270
+*                   1         16.                                       00000280
+*                   1-->TSO    IF THE TSO OPTION IS SPECIFIED, THE CARD 00000290
+*                             DATA WILL HALT AT THE LENGTH-1, AND A     00000300
+*                             HYPHEN WILL BE PLACED IN THE LAST COLUMN. 00000310
+*                             THE FOLLOWING DATA WILL RE-COMMENCE IN    00000320
+*                             COLUMN 1 OF NEXT CARD                     00000330
+*                                                                       00000340
+*                              IF NONE OF THE ABOVE OPTIONS ARE         00000350
+*                             SPECIFIED, THE CARD WILL BE SPLIT INTO AS 00000360
+*                             MANY CARDS AS ARE NECESSARY TO CONTAIN *  00000370
+*                             THE DATA, UNLESS THE DATA WILL FIT INTO   00000380
+*                             THE CARD.                                 00000390
+*                              THE CARD DATA WILL HALT AFTER THE        00000400
+*                             COLUMN INDICATED BY LENGTH, AND COMMENCE  00000410
+*                             IN COLUMN 1 OF THE FOLLOWING CARD(S).     00000420
+*                     NOSPLIT  IF 'NOSPLIT' IS SPECIFIED (SEE BELOW)    00000430
+*                             THEN DATA MAY BE LOST AS NO CONTINUATION  00000440
+*                             CARDS WILL BE PRODUCED.                   00000450
+*                                                                       00000460
+*        5.    NOSPLIT -----> SPECIFIES THAT IF A CARD IS GREATER THAN  00000470
+*              NOMSG   ----1  THE LENGTH SPECIFIED OR DEFAULTED TO,     00000480
+*                          1  THEN NO CONTINUATION CARDS ARE TO BE      00000490
+*                          1  PRODUCED.                                 00000500
+*                          U                                            00000510
+*                          1->SPECIFIES THAT NO MESSAGE IS TO BE        00000520
+*                             PRODUCED INDICATING THAT DATA WAS LOST    00000530
+*                             BY THE USE OF 'NOSPLIT'.                  00000540
+*                                                                       00000550
+*                                                                       00000560
+*                                                                       00000570
+* USES:-                                                                00000580
+*                                                                       00000590
+* AMONG THE MANY POSSIBLE USES ARE:-                                    00000600
+*                                                                       00000610
+*        IF %SSI>='' THEN ADDCARD ' SSI %SSI';                          00000620
+* WHICH IS OBVIOUSLY MUCH EASIER THAN TRYING TO BUILD UP CARD           00000630
+* FILES FROM SYMBOLICS.                                                 00000640
+*                                                                       00000650
+* ANOTHER USE IS THAT JOL COMMANDS MAY BE BUILT UP TO BUILD A CARD      00000660
+*  FILE. USING EARL  EASYTRIEVE ETC.                                    00000670
+* EG, EARL STATEMENT'PRINT' CAN BE CODED IN JOL, AND CONVERTED TO CARD  00000680
+*  FORMAT FOR EARL.                                                     00000690
+*       EG  PRINT A,B; CAN THEN BECOME  ADDCARD 'PRINT A,B';            00000700
+*                                                                       00000710
+* PL1 AS WELL ? WHY NOT...                                              00000720
+*                                                                       00000730
+*                                                                       00000740
+UJP40DST DSECT                                                          00000750
+         DS    18F                                                      00000760
+UJP40LEN DS    H              0 OR LEN SPEC OR DEFAULT (LATER)          00000770
+UJP40ASM DS    C              ' ' OR NOT IF ASM                         00000780
+UJP40CNT DS    C              ' ' OR NOT IF CONTROL                     00000790
+UJP40TSO DS    C              ' ' OR NOT IF TSO                         00000800
+UJP40NSP DS    C              ' ' OR NOT IF NOSPLIT                     00000810
+UJP40NMS DS    C              ' ' OR NOT IF NOMSG                       00000820
+UJP40LDS EQU   *-UJP40DST                                               00000830
+UJP40ADD JOLSAVE SIZE=UJP40LDS                                          00000840
+         USING UJP40DST,R13                                             00000850
+* STEP1: ANALYSE AND SET UP OPTIONS (IF CODED)                          00000860
+* STEP2: APPLY DEFAULTS AS NECESSARY                                    00000870
+* STEP3: VALIDATE                                                       00000880
+* STEP4: PROCESS ALL TOKENS WITH QUOTES.                                00000890
+*                                                                       00000900
+*                                                                       00000910
+         LA    R5,2           PREPARE TO START AT 2ND TOKEN             00000920
+         CLEAR UJP40LEN,UJP40ASM,UJP40CNT,UJP40TSO,UJP40NSP,UJP40NMS    00000930
+P40LOOP1 GETTKN (R5)          GET NEXT TOKEN                            00000940
+         CLI   TKN,C' '       IS IT BLANK ?                             00000950
+         BE    P40END1        YES, -> END EXAMINATION OF PARAMETERS     00000960
+         LR    R5,R1          SET R5 TO POINT AT NEXT TOKEN             00000970
+         CLI   TKN,C''''      IS THIS TOKEN A PARAMETER OPTION, OR      00000980
+*                             DATA FOR A CARD ?                         00000990
+         BE    P40LOOP1       DATA, IGNORE FOR NOW.                     00001000
+* THIS IS SUPPOSED TO BE AN OPTION OF SOME DESCRIPTION, SO NOW          00001010
+*  WE SHALL EXAMINE THE TABLE OF KEYWORDS FOR THIS INSTRUCTION AND SEE. 00001020
+         LM    R7,R9.P40KEYS  LOAD ADDRESS CONSTANTS                    00001030
+P40TKEY  CLC   TKN(8),0(R7)   IS KEYWORD= ?                             00001040
+         BE    P40GOTVK       YES,GO TO GOT VALID KEY ROUTINE           00001050
+         BXLE  R7,R8,P40TKEY                                            00001060
+* WELL, NOT VALID HERE, ISSUE DIAGNOSTIC                                00001070
+         JOLERR 301,'INVALID OPTION ''',#TKN,''' IGNORED'               00001080
+         B     P40LOOP1                                                 00001090
+         SPACE 3                                                        00001100
+P40GOTVK EQU   *                                                        00001110
+* NOW GIVE CONTROL TO PROCESSING ROUTINE.                               00001120
+         L     R15,8(R7)      GET PROCESSING ROUTINE ADDRESS            00001130
+         BR    R15            BRANCH TO IT                              00001140
+         SPACE 3                                                        00001150
+P40LEN   GETTRN (R5)          GET TOKEN FOLLOWING LENGTH KEYWORD        00001160
+         LR    R5,R1          RESET CURRENT TOKEN REGISTER              00001170
+         CLI   TKN,C'='       '=' SYMBOL ?                              00001180
+         BE    P40LEN         YES, SO SKIP IT                           00001190
+         CLI   TKN,C'('       '(' SYMBOL ?                              00001200
+         BE    P40LEN         YES, SKIP IT TOO                          00001210
+         SPACE 1                                                        00001220
+         TNUM  #TKN           CONVERT NUMBER TO NUMERIC                 00001230
+         LTR   R15,R15        DID IT CONVERT ?                          00001240
+         BZ    P40LOK1        YES ->                                    00001250
+P40LERR1 JOLERR 302,'LENGTH OPTION INVALID AT ''',#TKN,''' DEFAULT TO B*00001260
+               E USED'                                                  00001270
+         B     P40ELEN        GO TO END LENGTH ROUTINE                  00001280
+         SPACE 2                                                        00001290
+P40LOK1  CH    R1,=H'80'      IS LENGTH > 80 ?                          00001300
+         BH    P40LERR1       YES-> INVALID                             00001310
+         STH   R1,UJP40LEN    SAVE IT                                   00001320
+P40ELEN  GETTKN (R5)          GET NEXT TOKEN                            00001330
+         CLI   TKN,C')'       END OF PARAMETER ?                        00001340
+         BNE   P40LOOP1       NO, MUST BE NEXT KEYWORD OR SOMETHING.    00001350
+         LR    R5,R1          RESET CURRENT REGISTER FOR TOKENS         00001360
+         B     P40LOOP1                                                 00001370
+         SPACE 3                                                        00001380
+P40ASM   MVI   UJP40ASM,C'1'  SET ASM NON-BLANK                         00001390
+         B     P40LOOP1                                                 00001400
+         SPACE 3                                                        00001410
+P40CNTL  MVI   UJP40CNT,C'1'  SET CONTROL INDICATOR NON-BLANK           00001420
+         B     P40LOOP1                                                 00001430
+         SPACE 3                                                        00001440
+P40TSO   MVI   UJP40TSO,C'1'  SET TSO INDICATOR NON BLANK               00001450
+         B     P40LOOP1                                                 00001460
+         SPACE 3                                                        00001470
+P40NSPLT MVI   UJP40NSP,C'1'  SET NON-SPLIT INDICATOR NON-BLANK         00001480
+         B     P40LOOP1                                                 00001490
+         SPACE 3                                                        00001500
+P40NOMSG MVI   UJP40NMS,C'1'  SET NON-MSG INDICATOR NON-BLANK           00001510
+         B     P40LOOP1                                                 00001520
+         SPACE 3                                                        00001530
+* STEPS 2 & 3 ARE COMBINED FOR SIMPLICITY.                              00001540
+* TEST ASM,CNTL ETC OPTIONS INITIALLY.                                  00001550
+         IFVALUE UJP40ASM,UJP40CNT,UJP40TSO,P40ERR3                     00001560
+         IFVALUE UJP40ASM,UJP40CNT,P40ERR4                              00001570
+         IFVALUE UJP40ASM,UJP40TSO,P40ERR5                              00001580
+         IFVALUE UJP40CNT,UJP40TSO,P40ERR6                              00001590
+* OK, NONE DUPLICATELY CODED                                            00001600
+         SPACE 2                                                        00001610
+P40TLENX IFVALUE UJP40LEN,P40LENST                                      00001620
+* HERE, WE MUST SET UP A DEFAULT LENGTH.                                00001630
+         MVC   UJP40LEN,=H'80' SET 80 INITIALLY.                        00001640
+         IFNULL UJP40ASM,UJP40CNT,P40TTSO                               00001650
+         MVC   UJP40LEN,=H'71'                                          00001660
+         B     P40LENOK                                                 00001670
+         SPACE 1                                                        00001680
+P40TTSO  IFNULL UJP40TSO,P40LENOK                                       00001690
+         MVC   UJP40LEN,=H'79'                                          00001700
+         B     P40LENOK                                                 00001710
+         SPACE 1                                                        00001720
+P40LENST EQU   *                                                        00001730
+* HERE LENGTH IS SET UP. LETS CHECK WITH OTHER OPTIONS, OR AT LEAST     00001740
+*  TSO, COS WE NEED A BYTE AT THE END TO PUT THE '-' IN IF A            00001750
+*  CONTINUATION IS REQUIRED.                                            00001760
+* IF ASM, ETC IS CODED AND AN INVALID LENGTH SET, WE WILL DO AS         00001770
+*  REQUESTED.                                                           00001780
+         IFNULL UJP40TSO,P40NTSO1                                       00001790
+         CLC   UJP40LEN,=H'80'                                          00001800
+         BL    P40LENOK                                                 00001810
+         MVC   UJP40LEN,=H'79'                                          00001820
+         B     P40LENOK                                                 00001830
+         SPACE 3                                                        00001840
+P40ERR3  JOLERR 403,'ASM,CONTROL AND TSO ALL SPECIFIED:- TERMINATED'    00001850
+P40RET16 JOLRETN RC=16                                                  00001860
+P40ERR4  JOLERR 104,'ASM AND CONTROL SPECIFIED:- SIMILIAR FUNCTIONS ACCY00001870
+               EPTED AS CODED'                                          00001880
+         CLEAR UJP40CNT                                                 00001890
+         B     P40TLENX                                                 00001900
+         SPACE 1                                                        00001910
+P40ERR5  JOLERR 405,'ASM AND TSO SPECIFIED:- TERMINATED'                00001920
+         B     P40RET16                                                 00001930
+P40ERR6  JOLERR 406,'CONTROL AND TSO SPECIFIED:- TERMINATED'            00001940
+         B     P40RET16                                                 00001950
+         SPACE 3                                                        00001960
+P40LENOK EQU   *                                                        00001970
+* NOW WE MUST CHECK TO SEE IF WE HAVE HAD AT LEAST ONE DCL NAME *       00001980
+*  BECAUSE OTHERWISE THE CARDS WE ARE ADDING TO THE FILE WILL NOT       00001990
+*  HAVE A FILE TO ADD THEM TOO.                                         00002000
+         SPACE                                                          00002010
+         CLC   DATAMEM+2(4),BLANKS                                      00002020
+         BNE   P40START                                                 00002030
+         JOLERR 407,'NO DECLARE <NAME> PRECEDES THE ADDCARD STATEMENT:- 00002040
+               TERMINATED WITH NO ACTION'                               00002050
+         B     P40RET16                                                 00002060
+         EJECT                                                          00002070
+P40START EQU   *                                                        00002080
+         LA    R5,2           PREPARE TO START AT TOKEN 2 AGAIN.        00002090
+P40LOOP2 GETTKN (R5)          GET A TOKEN                               00002100
+         LR    R5,R1          RESET CURRENT TOKEN REGISTER TO POINT     00002110
+*                              TO THE NEXT ITEM.                        00002120
+         CLI   TKN,C' '       IS IT A BLANK ?                           00002130
+         BE    P40END         YES -> END                                00002140
+         CLI   TKN,C''''      IS IS DATA WITHIN QUOTES ?                00002150
+         BNE   P40LOOP2       NOPE, SO IGNORE IT (OPTION- ALREADY       00002160
+*                              DEALT WITH EARLIER)                      00002170
+         SPACE 2                                                        00002180
+* WE HAVE DATA TO GO OUT.                                               00002190
+*                                                                       00002200
+* LETS REMOVE QUOTES FROM THE END OF THE STRING, AND CHECK FOR          00002210
+*  DOUBLE QUOTES THAT MAY HAVE TO BE MADE SINGLE QUOTES IN THE MIDDLE   00002220
+*  OF THE DATA.                                                         00002230
+         LH    R6,HTKN        LOAD LENGTH OF THE STRING.                00002240
+         SH    R6,=H'2'       -2 FOR NEW LENGTH                         00002250
+         BNP   P40LOOP2       NOT POSITIVE MEANS 0, IE NULL (EMPTY)     00002260
+*                              STRING, WE DONT PUT OUT A CARD FOR NULLS 00002270
+*                              BUT IF THERE IS A BLANK ONE, WE MIGHT??  00002280
+         LR    R7,R6          SAVE REAL NEW LENGTH                      00002290
+         BCTR  R6,0           -1 FROM R6 FOR EX MVC.                    00002300
+         EX    R6,P40MVC1     SHIFT BACK 1 BYTE                         00002310
+         LA    R8,TKN+1(R6)   CALC SPOT WHERE WE MUST BLANK OUT         00002320
+         MVC   0(2,R8),BLANKS SHIFT 2 BLANKS                            00002330
+         STH   R7,#TKN        RESET LENGTH OF STRING                    00002340
+* NOW SCAN LOOKING FOR DOUBLE QUOTES                                    00002350
+         SPACE 1                                                        00002360
+         LR    R6,R7          LOAD LENGTH TO R6                         00002370
+         LA    R1,TKN         SET R1 TO START ADDRESS OF DATA STRING    00002380
+         LA    R14,1          SET R14 TO INCREMENT (1)                  00002390
+         LA    R15,TKN-1(R6)  POINT TO LAST(-1) VALID CHAR IN DATA      00002400
+P40QULUP CLC   =C'''''',0(R1) CHECK IF DOUBLE QUOTES.                   00002410
+         BE    P40GOTDB       OK, GOT DOUBLE QUOTES,-> REMOVE THEM.     00002420
+         BXLE  R1,R14,P40QULUP LOOK FOR MORE.                           00002430
+         STH   R6,#TKN        RESET LENGTH                              00002440
+         B     P40OUT         -> OUTPUT CARD ETC                        00002450
+         SPACE 3                                                        00002460
+P40GOTDB EQU   *                                                        00002470
+* HERE WE MUST REMOVE DOUBLE QUOTES                                     00002480
+*  CALCULATE LENGTH TO SHIFT                                            00002490
+         LR    R9,R15         LOAD END OF STRING POINTER TO R9          00002500
+         SR    R9,R1          - CURRENT BYTE POINTER = LENGTH           00002510
+         EX    R9,P40MVC2     SHIFT BACK A BYTE                         00002520
+         S     R6,ONE         -1 FROM R6                                00002530
+         BP    P40QULUP       >0 BACK                                   00002540
+         STH   R6,#TKN        =0, HHMM.                                 00002550
+         B     P40LOOP2       GET NEXT TOKEN THEN                       00002560
+         SPACE 3                                                        00002570
+P40OUT   EQU   *                                                        00002580
+         CLC   #TKN,ZERO      >0 HOPEFULLY                              00002590
+         BNH   P40LOOP2       NO, BACK TO NEXT ITEM THEN                00002600
+         SPACE 1                                                        00002610
+* NOW CHECK HOW THIS CARD IS TO GO OUT.                                 00002620
+         MVC   WORK(80),BLANKS CLEAR INITIALLY                          00002630
+         CLC   #TKN,UJP40LEN  IS LENGTH OF DATA TO GO OUT > LENGTH      00002640
+         BNH   P40SIMPL       SIMPLE OUTPUT BECAUSE NO SPLITTING        00002650
+*                             IS REQUIRED.                              00002660
+         SPACE 1                                                        00002670
+* THE DATA MUST BE SPLIT BECAUSE IT IS LONGER THAN THE DATA IS ALLOWED  00002680
+*  TO BE ON ONE CARD.                                                   00002690
+         SPACE 1                                                        00002700
+* IF ASM OR CONTROL TYPE OF DATA SET, WE MUST FIND A CONVENIENT COMMA   00002710
+*  AND SPLIT THE DATA THERE. SO INITIALLY, WE WILL DO THE SIMPLE CASES  00002720
+*  OF TSO OR *NONE*                                                     00002730
+         SPACE 1                                                        00002740
+         IFVALUE UJP40ASM,P40OPASM COMPLEX SPLIT -> GO                  00002750
+         IFVALUE UJP40CNT,P40OPCNT COMPLEX SPLIT -> GO                  00002760
+* HERE IS SIMPLE SPLIT                                                  00002770
+         LH    R15,UJP40LEN   LOAD MAX LENGTH ALLOWED OUT               00002780
+         LNR   R14,R15        SAVE IN R14 AS WELL (NEGATIVE LOAD)       00002790
+         BCTR  R15,0          -1 FOR R15 TO BE USED AS EX MVC           00002800
+         EXR15,P40MVC3        SHIFT DATA FROM TKN TO WORK               00002810
+         LA    R15,TKN+1(R15) POINT PAST LAST BYTE COPIED               00002820
+         LH    R1,#TKN        PICK UP CURRENT LENGTH OF TOKEN           00002830
+         AR    R1,R14         R1 NOW EQUALS NEW LENGTH                  00002840
+         STH   R1,#TKN        RESET #TKN NOW                            00002850
+         BCTR  R1,0           -1 FOR EXECUTED MOVE                      00002860
+         EX    R1,P40MVC4     RESET DATA IN STRING                      00002870
+         IFNULL UJP40TSO,P40PUT1                                        00002880
+           MVI WORK+79,C -'                                             00002890
+P40PUT1  PUT   DATA,WORK      OUTPUT DATA                               00002900
+         SPACE 3                                                        00002910
+         LH    R1,TOTCRDS     RESET TOTAL CARDS                         00002920
+         LA    R1,1(R1)       ADD 1                                     00002930
+         STH   R1,TOTCRDS     RESET                                     00002940
+         SPACE 3                                                        00002950
+         B     P40OUT         GO TEST IF MORE TO GO OUT (S/B).          00002960
+         SPACE 3                                                        00002970
+P40OPASM EQU   *                                                        00002980
+P40OPCNT EQU   *                                                        00002990
+* HERE WE MUST FIND A CONVENIENT COMMA, AND OUTPUT FROM THAT AREA.      00003000
+         MVC   WORK(72),TKN   MOVE 72 CHARACTERS INITIALLY.             00003010
+P40OPAS2 LA    R7,WORK+71     PREPARE TO SCAN BACKWARDS                 00003020
+         LA    R15,WORK       END OF STRING                             00003030
+         LH    R14,=H'-1'     NEGATIVE INCREMENT FOR BXH                00003040
+         CLI   O(R7),C','     FIND THE FIRST COMMA GOING BACKWARDS      00003050
+         BE    P40GOTC1       GOT A COMMA                               00003060
+         BXH   R7,R14,*-8     LOOP, LOOKING FOR A COMMA.                00003070
+* NO COMMA FOUND AT ALL, SO SET R7 TO END OF STRING                     00003080
+         LA    R7,WORK+71                                               00003090
+P4OGOTC1 MVC   1(71,R7),BLANKS SHIFT BLANKS OVER-WRITING INFORMATION    00003100
+*                             FOLLOWING THE COMMA.                      00003110
+         SPACE 1                                                        00003120
+* NOW CALCULATE THE LENGTH THAT WE CAN OUTPUT,SO THAT WE CAN CHOP       00003130
+*  OFF THE BEGINNING OF THE DATA STRING.                                00003140
+         SR    R7,R15         CALCULATE LENGTH LEFT.                    00003150
+         LA    R8,TKN+1(R7)   POINT TO ORIGINAL STRING, AT POSITION     00003160
+*                             AFTER THE COMMA.                          00003170
+         LH    R1,#TKN        GET ORIGINAL LENGTH                       00003180
+         SR    R1,R7          LENGTH OF NEW STRING                      00003190
+         EX    R1,P40MVC5     SHIFT STRING                              00003200
+         STH   R1,#TKN        RESET STRING LENGTH                       00003210
+         PUT   DATA,WORK      OUTPUT FIRST LINE                         00003220
+* NOW WE MUST REPEAT THE PROCESS, BUT START IN COLUMN 16.               00003230
+         COMMA ABOVE IN COL 71                                          00003240
+         MVC   WORK(16),BLANKS                                          00003250
+         MVC   WORK+16(80-16),TKN                                       00003260
+         B     P40OPAS2                                                 00003270
+         SPACE 3                                                        00003280
+P40SIMPL PUT   DATA,TKN                                                 00003290
+         B     P40LOOP2                                                 00003300
+P40KEYS  DC    A(*+12,12,P40KEYE-12)                                    00003310
+         DC    CL8'LEN',A(P40LEN)                                       00003320
+         DC    CL8'L  ',A(P40LEN)                                       00003330
+         DC    CL8'LENGTH',A(P40LEN)                                    00003340
+         DC    CL8'ASM',A(P40ASM)                                       00003350
+         DC    CL8'CNTL',A(P40CNTL)                                     00003360
+         DC    CL8'CONTROL',A(P40CNTL)                                  00003370
+         DC    CL8'TSO',A(P40TSO)                                       00003380
+         DC    CL8'NOSPLIT',A(P40NSPLT)                                 00003390
+         DC    CL8'NOMSG',A(P40NOMSG)                                   00003400
+         DC    CL8' ',A(P40LOOP1)                                       00003410
+P40KEYE  EQU   *                                                        00003420
+P40MVC1  MVC   TKN(*-*),TKN+1                                           00003430
+P40MVC2  MVC   O(*-*,R1),1(R1)                                          00003440
+P40MVC3  MVC   WORK(*-*),TKN  SHIFT PART TO WORK                        00003450
+P40MVC4  MVC   TKN(*-*),O(R15) SHIFT DOWN TKN,SO REDUCING STRING        00003460
+P40MVC5  MVC   TKN(*-*),O(R8)  AS ABOVE                                 00003470

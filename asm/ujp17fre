@@ -1,0 +1,187 @@
+//CLARKEF JOB (JOL),'C.CLARKE',MSGCLASS=X,NOTIFY=CLARKE                 00010001
+//ASM1 PROC                                                             00020001
+//ASM EXEC PGM=ASMBLR,PARM='TERM,NODECK,OBJ,XREF(SHORT),LIST'           00030001
+//SYSLIB   DD  DSN=SYS1.MACLIB,DISP=SHR,DCB=BLKSIZE=19040               00040001
+//         DD  DSN=SYS1.FMODGEN,DISP=SHR                                00050001
+//         DD  DSN=CLARKE.JOL35.MACLIB,DISP=SHR                         00060001
+//         DD  DSN=CLARKE.JOL35.ASM,DISP=SHR                            00070001
+//SYSUT1   DD  SPACE=(CYL,(4,2)),VOL=REF=CLARKE.JOL35.ASM               00080001
+//SYSUT2   DD  SPACE=(CYL,(4,2)),VOL=REF=CLARKE.JOL36.ASM               00090001
+//SYSUT3   DD  SPACE=(CYL,(4,2)),VOL=REF=CLARKE.JOL36.ASM               00100001
+//SYSGO DD DSN=CLARKE.JOL.OBJ(&MEM),DISP=OLD                            00110001
+//SYSTERM  DD  SYSOUT=*                                                 00120001
+//SYSPRINT DD  SYSOUT=*                                                 00130001
+//SYSIN DD DSN=CLARKE.JOL35.ASM(&MEM),DISP=SHR                          00140001
+//  PEND                                                                00150001
+//  EXEC ASM1,MEM=UJP17FRE                                              00160002
+UJP17FRE TITLE 'DYNAMICALLY FREE A FILE'                          86014 00170000
+* COPYRIGHT CCS-JOL P/L                   1986.                         00180000
+*                                                                       00190000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00200000
+           SPACE 3                                                      00210000
+*                   J             000000            L                   00220000
+*                   J            0      0           L                   00230000
+*                   J           0        0          L                   00240000
+*                   J          0          0         L                   00250000
+*                   J         0            0        L                   00260000
+*                   J         0            0        L                   00270000
+*                   J         0            0        L                   00280000
+*                   J         0            0        L                   00290000
+*                   J         0            0        L                   00300000
+*                   J         0            0        L                   00310000
+*                   J         0            0        L                   00320000
+*        J          J         0            0        L                   00330000
+*         J        J           0          0         L                   00340000
+*          J      J             0        0          L                   00350000
+*           J    J               0      0           L                   00360000
+*            JJJJ                 000000            LLLLLLLLLLL         00370000
+         EJECT                                                          00380000
+         PRINT  OFF                                                     00390000
+         COPY   JOLCOM                                                  00400000
+         PRINT  ON                                                      00410000
+         PRINT  GEN                                                     00420000
+         PRINT DATA                                               75128 00430000
+         IEFZB4D2                                                       00440000
+         IEFZB4D0                                                       00450001
+S99LEN   EQU    S99RBEND-S99RB                                          00460001
+         TITLE 'DYNAMICALLY FREE A FILE'                          86014 00470001
+P17SAVE  DSECT                                                          00480001
+         DS     18F                                                     00490001
+P17DAL   DS     F                                                       00500001
+         DS     0D                                                      00510001
+S99PRMS  DS     0D                                                      00520001
+         ORG    *+S99LEN                                                00530001
+P17ATU1  DS     F                                                       00540001
+P17ATU2  DS     F                                                       00550001
+P17ATU3  DS     F                                                       00560001
+* ***** THE NEXT FIELDS MUST BE SET UP MANUALLY.                        00570001
+P17DDNMP DC     H'1'           KEY OF 1                                 00580001
+         DC     H'1'           COUNT OF 1                               00590001
+         DC     H'8'           LENGTH OF 8                              00600003
+P17DDNM  DC     CL8' '         DDNAME                                   00610003
+P17DSNMP DC     H'2'           KEY OF 1                                 00620001
+         DC     H'1'           COUNT OF 1                               00630001
+P17DSNM  DC     H'44'          LENGTH OF 8                              00640001
+         DC     CL44' '        DDNAME                                   00650001
+P17LENS  EQU    *-P17SAVE                                               00660001
+         JOLSAVE CSECT=UJP17FRE,SIZE=P17LENS                            00670001
+         USING JOLCOM,R2                                                00680000
+         USING P17SAVE,R13                                              00690001
+         LA    R9,S99PRMS                                               00700001
+         USING S99RB,R9                                                 00710000
+         XC    S99RB(S99LEN),S99RB  ZERO OUT ALL OF THE CONTROL BLOCK   00720001
+         MVI   S99RBLN,S99LEN     SET UP LENGTH                         00730001
+         MVI   S99VERB,S99VRBUN   UNALLOCATE FUNCTION                   00740001
+         GETTKN 3                 SEE IF JUST 'FREEFILE X';             00750001
+         CLI   TKN,C' '                                                 00760001
+         BNE   P17FULL                                                  00770001
+         GETTKN 2                                                       00780003
+         MVC   P17DDNM,TKN                                              00790001
+         GETTKN 3                                                       00800003
+         B     P17TEND                                                  00810001
+P17FULL  GETTKN 2                 GET THE 'FILE' OR 'F'                 00820001
+         CLC   =C'F ',TKN                                               00830001
+         BE    P17FSPEC           FILE SPECIFIED                        00840001
+         CLC   =C'FILE ',TKN                                            00850001
+         BE    P17FSPEC           FILE SPECIFIED                        00860001
+P17ERR1  JOLERR 301,'FREEFILE:- INVALID SYNTAX'                         00870001
+         JOLRETN  RC=16                                                 00880001
+P17FSPEC GETTKN  (R1)             GET NEXT ITEM                         00890001
+         CLI   TKN,C' '                                                 00900001
+         BE    P17ERR1                                                  00910001
+         CLI   TKN,C'('                                                 00920001
+         BNE   P17ERR1                                                  00930001
+         GETTKN (R1)                                                    00940001
+         CLI   TKN,C' '                                                 00950001
+         BE    P17ERR1                                                  00960001
+         MVC   P17DDNM,TKN                                              00970001
+         GETTKN (R1)                                                    00980001
+P17TEND  CLI   TKN,C' '                                                 00990001
+         BE    P17END1                                                  01000001
+         CLI   TKN,C')'                                                 01010001
+         BE    P17END1                                                  01020001
+         JOLERR 302,'EXTRA CHARACTERS ON FREE INSTRUCTION:-IGNORED'     01030001
+P17END1  DS    0H                                                       01040001
+         MVC   P17DDNMP(6),=AL2(1,1,8)                                  01050001
+         LA    R1,P17DDNMP                                              01060001
+         ST    R1,P17ATU1                                               01070001
+         MVI   P17ATU1,X'80'                                            01080001
+         LA    R1,P17ATU1                                               01090001
+         ST    R1,S99TXTPP                                              01100001
+         MVI   S99TXTPP,X'80'                                           01110001
+         SPACE 2                                                        01120000
+* THE PARAMETER LIST HAS BEEN SET-UP, APART FROM THE PARAMETERS         01130003
+*  TO SVC 99 PROPER.                                                    01140000
+* LEST DO THEM                                                          01150000
+         LA    R1,S99RB                                                 01160000
+         ST    R1,CALLAREA                                              01170000
+         MVI   CALLAREA,S99RBPND                                        01180000
+         SPACE 2                                                        01190000
+         TESTAUTH                                                       01200000
+         LTR   R15,R15                                                  01210005
+         BNZ   D03NOTAU                                                 01220005
+S99AUTH  EQU   S99WTVOL+S99WTDSN+S99WTUNT+S99OFFLN+S99MOUNT             01230000
+         MVI   S99FLG21,S99AUTH                                         01240000
+D03NOTAU EQU   *                                                        01250000
+         LA    R1,CALLAREA                                              01260000
+         DYNALLOC                                                       01270000
+*                                                                       01280000
+*  CHECK TO SEE IF ERRORS OCCURED.                                      01290000
+*                                                                       01300000
+         ST    R15,CALLAREA+12          SAVE DYNALLOC RETURN CODE       01310000
+         LTR   R15,R15                                                  01320000
+         BNZ   D03ERR                RETURN CODE ZERO                   01330000
+         L     R0,S99ERROR           TEST ERR AND INFO CODE             01340000
+         LTR   R0,R0                 ERROR ?                            01350000
+         BZ    D0399OK                                                  01360000
+D03ERR   EQU   *                                                        01370000
+         B     NODYNDMP                                                 01380000
+         LA    R1,S99RB                 REQUEST BLOCK POINTER           01390000
+         LTR   R15,R15                                                  01400004
+         BZ    NODYNDMP                                                 01410004
+         L     R15,=V(DYNDUMP)          GET DUMP ROUTINE                01420000
+         WXTRN  DYNDUMP                                                 01430004
+         BALR  R14,R15                  GO TO IT                        01440000
+         SPACE  3                                                       01450000
+NODYNDMP DS    0H                                                       01460000
+         L     R1,CALLAREA+12          ADDR OF ERROR AND INFO CODES     01470000
+         LR    R15,R1                                                   01480000
+         O     R1,=XL4'40F0'        (CONVERT                            01490000
+         C     R15,=F'12'            CODES                              01500000
+         BNE   *+8                      TO                              01510000
+         LH    R1,=X'F1F2'                EBCDIC                        01520000
+         STH   R1,D03MSGH                   FOR                         01530000
+         UNPK  D03MSGI(9),S99ERROR            THE                       01540000
+         NC    D03MSGI(8),=8X'0F'                ERROR                  01550000
+         TR    D03MSGI(8),=C'0123456789ABCDEF'     MESSAGE)             01560000
+         LA    R1,D03MSG                                                01570000
+         SVC   35               WTO, ROUTCDE=11                         01580000
+         LINK  EP=IKJEFF18,PARAM=(S99RB,CALLAREA+12,TSOADR,    +++++++++01590000
+               TSOADR+4),MF=(E,CALLAREA+16)                             01600000
+         LA    R0,D03MSGL                                               01610000
+         LA    R1,D03MSG                                                01620000
+         SVC   93               TPUT MESSAGE                            01630000
+         JOLRETN                                                        01640000
+*        L     R1,&CPPL          GET CPPL ADDRESS                       01650000
+* NOW LINK TO TSO ERROR MESSAGE ROUTINE                                 01660000
+*.RT1    LINK  EP=IKJEFF18,PARAM=(CALLAREA,CALLAREA+12,TSOADR,     **   01670000
+*              TSOADR+4,&C)                                             01680000
+D03MSG   EQU   *                                                        01690000
+         DC    AL2(D03MSGL),X'8000'    LENGTH AND FLAGS                 01700000
+         DC    C' DYNALLOC RETURN CODE '                                01710000
+D03MSGH  DS    H                                                        01720000
+         DC    C', ERROR AND INFO CODE '                                01730000
+D03MSGI  DS    XL8                 SPACE FOR ERROR AND INFO CODES       01740000
+D03MSGL  EQU   *-D03MSG            LENGTH OF MESSAGE                    01750000
+         DC    XL4'20'             ROUTING CODE                         01760000
+TSOADR   DC    F'0'        DON'T KNOW ADDR OF IKJEFF02                  01770000
+         DC    X'80'      '80' WANT WTO, '00' WANT PUTLINE              01780000
+         DC    X'32'      '32' IF SVC99 USED, '01' IF DAIR USED         01790000
+         DC    C'JL'                                                    01800000
+D0399OK  L     R15,CALLAREA+12      RESTORE DYNALLOC RETURN CODE        01810000
+         JOLRETN                                                        01820000
+         DC H'0'    ABEND                                               01830000
+         SPACE 1                                                        01840000
+         DC  10S(*)                                                     01850001
+         LTORG                                                          01860000
+         END                                                            01870000

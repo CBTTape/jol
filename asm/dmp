@@ -1,0 +1,74 @@
+         GENSAVE CSECT=DMP                                              00020002
+         LM    R2,R3,0(R1)                                              00030007
+*        L     R14,0(R3)       BLOCK LENGTH                             00040009
+         LA    R0,DPBLKL                                                30400001
+         SLL   R0,16                                                    30410000
+         ST    R0,DPBLOCK                                               30420000
+         LA    R0,DPLINEL                                               30430000
+         SLL   R0,16                                                    30440000
+THERE    ST    R0,DPLINE                                                30450009
+         LA    R3,0(R2,R3)     END OF BLOCK                             30460009
+         BCTR  R3,0                                                     30460110
+         OPEN  (PRINT,OUTPUT)                                           30461001
+         LTR   R15,R15                                                  30462004
+         BZ    E21LP0                                                   30463004
+         EX    0,*                                                      30464004
+         DC    C'COULDN''T OPEN THE DUMP DATASET'                       30465014
+E21LP0   DS    0H                                                       30470000
+         ST    R2,CALLAREA                                              30480000
+         UNPK  DBL(9),CALLAREA(5)                                       30490000
+         TR    DBL,HEX                                                  30500000
+         MVC   DPADDR,DBL+2                                             30510000
+         MVC   DPCHARS,0(R2)   COPY DATA IN CHARACTERS                  30520000
+         TR    DPCHARS,TRTAB   REMOVE SOME HARD-TO-PRINT DATA           30530000
+         LA    R14,DPHEX       ADDRESS FOR HEX DATA                     30540000
+         LA    R1,2                                                     30550000
+E21LP1   DS    0H                                                       30560000
+         LA    R0,4            4 SEGMENTS                               30570000
+E21LP2   DS    0H                                                       30580000
+         MVC   WORK(4),0(R2)                                            30581011
+         UNPK  DBL(9),WORK     CONVERT SOME TO HEX                      30590011
+         TR    DBL,HEX                                                  30600000
+         MVC   0(8,R14),DBL    INTO THE PRINT LINE                      30610000
+         LA    R14,9(,R14)     NEXT FOR OUTPUT                          30620000
+         LA    R2,4(,R2)       NEXT FOR INPUT                           30630000
+         BCT   R0,E21LP2                                                30640000
+         LA    R14,1(,R14)    AN EXTRA SKIP IN PAGE CENTRE              30650000
+         BCT   R1,E21LP1                                                30660000
+         L     R1,=A(S23DECB)                                           30670000
+         WRITE S23DECB,SF,PRINT,DPBLOCK                                 30680001
+         CHECK S23DECB                                                  30700001
+         CLR   R2,R3           Q... ANY MORE?                           30710001
+         BNH   E21LP0          A... YES                                 30720000
+         CLOSE  PRINT                                                   30720101
+         L     R13,4(,R13)                                              30721001
+         LM    R14,R12,12(R13)                                          30722001
+         SLR   R15,R15                                                  30723001
+         BR    R14                                                      30724001
+PRINT    DCB   DDNAME=SYSPRINT,LRECL=L'DPDATA,BLKSIZE=DPBLKL,RECFM=VAB,.30725002
+               DSORG=PS,MACRF=W                                         30726001
+         DC    0D'0',CL32'DUMP BLOCK'                                   30727005
+DPBLOCK  DS    F                                                        30730001
+DPLINE   DS    F                                                        30740001
+DPDATA   DS    0CL121                                                   30750001
+         DC    5C' '                                                    30760012
+DPADDR   DC    CL6' '                                                   30770012
+         DC    2C' '                                                    30780012
+DPHEX    DC    CL75' '                                                  30790012
+DPCHARS  DC    CL32' '                                                  30800012
+DPLINEL  EQU   *-DPLINE                                                 30810001
+DPBLKL   EQU   *-DPBLOCK                                                30820001
+DBL      DS    D                                                        30830001
+         DS    C                                                        30831001
+WORK     DC    0CL5' ',4C' ',X'04'                                      30831114
+CALLAREA DS    F                                                        30832001
+TRTAB    DC    256AL1(*-TRTAB) ALL THINGS TO ALL THINGS                 30833013
+         ORG   TRTAB                                                    30834013
+         DC    64X'40'         FIX THE FIRST ONES                       30835013
+         ORG   TRTAB+C'9'+1                                             30836013
+         DC    6C' '           AND THE LAST ONES                        30837013
+         ORG                                                            30838013
+         ORG   *-240                                                    30848013
+HEX      DS    0CL256,240C                                              30850001
+         DC    C'0123456789ABCDEF'                                      30860001
+         END                                                            30870001

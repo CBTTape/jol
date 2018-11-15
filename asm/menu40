@@ -1,0 +1,138 @@
+         ATTACH EPLOC=MBRNAME,SF=(E,ATTACHW),                          .01430000
+               TASKLIB=DUMMYDCB,ECB=NORMECB,                           .01440024
+               ESTAI=(ABNORMAL,(R2))                                   .01441027
+                                                                       .01442025
+                                                                        01443025
+DSOK     DS    0H                                                       01450000
+         ST    R1,TCBPTR       SAVE TCB ADDRESS                         01460025
+         WAIT  1,ECBLIST=ECBLIST                                        01470021
+         MVI   CALLAREA,X'80'                                           01480002
+         CLOSE (DUMMYDCB),MF=(E,CALLAREA)                               01490002
+         TM    ABENDECB,X'40'  ABEND ?                                  01490134
+         BNZ   XXXX            YES, ABNORMAL COPIED ABEND INFO          01490234
+         L     R15,TCBPTR                                               01491025
+*        MVC   CALLAREA+12(1),X'1D'(R15) SHIFT IN ABEND FLAG            01500034
+         MVC   CALLAREA+12+1(3),NORMECB+1 GET RETURN CODE               01510034
+XXXX     DS    0H                                                       01520032
+         DETACH TCBPTR                                                  01530025
+* NOW SEE IF TASK ABENDED OR RETURNED PROPERLY.                         01540000
+         TM    ABENDECB,X'40'  ABEND ?                                  01550034
+         BZ    NOTABND                                                  01560032
+*        B     NOTABND                                                  01561032
+* WAS IT A USER ABEND OR A SYSTEM ABEND ?                               01570000
+         L     R1,CALLAREA+12                                           01580032
+         N     R1,=X'00FFF000'                                          01590000
+         BZ    USERABND                                                 01600000
+         UNPK  DBL(9),CALLAREA+12(5)                                    01610002
+         TR    DBL,HEX                                                  01620000
+         MVI   SCC,C'S'                                                 01630018
+         MVC   CC,SCC                                                   01640017
+         MVI   CC+L'SCC,C' '                                            01650017
+         B     ABENDMSG                                                 01660017
+*        JOLERR 311,MBRNAME,' ABENDED: CC=',CC                          01670017
+*        SETVAR 'PGMABEND',CC                                           01680017
+         JOLRETN                                                        01690011
+         SPACE 3                                                        01700000
+USERABND DS    0H                                                       01710000
+         LA    R0,X'FFF'                                                01720017
+         N     R0,CALLAREA+8                                            01730017
+         ST    R0,CALLAREA+8                                            01740017
+         CVD   R0,DBL                                                   01750017
+         OI    DBL+7,15                                                 01760017
+         UNPK  CC,DBL                                                   01770017
+         MVI   CC,C'U'                                                  01780017
+ABENDMSG DS    0H                                                       01790017
+         JOLERR 312,MBRNAME,' ABENDED: CC=',CC                          01800017
+         SETVAR 'PGMABEND',CC                                           01810017
+         SETVAR 'LASTCC',4095                                           01811035
+         JOLRETN                                                        01820017
+         SPACE 3                                                        01830017
+NOTABND  DS    0H                                                       01840017
+         LA    R0,X'FFF'                                                01850000
+         N     R0,CALLAREA+8                                            01860002
+         ST    R0,CALLAREA+8                                            01870002
+         CVD   R0,DBL                                                   01880000
+         OI    DBL+7,15                                                 01890000
+         UNPK  WORK(4),DBL                                              01900000
+         MVC   #WORK,=H'4'                                              01910000
+ENDMSSOK DS    0H                                                       01920000
+         JOLERR 008,MBRNAME,' RETURNED ',#WORK                          01930016
+         SETVAR 'CALLERR',0                                             01940000
+         L     R0,CALLAREA+8                                            01950002
+         FIX   'LASTCC SHOULD BE SET SELECTIVELY BY JOLRETN TO ENSURE TH01960002
+               HAT IT IS DONE CONSISTANTLY' AND REGULARLY BY ALL JOL ROU01970002
+               UTINES                                                   01980002
+         SETVAR 'LASTCC',(0)                                            01990000
+         JOLRETN                                                        02000002
+         DROP                                                           02000121
+ABNORMAL DS    0H                                                       02001021
+         STM   R14,R12,12(R13)                                          02002021
+         LR    R12,R15                                                  02002133
+         USING JOLCOM,R2                                                02002233
+         USING ABNORMAL,R12                                             02003033
+         L     R2,0(,R1)       ADDRESS JOL COMMON                       02003129
+         L     R15,TCBPTR                                               02003227
+         MVC   CALLAREA+12+0(1),X'01D'(R15) SHIFT IN ABEND FLAG         02003332
+         MVC   CALLAREA+12+1(3),X'011'(R15) AND RETURN CODE             02003432
+         POST  ABENDECB                                                 02003530
+         STIMER WAIT,BINTVL==A(60*100)                                  02003631
+*        DETACH TCBPTR                                                  02003731
+*        DC    H'0'                                                     02004023
+         LM    R14,R12,12(R13)                                          02005021
+         SLR   R15,R15                                                  02006021
+         BR    R14                                                      02007021
+HEX      EQU *-240                                                      02010000
+         DC    C'0123456789ABCDEF'                                      02020000
+         DC    60S(*)                                                   02030000
+LINKDCBL DCB   DDNAME=$$JLOAD,MACRF=R,DSORG=PO                          02040000
+LENDCB   EQU   *-LINKDCBL                                               02050002
+ATTACHL  ATTACH SF=L                                                    02060002
+ATTACHLL EQU   *-ATTACHL                                                02070002
+         DS    0D                                                       02080002
+*        IHAPDS PDSBLDL=YES                                             02090002
+         DCBD  DSORG=PO,DEVD=DA                                         02100002
+JOLCOM   DSECT                                                          02110002
+         ORG   DBL+1                                                    02120017
+SCC      DS    CL4                                                      02130017
+         ORG   #WORK                                                    02140002
+#DSN     DS    H                                                        02150002
+DSN      DS    CL44                                                     02160002
+         ORG   WORK+100                                                 02170002
+MBRNAME  DS    CL8                                                      02180002
+         ORG   WORK+114                                                 02190002
+TUPSWD   DS    XL6                                                      02200002
+PSWD     DS    CL8                                                      02210002
+         ORG   WORK+200                                                 02220002
+S99AREA  DS    0XL256                                                   02230002
+S99PARMS DS    F                                                        02240002
+S99RB    DS    0XL24                                                    02250002
+         DC    X'1401'                                                  02260002
+S99FLGS1 DS    XL2                                                      02280002
+S99ERR   DS    XL2                                                      02290002
+S99INF   DS    XL2                                                      02300002
+S99TULST DS    A                                                        02310002
+         DS    XL4             RESERVED                                 02320002
+S99FLGS2 DS    XL2                                                      02330002
+         DS    XL2             THE REST OF IT                           02340002
+S99TU    DS    A               DSN=                                     02350002
+         DS    A               DISP=SHR                                 02360002
+         DS    A               PASSWORD=                                02370002
+         DS    A               DDNAME=                                  02380002
+         DS    4A              IN CASE WE WANT THEM                     02390002
+TUDSN    DS    XL4             DSN=, ONE OF THEM                        02400002
+#DSN56   DS    H               LENGTH                                   02410002
+DSN56    DS    CL44            THE  DSNAME                              02420002
+TURDDN   DS    XL4             YOU TELL ME ON DDN                       02430002
+         DS    H               LENGTH                                   02440002
+RETDDN   DS    CL8             THE DDNAME                               02450002
+CC       DS    CL5                                                      02460017
+         DS    0D                                                       02470002
+ECBLIST  DS    2A                                                       02470121
+ABENDECB DS    F                                                        02470221
+NORMECB  DS    F                                                        02470321
+TCBPTR   DS    F                                                        02470425
+ECBAREA  EQU   ECBLIST,*-ECBLIST,C'X'                                   02470525
+         DS    0D                                                       02471021
+DUMMYDCB DS    XL(LENDCB)                                               02480002
+ATTACHW  DS    XL(ATTACHLL)                                             02490002
+         END                                                            02500002

@@ -1,0 +1,626 @@
+UJP28SCR TITLE 'JOL 3270 SCREEN HANDLER - INTERNAL MACROS'        J40B  00010000
+*                                                                 J50   00020000
+         MACRO                                                    J50   00030000
+&L       NEXTITEM                                                       00040000
+&L       LH    R15,TXTLEN                                               00050000
+         AH    R15,RLITLEN                                              00060000
+         LA    R10,DITENEXT(R15) ADDRESS NEXT DATA ITEM           J50   00070000
+         MEND                                                     J50   00080000
+*                                                                 J50   00090000
+         MACRO                                                    J50   00100000
+&L       SETATTR &PROT                                                  00110000
+         LCLA  &A                                                 J50   00120000
+         LCLB  &B                                                 J50   00130000
+         LCLC  &COLOUR,&ATTR,&L1,&L2                              J50   00140000
+&A       SETA  K'&PROT                                            J50   00150000
+&B       SETB  (K'&PROT NE 0)                                     J50   00160000
+&L1      SETC  'KCP'.'&SYSNDX'.'A'                                J50   00170000
+&L2      SETC  'KCP'.'&SYSNDX'.'B'                                J50   00180000
+         AIF   (NOT &B).PROTOK                                    J50   00190000
+         AIF   ('&PROT' EQ 'PROT').PROTOK                         J50   00200000
+         AIF   ('&PROT' EQ 'DEFAULT').PROTOK                      J50   00210000
+         MNOTE 8,'PROT VALUE &PROT IS NOT ALLOWED'                J50   00220000
+.PROTOK  ANOP                                                     J50   00230000
+&L       MVC   0(1,R11),VIDSFE   SET FIELD EXTENDED (MAY BE 0)    J51   00240000
+         CLI   VIDSFE,0          CAN WE USE EXTENDED FIELDS ?     J51   00250000
+         BNE   *+8               YES.                             J51   00260000
+         MVI   0(R11),SF                                          J51   00270000
+&COLOUR  SETC  (&B)'TXTCOLR'.(1-&B)'REPCOLR'                      J50   00280000
+&ATTR    SETC  (&B)'TXTATTR'.(1-&B)'REPATTR'                      J50   00290000
+         AIF   ('&PROT' EQ 'DEFAULT').DEFCOLR                     J50   00300000
+         SLR   R15,R15                                            J50   00310000
+         IC    R15,&COLOUR       LOAD COLOUR NUMBER               J50   00320000
+         IC    R15,COLOURS(R15)  TRANSLATE TO 9526 EQUIVALENT     J50   00330000
+         STC   R15,1(,R11)                                        J50   00340000
+         AIF   (NOT &B).NPROT                                     J50   00350000
+         OI    1(R11),X'20'      SET PROTECTED ON                 J50   00360000
+         AGO   .NPROT                                             J50   00370000
+.DEFCOLR ANOP                                                     J50   00380000
+         MVI   1(R11),X'2C'                                       J50   00390000
+.NPROT   ANOP                                                           00400000
+         CLI   VIDSFE,0          CAN WE USE EXTENDED FIELDS ?     J51   00410000
+         BE    &L1               NO.                              J51   00420000
+         AIF   ('&PROT' NE 'DEFAULT').SETATTR                     J50   00430000
+         MVI   2(R11),0                                           J50   00440000
+         AGO   .DEFATTR                                           J50   00450000
+.SETATTR ANOP                                                     J50   00460000
+         IC    R15,&ATTR                                          J50   00470000
+         SRL   R15,2                                              J50   00480000
+         STC   R15,2(,R11)                                        J50   00490000
+.DEFATTR ANOP                                                     J50   00500000
+         TR    1(2,R11),SDATA                                     J50   00510000
+         LA    R11,1(,R11)                                        J50   00520000
+         B     &L2                                                J50   00530000
+&L1      TR    1(1,R11),SDATA                                     J50   00540000
+&L2      DS    0H                                                 J50   00550000
+         LA    R11,2(,R11)                                        J50   00560000
+         MEND                                                     J50   00570000
+*                                                                 J50   00580000
+         MACRO                                                    J50   00590000
+&L       FIELD &LINE,&COL,&PROT,&STO=                             J50   00600000
+         LCLA  &A,&LEN                                            J50   00610000
+         LCLB  &B                                                 J50   00620000
+         LCLC  &COLOUR,&ATTR,&L1,&L2,&L3,&L4,&LATTR               J50   00630004
+&A       SETA  K'&PROT                                            J50   00640000
+&LEN     SETA  5                                                  J50   00650000
+&B       SETB  (K'&PROT NE 0)                                     J50   00660000
+&L1      SETC  'KCP'.'&SYSNDX'.'A'                                J50   00670000
+&L2      SETC  'KCP'.'&SYSNDX'.'B'                                J50   00680000
+&L3      SETC  'KCP'.'&SYSNDX'.'C'                                J51   00690000
+&L4      SETC  'KCP'.'&SYSNDX'.'D'                                J51   00700000
+&LATTR   SETC  'KCP'.'&SYSNDX'.'E'                                J51   00701005
+         AIF   (NOT &B).PROTOK                                    J50   00710000
+         AIF   ('&PROT' EQ 'PROT').PROTOK                         J50   00720000
+         AIF   ('&PROT' EQ 'DEFAULT').PROTOK                      J50   00730000
+         MNOTE 8,'PROT VALUE &PROT IS NOT ALLOWED'                J50   00740000
+.PROTOK  ANOP                                                     J50   00750000
+&L       MVI   MSGBA,SBA      SET BUFFER ADDR                     J50   00760000
+         AIF   ('&LINE'(1,1) EQ  '(').LLR                         J50   00770000
+         AIF   (T'&LINE EQ 'H').LLH                                     00780000
+         L     R1,&LINE       LOAD LINE NUMBER                    J50   00790000
+         AGO   .COL                                               J50   00800000
+.LLH     LH    R1,&LINE       LOAD LINE NUMBER                    J50   00810000
+         AGO   .COL                                               J50   00820000
+.LLR     AIF   ('&LINE' EQ '(1)' OR '&LINE' EQ '(R1)').COL        J50   00830000
+         LR    R1,&LINE(1)   LOAD LINE NUMBER                     J50   00840000
+.COL     ANOP                                                     J50   00850000
+         AIF   ('&COL'(1,1) EQ  '(').LCR                          J50   00860000
+         AIF   (T'&COL EQ 'H').LCH                                      00870000
+         L     R14,&COL       LOAD COLUMN NUMBERS                 J50   00880000
+         AGO   .ECOL                                              J50   00890000
+.LCH     LH    R14,&COL       LOAD COLUMN NUMBER                  J50   00900000
+         AGO   .ECOL                                              J50   00910000
+.LCR     AIF   ('&COL' EQ '(14)' OR '&COL' EQ '(R14)').ECOL       J50   00920000
+         LR    R14,&COL(1)    LOAD COLUMN NUMBER                  J50   00930000
+.ECOL    ANOP                                                     J50   00940000
+         BCTR  R14,0          BUFFER POSITION STARTS AT ZERO            00950000
+         BCTR  R1,0           SUBTRACT 1                                00960000
+         M     R0,#COLUMNS    MULTIPLY BY NUMBER IF COLUMNS             00970000
+         AR    R1,R14         R1 NOW HAS BUFFER ADDRESS                 00980000
+         AIF   (T'&STO EQ 'O').NSTO                                     00990000
+         LA    R15,1(,R1)                                         J50   01000000
+         STH   R15,&STO       SAVE BUFFER ADDRESS FOR READ        J51   01010000
+         LA    R7,2(,R7)      +  FOR NEXT BUFFER ADDRESS          J51   01020000
+.NSTO    ANOP                                                     J50   01030000
+         D     R0,=F'64'      R1 NOW HAS 1ST ADDR R0 NOW HAS 2ND ADDR   01040000
+         STC   R1,1(,R11)     STORE HIGH BYTE                 (JCS)     01050000
+         STC   R0,2(,R11)       AND LOW BYTE                  (JCS)     01060000
+         TR    1(2,R11),SDATA    TRANSLATE PROPERLY           (JCS)     01070000
+         LA    R11,3(,R11)       BUMP PAST SA                     J51   01080000
+&COLOUR  SETC  (&B)'TXTCOLR'.(1-&B)'REPCOLR'                      J50   01090000
+&ATTR    SETC  (&B)'TXTATTR'.(1-&B)'REPATTR'                      J50   01100000
+*        CLI   VIDSFE,0          CAN WE USE EXTENDED FIELDS ?     J51   01110000
+*        BNE   &L3               YES.                             J51   01120000
+* HERE IS A MONO TYPE SCREEN                                      J51   01130000
+         MVI   0(R11),SF         SET NORMAL MONO FIELDS           J51   01140000
+         AIF   ('&PROT' EQ 'PROT').PROTE                          J51   01150000
+         AIF   ('&PROT' NE 'DEFAULT').DEFCOLR                     J51   01160000
+.PROTE   ANOP                                                     J51   01170000
+* SET PROTECTED                                                   J51   01180000
+*        MVI   1(R11),X'60'      PROTECTED (WAS X'F0')            J51   01190010
+         MVI   1(R11),X'F0'      PROTECTED (WAS X'F0')            J60   01191010
+         LA    R11,2(R11)                                         J51   01200000
+.*       B     &L4               GO OUT NOW.                      J51   01210000
+         AGO   .DONEDEF                                           J51   01220000
+.DEFCOLR ANOP                                                     J51   01230000
+         MVI   1(R11),X'C8'      UN-PROTECTED                     J51   01240000
+         LA    R11,2(R11)                                         J51   01250000
+.*       B     &L4               GO OUT NOW.                      J51   01260000
+.DONEDEF ANOP                                                     J51   01270000
+&L4      DS    0H                CAN USE EXTENDED SCREENS         J51   01280000
+         CLI   VIDSFE,0          CAN WE USE EXTENDED FIELDS ?     J51   01290000
+         BE    &L3               NO, SO OUT WE GO.                J51   01300000
+         CLI   &COLOUR,0         HAVE WE BEEN ASKED TO SET A COLORJ60   01301001
+         BE    &LATTR            NO, TEST ATTR                    J60   01302001
+         MVC   0(1,R11),VIDSA    SET ATTRIBUTE                    J51   01310000
+         MVI   1(R11),X'42'      CHANGE COLOR                     J51   01320000
+         SLR   R15,R15                                            J50   01330000
+         IC    R15,&COLOUR       LOAD COLOUR NUMBER               J50   01340000
+*        IC    R15,COLOURS(R15)  TRANSLATE TO 9526 EQUIVALENT     J50   01350000
+         STC   R15,2(R11)                                         J50   01360000
+         OI    2(R11),C'0'       MAKE A NUMBER                    J51   01370000
+*        AIF   (NOT &B).NPROT                                     J50   01380000
+*        OI    4(R11),X'20'      SET PROTECTED ON                 J50   01390000
+*        AGO   .NPROT                                             J50   01400000
+.DEFCOL2 ANOP                                                     J50   01410000
+*        MVI   4(R11),X'2C'      MODIFY FIELD                     J51   01420000
+         LA    R11,3(R11)        SKIP CHANGE COLOR CODE.          J51   01430000
+* DO ATTR IF NON-ZERO                                             J51   01440001
+&LATTR   DS    0H                                                 J60   01441003
+         CLI   &ATTR,0           CHECK ATTRIBUTE                  J50   01450000
+         BE    &L3               NONE, SO OUT WE GO.              J51   01460000
+         MVC   0(1,R11),VIDSA    SET ATTRIBUTE                    J51   01470000
+         MVI   1(R11),X'41'      CHANGE ATTRS                     J51   01480000
+         IC    R15,&ATTR         LOAD ATTRIBUTE                   J50   01490000
+         STC   R15,2(R11)                                         J50   01500000
+         LA    R11,3(R11)        SKIP CHANGE ATTR CODE.           J51   01510000
+         B     &L3               OUT WE GO.                       J51   01520000
+.NPROT   ANOP                                                           01530000
+         AIF   ('&PROT' NE 'DEFAULT').SETATTR                     J50   01540000
+         MVI   5(R11),0                                           J50   01550000
+         AGO   .DEFATTR                                           J50   01560000
+.SETATTR ANOP                                                     J50   01570000
+         IC    R15,&ATTR                                          J50   01580000
+         SRL   R15,2                                              J50   01590000
+         STC   R15,5(,R11)                                        J50   01600000
+.DEFATTR ANOP                                                     J50   01610000
+         TR    4(2,R11),SDATA                                     J50   01620000
+         LA    R11,1(,R11)                                        J50   01630000
+         B     &L2                                                J50   01640000
+&L1      TR    4(1,R11),SDATA                                     J50   01650000
+&L2      DS    0H                                                 J50   01660000
+         LA    R11,5(,R11)                                        J50   01670000
+&L3      DS    0H                                                 J50   01680000
+         MEND                                                     J50   01690000
+         TITLE 'JOL 3270 SCREEN HANDLER - MAPPING DSECTS'         J40B  01700000
+********************************************************************    01710000
+*                                                                  *    01720000
+* HERE WE HAVE THE MAPPING DSECTS                                  *    01730000
+*                                                                  *    01740000
+********************************************************************    01750000
+WORKAREA DSECT            PASSED WORK AREA POINTED TO BY R0 ON ENTRY    01760000
+SAVEAREA DS    18F                                                      01770000
+SEVENTY9 DS    F                                                  J50   01780000
+EIGHTY1  DS    F                                                  J50   01790000
+P28DLEN  DS    H                                                  J50   01800000
+P28DLOC  DS    A                                                  J50   01810000
+P28SFCVC DC    X'1B'                                              J50   01820000
+SF       EQU   X'1D'                                              J50   01830000
+*SFE     EQU   X'1B'                                              J50   01840000
+SBA      EQU   X'11'                                              J50   01850000
+IC       EQU   X'13'                                              J50   01860000
+PT       EQU   X'05'                                              J50   01870000
+RA       EQU   X'3C'                                              J50   01880000
+REPLEN   DS    40H       REQUIRED REPLY LENGTH                          01890000
+REPADD   DS    40H       REQUIRED REPLY ADDRESSES                       01900000
+REPLYA   DS    CL100    AREA TO PASS REPLIES BACK TO CALLER            .01910000
+                            POINTED TO BY R1 ON EXIT                    01920000
+WRITEA   DS    0C       BUFFER AREA USED TO WRITE TO SCREEN             01930000
+WCNTL    DS    CL2                                                      01940000
+WCC      DS    CL1                                                      01950000
+MSG0     DS    CL2000                       FIX DJD 22/08/83            01960000
+TAID     DS    C        STOREAGE AREA FOR AID WHILE BEING MUTILATED     01970000
+READA    EQU   *        BUFFER AREA USED TO READ FROM SCREEN            01980000
+AID      DS    CL1                                                      01990000
+CURSOR   DS    CL2                                                      02000000
+MSGI     DS    CL2000                       FIX DJD 22/08/83            02010000
+*                                                                       02020000
+********************************************************************    02030000
+*                                                                  *    02040000
+MSG      DSECT          MAPPING FOR WRITE TO SCREEN                *    02050000
+MSGBA    DS    CL1                                                 *    02060000
+MSGADDR1 DS    CL1                                                 *    02070000
+MSGADDR2 DS    CL1                                                 *    02080000
+MSGSF    DS    CL1                                                 *    02090000
+MSGATTR  DS    CL1                                                 *    02100000
+MSGEATTR DS    0C                                                  *    02110000
+MSGTXT   DS    CL100                                               *    02120000
+*                                                                  *    02130000
+********************************************************************    02140000
+*                                                                  *    02150000
+IMSG     DSECT          MAPPING TO READ FROM SCREEN                *    02160000
+ISBA     DS    CL1                                                 *    02170000
+IADD1    DS    CL1                                                 *    02180000
+IADD2    DS    CL1                                                 *    02190000
+ITEXTI   DS    CL100                                               *    02200000
+*                                                                  *    02210000
+********************************************************************    02220000
+         SPACE                                                          02230000
+         COPY  P28PARMS                                           J50   02240000
+         SPACE                                                          02250000
+********************************************************************    02260000
+*                                                                  *    02270000
+JOLREP   DSECT               MAPPING FOR REPLY TO CALLER           *    02280000
+LENGTH   DS    H                                                   *    02290000
+LIT      DS    CL100                                               *    02300000
+*                                                                  *    02310000
+********************************************************************    02320000
+*                                                                       02330000
+* END OF MAPPING DSECTS                                                 02340000
+*                                                                       02350000
+R0       EQU   0                                                        02360000
+R1       EQU   1                                                        02370000
+R2       EQU   2                                                        02380000
+R3       EQU   3                                                        02390000
+R4       EQU   4                                                        02400000
+R5       EQU   5                                                        02410000
+R6       EQU   6                                                        02420000
+R7       EQU   7                                                        02430000
+R8       EQU   8                                                        02440000
+R9       EQU   9                                                        02450000
+R10      EQU   10                                                       02460000
+R11      EQU   11                                                       02470000
+R12      EQU   12            BASE                                       02480000
+R13      EQU   13            MAIN MAP                                   02490000
+R14      EQU   14                                                       02500000
+R15      EQU   15                                                       02510000
+         PRINT OFF                                                J50   02520000
+         COPY  JOLCOM                                             J50   02530000
+         PRINT ON                                                 J50   02540000
+         TITLE 'JOL 3270 SCREEN HANDLER '                               02550000
+UJP28SCR CSECT                                                          02560000
+*                                                                       02570000
+* MAINLINE OF ROUTINE TO TAKE ARRAY OF DISPLAY ADDRESSES,LITERALS       02580000
+* AND REPLY REQUIREMENTS THEN TO FORMAT THE SCREEN USING TPUT FULLSCR,  02590000
+* READ REPLY AND PASS BACK TO THE CALLING ROUTINE A FORMATTED AREA      02600000
+* CONTAINING THE REPLIES                                                02610000
+*                                                                       02620000
+*                                                                       02630000
+*        WRITTEN BY ODTAA PTY LIMITED                                   02640000
+*            PO BOX 737 CANBERRA CITY 2601                              02650000
+*                ACT  AUSTRALIA                                         02660000
+*                                                                       02670000
+*        VERSION 1   .............. 28/8/80                             02680000
+*                                                                       02690000
+*                                                                       02700000
+*                                                                       02710000
+*                                                                       02720000
+*********************************************************************** 02730000
+*                                                                       02740000
+*                                                                       02750000
+*        SAVE  (14,12),,*                                               02760000
+         SAVE  (14,12),,UJP28SCR.&SYSDATE..&SYSTIME                     02770000
+         LR    R12,R15        BASE REGISTER                             02780000
+         USING UJP28SCR,R12                                             02790000
+         LR    R11,R0         POINT AT WORK AREA                        02800000
+         USING WORKAREA,R11                                             02810000
+         ST    R11,8(,R13)                                              02820000
+         ST    R13,SAVEAREA+4                                           02830000
+         LR    R13,R11                                                  02840000
+         DROP  R11                                                      02850000
+         USING WORKAREA,R13                                             02860000
+         LA    R11,WRITEA     POINT AT OUTPUT AREA                      02870000
+         USING WRITEA,R11                                               02880000
+         USING #PARM,R5                                           J50   02890000
+         LR    R5,R1         POINT AT ARRAY PASSED FROM CALLER          02900000
+*        STLINENO LINE=1,MODE=ON                           ** CVC       02910000
+*        STFSMODE ON                                       ** CVC       02920000
+         STFSMODE ON,INITIAL=YES                           ** CVC       02930000
+*        MVI   P28SF,SFE                                          J51   02940000
+*        TM    #TERMFLG,#TRMEXTD                                  J51   02950000
+*        BO    *+8                                                J51   02960000
+*        MVI   P28SF,SF                                           J51   02970000
+         LH    R9,#SCITEMS    LOAD NO OF ITEMS                          02980000
+         L     R15,#COLUMNS                                       J50   02990000
+         BCTR  R15,0                                              J50   03000000
+         ST    R15,SEVENTY9      #COLS-1                          J50   03010000
+         LA    R15,2(,R15)                                        J50   03020000
+         ST    R15,EIGHTY1       #COLS+1                          J50   03030000
+         LA    R10,#ITEMDSC   POINT AT ITEMS                            03040000
+         USING DITEM,R10      MAP ITEMS                                 03050000
+         MVC   WCNTL,=X'27F5' MOVE IN WRITE CONTROL                     03060006
+*        MVC   WCNTL,=X'277E' MOVE IN WRITE CONTROL               JXX   03070006
+         CLI   NOCLS,0                                            J52   03080000
+         BE    P28RESTK                                           J52   03090000
+         MVC   WCNTL,=X'27F1' MOVE IN WRITE CONTROL, NO CLEAR!!   J52   03100000
+P28RESTK DS    0H                                                 J52   03110000
+         MVI   WCC,X'C3'   RESTORE KEYBOARD. RESET MODIFIED DATA  TAGS  03120000
+         LA    R11,MSG0       POINT AT SCREEN AREA                      03130000
+         DROP  R11                                                      03140000
+         USING MSG,R11        MAP SCREEN                                03150000
+         CLI   NOCLS,0                                            J52   03160000
+         BE    P28LEAVA          LEAVE CURRENT ATTRIBS            J52   03170000
+*HERE, RESET ALL ATTRIBUTES AND MAKE SCREEN PROTECTED             J52   03180000
+         LA    R0,1              GOTO ROW  1 COLUMN 1             J52   03190000
+         LA    R1,1                                               J52   03200000
+         SETBA (R0),(R1)                                          J52   03210000
+         MVC   MSGBA(2),=X'1D6C' SET PROTECTED                    J52   03220000
+         LA    R11,2(R11)                                         J52   03230000
+         MVC   MSGBA(2),=X'0505' PROGRAM TAB                      J52   03240000
+         LA    R11,2(,R11)                                        J52   03250000
+         LA    R0,24             GOTO ROW  1 COLUMN 1             J52   03260000
+         LA    R1,80                                              J52   03270000
+         SETBA (R0),(R1)                                          J52   03280000
+P28LEAVA DS    0H                                                 J52   03290000
+         LA    R7,REPADD      POINT AT REPLY ADDRESS ARRAY              03300000
+         XC    REPADD,REPADD   CLEAR EXISTING JUNK               88036  03310000
+         LA    R8,REPLEN      POINT AT REPLY LENGTH ARRAY               03320000
+         CLC   COLNO,=H'0'    IS COL NUMBER = 1                         03330000
+         BNE   CHKROW         NOT ROW 1 COL 1                           03340000
+         MVC   COLNO,=H'1'    IS COL NUMBER = 1                         03350000
+CHKROW   DS    0H                                                 J50   03360000
+         CLC   ROWNO,=H'1'    IS ROW NUMBER = 1                         03370000
+         BNE   BLDLOOP        NO SO CHANCE OF ROW 1 COL 1               03380000
+         CLC   COLNO,=H'1'    IS COL NUMBER = 1                         03390000
+         BNE   BLDLOOP        NOT ROW 1 COL 1                           03400000
+         MVC   ROWNO,#LINES+2 FOR ROW 1 COL 1 POINT AT ROW 24 COL 80    03410000
+         MVC   COLNO,EIGHTY1+2                                          03420000
+         MVC   ROWNO,=H'24'                                       J60   03421009
+         MVC   COLNO,=H'79'                                       J60   03422009
+         SPACE 2                                                        03430000
+BLDLOOP  DS    0H                                                       03440000
+         LH    R14,COLNO                                          J50   03450000
+         BCTR  R14,0                                              J50   03460000
+SET1     DS    0H                                                 J50   03470000
+*        SETBA ROWNO,(R14)                                        J50   03480000
+         CLI   TXTCOLR,0                                          J50   03490000
+         BNE   TXTCOK                                             J50   03500000
+         MVI   TXTCOLR,4                                          J50   03510000
+TXTCOK   DS    0H                                                 J50   03520000
+         CLI   REPCOLR,0                                          J50   03530000
+         BNE   REPCOK                                             J50   03540000
+         MVI   REPCOLR,6                                          J50   03550000
+REPCOK   DS    0H                                                 J50   03560000
+         LH    R14,COLNO                                    CVC   J60   03561008
+         FIELD ROWNO,(R14),PROT                                   J50   03570000
+ESETBA1  DS    0H                                                 J50   03580000
+STATTR1  DS    0H                                                 J50   03590000
+*        SETATTR PROT                                             J50   03600000
+ESTATTR1 DS    0H                                                 J50   03610000
+         LH    R15,TXTLEN                                               03620000
+         BCTR  R15,0                                              J50   03630000
+         EX    R15,*+4           MOVE LITERAL TO SCREEN AREA            03640000
+         MVC   0(0,R11),LITERAL   MOVE LITERAL TO BUFFER                03650000
+*        MVC   MSGTXT(0),LITERAL  MOVE LITERAL TO BUFFER                03660000
+*1       NEXTADDR TXTLEN                                                03670000
+         LA    R11,1(R11,R15)                                     J50   03680000
+         CLI   TESTR,X'00'       ANY REPLY REQUIRED                     03690000
+*        CLC   RPLYLEN,ZERO      ANY REPLY REQUIRED                     03700001
+         BE    ESTATTR3          NO                               J51   03710000
+*        BNE   P27REPL                                                  03720000
+*        SETATTR DEFAULT                                          J51   03730000
+P27REPL  DS    0H                                                 J50   03740000
+         LH    R14,RCOL          SET ADDR FOR REPLY AREA          J50   03750000
+         BCTR  R14,0                                              J50   03760000
+SET2     DS    0H                                                 J50   03770000
+*        SETBA RROW,(R14),STO=0(,R7)                              J50   03780000
+         FIELD RROW,(R14),STO=0(,R7)                              J50   03790000
+ESETBA2  DS    0H                                                 J50   03800000
+STATTR2  DS    0H                                                 J50   03810000
+*        SETATTR                                                        03820000
+ESTATTR2 DS    0H                                                 J50   03830000
+         CLI   TESTR,X'00'     SEE IF DEFAULT REPLY                     03840000
+         BE    ENDPROT        GO SET UP END FIELD                       03850000
+         LH    R14,RLITLEN     PICK UP REQUIRED                         03860000
+         LH    R6,RPLYLEN     INFO BEFORE CHANGING O'LAY PTR            03870000
+         LH    R15,TXTLEN     POINT AT DEFAULT REPLY                    03880000
+         LA    R15,DITENEXT(R15)                                  J50   03890000
+         EX    R14,*+4         MOVE DEFAULT                             03900000
+         MVC   0(0,R11),0(R15)   MOVE LITERAL TO BUFFER                 03910000
+*        MVC   MSGTXT(0),0(R15)  MOVE LITERAL TO BUFFER                 03920000
+         AR    R11,R14                                            J50   03930000
+ENDPROT  DS    0H                                                       03940000
+*        NEXTADDR                                                       03950000
+         LH    R14,RCOL                                           J50   03960000
+         AH    R14,RPLYLEN                                        J50   03970000
+SET3     DS    0H                                                 J50   03980000
+*        SETBA RROW,(R14)                                         J50   03990000
+         FIELD RROW,(R14),DEFAULT                                 J50   04000000
+ESETBA3  DS    0H                                                 J50   04010000
+STATTR3  DS    0H                                                 J50   04020000
+*        SETATTR DEFAULT                                          J50   04030000
+ESTATTR3 DS    0H                                                 J50   04040000
+*        NEXTADDR         ,   POINT AT NEXT SBA                         04050000
+         CLI   VIDSFE,0          CAN WE USE EXTENDED FIELDS ?     J51   04060000
+         BE    LOOPEND           NO.                              J51   04070000
+* WE MAY HAVE ALTERED SOME ATTRIBUTES, SO SET THEM BACK           J51   04080000
+* THE EASIEST WAY WITH FAL IS A X'0F00', BUT IBM ???              J51   04090000
+         MVC   0(1,R11),VIDSA    SET ATTRIBUTE COMMAND            J51   04100000
+         MVC   1(2,R11),=X'4100' SET EXTENDED HIGHLIGHTS BACK     J51   04110000
+         LA    R11,3(R11)                                         J51   04120000
+         MVC   0(1,R11),VIDSA    SET ATTRIBUTE COMMAND            J51   04130000
+         MVC   1(2,R11),=X'4200' SET EXTENDED COLOURS BACK        J51   04140000
+         LA    R11,3(R11)                                         J51   04150000
+         B     LOOPEND                                                  04160000
+LOOPEND  EQU   *                                                        04170000
+         NEXTITEM                                                       04180000
+         BCT   R9,BLDLOOP                                               04190000
+*                                                                       04200000
+* SET CURSOR ADDRESS HERE                                               04210000
+*        MVC   MSGBA(2),=X'1D6C' SET PROTECTED                    J51   04220010
+         MVC   MSGBA(2),=X'1DF0' SET PROTECTED                    J60   04221010
+         LA    R11,2(R11)                                         J51   04230000
+         MVC   MSGBA(2),=X'0505' PROGRAM TAB                      J52   04240000
+         LA    R11,2(,R11)                                        J52   04250000
+* IF FROM CODED IN PANEL, SET CURSOR CORRECTLY                    J52   04260000
+         CLC   SETCURSR(2),ZERO                                   J52   04270000
+         BE    DEFCURS           USE DEFAULT                      J52   04280000
+         SR    R0,R0                                              J52   04290000
+         SR    R15,R15                                            J52   04300000
+         IC    R0,SETCURSR                                        J52   04310000
+         IC    R15,SETCURSC                                       J52   04320000
+         SETBA (R0),(R15)                                         J52   04330000
+DEFCURS  DS    0H                                                 J52   04340000
+         MVC   MSGBA(1),=X'13'  SET CURSOR                        J52   04350000
+         LA    R11,1(,R11)                                        J52   04360000
+*        CALCULATE DATASTREAM LENGTH                                    04370000
+         LA    R14,WRITEA     START OF OUTPUT                           04380000
+         SR    R11,R14        LENGTH OF OUTPUT                          04390000
+         SPACE 2                                                        04400000
+         ST    R14,P28DLOC                                        J50   04410000
+         ST    R11,P28DLEN                                        J50   04420000
+         MVI   P28DLOC,3         TPUT FLAGS                       J50   04430000
+TPUT     DS    0H                                                       04440000
+         LM    R0,R1,P28DLEN                                      J50   04450000
+         LR    R15,R0            DEBUGGING                        J50   04460000
+         ALR   R15,R1            DEBUGGING                        J50   04470000
+         BCTR  R15,0             DEBUGGING                        J50   04480000
+         TPUT  (1),(0),R               FULLSCREEN WRITE                 04490000
+         SPACE                                                          04500000
+* CHECK IF WRITE WENT OK                                                04510000
+         SPACE                                                          04520000
+         LTR   R15,R15        CLEAN RETURN CODE?                        04530000
+         BZ    TGETPART       GO GET REPLY                              04540000
+         SPACE                                                          04550000
+********************************************************************    04560000
+*                                                                  *    04570000
+*   ERROR ROUTINES   TO BE CHANGED TO NON ZERO RETURNS TO CALLER   *    04580000
+*     WHEN PROGRAM INCORPORATED INTO CALLER                        *    04590000
+*                                                                  *    04600000
+********************************************************************    04610000
+ERROR1   DS    0H                                                       04620000
+         L     R13,SAVEAREA+4   I/O ERROR ON TPUT RETURN TO             04630000
+         L     R14,12(R13)           CALLER WITH RETURN CODE OF 1       04640000
+         RETURN (2,12),,RC=1                                            04650000
+ERROR2   DS    0H                                                       04660000
+         L     R13,SAVEAREA+4   I/O ERROR ON TGET RETURN TO             04670000
+         L     R14,12(R13)           CALLER WITH RETURN CODE OF 2       04680000
+         RETURN (2,12),,RC=2                                            04690000
+         SPACE                                                          04700000
+********************************************************************    04710000
+*                                                                  *    04720000
+* FROM HERE WE TGET BACK FROM SCREEN AND FORMAT FOR CALLER         *    04730000
+*                                                                  *    04740000
+********************************************************************    04750000
+TGETPART DS    0H                                                       04760000
+         DROP  R10,R11       CLEAR MAPPING                              04770000
+         LA    R9,READA      POINT AT INBUFFER AREA                     04780000
+         XC    TGETAREA,TGETAREA NOT NECESSARY .... TESTING             04790000
+         TGET  (9),2000,ASIS READ SCREEN                                04800000
+         ST    R9,TGETAREA   SAVE FOR CALLER                            04810000
+         LR    14,9                                               J50   04820000
+         ALR   14,1                                               J50   04830000
+         MVC   0(2,R14),ZERO     FOR PEOPLE WHO READ DIRECTLY -   J50   04840000
+*                                - LIKE P27POP                    J50   04850000
+TGOT     DS    0H                                                 J50   04860000
+         LTR   R15,R15       SEE IF READ ALL OK                         04870000
+         BZ    TGOK                                               J50   04880000
+         CH    R15,=H'8'                                          J50   04890000
+         BNE   ERROR2                                                   04900000
+         B     TPUT              ATTN: RESHOW THE SCREEN          J50   04910000
+TGOK     SLR   R0,R0         INDICATE ENTER KEY USED                    04920000
+         CLI   AID,X'7D'     SEE IF ENTER KEY PRESSED                   04930000
+         BE    SETUP                                                    04940000
+         SPACE 2                                                        04950000
+* PFKS 1-9   RETURN AIDS F1-F9                                          04960000
+*      10-12 RETURN AIDS 7A-7C                                          04970000
+*      13-21 RETURN AIDS C1-C9                                          04980000
+*      22-24 RETURN AIDS 4A-4C                                          04990000
+         SPACE 2                                                        05000000
+         MVC   TAID,AID      COPY AID                                   05010000
+         NI    TAID,X'3F'    TURN OTURN OFF BITS 0,1                    05020000
+         SR    R14,R14                                                  05030000
+         IC    R14,TAID                                                 05040000
+         CLI   TAID,X'0D'                                               05050000
+         BH    PFKLO         LOW RANGE OF PFK                           05060000
+         LA    R14,12(,R14)  13-24                                      05070000
+         B     PFKDONE                                                  05080000
+PFKLO    CLI   TAID,X'31'                                               05090000
+         BL    TPUT          NOT A PFK                                  05100000
+         CLI   TAID,X'3C'                                               05110000
+         BH    TPUT          NOT A PFK                                  05120000
+         NI    TAID,X'0F'    TURN OFF MORE BITS                         05130000
+         IC    R14,TAID      LOAD VALUE 1-12                            05140000
+PFKDONE  LR    R0,R14        COPY TO REG 0                              05150000
+         B     SETUP                                                    05160000
+SETUP    EQU   *                                                        05170000
+         L     R14,SAVEAREA+4 GET SAVE AREA ADDRESS                     05180000
+         ST    R0,20(,R14)    WHILE HERE, ALTER R0 VALUE TO RETURN      05190000
+         STH   R0,SYSPFK         SAVE IT IN JOLCOM TOO            J50   05200000
+         L     R14,24(R14)    GET ORIGINAL REGISTER 1                   05210000
+         LH    R14,#SCITEMS   GET NUMBER OF ITEMS IN THE LIST           05220000
+         AR    R1,R9          POINT TO NEXT SPOT IN BUFFER              05230000
+P28FILL  MVI   0(R1),X'00'    FILL UP WITH EXTRA SBA'S                  05240000
+         LA    R11,MSGI       MAP INPUT MESSAGE                         05250000
+         USING IMSG,R11                                                 05260000
+         LA    R10,REPLYA     MAP CALLER REPLY AREA                     05270000
+         USING JOLREP,R10                                               05280000
+         LA    R6,REPADD      POINT AT REQUIRED REPLY AREA              05290000
+RPLYLOOP EQU   *                                                        05300000
+         IC    R1,IADD1       GET FIRST ADDRESS                         05310000
+         N     R1,=F'63'      TURN OFF ALL BITS EXCEPT LAST 6           05320000
+         IC    R15,IADD2      GET 2ND ADDRESS                           05330000
+         N     R15,=F'63'     TURN OFF ALL BITS EXCEPT LAST 6           05340000
+         SLL   R1,6           SHIFT FIRST ADDRESS 6 BITS TO THE LEFT    05350000
+         AR    R15,R1        ADD THE RESULTS. R15 HAS ADDR REL TO 0 POS 05360000
+NXTCHK   EQU   *                                                        05370000
+         CH    R15,0(R6)   IF BUFFER ADDR IS EQUAL TO REQUIRED REPLY    05380000
+         BE    NEXT2          MOVE REPLY                                05390000
+         MVC   LENGTH,ZERO    ELSE SAY NO REPLY AND MOVE TO NEXT        05400000
+         SLR   R15,R15                                            J50   05410000
+         B     P28UPD1                                                  05420000
+NEXT2    DS    0H                                                       05430000
+         BAL   R14,LENMSG     FIND LENGTH OF REPLY                      05440000
+         MVC   LENGTH,=X'8000'    INDICATE CLEARED DEFAULT              05450000
+         LTR   R15,R15        CHECK FOR ZERO LENGTH                     05460000
+         BZ    P28UPDT                                            J50   05470000
+         STH   R15,LENGTH     SAVE IT INTO CALLER REPLY AREA            05480000
+         EX    R15,*+4        MOVE REPLY INTO CALLER REPLY AREA         05490000
+         MVC   LIT(0),ITEXTI MOVE REPLY TO ARRAY                        05500000
+P28UPDT  DS    0H                                                 J50   05510000
+         LA    R11,3(R15,R11)    ADJUST POINTERS                        05520000
+P28UPD1  LA    R10,2(R15,R10)                                     J50   05530000
+         LA    R6,2(R6)                                                 05540000
+P28TEND  CR    R6,R7          END OF REQUIRED REPLIES                   05550000
+         BL    RPLYLOOP       NO SO ROUND AGAIN                         05560000
+* FUJITSUSTLINENO LINE=1,MODE=OFF                          ** JCS       05570000
+         STLINENO LINE=20,MODE=OFF                                J60   05571000
+* SET WHERE THE CURSOR ENDED UP IN WHEREX AND WHEREY              J50   05580000
+         IC    R1,CURSOR       GET FIRST ADDRESS                  J50   05590000
+         N     R1,=F'63'      TURN OFF ALL BITS EXCEPT LAST 6     J50   05600000
+         IC    R15,CURSOR+1   GET 2ND ADDRESS                     J50   05610000
+         N     R15,=F'63'     TURN OFF ALL BITS EXCEPT LAST 6     J50   05620000
+         SLL   R1,6           SHIFT FIRST ADDRESS 6 BITS TO THE LEFT    05630000
+         AR    R15,R1        ADD THE RESULTS. R15 HAS ADDR REL TO 0 POS 05640000
+         SLR   R0,R0             GET READY FOR DIVIDE             J50   05650000
+         LR    R1,R15                                             J50   05660000
+         D     R0,#COLUMNS                                        J50   05670000
+         A     R0,ONE                                             J51   05680000
+*        STH   R1,WHEREY         ROW                              J50   05690000
+         A     R1,ONE                                             J51   05700000
+         STH   R1,WHEREY         ROW                              J52   05701000
+         STH   R0,WHEREX         COLUMN                           J50   05710000
+         LA    R1,REPLYA      YES SO POINT AT START OF CALLER REPLY A   05720000
+         SPACE                                                          05730000
+********************************************************************    05740000
+*                                                                  *    05750000
+*      END OF JOB - TIME TO GO HOME                                *    05760000
+*                                                                  *    05770000
+********************************************************************    05780000
+RETURN   EQU   *                                                        05790000
+         L     R13,SAVEAREA+4                                           05800000
+         L     R14,12(R13)                                              05810000
+         L     R0,20(,R13)                                        J40B  05820000
+         SR    R15,R15                                            J50   05830000
+         RETURN (2,12) RC=0                                             05840000
+         SPACE 2                                                  J50   05850000
+********************************************************************    05860000
+*                                                                  *    05870000
+* ROUTINE TO FIND REPLY TEXT LENGTH                                *    05880000
+*                                                                  *    05890000
+********************************************************************    05900000
+LENMSG   EQU   *                                                        05910000
+         LA    R1,ITEXTI      LOAD TEXT START ADDRESS                   05920000
+         LA    R15,ITEXTI     LOAD TEST ADDR                            05930000
+LOOP1    CLI   0(R15),SBA     CHECK FOR SBA                             05940000
+         BE    FOUNDIT        END OF LITERAL                            05950000
+         CLI   0(R15),0       CHECK FOR NULL                            05960000
+         BE    FOUNDIT        END OF LITERAL                            05970000
+         LA    R15,1(R15)     POINT AT NEXT CHARACTER                   05980000
+         B     LOOP1          GO CHECK AGAIN                            05990000
+FOUNDIT  DS    0H                                                       06000000
+         SR    R15,R1         R15 NOW HAS LENGTH OF TEXT                06010000
+         BR    R14             RETURN                                   06020000
+         SPACE                                                          06030000
+         LTORG                                                          06040000
+         DC    D'0'           ALIGN DATA                          J60   06050007
+SDATA    DC    X'40C1C2C3C4C5C6C7C8C94A4B4C4D4E4F'                      06060000
+         DC    X'50D1D2D3D4D5D6D7D8D95A5B5C5D5E5F'                      06070000
+         DC    X'6061E2E3E4E5E6E7E8E96A6B6C6D6E6F'                      06080000
+         DC    X'F0F1F2F3F4F5F6F7F8F97A7B7C7D7E7F'                      06090000
+COLOURS  DC    X'0C,00,00,00,00,08,08,04'                               06100000
+*                ¬  G  G  G  G  +  +  W                           J50   06110000
+ZAPSPC1  DC    20S(*)                                                   06120000
+         SPACE 2                                                        06130000
+         DC    C'END OF SCREEN'                                         06140000
+         END                                                            06150000

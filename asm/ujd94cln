@@ -1,0 +1,60 @@
+.X8400   ANOP                                                           03887000
+         TITLE 'UJE94CLN:CLEANUP ROUTINE'                               03888000
+         JOLSAVE CSECT=UJE94CLN                                         03889000
+         MVC   STMT,=C'99999'                                           03890000
+*        JOLERR 102,'CLEAN UP CALLED'                                   03890104
+         JOLRETN                                                        03890201
+E94#010  DS    0H                                                       03891000
+         L     R4,ATCB      TCB ADDRESS                                 03892000
+         L     R4,TCBJSCB-TCB(,R4)  ADDRESS MY JSCB                     03893000
+         ICM   R4,7,JSCBFCTA-JSCB(R4)                                   03894000
+         BZ    E94DONE                                                  03895000
+         USING FCT,R4                                                   03896000
+         SPACE 2                                                        03897000
+*  FOUND THE START OF THE FCT CHAIN: NOW SCAN CHAIN FOR A FILE TO FREE  03898000
+         SPACE 2                                                        03899000
+E94NXTF  DS    0H                                                       03900000
+         CLC   =C'$JOL',FCTACSN  Q... ONE I MARKED?                     03901000
+         BNE   E94NXTF1          A... NO                                03902000
+         BAL   R14,E94FREE                                              03903000
+         B     E94#010                                                  03904000
+E94NXTF1 DS    0H                                                       03905000
+         ICM   R4,7,FCTNFCTA   ADDRESS THE NEXT                         03906000
+         BNZ   E94NXTF                                                  03907000
+E94DONE  DS    0H                                                       03908000
+         B     RETN0                                                    03909000
+         SPACE 4                                                        03910000
+E94FREE  DS    0H                                                       03911000
+         ST    R14,CALLAREA+12                                          03912000
+         XC    CALLAREA(12),CALLAREA                                    03913000
+         MVI   CALLAREA,C'F'   FREE FILE                                03914000
+         MVI   CALLAREA+1,12   TABLE SIZE                               03915000
+         MVC   CALLAREA+4(8),FCTACSN ACCESS NAME                        03916000
+         MVC   STEPLBDD,FCTACSN FOR MESSAGES B LOW                      03917000
+         FREEFL MF=(E,CALLAREA)                                         03918000
+         LTR   R1,R15                                                   03919000
+         BZ    E94FREE5                                                 03920000
+         CVD   R15,DBL                                                  03921000
+         CALL  UJS46FER                                                 03922000
+         MVC   TASKSSI(4),=X'40202120'                                  03923000
+         ED    TASKSSI,DBL+6                                            03924000
+         JOLERR 102,'DDNAME ',                                         .03925000
+               STEPLBDD,' NOT UNALLOCATED DUE TO RETURN CODE',         .03926000
+               TASKSSI                                                  03927000
+         B     E94FREE9                                                 03928000
+E94FREE5 DS    0H                                                       03929000
+         JOLERR 001,'DDNAME ',                                         .03930000
+               STEPLBDD,' UNALLOCATED'                                  03931000
+E94FREE9 DS    0H                  RETURN                               03932000
+         L     R14,CALLAREA+12                                          03933000
+         BR    R14                                                      03934000
+         JOLSAVE CSECT=UJE97SPC                                         03935000
+           TM  PRINT+48,X'10'                                           03936000
+           BZ  E97RET                                                   03937000
+           WRITE E97DECB,SF,PRINT,E97SPC                                03938000
+           CHECK E97DECB                                                03939000
+E97RET     JOLRETN                                                      03940000
+E97SPC   DC   AL2(L'E97SPCC+8,0)                                        03941003
+         DC   AL2(L'E97SPCC+4,0)                                        03943003
+E97SPCC  DC   C'                    '                                   03945000
+         LTORG                                                          03946000

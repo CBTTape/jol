@@ -1,0 +1,64 @@
+         JOLSAVE CSECT=UJS98QU                                    76200 13950000
+* THIS CSECT HAS A PARAMETER -> VARYING CHARACTER STRING.         76200 13960000
+* THE IDEA IS TO DROP QUOTES FROM EITHER END, THEN CHECK FOR      76200 13970000
+* DOUBLE QUOTES IN THE MIDDLE AND MAKE THEM 1, IF ANY ARE FOUND.  76200 13980000
+         SPACE 2                                                  76200 13990000
+         L     R5,0(R1)       POINT TO PARM              JOL30027 76200 14000000
+         CLC   0(2,R5),ZERO   ZERO LENGTH ?              JOL30027 76200 14010000
+         BE    S98RETN                                   JOL30027 76200 14020000
+         MVC   DBL(2),0(R5)   SHIFT LENGTH SO NO 0C6     JOL30027 76200 14030000
+         LH    R6,DBL         LOAD ITS LENGTH.           JOL30027 76200 14040000
+         CLI   2(R5),C''''    QUOTE ON START OF STRING ? JOL30027 76200 14050000
+         BNE   S98FDBLQ       NO,SO JUMP INTO DBL QUOTE  JOL30027 76200 14060000
+         SPACE 2                                         JOL30027 76200 14070000
+         BCTR  R6,0           -1 FROM R6                 JOL30027 76200 14080000
+         BCTR  R6,0           -1 FROM R6 =-2             JOL30027 76200 14090000
+         LTR   R7,R6          SAVE NEW LENGTH            JOL30027 76200 14100000
+         BZ    S98RETZ        IF ZERO NOW, STORE LEN, RET OL30027 82200 14110000
+         BCTR  R6,0           -1 FOR MVC EXECUTE         JOL30027 76200 14120000
+****************************************************************** DASD 14130000
+* ABEND 002 OCCURED BY A MINUS VALUE IN REG-6 WHICH SHIFTED      * DASD 14140000
+* THE BUFFER ADDRESS (WHICH IS GETMAINED AFTER THE TKN AREA)       DASD 14150000
+* ONE BYTE WHICH LEFT A BIG RDW IN THE VB LENGTH                 * DASD 14160000
+* A TEST HERE FOR A MINUS VALUE SHOULD DO IT                     * DASD 14170000
+****************************************************************** DASD 14180000
+         LTR   R6,R6   DID REGISTER 6 GO NEGATIVE  ??              DASD 14190000
+         BM    S98RETN YEP   LETS NOT DO ANY MORE                  DASD 14200000
+         EX    R6,S98MVC1     MOVE AND DROP 1ST QUOTE    JOL30027 76200 14210000
+         LA    R8,3(R5,R6)    POINT TO LAST QUOTE-1      JOL30027 76200 14220000
+         MVC   0(2,R8),BLANKS BLANK THEM OUT             JOL30027 76200 14230000
+         STH   R7,DBL         RESET -                    JOL30027 76200 14240000
+         MVC   0(2,R5),DBL    -STRING LENGTH NOW         JOL30027 76200 14250000
+         SPACE 2                                         JOL30027 76200 14260000
+S98FDBLQ EQU   *                                         JOL30027 76200 14270000
+         LH    R6,0(R5)    LOAD STRING LENGTH                     76200 14280000
+         SPACE 1                                         JOL30027 76200 14290000
+         LA    R1,2(R5)       LOAD START ADDRESS OF STR. JOL30027 76200 14300000
+         LA    R14,1          SET LOOP INCR=1            JOL30027 76200 14310000
+         LA    R15,1(R5,R6)   POINT TO END-1             JOL30027 76200 14320000
+S98LUP   CLC   0(2,R1),=C'''''' DOUBLE QUOTE PERHAPS?    JOL30027 76200 14330000
+         BE    S98DBL         YES ->                     JOL30027 76200 14340000
+         BXLE  R1,R14,S98LUP                             JOL30027 76200 14350000
+S98RETZ  STH   R6,DBL         END --- RESET LENGTH       JOL30027 76200 14360000
+         MVC   0(2,R5),DBL    DONE                       JOL30027 76200 14370000
+S98RETN  JOLRETN RC=0                                    JOL30027 76200 14380000
+         SPACE 2                                         JOL30027 76200 14390000
+S98DBL   EQU   *                                         JOL30027 76200 14400000
+* CALCULATE LENGTH TO SHIFT                              JOL30027 76200 14410000
+         LR    R9,R15         LOAD END POINTER           JOL30027 76200 14420000
+         SR    R9,R1          -CURRENT BYTE ADDRESS      JOL30027 76200 14430000
+         EX    R9,S98MVC2     SHIFT BACK A BYTE          JOL30027 76200 14440000
+         LA    R1,1(R1)       SKIP OVER THE SECOND OF THE TWO           14450000
+*                             QUOTES WE HAVE JUST CONDENSED TO ONE.     14460000
+         S     R6,ONE         -1 FOR LENGTH NOW          JOL30027 76200 14470000
+         BP    S98LUP         STILL DATA THERE?->CONTINUEJOL30027 76200 14480000
+         B     S98RETN        ELSE RETN                  JOL30027 76200 14490000
+         SPACE 3                                         JOL30027 76200 14500000
+S98MVC1  MVC   2(*-*,R5),3(R5)                           JOL30027 76200 14510000
+S98MVC2  MVC   0(*-*,R1),1(R1)                           JOL30027 76200 14520000
+         LTORG                                           JOL30027 76200 14530000
+         CNOP  0,8                                       JOL30027 76200 14540000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                JOL30027 76200 14550000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                JOL30027 76200 14560000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                JOL30027 76200 14570000
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                JOL30027 76200 14580000

@@ -1,0 +1,203 @@
+       COPY CPY/JOLCOM.CPY
+JOLTEST GENSAVE CSECT=JOLTEST
+       L     R2,=V(JOLCOM)
+       USING  JOLCOM,R2
+       MVC   ASRGETKN,=V(UJCGETKN) SHIFT VCON FOR UJCGETKN
+       GETMAIN RU,LV=TKNSIZE
+       LR    R3,R1
+       L     R2,=V(JOLCOM)
+       ST    R3,TKNADDR
+       ST    R3,ATKN1
+*      SVC   93
+       USING TKNX,R3
+LOOP   MVC   TKNSTRG(200),BLANKS
+       LR    9,2
+       WTOR  'Please Enter a Statement: ',TKNSTRG
+       LR    2,9
+       L     R2,=V(JOLCOM)
+       MVC   #TKNSTRG,=H'80'
+       LA    R1,TKNADDR
+       CALL  UJCTKN
+       LA    R5,#TKNSTRG
+       MVC   TKNCURR,=H'1'
+       GETTKN TKNCURR
+       OC    TKN(10),=CL10' '
+       CLC   =C'POP',TKN
+       BE    CALLPOP
+       CLC   =C'PANEL',TKN
+       BE    CALLPAN
+       B     LOOP
+*      CALL  PARSE
+CALLPAN DS   0H
+       CALL  UJP27PNL
+       B     DONE
+CALLPOP DS   0H
+       CALL  UJP27POP
+       B     DONE
+*      CALL  P27MBAR
+DONE   DS    0H
+       WTO   'Result is'
+       WTOR  'Press Enter to Continue: ',TKNSTRG
+       WTO   OP
+       LA    R5,#TKNSTRG
+       LA    R6,#TKN
+       LA    R7,#OP
+*      WTOR  'Wait',OP
+       HALT
+*      B     LOOP
+       B     LOOPE
+*      LOAD$ UJP00MN
+*      LINK EP=UJP00MN
+LOOPE  DS 0H
+       RETURN
+       LTORG
+TKNADDR DS  F
+*
+GETSYMTY JOLSAVE CSECT=GETSYMTY
+       WTO  'GETSYMTY CALLED'
+       JOLRETN
+       LTORG
+*
+*
+STORESYM JOLSAVE CSECT=STORESYM
+       WTO  'STORESYM CALLED'
+       WTO  SYMBOLIC
+       WTO  ':-'
+       WTO  OP
+       JOLRETN
+       LTORG
+*
+*
+GETSYM   JOLSAVE CSECT=GETSYM
+       MVC  SYMBOLIC,0(R1)
+       MVC  #OP(L'OP),0(R1)
+       WTO  'GETSYM   CALLED'
+       WTO  SYMBOLIC
+       WTO  '** END GETSYM'
+       JOLRETN
+       LTORG
+*
+*
+GETVALUE JOLSAVE CSECT=GETVALUE
+       MVC  SYMBOLIC,0(R1)
+       WTO  'GETVALUE CALLED'
+       WTO  SYMBOLIC
+       WTO  '** END GETVAL'
+       JOLRETN
+       LTORG
+*
+*
+DROPQUSX JOLSAVE CSECT=DROPQUSX
+       MVC  SYMBOLIC,0(R1)
+       WTO  'DROPQUSR CALLED'
+       WTO  SYMBOLIC
+       WTO  '** END DROP'
+       JOLRETN
+       LTORG
+*
+         COPY  P28PARMS                                           J50   01470034
+ZZ       DSECT
+UJP28SCR JOLSAVE CSECT=UJP28SCR
+         LR    R5,R1         POINT AT ARRAY PASSED FROM CALLER          02100033
+         USING #PARM,R5                                           J50   02090035
+         LH    R8,#SCITEMS    LOAD NO OF ITEMS                          02140033
+         L     R15,#COLUMNS                                       J50   02150033
+         BCTR  R15,0                                              J50   02160033
+         LA    R10,#ITEMDSC   POINT AT ITEMS                            02200036
+         USING DITEM,R10      MAP ITEMS                                 02210000
+BLDLOOP  DS    0H                                                       02390074
+         MVC   PTXT,BLANKS
+         LH    R14,TXTCOLNO                                       J50   02420074
+         CVD   R14,DBL                                            J50   02430074
+         UNPK PCOL,DBL
+         OI     PCOL+L'PCOL-1,C'0'                                J50   02450078
+         LH    R14,TXTROWNO      SET ADDR FOR REPLY AREA          J50   02600074
+         CVD   R14,DBL                                            J50   02430074
+         UNPK PROW,DBL
+         OI     PROW+L'PROW-1,C'0'                                J50   02450078
+         LH    R15,TXTLEN                                               02500035
+         CVD   R15,DBL                                            J50   02430074
+         UNPK PTXTLEN,DBL
+         OI     PTXTLEN+L'PTXTLEN-1,C'0'
+         BCTR  R15,0                                              J50   02510062
+         EX    R15,*+4           MOVE LITERAL TO SCREEN AREA            02520065
+         MVC   PTXT(0),LITERAL   MOVE LITERAL TO BUFFER
+*        LA    R11,1(R11,R15)                                     J50   02541072
+         CLC   RPLYLEN,ZERO      ANY REPLY REQUIRED                     02550067
+         BNE   P27REPL                                                  02560062
+*        LA    R11,1(R11,R15)                                     J50   02541072
+         CLC   RPLYLEN,ZERO      ANY REPLY REQUIRED                     02550067
+         BNE   P27REPL                                                  02560062
+*cvc     SETATTR DEFAULT                                          J50   02570062
+         B     LOOPEND                                                  02580062
+P27REPL  DS    0H                                                 J50   02590062
+         LH    R14,REPROWNO      SET ADDR FOR REPLY AREA          J50   02600074
+         BCTR  R14,0                                              J50   02610074
+SET2     DS    0H                                                 J50   02620058
+*cvc     FIELD RROW,(R14),STO=0(,R7)                              J50   02631074
+ESETBA2  DS    0H                                                 J50   02640058
+STATTR2  DS    0H                                                 J50   02650055
+*cvc     SETATTR                                                        02660073
+ESTATTR2 DS    0H                                                 J50   02670055
+         CLI   TEST,X'00'     SEE IF DEFAULT REPLY                      02680000
+         BE    ENDPROT        GO SET UP END FIELD                       02690000
+         LH    R14,RLITLEN     PICK UP REQUIRED                         02700033
+         LH    R6,RPLYLEN     INFO BEFORE CHANGING O'LAY PTR            02710000
+         LH    R15,TXTLEN     POINT AT DEFAULT REPLY                    02720035
+         LA    R15,DITENEXT(R15)                                  J50   02730028
+         EX    R14,*+4         MOVE DEFAULT                             02740033
+         MVC   PTXT(0),0(R15)  MOVE LITERAL TO BUFFER                 02751072
+*        AR    R11,R14                                            J50   02760033
+ENDPROT  DS    0H                                                       02770008
+*        NEXTADDR                                                       02780072
+         LH    R14,REPCOLNO                                       J50   02790074
+         AH    R14,RPLYLEN                                        J50   02800074
+SET3     DS    0H                                                 J50   02810059
+*        SETBA RROW,(R14)                                         J50   02820078
+*        FIELD RROW,(R14),DEFAULT                                 J50   02821074
+ESETBA3  DS    0H                                                 J50   02830059
+STATTR3  DS    0H                                                 J50   02840055
+*        SETATTR DEFAULT                                          J50   02850073
+ESTATTR3 DS    0H                                                 J50   02860055
+*        NEXTADDR         ,   POINT AT NEXT SBA                         02870072
+LOOPEND  EQU   *                                                        02880000
+*        NEXTITEM                                                       02890027
+         LH    R15,TXTLEN                                               00150047
+         AH    R15,RLITLEN                                              00160029
+         LA    R10,DITENEXT(R15) ADDRESS NEXT DATA ITEM           J50   00170027
+         WTO   DEBUGTX
+         BCT   R8,BLDLOOP                                               02900000
+*                                                                       02910000
+* SET CURSOR ADDRESS HERE                                               02920000
+       WTOR  'Press Enter to Continue: ',TKNSTRG
+         HALT
+DEBUGTX  DC    CL79' '
+         ORG   DEBUGTX
+         DC    C'ROW='
+PROW     DC    C'    '
+         DC    C' COL='
+PCOL     DC    C'    '
+         DC    C' TXTLEN='
+PTXTLEN  DC    C'    '
+         DC    C' TXT='
+PTXT     DC    C'                                                 '
+       JOLRETN
+*      LTORG
+*
+*
+UJP85ASN JOLSAVE CSECT=UJP85ASN
+*      MVC  SYMBOLIC,0(R1)
+       WTO  'UJP85ASN CALLED'
+       WTO  SYMBOLIC
+       JOLRETN
+       LTORG
+*
+*
+BEEP JOLSAVE CSECT=BEEP
+*      MVC  SYMBOLIC,0(R1)
+       WTO  'BEEP CALLED'
+       JOLRETN
+       LTORG
+*
+         DC    S(*,*,*,*,*,*,*,*,*,*,*,*)                JOL30027 76200 14580000
+       END  JOLTEST

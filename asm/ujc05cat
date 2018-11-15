@@ -1,0 +1,474 @@
+UJC05CAT TITLE 'CATLG,KEEP,UNCAT,SCRATCH,DELETE PROCESSING'             00010000
+* JOL COPYRIGHT CLARKE COMPUTER SOFTWARE 1971,1972,1973                 00020000
+*  1974,1975                                                            00030000
+* COPYRIGHT CCS 1971-1976                                               00040000
+* COPYRIGHT CCS 1980                                                    00050000
+* COPYRIGHT CCS 1982                                                    00060000
+* COPYRIGHT CCS-JOL 1988 1989 1990                                J50   00070045
+         COPY  JOLCOM                                                   00080000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00090000
+           SPACE 3                                                      00100000
+*                   J             000000            L                   00110000
+*                   J            0      0           L                   00120000
+*                   J           0        0          L                   00130000
+*                   J          0          0         L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0            0        L                   00160000
+*                   J         0            0        L                   00170000
+*                   J         0            0        L                   00180000
+*                   J         0            0        L                   00190000
+*                   J         0            0        L                   00200000
+*                   J         0            0        L                   00210000
+*        J          J         0            0        L                   00220000
+*         J        J           0          0         L                   00230000
+*          J      J             0        0          L                   00240000
+*           J    J               0      0           L                   00250000
+*            JJJJ                 000000            LLLLLLLLLLL         00260000
+C05SAVEA DSECT                                                          00280002
+         DS    18F                                                      00290002
+C05WORK  DS    CL20                                                     00300002
+C05WORK2 DS    CL30                                                     00310002
+C05SVCMD DS    CL8                                                J50   00311002
+C05RET1  DS    A                                                  J50   00312015
+C05RET2  DS    A                                                  J50   00313015
+C05SAVED DS    CL256             DSID COPIED HERE WHEN FINDING    J50   00314045
+C05VSAMC DS    CL256             VSAM CONTROL INFO                J50   00314145
+C05COPYD DS    CL256             DSID COPIED HERE WHEN ADDING TO  J50   00314245
+*                                THE DATA BASE SO VSAM INFO FOLLOWS     00314345
+C05VSAMP DS    CL256             VSAM CONTROL INFO                J50   00315037
+C05SAVEL    EQU  *-C05SAVEA                                             00320000
+           JOLSAVE CSECT=UJC05CAT,SIZE=C05SAVEL                         00330000
+           USING C05SAVEA,R13                                     75311 00340000
+* MODIFICATIONS MADE AT 27 APRIL,1975                                   00350000
+*  1. ALLOW VOL, UNIT INFO TO BE CODED                                  00360000
+*  2. ALLOW 'ALWAYS' TO BE CODED                                        00370000
+*     A) ALWAYS CATLG = RECATLG                                         00380000
+*     B) ALWAYS DELETE = WITH PURGE.                                    00390000
+UJC06UNC EQU   UJC05CAT                                           J41   00420031
+UJC07KEE EQU   UJC05CAT                                           J41   00430031
+UJC08SCR EQU   UJC05CAT                                           J41   00440031
+UJC09DEL EQU   UJC05CAT                                           J41   00450031
+         ENTRY UJC06UNC                                                 00470031
+         ENTRY UJC07KEE                                                 00480031
+         ENTRY UJC08SCR                                                 00490031
+         ENTRY UJC09DEL                                                 00500031
+* THIS CSECT IS RESPONSIBLE FOR HANDLING THE DATA SET ORIENTATED        00520003
+*    INSTRUCTIONS:-                                                     00530000
+*          1.  KEEP                                                     00540000
+*          2.  CATLG                                                    00550000
+*          3.  SCRATCH                                                  00560000
+*          4.  DELETE                                                   00570000
+*          5.  UNCATALOG                                                00580030
+         SPACE 3                                                        00590030
+         USING TKNX,R3                                                  00600030
+         LA    R7,X'00'        SET R7 BOTTOM BYTE TO X'00'        J41  .00610030
+                                 TO ALWAYS CAT/RECAT              J41   00620000
+*        LA    R7,C' '         SET R7 BOTTOM BYTE TO C' '         75311 00630030
+         LA R8,TRANS                                                    00640030
+         MVC   C05WORK(14),BLANKS  WILL STORE VOL,UNIT THERE,IF CODED   00650030
+         FINDTKN 'ALWAYS '  FIND 'ALWAYS' IF THERE                      00660030
+         LTR   R15,R15       WAS IT THERE ?                             00670030
+         BNZ    C05NOALW     NO -> AWAY,AWAY                            00680030
+         SR    R7,R7           SET 'ALWAYS' INDICATOR ON          75311 00690030
+C05NOALW FINDTKN 'FROM '   FIND 'FROM '                                 00700030
+         LTR   R15,R15       WAS 'FROM' CODED ?                         00710030
+         BZ   C05FROM                                             75128 00720030
+         FINDTKN 'ON '   HOW ABOUT ON THEN?                             00730030
+         LTR    R15,R15                                                 00740030
+         BNZ    C05NVOL    NO->                                         00750030
+C05FROM  DS    0H                                                       00760030
+         GETTKN (R1)       GET   NEXT TOKEN                             00770030
+         CLC   =C'VOL ',TKN  VOL KEYWORD ?                              00780030
+         BNE    C05GOTV      NOPE, JUST 'FROM'                          00790030
+         CLI   TKN,C'='       EQUAL CODED?                        76200 00800000
+         BNE   C05GVOL2                                           76200 00810000
+         GETTKN    (R1) SKIP '='                            76200       00820000
+C05GVOL2 EQU   *                                                  76200 00830000
+         GETTKN (R1)       GET   VOL NAME                               00840030
+C05GOTV  MVC   C05WORK(6),TKN   SAVE IT                                 00850030
+         GETTKN (R1)       GET   NEXT TOKEN                             00860030
+         CLC   =C'UNIT ',TKN UNIT ?                                     00870030
+         BNE   C05NUNK       NO UNIT KEYWORD                            00880030
+         GETTKN (R1)       SKIP KEYWORD                                 00890030
+         CLI   TKN,C'='                                           76200 00900000
+         BNE   C05GETU7                                           76200 00910000
+         GETTKN (R1)                                              76200 00920000
+C05GETU7 EQU   *                                                  76200 00930000
+C05NUNK  MVC   C05WORK+6(8),TKN SAVE UNIT                            7  00940030
+         GETTKN (R1)     GET     NEXT TOKEN                       75128 00950030
+         CLI TKN,C'-'    MORE    UNIT NAME?                       75128 00960030
+         BNE   C05NVOL                                            75128 00970030
+         MVI   C05WORK+10,C'-'                                          00980030
+         GETTKN (R1)                                              75128 00990032
+         MVC   C05WORK+11(1),TKN                                        01000032
+         SPACE 3                                                        01010032
+*                                                                       01020000
+* NOTE, ABOVE CODE ASSUMES THAT THE 'FROM VOL X UNIT 3330' IS           01030000
+*  AT THE END OF THE STATEMENT. IF IT IS NOT, SERIOUS ERRORS            01040000
+*  WILL OCCUR LATER IN THE COMPILE.                                     01050000
+* NOW OUTPUT A 'DO' TO HELP THE LATER PHASE (AN IF COULD HAVE BEEN      01060000
+*                              BEFORE THIS INSTRUCTION).                01070000
+C05NVOL  DS    0H                                                 75128 01080004
+         CLC   =C'DBF',ICOMMAND                                   J50   01081044
+         BE    C05OPNDB                                           J50   01082004
+         MVC   C05SVCMD,ICOMMAND                                        01090030
+         MVC   ILENGTH(2),=AL2(IBODY)                                   01100030
+         MVC   ICOMMAND,=CL8'DO'                                        01110030
+         LH    R1,NEST                                                  01120002
+         LA    R1,1(R1)                                                 01130030
+         STH   R1,NEST                                                  01140030
+         STC   R1,INEST                                                 01150030
+         OPINST ILENGTH                                                 01160002
+         MVC   ICOMMAND,C05SVCMD                                        01170030
+C05NODO  DS    0H                                                       01180004
+         B     C05XX                                              J50   01181004
+C05OPNDB DS    0H                                                 J50   01182004
+         L     R6,VSAMCBS                                         J50   01182110
+         TM    UJFLAG1,UF1DBINP                                   J50   01182229
+         BNZ   C05CLOS           OPENED FOR INPUT                 J50   01182329
+         TM    UJFLAG1,UF1DBOPN+UF1DBERR                          J50   01182429
+         BNZ   C05XX             OPENED, OR IN ERROR              J50   01182529
+         B     C05OPN                                             J50   01182629
+         USING VSAMINFO,R6                                        J50   01182729
+C05CLOS  DS    0H                                                 J50   01182829
+         VSCLOSE (JOLDSDB,UPDAT),                                      .01182929
+               MF=(E,CALLAREA),NRETURN=C05OPN                           01183029
+         OI    UJFLAG1,UF1DBERR                                   J50   01183129
+         JOLERR 517,'ERROR ',CALLAREA,' CLOSING JOL DS DB',RC=16        01183229
+C05OPN   DS    0H                                                 J50   01183329
+         VSOPEN (JOLDSDB,UPDAT),                                       .01183429
+               MF=(E,CALLAREA),NRETURN=C05XX                            01183529
+         OI    UJFLAG1,UF1DBERR                                   J50   01183629
+         JOLERR 507,'ERROR ',CALLAREA,' OPENING JOL DS DB',RC=16        01183729
+C05XX    DS    0H                                                 J50   01183829
+         MVI   UJFLAG1,UF1DBOPN                                   J50   01184029
+         LA    R5,2                                                     01190002
+         SPACE 3                                                        01200002
+C05LUP   GETTKN REG=R5           GET AN IDENTIFIER                      01210006
+         CLI   TKN,C' '          END LIST??                             01220006
+         BNE   C05NOEND                                           75128 01230006
+C05OPEND DS    0H                                                       01240004
+         CLC   =C'DBF',ICOMMAND                                   J50   01240244
+         BE    C05RETN                                            J50   01240344
+         MVC   ILENGTH(2),=AL2(IBODY)                                   01240444
+         MVC   ICOMMAND,=CL8'END'                                       01250004
+         LH    R1,NEST                                                  01260004
+         BCTR  R1,0                                                     01270004
+         STH R1,NEST                                                    01280002
+         STC R1,INEST                                                   01290002
+         OPINST ILENGTH                                                 01300002
+C05RETN  DS    0H                                                 J50   01302704
+         JOLRETN                                                        01310002
+C05NOEND EQU   *                                                  75128 01320000
+         LA    R8,TRANS                                                 01330002
+         USING DDDSNDET,R8                                              01340002
+         USING IDTABLE,R1                                               01350002
+         SPACE 3                                                        01360002
+         CLI   TKN,C','          ',' ?                                  01370004
+         BE    C05NEXT         YES,IGNORE IT.                           01380004
+         CLC   =C'FROM ',TKN      FROM?                                 01390004
+         BE    C05OPEND          YES, WE HAVE ALREADY FIXED THIS        01400004
+         CLC   =C'ON ',TKN      ON?                                     01410004
+         BE    C05OPEND          YES, WE HAVE ALREADY FIXED THIS        01420004
+         CLC   =C'ALWAYS ',TKN    ALWAYS ?                              01430004
+         BE    C05NEXT          YES,IGNORE IT                           01440004
+         CLC   =C'VOL ',TKN       VOL ?                                 01450004
+         BNE   C05REAL            NO, S/B A REAL DSID OR DSNAME.        01460004
+         LA    R1,1(R1)         SKIP VOLUME                             01470002
+         GETTKN (R1)            GET NEXT                                01480002
+         CLC =C'UNIT ',TKN      ='UNIT' ?                               01490002
+         BNE C05TNULL           NOPE                                    01500002
+         GETTKN (R1)            GET  UNIT-NAME                          01510002
+C05TNULL EQU   *                                                  75128 01520000
+         LR    R5,R1                                                    01530002
+         B     C05LUP              AND BACK TO GET NEXT, AND      75128 01540000
+*                               CHECK FOR END OF LOOP                   01550000
+* NEW FEATURE 20/11/73                                                  01560000
+*     IF CATLG 'DSNAME' (I.E QUOTES) WE SET UP A DUMMY DSID WHICH       01570000
+*     IS RESOLVED IN THE OPTIMISE SECTION LATER.                        01580000
+         SPACE                                                          01590002
+C05REAL  EQU   *                                                  75128 01600000
+* NOW SET UP A DUMMY DSID                                               01610000
+         MVI DDOSVB,C' '                                                01620002
+         MVC DDOSVB+1(DDSPACE-DDOSVB-1),DDOSVB      CLEAR DOWN          01630002
+         MVC DDSTMT,STMT       SET UP A STATEMENT NUMBER FOR ERRORS     01640002
+         MVC DDLEVEL,LEVEL+1 SET UP LEVEL                               01650002
+         MVC DDNEST,NEST+1     AND THE NEST                             01660002
+         XC DDOSVB+2(2),DDOSVB+2                                        01670002
+         CLEAR DDSPECTP,DDSPECT2,DDLABEL,DDUNITYP,DDUNITNO        82145 01680000
+         CLEAR DDLABTYP,DDUNITQU,DDAEXTRA                         J50   01690035
+         MVC   DDDSID(2),=C'$$'                                   75128 01700000
+         MVC   DDDSID+2(4),STMT                                   75128 01710000
+         OC    DDDSID+2(4),=C'0000'                               75128 01720000
+         MVI   DDTYPE,DDREALDS                                    75128 01730000
+         MVI DDDD1,C'D'        TELL US IT IS A DD CARD OF SOME SORT     01740002
+         CLI TKN,C''''         IS IT A DSN WITH QUOTES ?                01750002
+         BNE C05FIND                                                    01760002
+         $CALL UJS60DSN        DROP QUOTES, SETS UP GDG | MEMBER  75311 01770002
+         JOLSTOR 'DSNAME',DDDSNAME,#WORK                          75311 01780002
+         MVC DDMBR,WORK+100                                       75311 01790002
+         MVC DDPASSW,WORK+120                                     80290 01800002
+C05FIXDS MVI DDTYPE,DDREALDS                                      75311 01810002
+         CLC DDMBR,BLANKS                                         75311 01820002
+         BE    C05OP1                                             75311 01830002
+         CLI DDMBR,C'('        GDG ?                              75311 01840002
+         BE    C05GDG01                                           75311 01850002
+         MVI DDTYPE,DDMEMSPC                                      75311 01860002
+         B     C05OP1                                             75311 01870002
+C05GDG01 EQU *                                                    75311 01880002
+         MVI DDTYPE,DDGDGREL                                      75311 01890002
+         CLC DDMBR+1(5),=C' 0000' (0)                             75311 01900002
+         BE    C05OP1                                             75311 01910002
+         CLI DDMBR+1,C' '      ABSOLUTE GEN                       75311 01920002
+         BNE C05OP1                                               75311 01930002
+         MVI DDTYPE,DDGDGABS                                      75311 01940002
+         B     C05OP1                                             75311 01950002
+         SPACE 3                                                        01960002
+C05FIND  DS    0H                                                       01970019
+         LA    R1,1(R5)                                           75311 01980002
+         STH R1,TKNCURR                                           75311 01990002
+         MVC CALLAREA(2),=C'||'                                   75311 02000002
+         $CALL UJS60DSN        READS,FIXES DSNAME                 75311 02010002
+         LH    R5,TKNCURR      (UJS60 MAY CHANGE TKNCURR)         75311 02020002
+         BCTR R5,0                                                75311 02030002
+         JOLSTOR 'DSNAME',DDDSNAME,#WORK                          75311 02040002
+         MVC DDMBR,WORK+100                                       75311 02050002
+         MVC DDPASSW,WORK+120                                     80290 02060002
+* NOW, IF THERE IS A '.' IN THE DSNAME FIELD, THIS IS A DSN, SO   75311 02070000
+* WE WILL TREAT IT AS THOUGH IT WAS A DSNAME WITH QUOTES          75311 02080002
+         LA    R1,DDDSNAME                                        75311 02090002
+         LA    R14,1                                              75311 02100002
+         LA    R15,DDDSNAME+L'DDDSNAME-1                          75311 02110002
+         CLI   0(R1),C'.'                                         75311 02120004
+         BE    C05FIXDS '                                         75311 02130002
+         BXLE R1,R14,*-8                                          75311 02140002
+         MVC TKN(8),DDDSNAME SHIFT DSID TO TKN                    75311 02150002
+         MVI #TKN+1,8          SET LENGTH TO 8                    75311 02160002
+         MVC C05WORK2,DDMBR    SAVE GDG INDICS (SAY SOMEONE       75311 02170002
+*                              CODES 'CATLG X(+1)', THEN AT THIS  75311 02180000
+*                              STAGE DDMBR WILL CONTAIN '(+1)'    75311 02190000
+         $CALL UJS17FID,TKN                    FIND THE ID        74303 02200002
+         LTR   R15,R15           DID WE FIND IT ?                       02210032
+         BNZ   C05ERR01          NO,PRODUCE AN ERROR FOR THE POOR CHAP  02220032
+* OK HERE WE HAVE GOT IT                                                02230000
+         SPACE 3                                                        02240002
+* NOW IT WOULD APPEAR THAT THE GENTLEMAN HAS NOT YET USED THE DATA-SET- 02250000
+*          IDENTIFIER AND SO WE MUST OUTPUT ONE (AN ENTIRE VERSION)     02260000
+C05USED  DS    0H   ******************* NOT REAL SPOT,CAUSES B          02270032
+*  DOUBLE OUTPUT PUT WILL DO FOR VERSION 1  **************              02280000
+C05OK1  $CALL UJS16GID,TKN                     READ INTO STORE    74303 02290002
+         LTR   R15,R15                                                  02300032
+         BNZ   C05ERR02                                                 02310032
+* AGAIN R1 POINTS TO THE ID                                             02320000
+         TM    IDTYPE,X'03'    DSID ?                             75128 02330002
+         BO    C05OPGDG   GO RESOLVE GDG NUMBERS                   DASD 02340002
+*        BO    C05OP1                                              DASD 02350002
+         JOLERR 303,'''',#TKN,''' IS NOT A DATA SET VARIABLE-IGNORED'   02360000
+         B     C05NEXT                                                  02370004
+C05OPGDG EQU *                                                     DASD 02380002
+         LH    R15,LEVEL       LEVEL INDICATOR                    74303 02390002
+         SLL   R15,3             *8                               74303 02400032
+         AH    R15,NEST                                           74303 02410002
+         LA    R15,COND(R15)                                      74303 02420002
+         MVC DDNEST(1),0(R4) SO VETS CAN SEE IF SCRATCH,ETC       74303 02430002
+*                            IS CONDITIONALLY EXECUTED            74303 02440002
+* NOW CALL UJS61DD TO ALTER GDG NUMBERS                           75311 02450000
+         $CALL UJS61DD,(DDDSNDET,C05WORK2)                        75311 02460002
+C05OP1   DS    0H                                                       02470000
+         MVI DDDDNAME,C'%'                                              02480002
+         MVC DDDDNAME+1(1),ICOMMAND                                     02490002
+         MVC DDDDNAME+2(4),STMT                                         02500002
+         OC    DDDDNAME+2(4),=C'0000'                                   02510002
+         CVD R5,DBL                                                     02520002
+         UNPK DDDDNAME+6(2),DBL                                         02530002
+         OI     DDDDNAME+7,X'F0'                                        02540002
+         MVC DDOSVB,=AL2(DDSPACE-DDOSVB)                                02550002
+         XC DDOSVB+2(2),DDOSVB+2                                        02560002
+         SPACE 2                                                        02570000
+* NOW WE MUST TURN ON THE 'ALWAYS' INDICATOR, IF IT WAS SPECIFID,       02580000
+*  AND COPY IN THE VOLUME AND UNIT, AGAIN IF SPECIFIED.                 02590000
+* THE 'DDLABTYP' FIELD IS TOTALLY USELESS FOR THIS TYPE OF              02600000
+*  INSTRUCTION, SO WE'LL SET IT TO 0 IF > ALWAYS,ELSE 1, AND THE        02610000
+*  MONITOR CAN CHECK IT AND MAKE IT PURGE | RECATLG AS DESIRED.         02620000
+       STC R7,DDLABTYP                                                  02630002
+       SPACE 1                                                          02640002
+* NOW FIX UP VOLUMES, UNIT                                              02650000
+       IFNULL C05WORK(6),C05NVOL2                                       02660002
+* VOL WAS SPECIFIED ON INSTRUCTION                                      02670000
+       CLC     DDVOLUME(6),C05WORK ARE THEY THE SAME?       FIX-X 76200 02680002
+       BE      C05USEV2                                     FIX-X 76200 02690002
+       IFNULL DDVOLUME,C05USEV2                                         02700002
+       JOLERR 104,'VOLUME ',' SPECIFIED ON INSTRUCTION USED INSTEAD OF *02710002
+               DECLARED ','VOLUME'                                76200 02720002
+       CLEAR DDVOLUME                                             76200 02730002
+C05USEV2 MVC DDVOLUME(6),C05WORK SHIFT IN SPECIFIED VOLUME.             02740002
+C05NVOL2 IFNULL C05WORK+6(4),C05USEU2                                   02750002
+         IFNULL DDUNIT,C05USEU1                                   76200 02760002
+         JOLERR 105,'UNIT ',' SPECIFIED ON INSTRUCTION USED INSTEAD OF *02770000
+               DECLARED ','UNIT'                                  76200 02780000
+         MVI   DDUNITYP,C' ' CLEAR SPECIFIED UNIT TYPE FOR NOW    76200 02790000
+C05USEU1 MVC DDUNIT,C05WORK+6          UNIT IT NOW                      02800002
+C05USEU2 MVI DDUSE,0               SET TO SHR,SO CATLG ROUTINES   76200 02810002
+*                                  WILL SEARCH IF NECESSARY             02820000
+* IF VOLREF SPECIFIED, CANCEL IT SO CATLG SEARCH WILL BE JOL30076 76200 02830000
+* DONE                                                   JOL30076 76200 02840000
+*** NOT A FULL FIX ***                                   JOL30076 76200 02850000
+         CLI   DDVOLUME,C'-'  VOLREF ?                   JOL30076 76200 02860002
+         BNE   C05OPNW                                   JOL30076 76200 02870002
+         CLEAR DDVOLUME                                  JOL30076 76200 02880002
+C05OPNW  DS    0H                                        JOL30076 76200 02890002
+         FIX   'WHEN LONG VOLS SUPPORTED'                         87150 02920002
+         $CALL UJS16EXT,DDDSNDET CHECK IF EXTRA DATA SUCH AS      87150 02930002
+*                              LONG VOLUME OR SUBSYS TO GO OUT    87150 02940000
+*        CLI   DDDDNAME+1,C'Z'                                          02941030
+         CLC   =C'DBF',ICOMMAND                                   J50   02941144
+         BE    C05DB                                              J50   02942004
+*                                                                       02942147
+**************************************                                  02942247
+*                                                                       02942347
+* CODE TAKEN FROM UJC03DS TO ADD PREFERRED VOLUME SUPPORT. DEC 2010 J60 02942447
+*                                                                       02942547
+* WE APPARENTLY HAVE FINISHED PROCESSING THE MIGHTY DECLARE STMT        02942647
+* NOW BEFORE WE GO (AND BASICALLY BECAUSE THE TABLE IS IN CORE NOW)     02942747
+*     WE WILL HAVE A DECKO AT THE UNIT AND VOLUME TO SEE IF WE CAN      02942847
+*     FILL IN THE 'DDUNITYP' FIELD.                                     02942947
+           IFNULL DDVOLUME,C03CANT CANT DO ANYTHING WITH THE UNIT       02943047
+*                         TYPE SO LEAVE IT FOR A LATER PHASE.           02943147
+           SPACE 3                                                      02943247
+* NOW WE HAVE A VOLUME                                                  02943347
+* LET'S SEE IF IT IS IN THE TABLE                                       02943447
+         L     R1,AJOLGEN                                         75128 02943547
+         USING UJGENDET,R1                                        75128 02943647
+* I HAD TO CHANGE THE CODE TO USE DIFFERENT REGISTERS FOR THE     J60   02943748
+*  BXLE AS R8 POINTS TO THE DD CARD IN THIS MODULE.               J60   02943848
+         L     R1,APREFVOL                                        75128 02943947
+         DROP  R1                                                 75128 02944047
+           LM R14,R15,4(R1)      LOAD BXLE CONSTANTS              J60   02944148
+           L  R1,0(R1)                                            J60   02944248
+C03FV01    CLC 0(6,R1),DDVOLUME                                         02944348
+           BE  C03UN01                                                  02944447
+           BXLE R1,R14,C03FV01                                          02944548
+           B  C03CANT          DIDN'T FIND IT IN TABLE,SO AWAY,AWAY     02944647
+C03UN01    EQU *                                                        02944747
+* NOW IF THE DDUNITYP FIELD IS '' THE WE'LL COPY THIS ONE IN            02944847
+           CLI DDUNITYP,0                                         J60   02944949
+           BNE C03COMPU                                                 02945047
+           MVC DDUNITYP,6(R1) SHIFT IN UNIT TYPE (JOLS)                 02945148
+           B  C03CANT                                                   02945247
+C03COMPU   EQU *                                                        02945347
+* THE UNIT TYPE HAS BEEN SET UP.                                        02945447
+*     IT COULD HAVE BEEN SET UP BY THE VOLUME PROCESSOR EQRLIER         02945547
+*     OR FROM THE UNIT PROCESSOR.                                       02945647
+*     BECAUSE THIS IS A PREFERRED VOLUME WE CAN AT LEAST CHECK          02945747
+*     THAT THE UNIT TYPES ARE VAGUELLY SIMILIAR.                        02945847
+           SR R0,R0                                                     02945947
+           IC R0,6(R1)    GET UNIT TYPE FROM VOL TABLE              J60 02946048
+           SR R1,R1                                                     02946147
+           IC R1,DDUNITYP GET UNIT TYPE FROM DD CARD                    02946247
+           LA R15,X'1F'   ONLY WANT TO LOOK AT LAST 5 BITS          J60 02946347
+           NR R0,R15      SO AND                                        02946447
+           NR R1,R15      SO AND                                        02946547
+           CR R0,R1       AND COMPARE                                   02946647
+           BE C03CANT     ALL'S OK                                      02946747
+         JOLERR 218,'UNIT SPECIFIED FOR PREFERRED VOLUME CHANGED AS IT *02946848
+               WAS INCORRECT'                                           02946947
+           MVC DDUNITYP,6(R1)  OVER-WRITE THE UNIT HE SPECIFIED         02947048
+*                                                                       02947147
+* END JOL 60 CODE ADDITION FROM UJC03DS                                 02947247
+**************************************                                  02947347
+*                                                                       02947447
+C03CANT  DS    0H                                                 J60   02947547
+*                                                                       02947647
+         OPINST DDOSVB                                                  02947747
+         B     C05NEXT             ALTER WHEN LONG VOLS           87150 02947847
+C05DB    DS    0H                                                       02947947
+* THE MODEL NAME IS 12 CHARACTERS AND GOES IN THE DDDSID FIELD    J50   02948047
+         MVC   DDOSVB,=Y(DDLEN+L'DDEXTRA)                               02948147
+         MVC   DDDSID(L'DDDSID+L'DDSTMT),BLANKS                   J50   02948247
+         GETTKN 3                SEE IF 'USES'                    J50   02948347
+         CLI   TKN,C' '          TEST IF EXTRA PARAMETERS         J50   02948447
+         BE    C05ZOK            NO, SO JUST WRITE FILE           J50   02948547
+         CLC   =C'USES ',TKN                                      J50   02948647
+         BNE   C05NMODL          NO USES MODEL SPECIFIED          J50   02948747
+         GETTKN 4                GET THE MODEL NAME               J50   02948847
+         MVC   DDDSID(L'DDDSID+L'DDSTMT),TKN    SHIFT IN MODEL NAME50   02948947
+         B     C05ZOK            OK, SO JUST WRITE FILE           J50   02949047
+C05NMODL DS    0H                                                 J50   02949147
+         CLC   =C'VSAMTXT ',TKN  VSAM CONTROL INFORMATION         J50   02949247
+         BE    C05ZVSAM          YES, SET UP VSAM INFORMATION     J50   02949347
+*        JOLER R 'INVALID' FIX                                    J50   02949447
+C05ZVSAM DS    0H                                                 J50   02949547
+         GETTKN 4                GET THE VSAM CONTROL INFORMATION J50   02949647
+         MVC   DDOSVB,=H'494'    SET MAX RECORD LENGTH            J50   02949747
+         MVC   C05VSAMP(256),#TKN COPY VSAM PARMS + LENGTH TO WORKJ50   02949847
+C05ZOK   DS    0H                                                 J50   02949947
+         MVC   C05COPYD(256),DDDSNDET COPY TO WORK AREA           J50   02950047
+         TM    UJFLAG1,UF1DBERR  IF VSAM ERROR,                   J50   02950147
+         BNZ   C05NEXT           IGNORE IT                        J50   02950247
+         TM    UJFLAG1,UF1DBOPN  IF NOT OPEN                      J50   02950347
+         BZ    C05NEXT           IGNORE IT                        J50   02950447
+         CLEAR DDAEXTRA                                           J50   02950547
+         CLC   ICOMMAND,=CL8'DBFDEL'                              J50   02950647
+         BE    ZDEL                                               J50   02950747
+         CLC   ICOMMAND,=CL8'DBFADD'                              J50   02950847
+         BE    ZADD                                               J50   02950916
+         CLC   ICOMMAND,=CL8'DBFUPD'                              J50   02951044
+         BE    ZUPD                                               J50   02951116
+         JOLERR 406,ICOMMAND,' IS NOT IMPLEMENTED YET',           J50  .02951204
+               RC=12                                              J50   02951304
+ZUPD     DS    0H                                                 J50   02951416
+         MVC   C05SAVED,C05COPYD SAVE                             J50   02951545
+         MVC   C05VSAMC,C05VSAMP  DATA                            J50   02951646
+         BAL   R14,C05FND                                         J50   02951745
+         MVC   C05COPYD,C05SAVED RESTORE                          J50   02951845
+         MVC   C05VSAMP,C05VSAMC  DATA                            J50   02951946
+         LTR   R15,R15                                            J50   02952045
+         BNZ   ZADD                                               J50   02952145
+         VSIO  UPDATE,JOLDSDB,C05COPYD,NRETURN=C05NEXT                  02953045
+         OI    UJFLAG1,UF1DBERR                                   J50   02970220
+         JOLERR 308,'VSAM UPDATE ERROR ON JOLDSDB: PROCESSING CANCELLED'02970320
+               '                                                        02970425
+         B     C05ERR                                             J50   02970525
+         SPACE 3                                                        02970625
+ZDEL     DS    0H                                                 J50   02971016
+         BAL   R14,C05FND                                         J50   02971113
+         LTR   R15,R15                                            J50   02971317
+         BNZ   C05NEXT                                            J50   02971421
+         VSIO  DELETE,JOLDSDB,C05COPYD,NRETURN=C05OK                    02972037
+         JOLERR 109,'VSAM DELETE ERROR ON JOLDSDB'                      02974225
+         B     C05ERR                                             J50   02974325
+         SPACE 3                                                        02974425
+ZADD     DS    0H                                                 J50   02975016
+         VSIO  INSERT,JOLDSDB,C05COPYD,NRETURN=C05OK                    02976037
+         OI    UJFLAG1,UF1DBERR                                   J50   02977220
+ZADDER   DS    0H                                                 J50   02977322
+         JOLERR 310,'VSAM INSERT ERROR ON JOLDSDB: PROCESSING CANCELLED'02977422
+               '                                                        02977525
+         B     C05ERR                                             J50   02977625
+C05FND   DS    0H                                                 J50   02977725
+         ST    R14,C05RET1                                        J50   02977825
+         VSIO  GETFIRST,JOLDSDB,C05COPYD,NRETURN=C05FND30               02977937
+         JOLERR 111,'VSAM FIND ERROR ON JOLDSDB ',DDDSID,DDDSNAME       02978025
+         LA    R15,4                                              J50   02978125
+C05FND30 DS    0H                                                 J50   02978225
+         L     R14,C05RET1                                        J50   02978325
+         BR    R14                                                      02978425
+         SPACE 3                                                        02978525
+C05ERR01 JOLERR 301,'CANNOT PERFORM ACTION ON ''',#TKN,''':- NOT DECLAR*02980000
+               ED'                                                      02990001
+         B     C05NEXT                                                  03000004
+         SPACE 3                                                        03001004
+C05ERR02 JOLERR 502,'CANNOT READ ''',#TKN,'''',RC=16                    03010004
+C05ERR   DS    0H                                  J50                  03020025
+         JOLERR 199,'ERROR PROCESSING ',DDDSID,DDDSNAME,RC=16           03020125
+C05OK    DS    0H                                                       03020232
+         JOLERR 012,'REQUESTED ACTION PERFORMED'                        03020333
+C05NEXT  DS    0H                                                       03021032
+         LA    R5,1(R5)                                                 03021232
+         JOLRETN RC=0                                             J50   03021341
+         B     C05LUP                                                   03021439
+         CNOP  0,8                                          FIX-X 76200 03022004
+C05MVC1  MVC   0(*-*,R1),TKN  SHIFT ABSOLUTE NUMBER                     03030000
+         DC    40S(*)                                                   03050001
+         LTORG                                                          03250001
+         END                                                            03260001

@@ -1,0 +1,824 @@
+         TITLE 'UJE98INI:INITIALISATION ROUTINES'                       03947000
+         JOLSAVE CSECT=UJE98INI                                         03948000
+* THIS CSECT IS CALLED IMMEDIATELY AFTER THE JOL SCHEDULER GETS CONTROL 03949000
+*    AND IT  OPENS THE FILES ETC                                        03950000
+* SECOND DETERMINE WHETHER WE ARE RUNNING UNDER 'HASP' OR 'OS'          03951000
+*    IF THERE IS A DD-CARD FOR '$$PRINT' THEN THE SYSOUT FILE           03952000
+*    ASSOCIATED WITH THAT FILE WILL BE USED SIMILIARLY TO THE           03953000
+*    'HASP' SYSTEM LOG,I.E ALL COMMENTS WILL GO OUT TO IT.              03954000
+         SPACE 3                                                        03955000
+* NOTE *** UNDER VS, WE ATTACH RATHER THAN XCTL TO THE USER PROGRAM     03956000
+*     AS WE SAVE TIME THEN BY NOT CLOSING AND RE-OPENING OUR FILES.     03957000
+*     SO, LET'S SEE IF THEY ARE OPEN, AS TO OPEN AGAIN WOULD DEFEAT     03958000
+*     THE WHOLE EXERCISE, WOULDN'T IT?                                  03959000
+         SPACE 1                                                        03960000
+         TM INSTRUCT+48,X'10'                                     74365 03961000
+         BO  SCHEDGO                                              74365 03962000
+         SPACE 1                                                        03963000
+         MVC STMT,=CL4'   0'                                            03964000
+&C1      SETC  (1-&X8)'AQMRAW'                                          03965000
+&C2      SETC  (1-&X8)'IBMRTN'                                          03966000
+&C3      SETC  (1-&X8)'JOBQ'                                            03967000
+&C4      SETC  (1-&X8)'JCTTTR'                                          03968000
+         CALL  UJE70OPN,(&C1,&C2,INSTRUCT,PRINT,RETN,&C3,         ******03969000
+               &C4,VS,ATCB),MF=(E,CALLAREA)                       ***** 03970000
+*** ABOVE OPENS REQUIRED FILES, AND :-                            ***** 03971000
+*    1. SETS 'JCTTTR' TO CORE ADDRESS, OR TTR ON JOBQ.            ***** 03972000
+*    2. LOADS (MAYBE) AN IBM ROUTINE TO ACCESS JOBQ.              ***** 03973000
+*    3. OPENS 'INSTRUCT'                                          ***** 03974000
+*    4. OPENS 'PRINT' IF $$PRNT DD CARD PRESENT                   ***** 03975000
+*    5. OPENS 'JOBQ'  IF $$JOBQ DD CARD PRESENT AND ^MFT |MVT|MVS ***** 03976000
+*    6. SETS 'VS' TO ' ' | '1' | '2' | 'M'                        ***** 03977000
+*    7. SETS 'ATCB' = A(OUR TCB)                                  ***** 03978000
+           SPACE 3                                                ***** 03979000
+         L     R4,ATCB               ADDRESS MY TCB                     03980000
+         L     R14,TCBJSCB-TCB(,R4)           MY JSCB                   03981000
+         ICM   R14,7,JSCBCSCA-JSCB(R14)       MY CSCB                   03982000
+         MVC   JBNAME,CSCBUJNM-CSCB(R14)      WOT IME CALLED            03983000
+SCHEDGO  DS    0H                                                       03984000
+         CALL  UJE97SPC                SPACE UP PRINTING A BIT          03985000
+         L     R1,ATASKPRM      CLEAR USER'S PARM                       03986000
+         XC    0(2,R1),0(R1)                                            03987000
+       SPACE                                                            03988000
+* NOW CHECK THAT THE INSTRUCT AND RETNCODE FILES ARE OPEN               03989000
+         SR    R8,R8                                                    03990000
+         TM    INSTRUCT+48,X'10'                                        03991000
+         BO    FILE1OK                                                  03992000
+         LA    R8,1                                                     03993000
+         JOLERR 501,'NO DD CARD FOR $$INST'                             03994000
+FILE1OK  DS    0H                                                 75128 03995000
+         L     R4,TCBJSCB-TCB(,R4)          MY JSCB                     03996000
+         ICM   R4,7,JSCBFCTA-JSCB(R4)         FIRST FCT                 03997000
+         BZ    E98NOFCT              EXIT IF NONE ?!! & SSSSSSSSS       03998000
+         SPACE                                                          03999000
+*   FOUND THE FCT CHAIN. NOW FIND A DATASET ENTRY                       04000000
+         SPACE                                                          04001000
+         USING FCT,R4                                                   04002000
+E98NXFCT DS    0H                                                       04003000
+         CLC   FCTACSN,=CL8'&DDINST' Q... IS THIS MY INSTRUCTION FILE?  04004000
+         BE    E98FFCT               A... YES, GO AND FIX IT            04005000
+         ICM   R4,7,FCTNFCTA         NEXT FCT                           04006000
+         BNZ   E98NXFCT              BR IF THERE IS ONE                 04007000
+E98NOFCT JOLERR 500,'NO FCT FOR THE INSTRUCTION FILE'                   04008000
+E98FFCT  DS    0H    FOUND THE FCT, NOW COPY THE DSNAME                 04009000
+         MVC   SYSINDSN(L'FCTFLN),FCTFLN   COPY THE FILE NAME           04010000
+         LA    R1,SYSINDSN+L'FCTFLN-1 ADDR LAST BYTE                    04011000
+         CLI   0(R1),C' '           TRUNCATE TRAILING BLANKS            04012000
+         BNE   *+8                                                      04013000
+         BCT   R1,*-8                                                   04014000
+         LA    R0,SYSINDSN                                              04015000
+         SR    R1,R0                                                    04016000
+         STH   R1,#SYSINDS            STORE LENGTH                      04017000
+         L     R15,FCTVCT            ADDRESS VOLUME INFORMATION         04018000
+         MVC   SYSINVOL,8(R15)       COPY THE VOLUME SERIAL NUMBER      04019000
+         ZAP   DDCTR,=P'0'           INITIALISE DD COUNTER              04020000
+         SPACE 2                                                        04021000
+         FIND  INSTRUCT,MBRRETN,D                                       04022000
+         B     E98INITR(R15)                                            04023000
+E98INITR B     E98GOTMB                                                 04024000
+         B     E98FIND4                                                 04025000
+         B     E98FIND8                                                 04026000
+MBRRETN  DC    CL8'$$RETN'                                              04027000
+         SPACE 3                                                        04028000
+E98FIND8 JOLERR 504,'I/O ERROR READING DIRECTORY'                       04029000
+         SPACE 3                                                        04030000
+E98FIND4 DS    0H                                                       04031000
+* THE $$RETN MEMBER HASN'T BEEN SET UP APPARENTLY                       04032000
+         JOLERR 109,'JOL MONITOR VERSION IS ',                   74365 *04033000
+               '4.0-B  '                                         76200  04034000
+         CALL  UJE97SPC                SPACE UP PRINTING A BIT          04035000
+*          LA R1,READAREA                                               04036000
+*          USING READAREA,R1                                            04037000
+*          CLEAR READAREA  ****** FOR TESTS ONLY ?????                  04038000
+         LA    R0,READAREA                                              04039000
+         L     R1,=A(L'READAREA)                                        04040000
+         SLR   R15,R15        ZEROES TO ALL THE AREA                    04041000
+         MVCL  R0,R14                                                   04042000
+*          DROP R1                                                      04043000
+*          XC TTR$RETN(100),TTR$RETN                              75311 04044000
+           MVI   COND,C' ' CLEAR COND TO BLANKS                    DASD 04045000
+           MVC   COND+1(L'COND-1),COND                             DASD 04046000
+           WRITE E98DEC9,SF,RETN,READAREA,'S'                           04047000
+           CHECK E98DEC9                                                04048000
+           NOTE RETN                                                    04049000
+           ST  R1,TTR$RETN                                              04050000
+           STOW RETN,STOWBLK,A                                          04051000
+           LTR R15,R15                                                  04052000
+           BZ  E98RDJCT                                                 04053000
+           JOLERR 503                                                   04054000
+E98GOTMB DS    0H                                                       04055000
+* WE HAVE NOW FOUND THE $$RETN MEMBER OF THE DATA SET                   04056000
+           LH R2,INSTRUCT+X'3E'                                         04057000
+           MVC INSTRUCT+X'3E',=Y(&RETNSIZ)                         DASD 04058000
+           READ E98DECBX,SF,INSTRUCT,RETNAREA                           04059000
+           CHECK E98DECBX                                               04060000
+           STH R2,INSTRUCT+X'3E'                                        04061000
+           NOTE INSTRUCT                                                04062000
+           ST  R1,TTR$RETN     FOR REWRITING                            04063000
+* FIND OUT HOW MUCH DATA WE READ (ALSO USED FOR REWRITING)              04064000
+           L  R1,E98DECBX+16   IOB ADDRESS                              04065000
+           LH R14,INSTRUCT+X'3E'  BLOCKSIZE                             04066000
+           SH R14,14(R1)  MINUS RESIDUAL COUNT                          04067000
+           STH R14,RETNBLKS    LENGTH OF RETN BLOCK                     04068000
+           SPACE 3                                                      04069000
+           MVC STMT,DBL                                                 04070000
+         POINT INSTRUCT,TTR$INST                                        04071000
+E98RDJCT DS    0H                                                       04072000
+           AIF   (&X8).X8420                                            04073000
+           SPACE 3                                                      04074000
+* BETTER SET UP THE JOBNAME ETC                                         04075000
+           LA  R4,CALLAREA                                              04076000
+           EXTRACT (4),'S',FIELDS=(TIOT)                                04077000
+           L   R1,CALLAREA                                              04078000
+           ST  R1,ATIOT        SAVE ADDRESS OF TIOT                     04079000
+* NOW READ IN JCT AND SCT                                               04080000
+           GETJOBQ JCTDECB,JCTTTR                                 ***** 04081000
+           MVC CALLAREA(3),JCTSSTR  POINT TO CURRENT SCT                04082000
+E80RDSCT DS    0H                                                       04083000
+           MVI CALLAREA+3,0                                             04084000
+           GETJOBQ SCTDECB,CALLAREA                                     04085000
+*****************************************************************       04086000
+* NOW BECAUSE OS DOES NOT UPDATE THE CURRENT JCT                        04087000
+*     SCT POINTER AFTER A STEP HAS BEEN BYPASSED,I MUST                 04088000
+*     CHECK THAT THE SCT I'VE JUST READ IN IS THE RIGHT ONE             04089000
+*     FOR THIS OS STEP.                                                 04090000
+*     IF ITS NOT,I STEP ON TO THE CORRECT ONE.                          04091000
+* ALSO THE CURRENT OS STEP COUNTER MUST BE UPDATED COS I USE            04092000
+*     IT IN THE SCRATCH ROUTINE                                         04093000
+******************************************************************      04094000
+* WE'LL USE THE TIOT STEP NUMBER,COS THAT MUST BE RIGHT ?????           04095000
+           SPACE                                                        04096000
+           ST R1,CALLAREA                                               04097000
+           MVC  JCTSSTR(3),CALLAREA                                     04098000
+* NOW CHECK THAT THE STEPS ARE RIGHT                                    04099000
+           L R1,ATIOT          GET TIOT ADDTRESS                        04100000
+           CLC SCTSNAME,8(R1)   RIGHT STEP ?                            04101000
+           BE E98T1ST          TEST IF 1ST TIME IN THIS OS STEP         04102000
+* OK THEN,STEP ON TO READ NEXT SCT,AND ADD 1 TO CURRENT                 04103000
+*     JCT STEP COUNTER                                                  04104000
+           SR R1,R1                                                     04105000
+           IC R1,JCTSNUMB                                               04106000
+           LA R1,1(R1)                                                  04107000
+           STC R1,JCTSNUMB                                              04108000
+           MVC CALLAREA(4),SCTANSCT  NEXT SCT ADDRESS                   04109000
+           B  E80RDSCT                                                  04110000
+E98T1ST  DS   0H                                                        04111000
+.X8420     ANOP                                                         04112000
+           SPACE 6                                                      04113000
+           CLI TASKIND,C' '    IS THIS THE FIRST TIME I'VE BEEN CALLED  04114000
+*                              THIS OS STEP ?                           04115000
+           BE  E98RETN0        YES,SO NOW FILES ETC INITIALISED,GO BACK 04116000
+*                              TO THE MAIN-LINE LIKE A GOOD BOY.        04117000
+           SPACE 3                                                      04118000
+* THE SCHEDULER HAS BEEN RE-ATTACHED AFTER AN XCTL TO A PROBLEM         04119000
+*    PROGRAM. THEREFORE WE MUST DO NICE THINGS LIKE PRINT OUT           04120000
+*    THE RETURN CODES ETC,                                              04121000
+* WE HAD BETTER STORE ITS RETURN CODE IN THE TABLE ANYWAY               04122000
+           LH R1,NOIDS                                                  04123000
+           MH R1,=H'18'                                                 04124000
+           LA R1,IDSTART(R1)                                            04125000
+           USING IDOVLY,R1                                              04126000
+           MVC IDRETN,TASKRETN                                          04127000
+           MVI IDRETN,0        TURN OFF HIGH ORDER BITS FOR COMPARISONS 04128000
+*                              IN THE 'IF' STATEMENT LATER              04129000
+******* MORE FOR  MAXCC,LASTCC   SEPT 75                                04130000
+         TM    TASKRETN,TCBFA   DID AN ABEND OCCUR?      CHG26028 76200 04131000
+         BO    E98LMAX        YES, SO LEAVE LASTCC AND MACHG26028 76200 04132000
+         MVC  LASTCC,IDRETN   LASTCC DONE                               04133000
+         CLC   MAXCC,LASTCC                                             04134000
+         BH    E98LMAX                                                  04135000
+         MVC   MAXCC,LASTCC   MAXCC DONE                                04136000
+         DROP  R1                                                       04137000
+E98LMAX  UNPK  CALLAREA(9),TASKSSI(5)                                   04138000
+         TR    CALLAREA(8),HEX                                          04139000
+         MVC   ENDMSSI,CALLAREA 3(5)                                    04140000
+*        OI    ENDMSSI+7,X'F0'                                          04141000
+* NOW SEE IF TASK ABENDED OR RETURNED PROPERLY.                         04142000
+         TM    TASKRETN,TCBFA                  ABEND ?                  04143000
+         BZ    NOTABND                                                  04144000
+         MVI   ERRORIND,1     TURN ON ABEND INDICATOR    CHG26028 76200 04145000
+* WAS IT A USER ABEND OR A SYSTEM ABEND ?                               04146000
+         L     R1,TASKRETN                                              04147000
+         N     R1,=X'00FFF000'                                          04148000
+         BZ    USERABND                                                 04149000
+         UNPK  CALLAREA(9),TASKRETN(5)                                  04150000
+         TR    CALLAREA(8),HEX                                          04151000
+         MVC   ENDMRETC(4),CALLAREA+1                                   04152000
+         MVC   ENDMRETC+5(3),CALLAREA+5                                 04153000
+         MVI   ENDMRETC,C'S'                                            04154000
+         MVI   ENDMRETC+4,C'-'                                          04155000
+           JOLERR 307,'STEP ',TASKLABL,' LM ',TASKNAME,' SSI ',   74365*04156000
+               ENDSSI,' SYSTEM ABEND ',ENDRETC                    74365 04157000
+E98CLRAB CLEAR TASKRETN    CLEAR ABEND                   CHG26028 76200 04158000
+*        B     E20R16       TAKE BRANCH TO COND CODE TERMINATE   C DASD 04159000
+         B     E98RETN0                                          A DASD 04160000
+           SPACE 3                                                      04161000
+NOTABND    XC TASKRETN(2),TASKRETN                                      04162000
+USERABND DS    0H                                                       04163000
+         L   R0,=X'0000FFFF'  IF NEGATIVE NUMBER LETS SHOW IT      DASD 04164000
+         N   R0,TASKRETN                                                04165000
+         CVD R0,DBL                                                     04166000
+         OI  DBL+7,X'0F'                                           DASD 04167000
+         UNPK ENDRETB,DBL                                          DASD 04168000
+         CLI ENDRETB,C'0'                                          DASD 04169000
+         BNE ENDMSSOK  ITS A BIG ONE                               DASD 04170000
+         MVI ENDRETB,C' '  PRINT AS BEFORE (4 BYTE RETN CODE)      DASD 04171000
+ENDMSSOK DS    0H                                                       04172000
+         TM  TASKRETN,TCBFA  ABEND ?                                    04173000
+         BO  E98TYPER                                                   04174000
+         JOLERR 105,'STEP ',TASKLABL,' LM ',TASKNAME,' SSI ',     74365*04175000
+               ENDSSI,' RETURNED ',ENDRETB                         DASD 04176000
+         AIF   (&X8).X8440                                              04177000
+*                                                                 76200 04178000
+* TO HANDLE THE STOP WHEN, WE MUST EXAMINE THE JCT JOB TERMINATION76200 04179000
+* INDICATORS, AND COMPARE THIS RETURN CODE AND IF NECESSARY,      76200 04180000
+* TERMINATE THE RUN.                                              76200 04181000
+*                                                                 76200 04182000
+* WE HAVE RESERVED TO US 1 JOB COND OF 'EQ,4000', AND SO WE CAN   76200 04183000
+* FLUSH THE JOB BY SETTING 4000 ANY TIME WE WISH.                 76200 04184000
+*                                                                 76200 04185000
+*                                                                 76200 04186000
+         LA    R1,JCTJDPCD                                        76200 04187000
+         LA    R15,JCTJDPCD+4+28-1 END LOOP INDIC                 76200 04188000
+         LA    R14,4               LENGTH OF TABLE                76200 04189000
+E98DEPL  CLI   2(R1),0       ANY COND (END LOOP)            76200       04190000
+         BE    E98RETN0            END -> RETURN                  76200 04191000
+         IC    R6,2(R1)            GET DEPENDENCY CODE AND        76200 04192000
+*                                  GET REDY FOR EXECUTE           76200 04193000
+         CLC   0(2,R1),TASKRETN+2 COMPARE                        76200  04194000
+         EX    R6,E98GO40          BRANCH IF TRUE                 76200 04195000
+         BXLE  R1,R14,E98DEPL      LOOP THEN ...                  76200 04196000
+.X8440   ANOP                                                           04197000
+         B     E98RETN0                                           76200 04198000
+         AIF   (&X8).X8460                                              04199000
+E98GO40  BC    0,E98R16       EXECUTED  *****                     76200 04200000
+E98R16   DS    0H                                                       04201000
+E20R16   DS    0H                                                       04202000
+* DUE TO USING MVS MACRO, MUST MOVE JOBNAME BEFORE 'JOLERR'             04203000
+            MVC  TASKLABL,JCTJNAME                                      04204000
+           JOLERR 408,'JOB ',TASKLABL,                                 *04205000
+               ' TERMINATED DUE TO CONDITION CODES'                     04206000
+           B   E98RET4K                                                 04207000
+.X8460   ANOP                                                           04208000
+         FIX   '"STOP WHEN ANY" NEEDS TO BE HANDLED: I SUGGEST PASSING .04209000
+               THE INFO FROM THE COMPILER AS FIRST INSTRUCTION'         04210000
+E98TYPER   JOLERR 306,'STEP ',TASKLABL,' LM ',TASKNAME,' SSI ',   74365*04211000
+               ENDSSI,' USER ABEND ',ENDRETB                       DASD 04212000
+         B     E98CLRAB                                  CHG26028 76200 04213000
+E98RET4K  DS    0H                                                      04214000
+           XC TASKRETN(2),TASKRETN                                      04215000
+* THE NEXT MVC WILL STOP MVS FROM RUNNING AFTER A ABEND            DASD 04216000
+* THIS PROBLEM IS BEING WORKED ON AS OF 4/1/77                     DASD 04217000
+* SORRY ABOUT THE "IF ERROR LOGIC"                                 DASD 04218000
+*          MVC TASKRETN(4),=F'&RSVDRC'                             DASD 04219000
+* THIS PROBLEM IS NOW FIXED IN THE MONTOR AS OF 7/10/77            DASD 04220000
+           MVI TASKIND,C'1'                                             04221000
+           JOLRETN RC=&RSVDRC                                           04222000
+E98RETN0 DS    0H                                                       04223000
+         CALL  UJE97SPC                SPACE UP PRINTING A BIT          04224000
+           MVI TASKIND,C'1'                                             04225000
+           JOLRETN                                                      04226000
+STOWBLK    DC  CL8'$$RETN'                                              04227000
+STOWTTR    DC  XL3'00'                                                  04228000
+STOWC      DC  X'00'                                                    04229000
+           DS CL50                                                      04230000
+ENDSSI     DS 0CL8                                                      04231000
+ENDMSSI    DS  CL8                                                      04232000
+ENDRETB    DS 0CL5            FOR MINUS RETURN CODES               DASD 04233000
+ENDRETC    DS 0CL8                                                      04234000
+ENDMRETC   DS CL8                                                       04235000
+           DS H                                                         04236000
+           DC   80S(*)                                                  04237000
+           LTORG                                                        04238000
+           TITLE 'UJS23ER:WTP,WTO ERROR MESSAGES'                       04239000
+UJS23ER    CSECT                                                        04240000
+           USING *,R15                                                  04241000
+           STM R14,R12,12(R13)                                          04242000
+           LA  R0,SAVEAREA                                              04243000
+           ST  R0,8(R13)                                                04244000
+           ST  R13,SAVEAREA+4                                           04245000
+           BAL R13,STARTERR                                             04246000
+SAVEAREA   DS  18F                                                      04247000
+STARTERR   DS    0H                                                     04248000
+           DROP R15                                                     04249000
+           USING SAVEAREA,R13                                           04250000
+* R14 IS THE RETURN ADDRESS BUT IT ALSO POINTS TO A LIST OF INSTRUCTION 04251000
+*    S WHICH ARE TO BE EXECUTED                                         04252000
+* THEY CAN BE :-                                                        04253000
+*    MVC   CONSTANT                                                     04254000
+*    LA    VARYING STRING                                               04255000
+           CLEAR S23MSSG       CLEAR MESSAGE AREA                       04256000
+* NEW, END DEC 1974. IF AN ERROR MESSAGE IS BEING ISSUED, THEN OFFSET   04257000
+*    THE MESSAGE AND PUT '***' IN IT.                                   04258000
+           LA  R1,S23MSSG                                         74365 04259000
+         CLC   =C'DISPLAY ',ICOMMAND                     CHG30062 76200 04260000
+         BE    S23OFF10                                  CHG30062 76200 04261000
+         CLC   =C'TYPE ',ICOMMAND                        CHG30062 76200 04262000
+         BE    S23OFF10                                  CHG30062 76200 04263000
+         CLC   =C'RETURN ',ICOMMAND                      CHG30062 76200 04264000
+         BE    S23OFF10       PUT 10 BLANKS IN START     CHG30062 76200 04265000
+         B     S23TSEV                                   CHG30062 76200 04266000
+S23OFF10 MVC   0(10,R1),BLANKS OFFSET MESSAGE BY 10      CHG30062 76200 04267000
+         LA    R1,10(R1)      SKIP BLANKS                CHG30062 76200 04268000
+         B     S23START       GO FORM UP MESSAGE         CHG30062 76200 04269000
+S23TSEV  CLI   S23SEV,2                                  CHG30062 76200 04270000
+         BNL   S23REALE       REAL ERROR, PUT JOB NAME   CHG30062 76200 04271000
+         MVC   0(5,R1),BLANKS                            CHG30062 76200 04272000
+         LA    R1,5(R1)                                  CHG30062 76200 04273000
+         B     S23START                                  CHG30062 76200 04274000
+S23REALE MVC   0(4,R1),=C'***('  PUT '***('              CHG30062 76200 04275000
+&C       SETC  (&X8)'JBNAME'.(1-&X8)'JCTNAME'                           04276000
+         MVC   4(8,R1),&C        + JOBNAME               CHG30062 76200 04277000
+         MVI   12(R1),C')'       + ')'                   CHG30062 76200 04278000
+         LA    R1,13(R1)         SKIP ABOVE              CHG30062 76200 04279000
+S23START   MVC 0(3,R1),=C'JOL' SHIFT IN 'JOL'                     74365 04280000
+           LA  R1,3(R1)        SKIP OVER IT SO WE WON'T OVER-WRITE IT   04281000
+S23LUP1  DS    0H                                                       04282000
+           CLI 0(R14),X'D2'    MOVE ?                                   04283000
+           BE  S23MUV1                                                  04284000
+           CLI 0(R14),X'41'    LA ?                                     04285000
+           BE  S23LA1                                                   04286000
+           B   S23END1         SHOULD BE '00'                           04287000
+           SPACE                                                        04288000
+S23MUV1    EX  R0,0(R14)        EXECUTE THE MOVE                        04289000
+           SR  R0,R0                                                    04290000
+           IC  R0,1(R14)       LENGTH MOVED                             04291000
+           AR  R1,R0           ADD TO OUTPUT POSN                       04292000
+           LA  R1,1(R1)        COS ASSMBLR REMOVED 1                    04293000
+           LA  R14,6(R14)      SKIP MVC                                 04294000
+           B   S23LUP1                                                  04295000
+           SPACE                                                        04296000
+S23LA1   DS    0H                                                       04297000
+           EX  0,0(R14)        EXECUTE THE LA R15,VARYING STRING        04298000
+           ST  R14,0(R13)      SAVE REGISTER 14 IN SAVE AREA            04299000
+           LH  R14,0(R15)      LOAD LENGTH OF THE STRING                04300000
+           LTR  R14,R14        SEE IF STRING LENGTH = 0                 04301000
+           BZ  RESET14         NO DATA TO MOVE                          04302000
+           BCTR R14,0                                                   04303000
+           EX  R14,ERRMUV                                               04304000
+           LA  R1,1(R14,R1)    STEP 1 SO NEXT MOVE GOES ONTO RIGHT      04305000
+*                              SPOT IN BUFFER                           04306000
+RESET14  DS    0H                                                       04307000
+           L   R14,0(R13)      RELOAD R14                               04308000
+           LA  R14,4(R14)      STEP OVER THE LA                         04309000
+           B   S23LUP1                                                  04310000
+* OOPS   WTO   'JOLE00-99 CANNOT ALLOCATE ERROR AREA'                   04311000
+*        ABEND 16,DUMP,STEP                                             04312000
+ERRMUV   MVC   0(*-*,R1),2(R15) **** EXECUTED                           04313000
+         SPACE                                                          04314000
+S23END1  DS    0H                                                       04315000
+         LA    R14,2(R14)      BRANCH AROUND '0' AT END OF LIST         04316000
+         L     R15,4(R13)       LOAD OLD SAVE ADDRESS                   04317000
+         ST    R14,12(R15)     RESET OLD RETURN ADDRESS                 04318000
+         MVC   0(3,R1),=C' AT'  SHIFT IN 'AT'                           04319000
+         MVC   4(4,R1),S23STMT                                    75003 04320000
+         OC    S23STMT,S23STMT                                          04321000
+         BNZ   S23SETL                                                  04322000
+         MVC   4(4,R1),STMT                                       75003 04323000
+*        OC    4(4,R1),=C'0000' JCS NOTICED BINARY ZEROES IN THERE      04324000
+S23SETL  LA    R14,S23MSSG-12 THE -8 IS FOR THE 'AT STMT'         75128 04325000
+S23TEST0 CLI   4(R1),C'0'     LEADING ZERO?                       75003 04326000
+         BNH   S23SR          -> NO                               75003 04327000
+         MVC   4(4,R1),5(R1)  DROP ZERO                           75003 04328000
+         BCT   R1,S23TEST0                                        75003 04329000
+S23SR    DS    0H                                                 75003 04330000
+         SR    R1,R14                                                   04331000
+         XC    #S23LNE2,#S23LNE2   CLEAR LENGTH                   76200 04332000
+         CH    R1,#S23MAX          CHECK FOR A BIG MESSAGE        76200 04333000
+         BNH   S23SHORT            ITS OK, KEEP GOING             76200 04334000
+* NOW WE HAVE A MESSAGE THATS GREATER THAN 96 BYTES AND IF        76200 04335000
+* WE DONT MAKE TWO LINES OUT OF IT, THE OS WRITER OR HASP...ECT   76200 04336000
+* WILL CHOP IT OFF                                                76200 04337000
+* SO WE ARE NOW GOING TO TAKE A LOOK AT THE MESSAGE FORM +96 BACK       04338000
+* AND WHEN WE FIND A COMMA OR A BLANK THAT WILL END LINE 1 AND          04339000
+* START LINE 2                                                          04340000
+         STH   R1,#S23LNE2         SAVE OLD LENGTH FOR LATER      76200 04341000
+         LA    R15,S23MSSG         POINT TO THE START OF THE MSG  76200 04342000
+         AH    R15,#S23MAX         GET TO +96                     76200 04343000
+         LA    R1,30               STOP LOOKING AFTER 30 BYTES    76200 04344000
+S23LOOK  DS    0H                                                 76200 04345000
+         CLI   0(R15),C' '         IS IT A BLANK                  76200 04346000
+         BE    S23ENDLK                                           76200 04347000
+         CLI   0(R15),C','         HOW ABOUT A COMMA              76200 04348000
+         BE    S23ENDLK                                           76200 04349000
+         BCTR  R15,0               BACKUP,1 BYTE                  76200 04350000
+         BCT   R1,S23LOOK          RETURN                         76200 04351000
+S23ENDLK DS    0H                                                 76200 04352000
+         LR    R1,R15              R1 = NEW END FOR LINE 1        76200 04353000
+         LA    R14,#S23LREC   POINT TO START OF MESSAGE           76200 04354000
+         SR    R1,R14              CALC NEW LENGTH FOR LINE 1     76200 04355000
+         AH    R14,#S23LNE2        POINT R14 TO END OF MESSAGE    76200 04356000
+         SR    R14,R15             CALC LENGTH FOR LINE 2         76200 04357000
+         LA    R14,19(R14) LEAVE SOME BLANKS ON CONT LINE         76200 04358000
+         STH   R14,#S23LNE2        SAVE IT FOR LATER              76200 04359000
+         CLEAR S23LNE2                                            76200 04360000
+         MVC   S23LNE2+15(L'S23LNE2-16),1(R15)      SAVE LINE 2   76200 04361000
+S23SHORT DS    0H                                                 76200 04362000
+         XC    #S23BLKS(8),#S23BLKS CLEAR VB DESCRIPTOR ETC       76200 04363000
+           STH R1,#S23LREC                                              04364000
+           LA  R1,4(R1)                                                 04365000
+           STH R1,#S23BLKS                                              04366000
+           XC S23STMT,S23STMT                                           04367000
+* GREAT,NOW WHERE ARE WE GOING TO PUT THIS FANTASTIC PIECE OF           04368000
+*    INFORMATION ?                                                      04369000
+           TM  PRINT+48,X'10'                                           04370000
+           BZ  S23WTO                                                   04371000
+           WRITE S23DECB,SF,PRINT,#S23BLKS                              04372000
+           CHECK S23DECB                                                04373000
+S23WTO   DS    0H                                                       04374000
+* NOW IF THE SEVERITY IS >=12 THE MESSAGE IS TYPED ON THE CONSOLE,      04375000
+*    OTHERWISE A WTO WITH ROUTCDE=11 IS QUITE SATISFACTORY,UNLESS       04376000
+*    WE HAVE A PRINT DD CARD,IF WHICH CASE WE CAN RETURN NOW            04377000
+           CLI S23SEV,3                                                 04378000
+           BL  S23TPRNT                                                 04379000
+* HERE A REAL WTO IS REQUIRED,SO SET UP ROUTE-CODES 2 & 11              04380000
+           MVC #S23MSSG,=XL2'8000'                                      04381000
+           LH  R15,#S23LREC                                             04382000
+           LA  R15,#S23LREC(R15)                                        04383000
+           MVC 0(4,R15),=X'04004020' DESC 6 RTE 11,2              75311 04384000
+           CLI  VS,C'2'    MVS ?                                   DASD 04385000
+           BNE  S23TNMVS   NOPE                                    DASD 04386000
+           MVC 0(4,R15),=X'04004004' DESC 6 RTE 2,14 JESMSG        DASD 04387000
+S23TNMVS DS    0H                                                  DASD 04388000
+         WTO   MF=(E,#S23LREC)                                          04389000
+           B  S23GOBAK                                                  04390000
+           SPACE 3                                                      04391000
+S23TPRNT DS    0H                                                 75311 04392000
+         TM    PRINT+48,X'10' DID WE PUT MESSAGE ON PRINTER FIX-X 76200 04393000
+         BO    S23GOBAK       YES, DON'T FILL WTP ON JCL LOGFIX-X 76200 04394000
+* SET UP A WTO WITH ROUTCDE=11                                          04395000
+           MVC #S23MSSG,=XL2'8000'                                      04396000
+           LH  R15,#S23LREC                                             04397000
+           LA  R15,#S23LREC(R15)                                        04398000
+           MVC 0(4,R15),=X'00000020' ROUTCODE   11                75128 04399000
+           CLI  VS,C'2'   MVS ??                                   DASD 04400000
+           BNE  S23NMVS   NOPE                                     DASD 04401000
+           MVC 0(4,R15),=X'00000004' ROUTCODE 14 FOR JESMSG        DASD 04402000
+S23NMVS  DS    0H                                                  DASD 04403000
+*          LA  R1,#S23LREC                                              04404000
+         WTO   MF=(E,#S23LREC)                                          04405000
+S23GOBAK DS    0H                                                       04406000
+         CLC   #S23LNE2,=X'0000'   DO WE HAVE A SECOND LINE       76200 04407000
+         BE    S23GOBK2            NOPE                           76200 04408000
+         LH    R1,#S23LNE2         LOAD LENGTH OF LINE2           76200 04409000
+         XC    #S23LNE2,#S23LNE2   CLEAR                          76200 04410000
+         MVC   S23MSSG,S23LNE2     OVERLAY OLD WITH NEW           76200 04411000
+        CLI  S23LNE2,C' '  CHECK FOR BLANK SECOND LINE             DASD 04412000
+        BNE  S23SHORT                                              DASD 04413000
+        LR   R15,R1        LOAD LENGTH OF MESSAGE                  DASD 04414000
+        BCTR R15,0         SUBTRACT 1 FOR EXECUTE INST             DASD 04415000
+        EX   R15,S23CLCBL                                          DASD 04416000
+        BE   S23GOBK2      ITS BLANK  LETS NOT PRINT IT            DASD 04417000
+         B     S23SHORT            RETURN AND WRITE LINE2         76200 04418000
+S23CLCBL CLC  S23LNE2+1(*-*),S23LNE2                              DASD  04419000
+S23GOBK2 DS    0H                                                 76200 04420000
+         CLI S23SEV,5           JOL TERMINAL ERROR ?                    04421000
+         BNE  S23LMRET                                                  04422000
+         AIF   (&X8).X8480                                              04423000
+         JOLCLOSE (INSTRUCT,,PRINT,,RETN,,JOBQ),MF=(E,CALLAREA)         04424000
+         AGO   .NX8480                                                  04425000
+.X8480   ANOP                                                           04426000
+         JOLCLOSE (INSTRUCT,,PRINT,,RETN),MF=(E,CALLAREA)               04427000
+.NX8480  ANOP                                                           04428000
+         ABEND 1,DUMP STEP                                              04429000
+S23LMRET DS    0H                                                       04430000
+         JOLRETN                                                        04431000
+         LTORG                                                          04432000
+         DC   80S(*)                                                    04433000
+         AIF   (&X8).X8500                                              04434000
+         TITLE 'UJEISPDQ:KEEP EXTRA PDQ ISAM ENTRYS'               DASD 04435000
+* THIS LITTLE CSECT WILL KEEP THE 2ND AND 3RD ENTRIES       *      DASD 04436000
+* WHICH ARE IN THE PDQ FROM A ISAM DATASET                  *      DASD 04437000
+*                                                           *      DASD 04438000
+* NOW ALL A J.O.L. PROGRAMMER HAS TO DO IS SAY              *      DASD 04439000
+* CATLG ON ANY 1 OF THE 3 DCLS WHICH DEFINE                 *      DASD 04440000
+* INDEX, PRIME OR OVFLOW                                    *      DASD 04441000
+*                                                           *      DASD 04442000
+* AND THE KEEP MODULE WILL CALL THIS GUY AND                *      DASD 04443000
+* HE WILL SEARCH THE PDQ FOR MORE ENTRIES AND               *      DASD 04444000
+* HANDLE THEM THE SAME WAY                                  *      DASD 04445000
+*                                                           *      DASD 04446000
+* ALSO THE JFCB VOL COUNT WILL BE UPDATED TO A MAX OF 3     *      DASD 04447000
+* SO WHEN THE CATALOGUE MODULE GETS CONTROL THE VOL COUNT   *      DASD 04448000
+* AND VOLUMES ARE IN GOOD SHAPE                             *      DASD 04449000
+*                                                           *      DASD 04450000
+*                                                           *      DASD 04451000
+* SO CLEM IF YOUR READING THESE COMMENTS ALL I DID          *      DASD 04452000
+* WAS COPY YOUR WORK IN THE UJE81PDQ MODULE                 *      DASD 04453000
+* AND ADDED A FEW THINGS HERE AND THERE                     *      DASD 04454000
+*                                                           *      DASD 04455000
+* J.O.L. IS NOW BETTER THAN JCL WHEN IT COMES TO ISAM       *      DASD 04456000
+*                                                           *      DASD 04457000
+         JOLSAVE CSECT=UJEISPDQ                                    DASD 04458000
+* THIS CSECT MUST FIND THE PDQ ENTRY THAT REFERS TO THE DSNAME     DASD 04459000
+*    IN THE DSNAME FIELD. A 4 IS RETURNED IF IT CAN'T              DASD 04460000
+*                                                                  DASD 04461000
+******                                                             DASD 04462000
+* CHECK IF JCTPDIP = 0 (MAY BE IF RUNNING UNDER                    DASD 04463000
+*                       TSO).                                      DASD 04464000
+******                                                             DASD 04465000
+         SPACE 1                                                   DASD 04466000
+         CLC   JCTPDIP,=F'0'                                       DASD 04467000
+         BE    EISRTN                                              DASD 04468000
+         MVI   EISDSN,0      SET DSN SERCH ARG TO ZERO             DASD 04469000
+         MVI   ISINPDQ,2     SET SERCH NO. TO 2                    DASD 04470000
+         CLI   VS,C'2'       MVS                                   DASD 04471000
+         BNE   EISGO         NO START LOOKING FOR SECOND CONCAT    DASD 04472000
+         MVI   ISINPDQ,1     SET SERCH NO. TO 1                    DASD 04473000
+*REMEMBER THAT THE KEEP GOT RID OF THE 1ST ENTRY ALREADY--MVS ONLY-DASD 04474000
+EISGO    DS    0H                                                  DASD 04475000
+         GETJOBQ PDQDECB2,JCTPDIP                                  DASD 04476000
+         B     EISGOTRD                                            DASD 04477000
+EISREAD1 GETJOBQ PDQDECB2,CALLAREA                                 DASD 04478000
+EISGOTRD DS    0H                                                  DASD 04479000
+         CLI   VS,C'2'   MVS?                                      DASD 04480000
+         BNE   EISNMVS1                                            DASD 04481000
+EISMVDS1 LA    R14,*+4       POINT TO MVS CLC AREA                 DASD 04482000
+         CLC   DDDSNAME,PDIDSN1                                    DASD 04483000
+         BE    EISPASS1                                            DASD 04484000
+         CLC   DDDSNAME,PDIDSN2                                    DASD 04485000
+         BE    EISPASS2                                            DASD 04486000
+         CLC   DDDSNAME,PDIDSN3                                    DASD 04487000
+         BE    EISPASS3                                            DASD 04488000
+* NOT IN PDI, GET NEXT                                             DASD 04489000
+         CLC   =AL3(0),PDINPDIP  IS THIS THE LAST BLOCK?           DASD 04490000
+         BE    EISRTN    YES, NOT FOUND THEN                       DASD 04491000
+         GETJOBQ  PDQDECB2,PDINPDIP                                DASD 04492000
+         B     EISMVDS1                                            DASD 04493000
+EISNMVS1 DS    0H                                                  DASD 04494000
+         LA     R14,*+4         POINT TO NEXT CLC                  DASD 04495000
+         CLC   DDDSNAME,PDQDSN1                                    DASD 04496000
+         BE    EISPASS1                                            DASD 04497000
+         CLC   DDDSNAME,PDQDSN2                                    DASD 04498000
+         BE    EISPASS2                                            DASD 04499000
+         CLC   DDDSNAME,PDQDSN3                                    DASD 04500000
+         BE    EISPASS3                                            DASD 04501000
+* NOT IN THAT BLOCK,GET THE NEXT                                   DASD 04502000
+         CLC   =AL3(0),PDQNPDQ LAST BLOCK IN PDQ ?                 DASD 04503000
+         BE    EISRTN        YES,THERE-FORE COULDN'T FIND DSET     DASD 04504000
+         MVC   CALLAREA,PDQNPDQ                                    DASD 04505000
+         MVI   CALLAREA+3,0                                        DASD 04506000
+*                                                                  DASD 04507000
+         B     EISREAD1                                            DASD 04508000
+EISPASS1 MVC   PDQDSNNO,=H'0'                                      DASD 04509000
+         B     EISPDQB                                             DASD 04510000
+EISPASS2 MVC   PDQDSNNO,=H'1'                                      DASD 04511000
+         B     EISPDQB                                             DASD 04512000
+EISPASS3 MVC   PDQDSNNO,=H'2'                                      DASD 04513000
+EISPDQB  DS    0H                                                  DASD 04514000
+* THERE USED TO BE A NOTE FOR JOBQ HERE, NOT NEC NOW               DASD 04515000
+         ST    R1,APDQDIR       AND SAVE IT                        DASD 04516000
+         ST    R14,EISR14       SAVE RETURN POINTER                DASD 04517000
+         SR    R1,R1            CLEAN UP R1                        DASD 04518000
+         IC    R1,EISDSN        LOAD SEARCH ARG                    DASD 04519000
+         LA    R1,1(R1)         UP IT BY 1                         DASD 04520000
+         STC   R1,EISDSN        PUT THE BUGGER BACK                DASD 04521000
+         CLC   EISDSN,ISINPDQ   DO WE HAVE A HIT                   DASD 04522000
+         BE    EISGOOD          ...YEP                             DASD 04523000
+EISTRYA  DS    0H                                                  DASD 04524000
+         L     R14,EISR14       RELOAD R14 WITH GOOOOD STUFF       DASD 04525000
+* NOW RETURN TO THE NEXT COMPARE INSTRUCTION  HOPEFULLY            DASD 04526000
+         CLC   PDQDSNNO,=H'0'                                      DASD 04527000
+         BE    10(R14)                                             DASD 04528000
+         CLC   PDQDSNNO,=H'1'                                      DASD 04529000
+         BE    20(R14)                                             DASD 04530000
+*        CLC   PDQDSNNO,=H'2'                                      DASD 04531000
+         B     30(R14)                                             DASD 04532000
+EISGOOD  DS    0H                                                  DASD 04533000
+         CLI   VS,C'2'     MVS                                     DASD 04534000
+         BNE   EISNMVS2                                            DASD 04535000
+* GET SIOT FOR MVS SYSTEMS                                         DASD 04536000
+         LH    R1,PDQDSNNO                                         DASD 04537000
+         MH    R1,=AL2(PDILEN)                                     DASD 04538000
+         LA    R14,PDISIOT1(R1)   GET SIOT ADDRESS LOCN            DASD 04539000
+         MVC   CALLAREA,0(R14)                                     DASD 04540000
+         B     EISGETSI         GO GET THE SIOT                    DASD 04541000
+EISNMVS2 DS    0H                                                  DASD 04542000
+         MVC   CALLAREA,PDQABLK                                    DASD 04543000
+         MVI   CALLAREA+3,0                                        DASD 04544000
+         GETJOBQ PDQDECB,CALLAREA                                  DASD 04545000
+* NOW GET THE SIOT AS WELL                                         DASD 04546000
+         LH    R1,PDQDSNNO     DATA SET NUMBER                     DASD 04547000
+         MH    R1,=AL2(PDQBLKLN) LENGTH OF BLOCK                   DASD 04548000
+         LA    R1,PDQASIOT(R1)   ABSOLUTE ADDRESS                  DASD 04549000
+         MVC   CALLAREA(3),0(R1) SIOT TTR                          DASD 04550000
+         MVI   CALLAREA+3,0                                        DASD 04551000
+EISGETSI DS    0H                                                  DASD 04552000
+         GETJOBQ SIOTDECB,CALLAREA                                 DASD 04553000
+EISINPDQ DS    0H                                                  DASD 04554000
+* NOW JUST BECAUSE THE NAME APPEARS IN THE PDQ DOESN'T MEAN FOR    DASD 04555000
+*    1 SECOND THAT IT HASN'T :-                                    DASD 04556000
+*          1.  BEEN SCRATCHED                                      DASD 04557000
+*          2.  BEEN ALREADY KEPT                                   DASD 04558000
+         LH    R1,PDQDSNNO     1ST,2ND OR 3RD NAME IN PDQ ?        DASD 04559000
+         CLI   VS,C'2'    IS IT AN MVS SYSTEM?                     DASD 04560000
+         BNE   EISNMV3S  NO                                        DASD 04561000
+* OK, MVS HAS DIFFERENT TYPE OF PASSED DATA SET Q                  DASD 04562000
+         MH    R1,=AL2(PDILEN)                                     DASD 04563000
+         LA    R14,PDITERM1(R1)                                    DASD 04564000
+         B     EISNMVS3                                            DASD 04565000
+EISNMV3S MH    R1,=AL2(PDQBLKLN)                                   DASD 04566000
+         LA    R14,PDQTERM(R1)                                     DASD 04567000
+EISNMVS3 DS    0H                                                  DASD 04568000
+         TM    0(R14),X'C0'    OLD,DELETE ?                        DASD 04569000
+         B     *+8             ****************                    DASD 04570000
+         BO    EISAGN                                              DASD 04571000
+         SPACE 3                                                   DASD 04572000
+*** LAST BYTE OF JFCB TTR =0 IN SIOT                               DASD 04573000
+         GETJOBQ JFCBDECB,SCTPJFCB  GET THE JFCB                   DASD 04574000
+         CLI   JFCBVOLS,X'FF'  UNOPENED SCRATCH VOLUME ?           DASD 04575000
+         BNE   EISNOTFF        GO WRITE BACK JFCB,SIOT             DASD 04576000
+*          JOLERR 205,'DSID ''',DDDSID,''' DSNAME ''',#DSNAME,     DASD 04577000
+*              ''' NOT KEPT:UNOPENED SCRATCH VOLUME'               DASD 04578000
+         B     EISAGN                                              DASD 04579000
+EISNOTFF DS    0H                                                  DASD 04580000
+         NI    JFCBIND2,B'01111111' TELL OS AN OLD DATA SET        DASD 04581000
+         OI    JFCBIND2,B'01000000'                                DASD 04582000
+         PUTJOBQ JFCBDECB                                          DASD 04583000
+         MVC   CALLAREA,SIOT                                       DASD 04584000
+         MVI   CALLAREA+3,0                                        DASD 04585000
+         GETJOBQ SIOTDECB,CALLAREA                                 DASD 04586000
+         CLI   DDDISP+1,C'L'  LAST USE OF DATA SET ?               DASD 04587000
+*                             IF WE CAN LET OS UNLOAD ?            DASD 04588000
+         BNE   EISNLAST       NOT LAST USE                         DASD 04589000
+* MARK SIOT AND LET IT THINK WE HAVE FINISHED WITH                 DASD 04590000
+*  THE DATASET (WHICH WE HAVE, OF COURSE).                         DASD 04591000
+         NI    SCTSDISP,X'FF'-SIOTRETN-S3400DSP-PRIVATE            DASD 04592000
+         OI    SCTSDISP,8     TURN KEEP ON                         DASD 04593000
+         OI    SCTSBYT2,SCTRECVD MARK RECIEVED                     DASD 04594000
+         B     EISMAKOL       MAKE IT OLD, RE-WRITE SIOT           DASD 04595000
+EISNLAST DS    0H                                                  DASD 04596000
+         OI    SCTSDISP,B'00001000'   SIOT = KEEP                  DASD 04597000
+EISMAKOL OI    SCTSBYT4,1     MARK OLD                             DASD 04598000
+         PUTJOBQ SIOTDECB                                          DASD 04599000
+         SPACE 3                                                   DASD 04600000
+* NOW PUT THE VOLSERS INTO DDVOLUME    NO DUPS OFCOURCE            DASD 04601000
+         SR    R14,R14        CLEAR REG14                          DASD 04602000
+         IC    R14,JFCBNVOL   INSERT JFCB VOLUME COUNT             DASD 04603000
+         LA    R1,JFCBVOLS    POINT TO JFCB VOLSERS                DASD 04604000
+EISLOADV LA    R15,DDVOLUME   POINT TO JOL VOLSER AREA             DASD 04605000
+         CLC   0(6,R15),0(R1) EQUAL VOLUMES ?                      DASD 04606000
+         BE    EISNMOVE       YEP DONT BOTHER TO ADD IT            DASD 04607000
+EISLUP   CLC   0(6,R15),BLANKS BUCKET EMPTY FOR NEW GUY ?          DASD 04608000
+         BE    EISMOVE        YEP GO DO IT                         DASD 04609000
+         LA    R15,6(R15)     BUMP TO NEXT ENTRY                   DASD 04610000
+         C     R15,=A(DDVOLUME+30) HOPE WE DONT HAVE TO MANY       DASD 04611000
+         BNH   EISLUP         NOPE                                 DASD 04612000
+         B     EISCVOL        ERROR HERE BETTER TELL SOMEONE       DASD 04613000
+EISMOVE  MVC   0(6,R15),0(R1) INSERT NEW VOLSER                    DASD 04614000
+EISNMOVE LA    R1,6(R1)       UP TO NEXT JFCB VOLSER               DASD 04615000
+         BCT   R14,EISLOADV   RETURN TO LOOK                       DASD 04616000
+EISCVOL  LA    R15,DDVOLUME   POINT TO JOL VOLSER AREA AGAIN       DASD 04617000
+         LA    R14,5          STOP AFTER FIVE                      DASD 04618000
+         SR    R1,R1          CLEAR COUNTER                        DASD 04619000
+EISJFVOL CLC   0(6,R15),BLANKS END OF VOLSER LIST ?                DASD 04620000
+         BE    EISTJFCB       YES SIR                              DASD 04621000
+         LA    R1,1(R1)       UP COUNTER                           DASD 04622000
+         LA    R15,6(R15)     UP POINTER                           DASD 04623000
+         BCT   R14,EISJFVOL    RETURN                              DASD 04624000
+EISTJFCB STC   R1,JFCBNVOL    STORE NEW VOLCOUNT IN JFCB VOL COUNT DASD 04625000
+EISDVOL  DS    0H                                                  DASD 04626000
+         BAL   R14,E00FXVOL    SET UP VOLUME(S) IN #VOL            DASD 04627000
+* NOW TO MARK THE PDQ                                              DASD 04628000
+* TEST IF MVS, DIFFERENT...                                        DASD 04629000
+         CLI   VS,C'2'   MVS?                                      DASD 04630000
+         BNE   EISNMVS4  NOPE ->                                   DASD 04631000
+* MVS SIOT CONTAINS THE UCB POINTER, MVT THE PDG DOES              DASD 04632000
+         LH    R14,SCTUTYPE                                        DASD 04633000
+         B     EISTUNIT                                            DASD 04634000
+EISNMVS4 DS    0H                                                  DASD 04635000
+         MVC   CALLAREA,PDQABLK                                    DASD 04636000
+         MVI   CALLAREA+3,0                                        DASD 04637000
+         GETJOBQ PDQDECB,CALLAREA                                  DASD 04638000
+         LH    R1,PDQDSNNO                                         DASD 04639000
+         MH    R1,=AL2(PDQBLKLN)                                   DASD 04640000
+         L     R14,PDQUCBS(R1) GET UCB POINTER FOR DEVICE TYPE     DASD 04641000
+         MVC   SCTUTYPE,16(R14) MOVE IN UCB DEVICE TYPE            DASD 04642000
+EISTUNIT DS    0H                                                  DASD 04643000
+EISDA    NI    SCTUTYPE+1,X'FF'-UCBRR TURN OFF 'SHARE'             DASD 04644000
+EISNOTDU DS    0H                                                  DASD 04645000
+         SPACE 2                                                   DASD 04646000
+         CLI   VS,C'2'  MVS AGAIN?                                 DASD 04647000
+         BNE   EISNMVS5                                            DASD 04648000
+         LH    R1,PDQDSNNO                                         DASD 04649000
+         MH    R1,=AL2(PDILEN)                                     DASD 04650000
+         LA    R14,PDITERM1(R1)                                    DASD 04651000
+         B     EISMARK9                                            DASD 04652000
+EISNMVS5 DS    0H                                                  DASD 04653000
+         LA    R14,PDQTERM(R1)                                     DASD 04654000
+EISMARK9 DS    0H                                                  DASD 04655000
+         NI    0(R14),X'0F'     TURN OFF TOP 4 BITS                DASD 04656000
+         CLI   DDDISP+1,C'L'   LAST USE,IE OLD,KEEP ?              DASD 04657000
+         BNE   EISPASS                                             DASD 04658000
+         OI    0(R14),B'01000000' OLD,KEEP                         DASD 04659000
+         NI    0(R14),B'11000000'  INDICATE RECIEVED               DASD 04660000
+         B     EISMARKD                                            DASD 04661000
+EISPASS  OI    0(R14),B'11100000' OLD,PASS                         DASD 04662000
+EISMARKD DS    0H                                                  DASD 04663000
+         CLI   VS,C'2'    MVS AGAIN?????                           DASD 04664000
+         BNE   EISNMVS6                                            DASD 04665000
+         SH    R14,=H'44'         BACKUP TO DSNAME                 DASD 04666000
+         MVI   0(R14),C' '        WIPE OUT THE NAME IN PDQ         DASD 04667000
+         PUTJOBQ  PDQDECB2                                         DASD 04668000
+         B     EISRETN0                                            DASD 04669000
+EISNMVS6 DS    0H                                                  DASD 04670000
+         PUTJOBQ PDQDECB                                           DASD 04671000
+         SPACE 3                                                   DASD 04672000
+EISRETN0 DS    0H                                                  DASD 04673000
+         CLI   ICOMMAND,C'K'   IS THIS A KEEP INSTRUCTION?         DASD 04674000
+         BNE   EISAGN       NO,SO NO MESSAGE,JUST RETURN           DASD 04675000
+         JOLERR 101,'DSID ''',DDDSID,''' DSNAME ''',#DSN,            * :04676000
+               ''' KEPT ON VOL(S) ',#VOL                           DASD 04677000
+EISAGN   CLI   VS,C'2'        MVS                                  DASD 04678000
+         BE    EISAGNVS       YEP                                  DASD 04679000
+         CLI   ISINPDQ,3        ARE WE ALL DONE HERE               DASD 04680000
+         BE    EISRTN           .....YOU BETCHYA                   DASD 04681000
+         MVI   ISINPDQ,3        SET SERCH TO DSN # 3               DASD 04682000
+         B     EISTRYA        GO BACK TO GET EM                    DASD 04683000
+EISAGNVS CLI   ISINPDQ,2        ARE WE ALL DONE HERE               DASD 04684000
+         BE    EISRTN           .....YOU BETCHYA                   DASD 04685000
+         MVI   ISINPDQ,2        SET SERCH TO DSN # 2               DASD 04686000
+         B     EISTRYA        GO BACK TO GET EM                    DASD 04687000
+EISRTN   MVI   ISINPDQ,C'1'     SET THIS GUY BACK TO A ONE         DASD 04688000
+         JOLRETN RC=0                                              DASD 04689000
+EISR14   DS    F                                                   DASD 04690000
+EISDSN   DS    1C                                                  DASD 04691000
+         LTORG                                                     DASD 04692000
+.X8500   ANOP                                                           04693000
+         AIF   (&X8).X8520                                              04694000
+     TITLE 'UJEDEVNM:SEARCH DEVNAMET'                              DASD 04695000
+          JOLSAVE CSECT=UJEDEVNM                                   DASD 04696000
+*******************************************************************DASD 04697000
+*  SEARCH THE SYSTEMS DEVICE NAME TABLE TO OBTAIN THE             *DASD 04698000
+*  THE DEVICE TYPE NEEDED FOR A CAMLST FOR A SCRATCH              *DASD 04699000
+*  OR  KEEP                                                       *DASD 04700000
+*                                                                 *DASD 04701000
+*  SEARCH ARGUMENT = DDUNIT IN INSTRUCT FILE                      *DASD 04702000
+*  DEVNAMET FORMAT                                                *DASD 04703000
+*  EACH ENTRY IS 12 BYTES                                         *DASD 04704000
+*  BYTES 1-8 = UNIT NAME  ECT '3330-1' OR 'TAPE'                  *DASD 04705000
+*  BYTES 9-12 = CODE    X'3070200D'                               *DASD 04706000
+*                                                                 *DASD 04707000
+*******************************************************************DASD 04708000
+          LOAD EP=DEVNAMET   LOAD THE KNOW IT ALL                  DASD 04709000
+          LTR  R1,R0         GET ADDRESS OF HIM                    DASD 04710000
+          BZ   EDVDEAD       SORRY                                 DASD 04711000
+          L    R15,0(R1)     LOAD NUMBER OF ENTRIES IN TABLE       DASD 04712000
+          MH   R15,=H'12'    MULT BY TABLE ENTRRY SIZE             DASD 04713000
+          LA   R1,4(R1)      ADD 4 TO START ADDRESS OF TABLE       DASD 04714000
+          AR   R15,R1        CALC ENDD OF TABLE                    DASD 04715000
+          LA   R14,12        INCREMENT                             DASD 04716000
+          CLC  DDUNIT,0(R1)  HOPE ITS HERE                         DASD 04717000
+          BE   EDVALIVE      GO DO THE SCRATCH NOW                 DASD 04718000
+          BXLE R1,R14,*-10   ROUND ROBIN                           DASD 04719000
+EDVDEAD   JOLRETN RC=4                                             DASD 04720000
+EDVALIVE DS    0H                                                  DASD 04721000
+          MVC  SCTUTYPE,8(R1) MOVE IN THE DEVICE TYPE              DASD 04722000
+          JOLRETN RC=0                                             DASD 04723000
+.X8520   ANOP                                                           04724000
+       TITLE 'UJELOCAT:LOCATE CATALOGUED DATASETS'                 DASD 05010000
+         JOLSAVE CSECT=UJELOCAT                                    DASD 05011000
+*        AIF   (&X8).X8540                                              05012000
+         L     R15,=V(E05VOLS)         LOAD CAMLIST ADDRESS        DASD 05013000
+         USING VOLINFO,R15                                         DASD 05014000
+         ST    R15,ELOLOCAT+12         POINT TO LOCATE AREA        DASD 05015000
+         LA    R6,300(R15)             GO UP A FEW AND SAVE POINTERDASD 05016000
+         MVC   0(44,R6),DSNAME         MOVE TO LOCATE AREA         DASD 05017000
+         MVC   DSNAME,0(R6)            MOVE DSNAME IN              DASD 05018000
+         LOCATE ELOLOCAT                                           DASD 05019000
+         LTR   R15,R15                 DID LOACTE FIND ANYTHING ?? DASD 05020000
+         BNZ   ELORETN4                NOPE                        DASD 05021000
+         JOLRETN RC=0  WE FOUND OUR STIFF LETS LEAVE               DASD 05022000
+ELORETN4 DS    0H                                                  DASD 05023000
+         MVC  DSNAME,0(R6)            MOVE BACK ORGINAL DATA SET NADASD 05024000
+         B    RETN4                   TELL THE CALLER WE FAILED    DASD 05025000
+ELOLOCAT CAMLST NAME,DSNAME,,0                                     DASD 05026000
+.X8540   ANOP                                                           05027000
+*        B    RETN4                                                     05028000
+         DC C'COMPILE DATE=&SYSDATE.,TIME=&SYSTIME.'               DASD 05029000
+         LTORG                                                     DASD 05030000
+         DS    0D                                                       05031000
+         PRINT GEN,NODATA                                               05032000
+         AIF  (NOT &X8).NOX8MAC                                         05033000
+         TITLE 'FIXED LOW CORE'                                         05034000
+         XAMFLC  DSECT=YES                                              05035000
+PSA      EQU   FLC                                                      05036000
+PSATOLD  EQU   FLCTOLD            FOR MVS,F4 COMPATIBILITY              05037000
+         TITLE 'COMMUNICATIONS VECTOR TABLE'                            05038000
+         XAMCVT  DSECT=YES                                              05039000
+         TITLE 'TASK CONTROL BLOCK    '                                 05040000
+         XAMTCB  DSECT=YES                                              05041000
+TCBFLGS1 EQU   TCBFLAG1       EQUIVALENT FIELDS ON F4,X8                05042000
+         TITLE 'REQUEST BLOCK         '                                 05043000
+         XAMRB   DSECT=YES                                              05044000
+         TITLE 'FILE CONTROL TABLE    '                                 05045000
+         XDDFCT                                                         05046000
+         TITLE 'JOB-STEP CONTROL BLOCK'                                 05047000
+         XDDJSCB                                                        05048000
+JSCBLEN  EQU   *-JSCB         MY NAME FOR ITS LENGTH                    05049000
+JSCBDISP EQU   0              MVS,F4 NAME FOR DISPLACEMENT TO START     05050000
+JSCBOPTS EQU   JSCBSTS                                                  05051000
+         TITLE 'COMMAND SCHEDULER CONTROL BLOCK'                        05052000
+         XDDCSCB                                                        05053000
+.NOX8MAC ANOP                                                           05054000
+           END                                                          05055000

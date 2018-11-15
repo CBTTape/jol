@@ -1,0 +1,60 @@
+           TITLE 'JOL PREPROCESSOR MAIN LINE'                           00001000
+* JOL COPYRIGHT CCS-JOL 1985                                            00002020
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00003000
+           SPACE 3                                                      00004000
+*                   J             000000            L                   00005000
+*                   J            0      0           L                   00006000
+*                   J           0        0          L                   00007000
+*                   J          0          0         L                   00008000
+*                   J         0            0        L                   00009000
+*                   J         0            0        L                   00010000
+*                   J         0            0        L                   00011000
+*                   J         0            0        L                   00012000
+*                   J         0            0        L                   00013000
+*                   J         0            0        L                   00014000
+*                   J         0            0        L                   00015000
+*        J          J         0            0        L                   00016000
+*         J        J           0          0         L                   00017000
+*          J      J             0        0          L                   00018000
+*           J    J               0      0           L                   00019000
+*            JJJJ                 000000            LLLLLLLLLLL         00020000
+         SPACE 3                                                        00021000
+* NEW CODE IS INTRODUCED FOR FASTER INPUT. IT SAVES USING A       85344 00022000
+*     SAVEAREA FOR NORMAL CHARACTER READS                         85344 00022000
+         EJECT                                                          00038000
+         PRINT OFF
+         REGEQU
+         COPY  JOLCOM
+         PRINT ON,DATA                                                  00040000
+         TITLE 'GET NEXT CHARACTER FROM INPUT STREAM(3)'                00745000
+         USING JOLCOM,R2                                                00043000
+UJP52CHR CSECT                                                          00738000
+* THIS ROUTINE RETURNS THE NEXT CHARCTER FROM FILE SYSIN                00752000
+         USING UJP52CHR,R15
+         CLI   EOFSYSIN,C' '                                            00757000
+         BNE   RETNBLAN                                                 00758000
+         CLI   SYSINMDE,C'1'  ARE WE IN SYSINMODE ?             74303   00759000
+         BE    READCARD                                                 00760000
+         L     R1,AJOLGEN
+         USING GENDETS,R1
+         CLC   CP,SM2         RUN OVER CARD BOUNDARY ?                  00762000
+         BNL   READCARD                                                 01074000
+         LH    R1,CP          LOAD CURRENT CHARACTER POSITION           01076000
+         LA    R15,CARD(R1)   GET ABSOLUTE ADDRESS CHAR WE WANT         01077000
+         MVC   INCHAR,0(R15)  GET REQD CHARACTER                        01078000
+         LA    R1,1(R1)       ADD 1 TO CP                               01079000
+         STH   R1,CP          AND RESTORE                               01080000
+RETN     SR    R15,R15                                                  01081000
+         BR    R14
+RETNBLAN EQU   *                                                        01082000
+P52RETNF MVI   EOFSYSIN,C'1'                                            01083000
+         MVI   INCHAR,C' '                                              01084000
+         LA    R15,12                                                   01085000
+         BR    R14
+* HERE WE NEED TO GO TO THE FULL READ CHARACTER ROUTINE
+READCARD L     R15,=V(UJP52OLD)                                   84100 00741000
+         BR    R15                                                74303 00742000
+         DC    80S(*)                                                   01088000
+         LTORG                                                          00743000
+         DROP  R15                                               74303  00744000
+         END

@@ -1,0 +1,309 @@
+//CLARKEF  JOB A,CLARKE,NOTIFY=EDU199,MSGLEVEL=1,                       00000020
+// MSGCLASS=X
+//COMP1 EXEC CCALG,CVPARM='-WV /I /V',                                  00000220
+// LKPARM='LIST,XREF,TEST'
+//CV.SRC DD *
+char string2 @<@> = "abc";
+/* YOU CAN ALTER THE DEFINES BELOW TO GET AN IDEA OF TIMES FOR          00000001
+   DIFFERENT LENGTH STRINGS.                                            00000002
+                                                                        00000003
+   DO ALTER THE COUNT TO SUIT THE SPEED OF YOUR CPU!!!!         */      00000004
+                                                                        00000005
+                                                                        00000006
+#DEFINE   COPYLEN    66                                                 00000007
+#DEFINE   COUNT      300000                                             00000008
+                                                                        00000009
+                                                                        00000010
+/* THIS CODE DEMONSTRATES THAT C DESPERATELY NEEDS PROPER STRING
+   HANDLINg BUILT INTO THE LANGUAGE.                                    00000013
+                                                                        00000014
+   IF C HAD STRING HANDLING BUILTIN, ALL STRING COPIES AND COMPARES COUL00000015
+D                                                                       00000016
+   BE SPED UP BY ABOUT 20 (YES, REPEAT TWENTY) TIMES.                   00000017
+                                                                        00000018
+   CAN YOU IMAGINE HOW MUCH FASTER COMPILERS, SORTS, AND PERHAPS EVEN   00000019
+   UNIX ITSELF COULD BE SPED UP?                                        00000020
+                                                                        00000021
+                                                                        00000022
+                                                                        00000023
+   WHY IS C STRING HANDLING SO SLOW?                                    00000024
+   ---------------------------------                                    00000025
+                                                                        00000026
+   BECAUSE C USES A BINARY 0 AT THE END OF EACH STRING, WHEN YOU COPY A 00000027
+   STRING TO ANOTHER STRING (OR COMPARE ONE STRING WITH ANOTHER), C MUST00000028
+   EITHER FIND OUT HOW MUCH DATA TO COPY OR COMPARE, OR IT MUST LOOK FOR00000029
+   THE BINARY 0 AS IT IS COPYING.                                       00000030
+                                                                        00000031
+   MANY MACHINES SUCH AS THE IBM PC WITH 8086 CHIPS OR EQUIVALENT, AND I00000032
+BM                                                                      00000033
+   MAINFRAMES LIKE THE 370 SERIES OF COMPUTERS HAVE INSTRUCTIONS (OR GRO00000034
+UPS                                                                     00000035
+   OF INSTRUCTIONS) FOR MOVING AND COMPARING DATA QUICKLY.  FOR EXAMPLE:00000036
+                                                                        00000037
+        8086       REP MOVSW AND REP MOVSB                              00000038
+        370        MVC, CLC ETC.                                        00000039
+                                                                        00000040
+   EVEN Z80'S HAD INSTRUCTIONS FOR MOVING DATA QUICKLY, AND I ASSUME THA00000041
+T                                                                       00000042
+   THE 68000 ALSO HAS SIMILAR INSTRUCTIONS.                             00000043
+                                                                        00000044
+   THIS MEANS THAT MOST OF THE COMPUTERS IN THE WORLD (USING C) ARE     00000045
+   UNDERUTILISED BECAUSE THE C LANGUAGE DOES NOT HAVE SUPPORT FOR STRING00000046
+S                                                                       00000047
+   BUILTIN.                                                             00000048
+                                                                        00000049
+                                                                        00000050
+                                                                        00000051
+                                                                        00000052
+                                                                        00000053
+        (C)  1989                                                       00000054
+             CLEMENT V. CLARKE,                                         00000055
+             PO BOX 475,                                                00000056
+             TOORAK,                                                    00000057
+             AUSTRALIA, 3142                                            00000058
+                                                                        00000059
+             TEL (61)-3-241-2289                                        00000060
+                                                                        00000061
+                                                                        00000062
+                                                                        00000063
+*/                                                                      00000064
+                                                                        00000065
+                                                                        00000066
+#INCLUDE "STDIO.H"                                                      00000067
+#INCLUDE "STRING.H"                                                     00000068
+#INCLUDE "DOS.H"                                                        00000069
+#INCLUDE "TIME.H"                                                       00000070
+                                                                        00000071
+                                                                        00000072
+  /* THIS CODE CAN ONLY BE USED                                         00000073
+     IF THE LENGTH OS THE STRING IS                                     00000074
+     KNOWN AT COMPILE TIME (TC ONLY) */                                 00000075
+                                                                        00000076
+#IF DEFINED(__TURBOC__)                                                 00000077
+#DEFINE CPYDTA_TC_ONLY(DEST,SRC,LEN) \                                  00000078
+      _SI=SRC; \                                                        00000079
+      _DI=DEST;\                                                        00000080
+      _CX=LEN/2; \                                                      00000081
+      __EMIT__(0XF3,0XA5);          /* REP MOVSW                 */ \   00000082
+      IF (LEN & 1)                  /* MOVE ONE MORE BYTE ?      */ \   00000083
+      {__EMIT__(0XA4);}             /* MOVSB                     */ \   00000084
+      __EMIT__(0X88,0X0D);          /* MOV 0¢DI|,CL              */     00000085
+                                                                        00000086
+#ENDIF                                                                  00000087
+                                                                        00000088
+#IF DEFINED(__TURBOC__)                                                 00000089
+#DEFINE CPYDTA(DEST,SRC,LEN) \                                          00000090
+      _SI=SRC; \                                                        00000091
+      _DI=DEST;\                                                        00000092
+      _CX=LEN; \                                                        00000093
+      __EMIT__(0XD1,0XE9);          /* SHR CX,1                  */ \   00000094
+      __EMIT__(0XF3,0XA5);          /* REP MOVSW                 */ \   00000095
+      __EMIT__(0X13,0XC9);          /* ADC CX,CX                 */ \   00000096
+      __EMIT__(0XF3,0XA4);          /* REP MOVSB                 */ \   00000097
+      __EMIT__(0X88,0X0D);          /* MOV 0¢DI|,CL              */     00000098
+                                                                        00000099
+#ELIF DEFINED(_QC)                                                      00000100
+#DEFINE CPYDTA(DEST,SRC,LEN) _ASM \                                     00000101
+      { \                                                               00000102
+      _ASM LEA SI,SRC \                                                 00000103
+      _ASM LEA DI,DEST \                                                00000104
+      _ASM MOV CX,LEN \                                                 00000105
+      _ASM SHR CX,1 \                                                   00000106
+      _ASM REP MOVSW \                                                  00000107
+      _ASM ADC CX,CX \                                                  00000108
+      _ASM REP MOVSB \                                                  00000109
+      _ASM MOV 0¢DI|,CL}                                                00000110
+                                                                        00000111
+#ELIF DEFINED(_370)                /* THIS CODE HAS NOT BEEN TESTED !!! 00000112
+*/ \                                                                    00000113
+#DEFINE CPYDTA(DEST,SRC,LEN) _ASM \                                     00000114
+      { \                                                               00000115
+      _ASM MVC DEST(LEN),SRC \                                          00000116
+      }                                                                 00000117
+                                                                        00000118
+#ELSE                                                                   00000119
+                                                                        00000120
+#ERROR MUST BE TC 2.0 OR QC 2.0 FOR THIS PARTICULAR TEST.               00000121
+                                                                        00000122
+#ENDIF                                                                  00000123
+                                                                        00000124
+                                                                        00000125
+LONG INT I;                                                             00000126
+INT J;                                                                  00000127
+                                                                        00000128
+FLOAT DUMMYTIME;                /* TIME FOR DUMMY  LOOP SAVED HERE */   00000129
+FLOAT LONGESTTIME;              /* TIME FOR INCR LOOP - DUMMYTIME  */   00000130
+FLOAT INCRNOREGTIME;            /* TIME FOR INCR1  LOOP SAVED HERE */   00000131
+FLOAT INCRREGTIME;              /* TIME FOR INCR2  LOOP SAVED HERE */   00000132
+FLOAT STRCPYTIME;               /* TIME FOR STRCPY LOOP SAVED HERE */   00000133
+FLOAT MEMCPYTIME;               /* TIME FOR MEMCPY LOOP SAVED HERE */   00000134
+FLOAT ASMCPYTIME;               /* TIME FOR ASMCPY LOOP SAVED HERE */   00000135
+                                                                        00000136
+INT   FORCEALLIGN1;                                                     00000137
+CHAR  SRC @<COPYLEN+1@>;          /* DEFINE STRING AREAS             */ 00000138
+INT   FORCEALLIGN2;                                                     00000139
+CHAR  DEST@<COPYLEN+1@>;                                                00000140
+INT   SRC_LEN;                                                          00000141
+                                                                        00000142
+TIME_T START,                                                           00000143
+FINISH;                                                                 00000144
+                                                                        00000145
+MAIN()                                                                  00000146
+{                                                                       00000147
+                                                                        00000148
+/*  INITIALIZE A STRING FOR OUR TIMING TEST                        */   00000149
+                                                                        00000150
+    MEMSET(SRC,'X',COPYLEN);                                            00000151
+    SRC_LEN=STRLEN(SRC);                                                00000152
+    PRINTF("\N\NLENGTH=%D\N\N",SRC_LEN);                                00000153
+                                                                        00000154
+                                                                        00000155
+/*  TAKE THE TIME FOR A DUMMY LOOP.  THIS WILL BE SUBTRACTED FROM THE   00000156
+    ELAPSED TIME TO GIVE THE ACTUAL TIME FOR THE COPIES.           */   00000157
+                                                                        00000158
+                                                                        00000159
+    TIME(&START);                                                       00000160
+    FOR (I=0; I<COUNT; I++)                                             00000161
+    {                                                                   00000162
+    ;                                   /* DUMMY LOOP */                00000163
+    }                                                                   00000164
+                                                                        00000165
+    DUMMYTIME=PRT_ELAP_TIME("DUMMY");                                   00000166
+                                                                        00000167
+/*  COPY THE DATA USING THE ASSEMBLER MOVE ROUTINES.                    00000168
+    THIS IS THE FASTEST WAY TO DO IT, AND IF C HAD BUILTIN STRING HANDLI00000169
+NG,                                                                     00000170
+    THE C COMPILERS COULD GENERATE FAST CODE AUTOMATICALLY!       */    00000171
+                                                                        00000172
+    TIME(&START);                                                       00000173
+    FOR (I=0; I<COUNT; I++)                                             00000174
+    {                                                                   00000175
+         CPYDTA(DEST,SRC,COPYLEN);      /* FIXED LENGTH STRING TO FIXED 00000176
+*/                                                                      00000177
+    }                                                                   00000178
+                                                                        00000179
+    ASMCPYTIME=PRT_ELAP_TIME("ASM");                                    00000180
+                                                                        00000181
+    TIME(&START);                                                       00000182
+    FOR (I=0; I<COUNT; I++)                                             00000183
+    {                                                                   00000184
+         MEMCPY(DEST,SRC,SRC_LEN);                                      00000185
+    }                                                                   00000186
+                                                                        00000187
+                                                                        00000188
+    MEMCPYTIME=PRT_ELAP_TIME("MEMCPY");                                 00000189
+                                                                        00000190
+    TIME(&START);                                                       00000191
+    FOR (I=0; I<COUNT; I++)                                             00000192
+    {                                                                   00000193
+         STRCPY(DEST,SRC);                                              00000194
+    }                                                                   00000195
+                                                                        00000196
+                                                                        00000197
+    STRCPYTIME=PRT_ELAP_TIME("STRCPY");                                 00000198
+                                                                        00000199
+    INCR_CPY();                                                         00000200
+                                                                        00000201
+    INCR_CPY_REGVAR();                                                  00000202
+                                                                        00000203
+                                                                        00000204
+    PRINTF("\NCOPYING A %D BYTE LENGTH STRING %D TIMES",COPYLEN,COUNT); 00000205
+    PRINTF("\N===============================================\N");      00000206
+                                                                        00000207
+    PRINTF("\NINCRCPY (STATIC   POINTERS)  %5.2F  %5.2F  %5.2F  %F",    00000208
+           INCRNOREGTIME,DUMMYTIME,INCRNOREGTIME-DUMMYTIME,1.00);       00000209
+        LONGESTTIME=INCRNOREGTIME-DUMMYTIME;                            00000210
+    PRINTF("\NINCRCPY (REGISTER POINTERS)  %5.2F  %5.2F  %5.2F  %F",    00000211
+           INCRREGTIME,DUMMYTIME,INCRREGTIME-DUMMYTIME,                 00000212
+           LONGESTTIME/(INCRREGTIME-DUMMYTIME));                        00000213
+    PRINTF("\NSTRCPY                       %5.2F  %5.2F  %5.2F  %F",    00000214
+           STRCPYTIME,DUMMYTIME,STRCPYTIME-DUMMYTIME,                   00000215
+           LONGESTTIME/(STRCPYTIME-DUMMYTIME));                         00000216
+    PRINTF("\NMEMCPY                       %5.2F  %5.2F  %5.2F  %F",    00000217
+           MEMCPYTIME,DUMMYTIME,MEMCPYTIME-DUMMYTIME,                   00000218
+           LONGESTTIME/(MEMCPYTIME-DUMMYTIME));                         00000219
+    PRINTF("\NASM                          %5.2F  %5.2F  %5.2F  %F",    00000220
+           ASMCPYTIME,DUMMYTIME,ASMCPYTIME-DUMMYTIME,                   00000221
+           LONGESTTIME/(ASMCPYTIME-DUMMYTIME));                         00000222
+                                                                        00000223
+ }                                                                      00000224
+                                                                        00000225
+                                                                        00000226
+INCR_CPY(){                                                             00000227
+STATIC  CHAR *TEMPSRC;                                                  00000228
+STATIC  CHAR *TEMPDEST;                                                 00000229
+                                                                        00000230
+    TIME(&START);                                                       00000231
+    FOR (I=0; I<COUNT; I++)                                             00000232
+      { TEMPSRC=SRC;                                                    00000233
+        TEMPDEST=DEST;                                                  00000234
+        WHILE (*TEMPDEST++=*TEMPSRC++);                                 00000235
+      }                                                                 00000236
+                                                                        00000237
+                                                                        00000238
+    INCRNOREGTIME=PRT_ELAP_TIME("INCRCPY (SLOWEST)");                   00000239
+}                                                                       00000240
+                                                                        00000241
+                                                                        00000242
+INCR_CPY_REGVAR(){                                                      00000243
+REGISTER CHAR *TEMPSRC;                                                 00000244
+REGISTER CHAR *TEMPDEST;                                                00000245
+                                                                        00000246
+    TIME(&START);                                                       00000247
+    FOR (I=0; I<COUNT; I++)                                             00000248
+      { TEMPSRC=SRC;                                                    00000249
+        TEMPDEST=DEST;                                                  00000250
+        WHILE (*TEMPDEST++=*TEMPSRC++);                                 00000251
+      }                                                                 00000252
+                                                                        00000253
+                                                                        00000254
+    INCRREGTIME=PRT_ELAP_TIME("INCRCPY (USING REGISTER VARS)");         00000255
+}                                                                       00000256
+                                                                        00000257
+INT PRT_ELAP_TIME(CHAR * WHICHLOOP)                                     00000258
+{                                                                       00000259
+                                                                        00000260
+    TIME(&FINISH);                                                      00000261
+    PRINTF("ELAPSED TIME FOR %S CPY IS %5.2F\N\N",WHICHLOOP,            00000262
+            DIFFTIME(FINISH,START));                                    00000263
+                                                                        00000264
+    RETURN DIFFTIME(FINISH,START);                                      00000265
+}                                                                       00000266
+char     string ;
+enum {type_str=2};
+ main() {
+    printf ("Hello There");
+ /*
+#asmgen   mvc  x,a
+    xyz    mvc string,string;
+    asm (mvc string,string);
+    asm 'mvc string,string';
+    asm "mvc string,string";
+#endasm
+  */
+         if (type_str==2) printf("Type=2");
+         if (type_str==0) printf("Type=0");
+         strcpy(string,"zzz");
+         if (lstrlen(string)==0)printf("L=0");
+         if (strcmp("abc","zzz")==0) printf("equal");
+ }
+/*
+         int j;
+         fred( )
+         {
+         int i;
+            i=9* 8;
+            j=9* 8;
+            j=j+9* 8;
+         }
+ /*
+         strcmp(lhs,rhs)
+  int lhs;
+  int rhs;
+         {
+         int i;
+            i=9* 8;
+            j=9* 8;
+            j=j+9* 8;
+         }
+//LKED.SYSLMOD DD DSN=CLARKE.JOL40.LOAD(CC2),DISP=SHR

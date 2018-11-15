@@ -1,0 +1,459 @@
+         TITLE 'UJE04IF: HANDLE EXECUTE IF STATEMENT'                   00010000
+         JOLSAVE CSECT=UJE04IF                                          00020000
+         L     R7,AWINST                                                00030001
+         USING INSTR,R7                                                 00040001
+         L     R5,ARETN                                                 00041001
+         USING RETNAREA,R5                                              00043001
+* THIS CSECT IS RESPONSIBLE FOR CALCULATING AND WORKING OUT IF          00050000
+*     AN 'IF' STATEMENT IS TRUE OR FALSE                                00060000
+         SPACE 2                                                        00070001
+         B     E04START                                                 00080001
+* THE RETURN CODES ARE                                                  00090000
+*    0 IF THE STATEMENT WAS TRUE                                        00100000
+*    4 IF THE STATEMENT WAS FALSE                                       00110000
+*    16 IF AN ERROR CONDITION AROSE                                     00120000
+RETN16   LA    R15,16                                                   00130001
+         JOLRETN RC=(15)                                                00140001
+E04START DS     0H                                                      00150001
+         XC #OP,#OP                                                     00160001
+         CLEAR OP                                                       00170001
+         MVC   TKNCURR,=H'1'   SKIP THE 'IF'                            00180001
+E04MAINA DS   0H                                                        00190000
+           CLEAR #E04SYM1,E04SYM1,#E04SYM2,E04SYM2,#E04SYM,E04SYM,     *00200000
+               E04NUM1,E04NUM2                                    74365 00210000
+           CLC TKNCURR,TKNNO                                            00220000
+           BH  E04ENDP1                                                 00230000
+           GETTKN LOCN=TKNCURR GET A TOKEN                              00240000
+           STH R1,TKNCURR                                               00250000
+           CLI TKN,C'&&'       AND ?                                    00260000
+           BE E04MUV1                                                   00270000
+           CLI TKN,C'|'                                                 00280000
+           BE E04MUV1                                                   00290000
+           CLI TKN,C'('                                                 00300000
+           BE E04MUV1                                                   00310000
+           CLI TKN,C')'                                                 00320000
+           BE E04MUV1                                                   00330000
+           B  E04TIDNT         TEST IF IT IS AN IDENTIFIER              00340000
+E04MUV1    BAL R10,E04CONC   MOVE ()|& INTO STRING                      00350000
+           B   E04MAINA                                                 00360000
+E04TIDNT   CLI TKNTYPE,2       <IDENTIFIER> ?                           00370000
+           BNE E04NIDNT        NO                                       00380000
+           MVC #E04SYM1(14),#TKN   MOVE NAME IN                         00390000
+           GETTKN LOCN=TKNCURR GET THE NEXT TOKEN                       00400000
+           BAL R10,E04TOP      TEST IF OPERATOR                         00410000
+           LTR R15,R15                                                  00420000
+           BZ  E04OP1                                                   00430000
+* HERE THE REQUEST WAS SIMPLY TO SEE IF THE PROGRAM RAN,IE THE          00440000
+*     PERSON CONCERNED REALLY COULDN'T CARE LESS WHAT THE               00450000
+*     RETURN CODE WAS.                                                  00460000
+* CHECK IF ERROR HERE                                    CHG26028 76200 00470000
+         CLC   =C'ERROR ',#E04SYM1+2 IF ERROR ?          CHG26028 76200 00480000
+         BNE   E04NERR1                                  CHG26028 76200 00490000
+* IF ERROR CODED                                         CHG26028 76200 00500000
+         CLI   ERRORIND,0     HAS AN ABEND OCCURED ?     CHG26028 76200 00510000
+         BE    E04FTEST       NO, MARK THIS FALSE        CHG26028 76200 00520000
+* ERROR HAS OCCURED.                                     CHG26028 76200 00530000
+         OI    INERRORL,X'0F' SAY IN IF ERROR WITH A ABEND COND    DASD 00540000
+         TM   INERRORL,X'F0' ALREADY SET ERROR LEVEL ?   CHG26028  DASD 00550000
+         BO   E04TRU01  YES,DONT RESET COS MAY BE        CHG26028  DASD 00560000
+*                         ALREADY IN ERROR LOOP        CHG26028 76200   00570000
+         MVC   ERRLEVEL(L'ERRLEVEL+L'ERRNEST),LEVEL      CHG26028 76200 00580000
+         OI    INERRORL,X'F0'                            CHG26028  DASD 00590000
+         B     E04TRU01       SET TRUE                   CHG26028 76200 00600000
+         SPACE 2                                         CHG26028 76200 00610000
+E04NERR1 DS    0H                                        CHG26028 76200 00620000
+         MVC   #E04SYM(14),#E04SYM1 SHIFT IN NAME                       00630002
+         BAL   R10,E04GETV     GET ITS VALUE (IF IT RAN)                00640002
+         LTR   R15,R15         DID WE FIND IT ?                         00650002
+         BZ    E04TRU01        YES,THEREFORE TEST TRUE                  00660002
+E04FTEST MVC   #TKN(4),=XL4'0002C640' 'F' FOR FALSE                     00670002
+         BAL   R10,E04CONCA                                             00680002
+         B     E04MAINA                                                 00690002
+TRUE     DS    0H                                                       00700000
+E04TRU01 DS    0H                                                       00710000
+         MVC   #TKN(4),=XL4'0002E340'  'T' FOR TRUE                     00720002
+         BAL   R10,E04CONCA    CONCATENATE THE'T' IN                    00730002
+         B     E04MAINA        CONTINUE THE LOOP                        00740002
+         SPACE 3                                                        00750002
+E04NIDNT CLI   TKNTYPE,0       <NUMBER> ??                              00760002
+         BE    E04ISN1                                                  00770002
+         JOLERR 501,'SYMBOL ''',#TKN,''' IN ERROR'                      00780002
+E04ISN1  TNUM  #TKN                                                     00790002
+         ST    R1,E04NUM1                                         75128 00800002
+         GETTKN LOCN=TKNCURR                                            00810002
+         STH   R1,TKNCURR                                               00820002
+         BAL   R10,E04TOP      TEST IF <OPERATOR>                       00830002
+         LTR   R15,R15                                                  00840002
+         BZ    E04OP1          SURE WAS                                 00850002
+         JOLERR 502,'NO OPERATOR BUT ''',#TKN,''' AFTER ',E04NUM1       00860002
+E04OP1   DS    0H                                                       00870000
+         STH   R1,TKNCURR                                               00880002
+* HERE WE HAD <SYMBOL> <OPERATOR>                                       00890000
+*        OR  <NUMBER> <OPERATOR>                                        00900002
+         GETTKN LOCN=TKNCURR   GET THE OTHER SIDE OF THE COMPARE        00910002
+         STH   R1,TKNCURR                                               00920002
+         CLI   TKNTYPE,0       <NUMBER> ?                               00930002
+         BE    E04NUM2L                                                 00940002
+         CLI   TKNTYPE,2       <IDENTIFIER> ?                           00950002
+         BE    E04SYM2L                                                 00960002
+         JOLERR 503,'EXPECTED NAME OR NUMBER,NOT ''',#TKN,''''          00970002
+         ST    R15,E04NUM2                                              00980002
+E04SYM2L MVC   #E04SYM2(14),#TKN                                        00990002
+         B     E04COMP                                                  01000002
+E04NUM2L TNUM #TKN                                                      01010002
+         ST    R1,E04NUM2                                         75128 01020002
+E04COMP  DS    0H                                                       01030002
+* ******* ANY SUPPORT CODE ******* SEPT 75                              01040000
+         CLC   =C'ANY ',E04SYM1                                         01050002
+         BNE   E04NOANY                                                 01060002
+         IFNULL E04SYM2,E04ANOK ANY <OP> <NUMBER> I HOPE...             01070002
+         JOLERR 209,'TEST FOR  ''ANY''',OPERATOR,'''',                 *01080002
+               E04SYM2,''' INVALID'                                     01090000
+         B     E04FTEST                                                 01100002
+E04ANOK  DS    0H                                                       01110000
+* OK WE HAVE A NUMBER AND ANY.                                          01120000
+* FIRST OF ALL, FIND THE OPERATOR IN THE TABLE                          01130000
+         LA    R1,OPS                                                   01140000
+         LA    R15,OPS+OPSLEN                                           01150000
+         LA    R14,8                                                    01160000
+E04OPLUP CLC   OPERATOR(2),0(R1)                                        01170001
+         BE    E04ANYOP                                                 01180000
+         BXLE  R1,R14,E04OPLUP                                          01190001
+         B     E04BADOP                                                 01200000
+E04ANYOP DS    0H                                                       01210000
+         L     R4,4(R1)          GET TRUE ROUTINE AND BE CODES          01220000
+         LA    R1,IDSTART                                               01230000
+         USING IDOVLY,R1                                                01240000
+         LH    R15,NOIDS                                                01250000
+         MH    R15,=H'18'                                               01260000
+         LA    R15,IDSTART(R15)                                         01270000
+         LA    R14,18                                                   01280000
+E04ANY99 CLC   IDNAME,=XL8'0000000000000000'                      75311 01290001
+         BE    E04BXL99                                           75311 01300000
+         CLC   IDNAME,=CL8'MACRO'                                 75311 01310000
+         BE    E04BXL99                                           75311 01320000
+         CLC   IDRETN,E04NUM2                                           01330002
+         EX    R0,0(R4)     GO TO TRUE IF IT IS TRUE              75128 01340002
+E04BXL99 BXLE  R1,R14,E04ANY99                                    87150 01350002
+         B     E04FTEST                                                 01360002
+* WE ARE NOW READY TO DO THE REPLACEMENTS FOR ANY NAMES,                01370000
+*     THEN WE SHALL DO THE COMPARES.                                    01380000
+E04NOANY IFNULL E04SYM1,E04NUM1R  NAME BLANK,IE A <NUMBER> ORIGINLY     01390002
+         MVC   #E04SYM(14),#E04SYM1                                     01400002
+         BAL   R10,E04GETV     GET THE NAMES VALUE                      01410002
+         LTR   R15,R15         DID WE ?                                 01420002
+         BNZ   E04FTEST        NO,THEREFORE STEP NOT RUN AND            01430002
+*                              SO TEST IS FALSE.                        01440000
+         ST    R1,E04NUM1                                               01450002
+E04NUM1R IFNULL E04SYM2,E04NUM2R                                        01460002
+         MVC   #E04SYM(14),#E04SYM2                                     01470002
+         BAL   R10,E04GETV     GET THE NAME'S VALUE                     01480002
+         LTR   R15,R15         DID WE ?                                 01490002
+         BNZ   E04FTEST        NO,SO MARK IT FALSE TOO                  01500002
+         ST    R1,E04NUM2                                               01510002
+E04NUM2R DS    0H                                                       01520000
+* NOW FIX UP THE OPERATORS,IE LOAD THE ADDRESS OF A BE OR BNH ETC TYPE  01530000
+*    INSTRUCTION THAT IS TO BE EXECUTED AFTER THE COMPARE               01540000
+         LA    R1,OPS                                                   01550002
+         LA    R15,OPS+OPSLEN                                           01560002
+         LA    R14,8                                                    01570002
+TESTOP   CLC   OPERATOR(2),0(R1)                                        01580002
+         BE    VALIDOP                                                  01590002
+         BXLE  R1,R14,TESTOP                                            01600002
+E04BADOP JOLERR 504,'''',#TKN,''' IS NOT AN OPERATOR'             75128 01610002
+         B     RETN16                                                   01620002
+OPS      DS    0F                                                       01630002
+         DC    CL4'= ',A(EQ)                                            01640002
+         DC    CL4'^=',A(NE)                                            01650002
+         DC    CL4'> ',A(GT)                                            01660002
+         DC    CL4'< ',A(LT)                                            01670002
+         DC    CL4'^>',A(NG)                                            01680002
+         DC    CL4'^<',A(NL)                                            01690002
+         DC    CL4'>=',A(GE)                                            01700002
+         DC    CL4'<=',A(LE)                                            01710002
+OPSLEN   EQU   *-OPS                                                    01720002
+EQ       BE    TRUE                                                     01730002
+NE       BNE   TRUE                                                     01740002
+GT       BH    TRUE                                                     01750002
+LT       BL    TRUE                                                     01760002
+NG       BNH   TRUE                                                     01770002
+NL       BNL   TRUE                                                     01780002
+GE       BNL   TRUE            SAME AS ^<                               01790002
+LE       BNH   TRUE            SAME AS ^>                               01800002
+VALIDOP  L     R4,4(R1)        ADDRESS OF INSTRUCTION TO EXECUTE AFTER  01810002
+*                              THE COMPARE                              01820002
+         CLC   E04NUM1,E04NUM2                                          01830002
+         EX    R0,0(R4)        ****** BRANCH ON CONDITION TRUE          01840002
+         B     E04FTEST                                                 01850002
+         SPACE 3                                                        01860002
+OPERATOR DS    CL2                                                      01870002
+         SPACE 3                                                        01880002
+E04TOP   DS    0H                                                       01890000
+*THIS LITTLE ROUTINE IS CALLED WHEN I SUSPECT A THING COULD BE AN       01900000
+*    OPERATOR                                                           01910000
+           MVC OPERATOR,TKN                                             01920000
+           LA  R15,OPS                                            74365 01930000
+E04TOPL    CLC OPERATOR,0(R15)                                    74365 01940000
+           BE  E04ISOP                                            74365 01950000
+           LA R15,8(R15)                                          74365 01960000
+           C R15,=A(OPS+OPSLEN)                                   74365 01970000
+           BL E04TOPL                                             74365 01980000
+           LA R15,4                                                     01990000
+           BR R10                                                       02000000
+E04ISOP  DS    0H                                                       02010000
+           SR  R15,R15                                                  02020000
+           BR R10                                                       02030000
+E04CONCA DS    0H                                                       02040000
+E04CONC  DS    0H                                                       02050000
+* CONCATENATE TWO BYTES FROM #TKN TO #STRING                            02060000
+           LH  R15,#OP    CURRENT LENGTH                                02070000
+           LR R14,R15                                                   02080000
+           LA  R15,2(R15) +2 BYTES                                      02090000
+           CH  R15,=AL2(L'OP) WILL IT BE TOO LONG ?                     02100000
+           BH  E04IFCOM PLEX                                            02110000
+           STH R15,#OP    NEW LENGTH STORED                             02120000
+           LA R15,OP(R14) GET ABSOLUTE ADDRESS OF WHERE THESE TWO       02130000
+*                                BYTES ARE GOING TO GO                  02140000
+           MVC 0(2,R15),TKN    THEY ARE NOW IN                          02150000
+           BR  R10             GO BACK TO WHERE I CAME FROM             02160000
+E04IFCOM DS    0H                                                       02170000
+           JOLERR 505,'IF TOO COMPLEX'                                  02180000
+         B     RETN16                                                   02190000
+E04ENDP1 DS    0H                                                       02200000
+           TITLE 'SIMPLIFY IF AND ATTEMP TO DETERMINE IF TRUE OR FALSE' 02210000
+* AT THIS STAGE WE HAVE REAL IDEA HOW COMPLEX THE IF STATEMENT IS       02220000
+* DISREGARDING BRACKETS THOUGH IT CANNOT HAVE MORE THAN                 02230000
+*    F|T TYPE INFORMATION                                               02240000
+           SPACE 3                                                      02250000
+* NOW THE STRING WE HAVE BUILT UP LOOKS SOMETHING LIKE THIS:-           02260000
+*     (T|F)&(T&T)                                                       02270000
+* NOW THE BASIC IDEA OF THIS SECTION OF CODE IS TO REPLACE ANY          02280000
+*    F & T WITH AN F(ETC) THEN REDUCE THE STRING SIZE UNTIL WE          02290000
+*     FINALLY END UP WITH AN 'F' OR 'T'                                 02300000
+           SPACE 3                                                      02310000
+* NOW :-                                                                02320000
+*          F & T = F                                                    02330000
+*          F & F = F                                                    02340000
+*                                                                       02350000
+*          T & T = T                                                    02360000
+*          T & F = F                                                    02370000
+*                                                                       02380000
+*          F | T = T                                                    02390000
+*          F | F = F                                                    02400000
+*                                                                       02410000
+*          T | T = T                                                    02420000
+*          T | F = T                                                    02430000
+*                                                                       02440000
+* AS AND'S USUALLY HAVE PRECEDENCE I'LL GO FOR THEM FIRST               02450000
+* BRACKETED EXPRESSIONS CAN ALSO BE REDUCED AS ABOVE                    02460000
+* OK,I THINK WE SHALL START                                             02470000
+REDUCL0  DS    0H                                                       02480000
+           LA R1,OP                                                     02490000
+           LH R15,#OP                                                   02500000
+           LA R15,OP(R15)                                               02510000
+           MVC 0(6,R15),BLANKS                                          02520000
+           LA  R14,2                                                    02530000
+           USING XDSECT,R1                                              02540000
+REDUCL     CLC FANDT,X                         F & T =F                 02550000
+           BE  MAKEF                                                    02560000
+           CLC FANDF,X                         F & F =F                 02570000
+           BE  MAKEF                                                    02580000
+           CLC TANDT,X                         T & T =T                 02590000
+           BE  MAKET                                                    02600000
+           CLC TANDF,X                         T & F =F                 02610000
+           BE MAKEF                                                     02620000
+           CLC FORT,X                          F | T =T                 02630000
+           BE  MAKET                                                    02640000
+           CLC FORF,X                          F | F =F                 02650000
+           BE  MAKEF                                                    02660000
+           CLC TORT,X                          T | T =T                 02670000
+           BE  MAKET                                                    02680000
+           CLC TORF,X                          T | F =T                 02690000
+           BE  MAKET                                                    02700000
+* NOW DO THE F | ? TYPE ONES,PROVIDED THAT EITHER SIDE OF WHERE         02710000
+*    WE ARE AT THE MOMENT DOESN'T CONTAIN A LEFT OR A RIGHT BRACKET     02720000
+********* NOTE *** THE ONLY SYMBOLS THAT CAN BE IN THE STRING ARE:-     02730000
+*    1. T                                                               02740000
+*    2. F                                                               02750000
+*    3. &                                                               02760000
+*    4. |                                                               02770000
+*    5. (                                                               02780000
+*    6. )                                                               02790000
+           SPACE 3                                                      02800000
+           CLI X,C'('                                                   02810000
+           BE  TX4CLOSE                                                 02820000
+           CLI X,C')'                                                   02830000
+           BE  ENDREDCL                                                 02840000
+           CLI X+4,C')'                                                 02850000
+           BE  ENDREDCL                                                 02860000
+          CLI X+4,C'('                                                  02870000
+           BE  ENDREDCL                                                 02880000
+           B   TESTFQ                                                   02890000
+TX4CLOSE   CLI X+4,C')'                        (  ) SPECIAL CASE,       02900000
+           BNE ENDREDCL                        WE CAN REDUCE IT         02910000
+           MVI X,C' '                                                   02920000
+           MVI X+4,C' '                                                 02930000
+           B   ENDREDCL                                                 02940000
+TESTFQ     CLC X(2),=C'  '     DON'T DO ANYTHING IF ANY                 02950000
+           BE ENDREDCL         SYMBOLS ARE BLANK                        02960000
+           CLC X+2(2),=C'  '                                            02970000
+           BE ENDREDCL                                                  02980000
+           CLC X+4(2),=C'  '                                            02990000
+           BE ENDREDCL                                                  03000000
+           BE  MAKEF                                                    03010000
+           CLC X+2(4),FANDF+2                  ? & F                    03020000
+           BE  MAKEF                                                    03030000
+           CLC X(4),TANDT                      T & ?                    03040000
+           BE  MAKEQ2                                                   03050000
+           CLC X+2(4),TANDT+2                  ? & T                    03060000
+           BE  MAKEQ1                                                   03070000
+           CLC X(4),FORF                       F | ?                    03080000
+           BE  MAKEQ2                                                   03090000
+           CLC X(4),TORT                       T | ?                    03100000
+           BE  MAKET                                                    03110000
+           CLC X+2(4),TORT+2                   ? | T                    03120000
+           BE  MAKET                                                    03130000
+           CLC X+2(4),FORF+2                   ? | F                    03140000
+           BE  MAKEQ1                                                   03150000
+* WELL THAT ABOUT WRAPS UP THIS SET  OF TRIPLES                         03160000
+ENDREDCL   BXLE R1,R14,REDUCL                                           03170000
+* IF WE FELL OUT HERE WE HAVE BEEN ALONG THE STRING (OR DOWN THE STACK  03180000
+*              IF YOU WANT TO THINK OF IT THAT WAY)                     03190000
+           SPACE                                                        03200000
+* NOW WE SHALL COMPRESS THE BLANK SPOTS OUT OF THE STRING               03210000
+*    IF THE LENGTH DOESN'T CHANGE,THAT MEANS AS FAR AS WE ARE           03220000
+*          CONCERNED WE CANNOT REDUCE THE STRING ANY MORE.              03230000
+*    THE FIRST POSITION SHOULD CONTAIN A 'T' | 'F' OR ELSE WE           03240000
+*    HAVE AN ERROR.                                                     03250000
+           LA R1,OP                                                     03260000
+           LA R14,2                                                     03270000
+           LH R15,#OP                                                   03280000
+           LA R15,OP(R15)                                               03290000
+           LR  R2,R1                                                    03300000
+REDUCL2    CLC X(2),=C'  '                                              03310000
+           BNE REDCNOTB                                                 03320000
+REDUCL3    BXLE R1,R14,REDUCL2                                          03330000
+* END LOOP                                                              03340000
+           LA R0,OP                                                     03350000
+           LR R1,R2                                                     03360000
+           SR  R1,R0                                                    03370000
+           STH R1,#OP                                                   03380000
+           LTR R1,R1                                                    03390000
+           BM  E04ERR1                                                  03400000
+           CLC #OP,=AL2(L'OP-4)                                         03410000
+           BH E04ERR2                                                   03420000
+           CR  R2,R15                                                   03430000
+           BE EVALUATE                         NO REDUCTION             03440000
+           B   REDUCL0                                                  03450000
+REDCNOTB   MVC 0(2,R2),X                                                03460000
+           LA  R2,2(R2)                                                 03470000
+           B   REDUCL3                                                  03480000
+EVALUATE DS    0H                                                       03490000
+* THE MOMENT OF TRUTH                                                   03500000
+           CLC #OP,=H'2'                                                03510000
+           BNE E04RETN8        BLAST,COULDN'T EVALUATE IT               03520000
+           CLI OP,C'T'                                                  03530000
+           BE  E04RETN0        GOOD                                     03540000
+           CLI OP,C'F'                                                  03550000
+           BNE E04RETN8                                                 03560000
+           B   E04RETN4        GOOD                                     03570000
+           DS  0H                                                       03580000
+FANDT      DC  CL6'F && T '                                             03590000
+FANDF      DC  CL6'F && F '                                             03600000
+TANDT      DC  CL6'T && T '                                             03610000
+TANDF      DC  CL6'T && F '                                             03620000
+FORF       DC  CL6'F | F'                                               03630000
+TORF       DC  CL6'T | F '                                              03640000
+TORT       DC  CL6'T | T '                                              03650000
+FORT       DC  CL6'F | T '                                              03660000
+MAKET      MVC X,=CL6'T'                                                03670000
+           B   ENDREDCL                                                 03680000
+MAKEF      MVC X,=CL6'F'                                                03690000
+           B   ENDREDCL                                                 03700000
+MAKEQ1     MVC X+2(4),=CL4' '                                           03710000
+           B   ENDREDCL                                                 03720000
+MAKEQ2     MVC X(4),=CL4' '                                             03730000
+           B   ENDREDCL                                                 03740000
+E04RETN0 DS    0H                                                       03750000
+* THE IF IS BASICALLY TRUE.                              CHG26028 76200 03760000
+*   HOWEVER, WE MAY HAVE THE SITUATION WHERE AN IF IS TRUCHG26028 76200 03770000
+*   BUT AN ABEND HAS OCCURED, SO WE MUST CHECK THAT.     CHG26028 76200 03780000
+         CLI   ERRORIND,0  ANY ABENDS?                   CHG26028 76200 03790000
+         BE    E04REAL0    NO, SO RETURN 0 (TRUE)        CHG26028 76200 03800000
+         TM   INERRORL,X'0F' ARE WE IN ERROR DO GROUP OR CHG26028  DASD 03810000
+*                    WAS 'ERROR' FOUND IN THIS 'IF'?     CHG26028 76200 03820000
+         BZ   E04RETN4     ABEND, AND NO 'ERROR' SO FALSECHG26028  DASD 03830000
+E04REAL0 JOLRETN RC=0                                    CHG26028 76200 03840000
+E04RETN4 JOLRETN RC=4                                                   03850000
+E04ERR1    JOLERR 508,'IF:-INTERNAL ERROR'                        74365 03860000
+           B  RETN16                                                    03870000
+E04ERR2    JOLERR 506,'IF:-INTERNAL ERROR'                              03880000
+           B  RETN16                                                    03890000
+E04RETN8 DS    0H                                                       03900000
+           JOLERR 507,'IF:-INTERNAL ERROR'                              03910000
+E04GETV  DS    0H                                                       03920000
+* THIS ROUTINE SCANS THE RETURN CODE TABLE AND RETURNS THE VALUE        03930000
+*     IN REGISTER 1.                                                    03940000
+* IF IT CAN'T BE FOUND,R15 IS SET TO 4.                                 03950000
+*     NEW SEPT 75  ********* MAXCC,LASTCC, ANY **********               03960000
+          CLC =C'LASTCC ',E04SYM                                        03970000
+          BNE E04TMAX                                                   03980000
+          L   R1,LASTCC                                           75311 03990000
+          SR  R15,R15                                                   04000000
+          BR  R10                                                       04010000
+E04TMAX   CLC =C'MAXCC ',E04SYM                                         04020000
+          BNE E04NMAX                                                   04030000
+          L   R1,MAXCC                                            75311 04040000
+          SR  R15,R15                                                   04050000
+          BR  R10                                                       04060000
+E04NMAX   DS    0H                                                      04070000
+**** 'ANY' DONE LATER ON *****************                              04080000
+           LH R1,#E04SYM       LENGTH OF IDENTIFIER                     04090000
+           SH R1,=H'4'         THE IDENTIFIER WAS CONVERTED             04100000
+*                              IN THE JOL-COMPILER SO THAT THE          04110000
+*                              IDENTIFIER NOW CONTAINS THE STMT         04120000
+*                              NUMBER OF IDENTIFIER STEP WHICH          04130000
+*                              IS SUPPOSED TO RUN.                      04140000
+*                              THIS GETS OVER THE RUDDY PROBLEM         04150000
+*                              OF HAVING DUMPLICATE NAMES OUTPUT        04160000
+*                              TWICE (LIKE IN A MACRO) AT A DIFF-       04170000
+*                              ERENT LEVEL AND HAVING THE LABEL         04180000
+*                              NAME TESTED.                             04190000
+           LA R1,E04SYM(R1)    START ADDR OF STATEMENT NUMBER           04200000
+           MVC E04STMT,0(R1)   MOVE IT AWAY.                            04210000
+           MVC 0(4,R1),=CL4' ' CLEAR STATEMENT NUMBER                   04220000
+           LH  R15,NOIDS       GET CURRENT NUMBER OF IDENTIFIERS        04230000
+           MH  R15,=H'18'                                               04240000
+           LA  R15,IDSTART(R15)                                         04250000
+           LA  R1,IDSTART                                               04260000
+           LA  R14,18                                                   04270000
+           USING IDOVLY,R1                                              04280000
+E04FNDL    CLC E04STMT,IDSTMT  STATEMENTS EQUAL ?                       04290000
+           BE  E04GOTID        HURRAY,WE HAVE IT                        04300000
+           BXLE R1,R14,E04FNDL CONTINUE ZEE LOOP                        04310000
+           LA  R15,4           DIDN'T FIND IT,RETURN A 4                04320000
+           BR  R10             GO BACK                                  04330000
+           SPACE 3                                                      04340000
+E04GOTID DS    0H                                                       04350000
+E04SUB3R   MVC CALLAREA(4),IDRETN                                       04360000
+         L     R1,CALLAREA                                              04370000
+         SR    R15,R15                                                  04380000
+         BR    R10                                                      04390000
+#E04SYM1 DS    H                                                        04400000
+E04SYM1  DS    CL12                                                     04410000
+#E04SYM2 DS    H                                                        04420000
+E04SYM2  DS    CL12                                                     04430000
+#E04SYM  DS    H                                                        04440000
+E04SYM   DS    CL12                                                     04450000
+         SPACE                                                          04460000
+E04NUM1  DS    F                                                        04470000
+E04NUM2  DS    F                                                        04480000
+E04STMT  DS    CL4                                                      04490000
+#OP      DS    H                                                        04500000
+OP       DS    CL100                                                    04510000
+         DC   80S(*)                                                    04520000
+         LTORG                                                          04530000
+         DS    0D                                                       04540000
+XDSECT   DSECT                                                          04550000
+X        DS    CL6                                                      04560001
+         DROP  R7,R5                                                    04570001

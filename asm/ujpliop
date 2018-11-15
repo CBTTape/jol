@@ -1,0 +1,96 @@
+PLI      TITLE 'PL1 OPTIMISER INTER-FACE FOR INVOKED ROUTINES'          00010000
+* JOL COPYRIGHT CCS :- 1976                                             00020000
+* JOL COPYRIGHT CCS :- 1982                                             00030000
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.           00040000
+           SPACE 3                                                      00050000
+*                   J             000000            L                   00060000
+*                   J            0      0           L                   00070000
+*                   J           0        0          L                   00080000
+*                   J          0          0         L                   00090000
+*                   J         0            0        L                   00100000
+*                   J         0            0        L                   00110000
+*                   J         0            0        L                   00120000
+*                   J         0            0        L                   00130000
+*                   J         0            0        L                   00140000
+*                   J         0            0        L                   00150000
+*                   J         0            0        L                   00160000
+*        J          J         0            0        L                   00170000
+*         J        J           0          0         L                   00180000
+*          J      J             0        0          L                   00190000
+*           J    J               0      0           L                   00200000
+*            JJJJ                 000000            LLLLLLLLLLL         00210000
+         SPACE 3                                                        00220000
+* THIS ROUTINE WILL ACCEPT A CALL FROM A PL1 PROGRAM AND                00230000
+*  OUTPUT A BLOCK TO THE JOL WORK FILE.                                 00240000
+       EJECT                                                            00250000
+            PRINT OFF                                                   00260000
+           COPY JOLCOM                                                  00270000
+           SPACE 3                                                      00280000
+         PRINT ON,DATA                                            75128 00290000
+         SPACE 3                                                        00300000
+         GENSAVE CSECT=UJPLIOP                                          00310000
+* CSECT IS CALLED BY THE 'INVOKED' MODULE, AND IS RESPONSIBLE     75128 00320000
+*  FOR STORING THE INVOKED MODULES OUTPUT IN 'WORKFILE' DATA SET  75128 00330000
+         SPACE 2                                                  75128 00340000
+* ON ENTRY R1 POINTS TO THE RECORD THAT THE USER HAS CREATED      75128 00350000
+*  FOR US TO EXECUTE.                                             75128 00360000
+         L     R8,0(R1)       GET ADDRESS OF THE RECORD           75128 00370000
+         L     R2,PLIJOLC                                               00380000
+         LTR   R2,R2                                                    00390000
+         BNZ   PLISTART                                                 00400000
+         LOAD  EP=JOLCOM                                                00410000
+         ST    R0,PLIJOLC                                               00420000
+         LR    R2,R0                                                    00430000
+         DELETE EP=JOLCOM                                               00440000
+PLISTART EQU   *                                                        00450000
+P98TRY2  L     R4,AMACBUF                                         75128 00460000
+         LH    R5,0(R4)       LOAD CURRENT BLOCK LENGTH           75128 00470000
+         LH   R9,0(R8)         LOAD LENGTH OF RECORD              75128 00480000
+         LR    R6,R5          LOAD CURRENT BLOCK LENGTH TO R6,TOO 75128 00490000
+         AR    R6,R9          ADD NEW BLOCK LENGTH                75128 00500000
+         LH    R15,LMACBUF    GET LENGTH OF THE WORK BUFFER       75128 00510000
+         SH    R15,=H'16'      -16,COS INEED SOME ROOM AT THE END 75128 00520000
+*                             OF THE LAST BLOCK                   75128 00530000
+         CR    R6,R15         WILL RECORD FIT ?                   75128 00540000
+         BNH   P98MUV         NO                                  75128 00550000
+* HERE WE MUST OUTPUT THE BLOCK                                   75128 00560000
+         LR    R1,R4          TELL 'OPBLOCK' WHERE THE BLOCK IS   75128 00570000
+*                             THAT HAS TO BE OUTPUT               75128 00580000
+         BAL   R14,OPBLOCK                                        75128 00590000
+         MVC   0(4,R4),=AL2(4,0)                                  75128 00600000
+         CLC   P98TTR1,ZERO   HAS THE FIRST BLOCK BEEN OUTPUT ?   75128 00610000
+         BNE   P98TRY2        YES, GO O/P RECORD AGAIN            75128 00620000
+         ST    R1,P98TTR1     NO,SET UP FIRST BLOCK INDICATOR     75128 00630000
+         B     P98TRY2                                            75128 00640000
+P98MUV   L     R4,AMACBUF                                         75128 00650000
+*                             AS AN OUTPUT AREA                         00660000
+         LR    R5,R4          AND SAVE IT IN R5                         00670000
+         LR    R6,R9          SAVE RECORD LENGTH TO GO                  00680000
+         LR    R7,R6          SAVE IT IN R7 TOO                         00690000
+         CH    R6,=H'80'      > 80 BYTES ?                         DASD 00700000
+         BNH   P98SMALL       NO,SO JUST OUTPUT IT                      00710000
+         LA    R6,80                                               DASD 00720000
+P98SMALL LA    R6,3(R6)                                           75128 00730000
+         AH    R5,0(R4)       CALC ADDRESS OF RECORD AREA         75128 00740000
+         EX    R6,P98MVC                                          75128 00750000
+         LA    R6,1(R6)    +1 EX MVC ANDFOR RECORD DESC                 00760000
+         SLL   R6,16      ZERO BOTTOM BYTES                             00770000
+         ST    R6,AVTBLE   SAVE IT A SECOND IN UNUSED AREA              00780000
+         MVC   0(4,R5),AVTBLE  SHIFT TO RECORD DESCRIPTOR               00790000
+         LH    R1,0(R4)       LOAD BLOCK LENGTH                   75128 00800000
+         AH    R1,AVTBLE      ADD RECSIZE                         75128 00810000
+         STH   R1,0(R4)       RESET BLOCK LENGTH                  75128 00820000
+         GENRETN                                                        00830000
+P98MVC   MVC   2(*-*,R5),0(R8)                                    75128 00840000
+PLIJOLC  DC    A(0)                                                     00850000
+          LTORG                                                         00860000
+           PRINT NOGEN                                                  00870000
+           DC  S(*,*,*,*)                                               00880000
+           DC  S(*,*,*,*)                                               00890000
+           DC  S(*,*,*,*)                                               00900000
+           DC  S(*,*,*,*)                                               00910000
+           DC  S(*,*,*,*)                                               00920000
+           DC  S(*,*,*,*)                                               00930000
+         DCBD  DSORG=PS,DEVD=DA                                   75128 00940000
+           PRINT GEN                                              74303 00950000
+         END                                                            00960000

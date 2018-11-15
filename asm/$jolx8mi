@@ -1,0 +1,465 @@
+$JOLX8MI TITLE 'ALLOCATE JOL INSTRUCTION FILE UNDER OSIV/X8'     88036  00010001
+* JOL COPYRIGHT CCS-JOL 1988                                     88036  00020040
+* REFER TO INSTRUCTIONS ON COPYRIGHT NOTICE FORM NO CCS-C001.    88036  00030001
+           SPACE 3                                               88036  00040001
+*                   J             000000            L            88036  00050001
+*                   J            0      0           L            88036  00060001
+*                   J           0        0          L            88036  00070001
+*                   J          0          0         L            88036  00080001
+*                   J         0            0        L            88036  00090001
+*                   J         0            0        L            88036  00100001
+*                   J         0            0        L            88036  00110001
+*                   J         0            0        L            88036  00120001
+*                   J         0            0        L            88036  00130001
+*                   J         0            0        L            88036  00140001
+*                   J         0            0        L            88036  00150001
+*        J          J         0            0        L            88036  00160001
+*         J        J           0          0         L            88036  00170001
+*          J      J             0        0          L            88036  00180001
+*           J    J               0      0           L            88036  00190001
+*            JJJJ                 000000            LLLLLLLLLLL  88036  00200001
+         SPACE 3                                                 88036  00210016
+         LCLA  &SP                                               88036  00220016
+         COPY  JOLGLOBL                                          88036  00230014
+         LCLC  &KEY,&SUP,&C1,&C2,&C3,&C4,&C                      88036  00240016
+         LCLA  &A                                                88036  00250001
+         $UJEPARM                                                88036  00260001
+*DDINST  SETC  (&X8)'JOLCATLG'.(1-&X8)'$$CATLG'                  88036  00270016
+&SP      SETA  155        1 FOR TESTING,                         88036 .00280001
+                          155 FOR X8  PRODUCTION,                88036 .00290001
+                          254 FOR OTHER OS/VS PRODUCTION         88036  00300001
+&KEY     SETC  'ZERO'    NZERO FOR TESTING, ZERO FOR PRODUCTION  88036  00310001
+&SUP     SETC  'SUP'      PROB FOR TESTING, SUP FOR PRODUCTION   88036  00320001
+         PUNCH '        PAGE   $JOLX8MI'                         88036  00330024
+UJECOMM  DSECT                                                   88036  00340052
+         USING UJECOMM,R3                                        88036  00350052
+         COPY  UJECOMM                                           88036  00360016
+&C       SETC  (&X8)'FLC'.(1-&X8)'PSA'                           88036  00370016
+         USING &C,0                                              88036  00380016
+*$JOLX8MI CSECT                                                  88036  00390016
+         AGO   .E                                                88036  00400016
+.L       AIF   (&A GT 15).E                                      88036  00410001
+R&A      EQU   &A                                                88036  00420001
+&A       SETA  1+&A                                              88036  00430001
+         AGO   .L                                                88036  00440001
+.E       ANOP                                                    88036  00450001
+         SPACE 2                                                 88036  00460001
+         JOLSAVE CSECT=$JOLX8MI,BASE=R12,                        88036 /00470050
+               SIZE=WKASIZE                                      88036  00480050
+         USING WKAREA,R13                                        88036  00490051
+         USING UJECOMM,R3                                        88036  00500052
+         LA    R2,FREETAB         LIST OF FILES TO FREE          88036  00510013
+FREE     DS    0H                                                88036  00520013
+         CLI   0(R2),X'00'                                       88036  00530013
+         BE    FREED                                             88036  00540013
+         XC    S99AREA(12),S99AREA                               88036  00550011
+         MVC   S99RB(2),=X'1402'                                  J40B  00620053
+         LA    R0,S99TU                                           J40B  00630054
+         ST    R0,S99TULST                                        J40B  00640054
+         MVC   TUDDN(6),=Y(1,1,8)                                 J40B  00650055
+         MVC   TUDDN+6(8),0(R2)                                   J40B  00660055
+         LA    R2,8(,R2)                                          J40B  00670058
+         LA    R0,TUDDN                                           J40B  00680053
+         ST    R0,S99TU                                           J40B  00690053
+         LA    R0,=Y(7,0)                                         J40B  00700063
+         ST    R0,S99TU+4                                         J40B  00710063
+         OI    S99TU+4,X'80'                                      J40B  00720063
+         LA    R0,S99RB                                           J40B  00730053
+         ST    R0,S99PARMS                                        J40B  00740053
+         LA    R1,S99PARMS                                        J40B  00750053
+         OI    0(R1),X'80'                                        J40B  00760053
+         SVC   99                                                 J40B  00770053
+         LA    R1,S99PARMS                                        J40B  00780062
+         LTR   R15,R15                                            J40B  00790063
+         BNZ   DIE                                                J40B  00810063
+         OC    S99RB+4(4),S99RB+4                                 J40B  00820063
+         BZ    FREE                                               J40B  00830063
+DIE      DS    0H                                                 J40B  00840069
+*        DC    H'0'                                               J40B  00841069
+*        DC    C'FREE ERROR'                                      J40B  00850069
+         B     FREE                                              88036  00860063
+FREED    DS    0H                                                88036  00870013
+         MVI   ISTSO,C' '                                               00880068
+         EXTRACT CALLAREA+12,'S',FIELDS=(TSO),MF=(E,CALLAREA)           00890068
+         L     R1,CALLAREA+12  GET RETURN ADDRESS FROM EXTRACT          00900068
+         TM    0(R1),X'80'     IF BIT IS ON, WE ARE UNDER TSO/TSS       00910068
+         BNO   NOTTSO                                                   00920068
+         MVI   ISTSO,C'Y'                                               00930068
+NOTTSO   DS    0H                                                       00940068
+         MVC   WRKDCB,WRK                                        88036  00950001
+         LA    R1,WRKDCB                                         88036  00960001
+         USING IHADCB,R1                                         88036  00970001
+         LA    R0,WRKEX                                          88036  00980001
+         ST    R0,DCBEXLST                                       88036  00990001
+         LA    R0,WRKEX+4                                        88036  01000001
+         ST    R0,WRKEX                                          88036  01010001
+         MVI   WRKEX,X'87'                                       88036  01020001
+         ST    R1,WORD                                           88036  01030001
+         OI    WORD,X'80'                                        88036  01040001
+         RDJFCB MF=(E,WORD)                                      88036  01050001
+         LTR   R14,R15                                           88036  01060008
+         BZ    XX                                                88036  01070008
+         WTO   'JOLE9998 ERROR READING JOB FILE CONTROL BLOCK FOR THE W.01080008
+               ORK DATASET',                                     88036 .01090009
+               ROUTCDE=(2,11)                                    88036  01100008
+         LR    R15,R14                                           88036  01110008
+         ABEND 17,DUMP                                           88036  01120008
+XX       DS    0H                                                88036  01130008
+         XC    S99AREA,S99AREA CLEAR SVC 99 PARAMETERS           88036  01140001
+         LA    R15,S99RB                                         88036  01150001
+         ST    R15,S99PARMS                                      88036  01160001
+         OI    S99PARMS,X'80'                                    88036  01170001
+         MVC   S99RB(2),=X'1401'                                 88036  01180001
+         LA    R15,S99TU                                         88036  01190001
+         ST    R15,S99TULST                                      88036  01200001
+         MVC   TUDSN(4),=Y(2,1)  DSN=, THERE IS ONE OF THEM      88036  01210001
+         MVC   DSNM,DSNAM                                        88036  01220016
+         MVC   SYSINDSN,DSNAM  GIVE IT TO THE SCHEDULER TOO      88036  01230016
+         LA    R1,DSNM+26                                        88036  01240016
+         LA    R0,DSNM                                           88036  01250016
+         TRT   DSNM,TRTAB                                        88036  01260016
+         SR    R1,R0                                             88036  01270005
+         LA    R1,44                                              J40B  01271076
+         STH   R1,TUDSN+4         THE LENGTH                     88036  01280001
+         LA    R0,TUDSN                                          88036  01290001
+         ST    R0,0(,R15)                                        88036  01300001
+         LA    R15,4(,R15)                                       88036  01310001
+         SPACE 1                                                 88036  01320001
+         MVC   TUVOL(6),=Y(X'0010',1,6)                          88036  01330001
+         MVC   VOLSER(6),=C'SARES1'         CVC TEST               J60  01331099
+         MVC   TUSER,VOLSER                                      88036  01340016
+         MVC   SYSINVOL,VOLSER GIVE IT TO THE SCHEDULER TOO      88036  01350016
+         LA    R0,TUVOL                                          88036  01360001
+         ST    R0,0(,R15)                                        88036  01370001
+         LA    R15,4(,R15)                                       88036  01380001
+         MVC   TUDISP(8),=Y(4,1,1,8*256) DISP=,                         01390085
+         LA    R0,TUDISP          DISP=, THERE IS ONE, IT'S SHARE88036  01391085
+         ST    R0,0(,R15)                                        88036  01400001
+         LA    R15,4(,R15)                                       88036  01410001
+         MVC   TUDDN(6),=Y(X'01',1,8) THE DDNAME IS..            88036  01420007
+         MVC   RETDDN,=CL8'JOLINST'                              88036  01430007
+         LA    R0,TUDDN                                          88036  01440007
+         ST    R0,0(,R15)                                        88036  01450001
+         OI    0(R15),X'80'  END OF THE LIST                     88036  01460001
+         LA    R1,S99PARMS                                       88036  01470001
+SVC99    SVC   99                                                88036  01480001
+         LTR   R14,R15            Q... OK?                       88036  01490001
+         BZ    ALLOCD                                            88036  01500014
+         LA    R1,S99RB                                            J60  01501099
+         LR    R0,R15          R15                                 J60  01502099
+         CALL  UJD03ERR                                            J60  01503099
+         WTO   'JOLE9999 ERROR ALLOCATING WORK DATASET',         88036 .01510002
+               ROUTCDE=(2,11)                                    88036  01520001
+         LR    R15,R14                                           88036  01530001
+         ABEND 16,DUMP                                           88036  01540001
+ALLOCD   DC    0H'0'                                             88036  01550014
+&C       SETC  (&X8)'=CL8''DA'''.(1-&X8)'=CL8''SYSDA'''          88036  01560050
+         MVC   SYSINUNI,&C     TELL HIM THE KIND OF UNIT         88036  01570016
+         SPACE 2                                                 88036  01580018
+*    NOW IS A GOOD TIME TO FIND OUT HOW BIG THE INSTRUCTION AREA 88036  01590018
+*   WILL BE                                                      88036  01600018
+         L     R14,APARM       ADDRESS THE PARAMETER AREA        88036  01610019
+         L     R14,0(,R14)     THE FIRST PARAMETER IS THIS       88036  01620025
+         LH    R15,0(,R14)     ITS LENGTH                        88036  01630019
+         LTR   R15,R15         IS IT REAL?                       88036  01640018
+         BZ    PRM090          NO                                88036  01650019
+         BCTR  R15,0                                             88036  01660018
+         EX    R15,*+4         THIS IS HOW TO DO IT CLEM         88036  01670018
+         MVC   PARMSTR,2(R14)  SEE?                              88036  01680018
+         LA    R14,PARMSTR+1(R15)                                88036  01690018
+         XC    0(8,R14),0(R14) AND THEN WE PUT THIS IN FOR A NICE88036 .01700018
+                               LITTLE DELIMITER                  88036  01710018
+         LA    R15,PARMSTR                                       88036  01720018
+         CLC   =CL4'JOL,',0(R15)                                 88036  01730019
+         BNE   PRM010                                            88036  01740019
+         LA    R15,4(,R15)                                       88036  01750018
+PRM010   CLC   =C'INSTSIZE=',0(R15) IT'S GOTTA BE THIS           88036  01760019
+         LR    R9,R15                                            88036  01770026
+         BE    PRM030          HOW VERY FORTUNATE                88036  01780026
+PRM020   WTO   'JOLE9997 INVALID EXECUTION PARAMETERS',          88036 .01790027
+               ROUTCDE=(2,11)  COMPLAIN                          88036  01800027
+         ABEND 997,DUMP        AND DIE RIGHT HERE                88036  01810084
+PRM030   DS    0H                                                88036  01820027
+         LA    R15,9(,R15)     IT SHOULD START HERE              88036  01830027
+         SLR   R0,R0           START COUNTING                    88036  01840027
+         LR    R14,R15         AND ADDRESSING                    88036  01850027
+PRM040   DS    0H                                                88036  01860027
+         LR    R9,R14                                            88036  01870027
+         CLI   0(R14),C','     THERE CAN BE ONE OF THESE         88036  01880027
+         BE    PRM050                                            88036  01890027
+         CLI   0(R14),C' '     OR THERE CAN BE ONE OF THESE      88036  01900027
+         BE    PRM050                                            88036  01910027
+         CLI   0(R14),C'0'     ANYTHING LESS THAN THIS IS        88036  01920027
+         BL    PRM020          OFF                               88036  01930027
+         CLI   0(R14),C'9'     ANYTHING GREATER THAN THIS IS     88036  01940048
+         BH    PRM020          ALSO OFF                          88036  01950047
+         LA    R14,1(,R14)     GO AND LOOK AT THE NEXT ONE       88036  01960027
+         CLI   0(R14),X'00'    END-OF-STRING?                    88036  01970028
+         BNE   PRM040          NO IT'S NOT                       88036  01980028
+PRM050   DS    0H              R14 POINTS TO THE LAST            88036  01990028
+         SR    R14,R15         SHOULD BE LENGTH-1                88036  02000028
+         BCTR  R14,0           AND IT NOW IS                     88036  02010029
+         PACK  DBL,0(0,R15)    CLEM                              88036  02020029
+         EX    R14,*-6         FOR THIS, YOU GOTTA DO IT THIS WAY88036  02030029
+         CVB   R0,DBL          THIS SHOULD BE THE INSTRUCTION    88036 .02040029
+                                FILE SIZE                        88036  02050029
+         A     R0,=A(&RETNSIZ)                                   88036  02060029
+         A     R0,=A(2048)     "CONTINGENCY"                     88036  02070029
+         L     R1,AFINSTR                                        88036  02080029
+         ST    R0,DAMBUFSZ-DAMCB(,R1) STORE THE LENGTH           88036  02090029
+PRM090   DS    0H              IT'S EITHER SET OR DEFAULTED      88036  02100029
+         LA    R1,AFINSTR                                        88036  02110029
+         OI    0(R1),X'80'     ONLY THE ONE                      88036  02120029
+         $OPEN MF=(E,(1)),EPLOC=ADAM OPEN THE FILE               88036  02130030
+         OPEN  MIINSTR                                           88036  02140030
+         L     R2,=A(4*1024+X'03000000')  GET A BUFFER           88036  02150018
+         LR    R0,R2                                             88036  02160014
+         GETMAIN R,LV=(0)      GET STORAGE FOR INSTRUCTIONS      88036  02170014
+         STM   R1,R2,AINST     STORE ADDRESS, LENGTH             88036  02180014
+         L     R4,AINST                                          88036  02190014
+NEXTREAD DS    0H                                                88036  02200014
+         READ  INSTD,SF,MIINSTR,(R4),MF=E                        88036  02210016
+         CHECK INSTD                                             88036  02220016
+         L     R1,AFINSTR                                        88036  02230018
+         $WRITE (1),(R4)                                                02240018
+         B     NEXTREAD                                          88036  02250014
+INSTEOF  DS    0H                                                88036  02260014
+         LR    R0,R2                                             88036  02270018
+         FREEMAIN R,A=(R4),LV=(0) FREE THE BUFFER                88036  02280018
+         SPACE 3                                                 88036  02290014
+*  TAKES A DEEP BREATH                                           88036  02300014
+         SPACE                                                   88036  02310014
+         L     R1,AFINSTR                                        88036  02320018
+         $STOW (1),MNAME                                         88036  02330018
+         CLOSE MIINSTR                                           88036  02340016
+         L     R15,=V(UJD98INM)                                  88036  02350070
+         BALR  R14,R15                                           88036  02360015
+RETURN   DC    0H'0'                                             88036  02370015
+         MVC   TEMPDSN,SYSINDSN SET UP DSN PREFIX FOR TEMP DSETS  J40B  02380066
+         LA    R14,TEMPDSN+43                                     J40B  02390066
+         LA    R15,43                                             J40B  02400066
+SCAN010  CLI   0(R14),C' '      WE'RE LOOKING FOR A NON-BLANK     J40B  02410066
+         BNE   SCAN020                                            J40B  02420066
+         BCTR  R14,0            DOWN ONE BYTE                     J40B  02430066
+         BCT   R15,SCAN010                                        J40B  02440066
+         B     SCAN030          WE DIDN'T FIND ONE!               J40B  02450066
+SCAN020  CLI   0(R14),C'.'      WE'RE LOOKING FOR A DOT           J40B  02460066
+         BE    SCAN030                                            J40B  02470067
+         BCTR  R14,0            DOWN ONE BYTE                     J40B  02480066
+         BCT   R15,SCAN020                                        J40B  02490066
+SCAN030  DS    0H                                                 J40B  02500066
+         STH   R15,#TEMPDSN     THIS IS THE LENGTH                J40B  02510066
+         JOLRETN RC=0                                             J60   02510199
+         AGO .CVCNOCH                                             J60   02510299
+         L     R6,AMSGS                                           J50   02511097
+         USING MSGSECT,R6                                         J50   02512097
+         CPUCHK                                                        .02520087
+               SDATE=RUNDATE,    TODAY'S DATE                          .02530087
+               ERRET=CHK010,     UNLICENCED PROCESSOR                  .02540087
+               DEMO=CHK020,      THIS IS A DEMO VERSION                .02541087
+               EXPIRED=CHK030,   EXPIRED LICENCE                  J50  .02542087
+               NOTABLE=CHK040,   THE TABLE'S MISSING                   .02543087
+               CKSERR=CHK050,    THE TABLE IS CORRUPT                  .02544087
+               NRETURN=CHK090,   IT'S OK                          J50  .02545095
+               PCCA=PCCA,        WHERE TO FIND PCCA               J50  .02545199
+               FLAG=CHKFLG       SET THIS FLAG IF IT'S CHECKED OK      .02545299
+                                                                  J50   02546087
+CHK010   DS    0H                                                 J50   02547087
+         WTO   MF=(E,E999A01)                                           02548097
+         B     CHK080                                             J50   02549187
+CHK020   DS    0H                                                 J50   02549287
+         WTO   MF=(E,E999A02)                                           02549397
+         B     CHK080                                             J50   02549695
+CHK030   DS    0H                                                 J50   02549795
+         FIX   'THIS MAY GENERATE THE WRONG DATE IF CURRENT AND EXPIRY .02549898
+               DATES ARE IN DIFFERENT YEARS'                      J50   02549998
+         CH    R0,=H'30'                                          J50   02550098
+         BH    CHK060                                             J50   02550198
+         WTO   MF=(E,E999A03)                                           02550298
+         B     CHK080                                             J50   02550395
+CHK040   DS    0H                                                 J50   02550495
+         WTO   MF=(E,E999A04)                                           02550597
+         B     CHK080                                             J50   02550895
+CHK050   DS    0H                                                 J50   02550995
+         WTO   MF=(E,E999A05)                                           02551097
+         B     CHK080                                             J50   02551395
+CHK060   DS    0H                                                 J50   02551495
+         WTO   MF=(E,E999A06)                                           02551597
+         B     CHK080                                             J50   02551895
+CHK080   DS    0H                                                 J50   02551995
+CHK090   DS    0H                                                 J50   02552097
+         JOLRETN RC=0                                            88036  02552295
+.CVCNOCH ANOP                                                     J60   02552399
+MNAME    DC    0D'0',CL8'$$INST',F'0'                            88036  02553595
+         READ  INSTD,SF,MIINSTR,MF=L                             88036  02553695
+MIINSTR  DCB   DDNAME=JOLCATLG,DSORG=PS,MACRF=R,DEVD=DA,         88036 .02553795
+               EODAD=INSTEOF,BUFL=2000,BLKSIZE=800,LRECL=80,     88036 .02562187
+               RECFM=FB                                                 02562287
+         LTORG                                                   88036  02570001
+         DC    0D'0'                                             88036  02580013
+&C       SETC  (&X8)'SYSIN'.(1-&X8)'SYSIN'                        J40B  02590065
+FREETAB  DC    CL8'SYSIN'                                        88036  02600069
+&C       SETC  (&X8)'SYSUT1'.(1-&X8)'SYSUT2'                      J40B  02610059
+         DC    CL8'&C'                                           88036  02620059
+         DC    CL8'PRTFILE'                                      88036  02630013
+         DC    CL8'$$JCL  '                                      88036  02631069
+         DC    F'0'               END MARKER                     88036  02640013
+TRTAB    DC    64AL1(0),AL1(1),191AL1(0)                         88036  02650001
+WRK      DCB   DDNAME=JOLCATLG,                                  88036 .02660010
+               MACRF=R,DSORG=PS,                                 88036 .02670001
+               EXLST=0                                           88036  02680003
+WRKL     EQU   *-WRK                                             88036  02690001
+         DROP  R13                                               88036  02700050
+         TITLE 'ONE-TIME SCHEDULER INITIALISATION ROUTINES'             02710070
+         JOLSAVE CSECT=UJD98INM                                         02720070
+         L     R4,ADCBS                                          88036  02730016
+         USING UJEDCBS,R4                                        88036  02740016
+         L     R5,ARETN                                          88036  02750016
+         USING RETNAREA,R5                                       88036  02760016
+* THIS ROUTINE IS CALLED IMMEDIATELY AFTER THE JOL MONITOR GETS CONTROL 02770015
+*    AND IT OPENS THE FILES ETC                                         02780015
+* SECOND DETERMINE WHETHER WE ARE RUNNING UNDER 'HASP' OR 'OS' IF THERE 02790015
+*    IS A DD-CARD FOR '$$PRINT' THEN THE SYSOUT FILE ASSOCIATED WITH    02800015
+*    THAT FILE WILL BE USED SIMILIARLY TO THE 'HASP' SYSTEM LOG,I.E ALL 02810015
+*    COMMENTS WILL GO OUT TO IT.                                        02820015
+         SPACE 3                                                        02830015
+         MVC STMT,=CL4'   0'                                            02840015
+         CALL  UJD70OPN        USES DATA ITEMS FROM UJECOMM NOW  88036  02850070
+         TM    PRINT+48,X'10'  DEBUGGING                         88036  02860044
+         BO    ITOPNED                                           88036  02870043
+ITOPNED  DS    0H                                                88036  02880043
+*** ABOVE OPENS REQUIRED FILES, AND :-                            ***** 02890015
+*    1. SETS 'JCTTTR' TO CORE ADDRESS, OR TTR ON JOBQ.            ***** 02900015
+*    2. LOADS (MAYBE) AN IBM ROUTINE TO ACCESS JOBQ.              ***** 02910015
+*    3. OPENS 'INSTRUCT'                                          ***** 02920015
+*    4. OPENS 'PRINT' IF $$PRNT DD CARD PRESENT                   ***** 02930015
+*    5. OPENS 'JOBQ'  IF $$JOBQ DD CARD PRESENT AND ^MFT |MVT|MVS ***** 02940015
+*    6. SETS 'VS' TO ' ' | '1' | '2' | 'M'                        ***** 02950015
+*    7. SETS 'ATCB' = A(OUR TCB)                                  ***** 02960015
+         SPACE 3                                                  ***** 02970083
+         AIF   (NOT &X8).NX8350                                  88036  02980015
+         L     R14,FLCTOLD           ADDRESS MY TCB                     02990016
+         L     R14,TCBJSCB-TCB(,R14)           MY JSCB                  03000016
+         ICM   R14,7,JSCBCSCA-JSCB(R14)       MY CSCB                   03010015
+         MVC   JBNAME,CSCBUJNM-CSCB(R14)      COPY JOB NAME IN          03020015
+         AGO   .X8410                                            88036  03030015
+.NX8350  ANOP                                                    88036  03040015
+         EXTRACT CALLAREA+12,'S',FIELDS=(TIOT),MF=(E,CALLAREA)    87150 03050015
+         L     R1,CALLAREA+12  GET RETURN FROM EXTRACT            87150 03060015
+*        MVC   JCTJNAME,0(R1)  SHIFT JOBNAME IN FOR MESSAGES      87150 03070053
+         MVC   JBNAME,0(R1)    SHIFT JOBNAME IN FOR MESSAGES      J40B  03080053
+.X8410   ANOP                                                    88036  03090015
+SCHEDGO  DS    0H                                                       03100015
+         PRSPACE 1                     SPACE UP PRINTING A BIT          03110016
+         SPACE                                                          03120050
+*        JOLERR 501,'NO DD CARD FOR $$INST'                             03130020
+FILE1OK  DS    0H                                                 75128 03140015
+         SPACE 2                                                        03150015
+         $FIND INSTRUCT,MBRRETN,D                                       03160020
+         B     E98INITR(R15)                                            03170015
+E98INITR B     E98GOTMB                                                 03180015
+         B     E98FIND4                                                 03190015
+         B     E98FIND8                                                 03200015
+MBRRETN  DC    CL8'$$RETN'                                              03210015
+         SPACE 3                                                        03220015
+E98FIND8 JOLERR 504,'INTERNAL ERROR READING DIRECTORY'                  03230073
+         SPACE 3                                                        03240015
+E98FIND4 DS    0H                                                       03250015
+* THE $$RETN MEMBER HASN'T BEEN SET UP APPARENTLY                       03260015
+         JOLERR 109,'JOL UNIVERSAL COMMAND LANGUAGE: DYNAMIC ALLOCATION'03270071
+               '                                                        03280072
+         JOLERR 110,'VERSION &VERSION COMPILED AT &SYSTIME ON &SYSDATE' 03290081
+         PRSPACE 1                     SPACE UP PRINTING A BIT          03310016
+         L     R0,ARETN                                                 03320016
+         L     R1,=A(L'READAREA)                                        03330015
+         SLR   R15,R15         ZEROES TO ALL THE AREA                   03340040
+         MVCL  R0,R14                                                   03350015
+         MVI   COND,C' ' CLEAR COND TO BLANKS                      DASD 03360040
+         MVC   COND+1(L'COND-1),COND                               DASD 03370040
+         $EXTEND INSTRUCT      ENSURE WE CAN WRITE SAFELY        88036  03380040
+         L     R2,ARETN                                          88036  03390016
+         MVC   0(2,R2),=Y(&RETNSIZ) SET THE RECORD SIZE          88036  03400040
+         $WRITE INSTRUCT,(R2)  WRITE THE BLOCK                          03410040
+         $NOTE INSTRUCT                                                 03420040
+         ST    R1,TTR$RETN                                              03430015
+         $STOW INSTRUCT,STOWBLK,A                                       03440040
+         LTR   R15,R15                                                  03450015
+         BZ    E98RDJCT                                                 03460015
+         JOLERR 502,'INTERNAL ERROR STOWING RETURN-CODE TABLE'          03470073
+         FIX ' THAT WAS JOLERR 503'                              88036  03480015
+E98GOTMB DS    0H                                                       03490015
+* WE HAVE NOW FOUND THE $$RETN MEMBER OF THE DATA SET                   03500015
+         $READ INSTRUCT,RETNAREA                                        03510020
+         $NOTE INSTRUCT                                                 03520020
+         ST    R1,TTR$RETN     FOR REWRITING                            03530015
+* FIND OUT HOW MUCH DATA WE READ (ALSO USED FOR REWRITING)              03540015
+         SPACE 3                                                        03550015
+         MVC   STMT,DBL                                                 03560015
+         $POINT INSTRUCT,TTR$INST                                       03570020
+E98RDJCT DS    0H                                                       03580015
+         AIF   (&X8).X8420                                              03590046
+         SPACE 3                                                        03600046
+* BETTER SET UP THE JOBNAME ETC                                         03610015
+         LA    R2,CALLAREA                                              03620016
+         EXTRACT (2),'S',FIELDS=(TIOT)                                  03630016
+         L     R1,CALLAREA                                              03640016
+         ST    R1,ATIOT        SAVE ADDRESS OF TIOT                     03650016
+.X8420   ANOP                                                           03660016
+         AGO .NOCHK2                                              J60   03660199
+         TIME  DEC                                                J50   03661087
+         ST    R1,RUNDATE                                         J50   03662087
+         ZAP   DBL,RUNDATE                                        J50   03663087
+         CVB   R1,DBL                                             J50   03664087
+         ST    R1,RUNDATE                                         J50   03665087
+         SPACE 6                                                        03670016
+.NOCHK2  ANOP                                                     J60   03671099
+         JOLRETN                                                        03680016
+         SPACE                                                          03690016
+         DC    20S(*)                                                   03700016
+         LTORG                                                          03710015
+WKAREA   DSECT                                                   88036  03720015
+         DS    18F                SAVE AREA                      88036  03730015
+PARMSTR  DS    CL110                                             88036  03740019
+S99AREA  DS    0XL256                                            88036  03750015
+S99PARMS DS    F                                                 88036  03760015
+S99RB    DS    0XL24                                             88036  03770015
+         DC    X'1401'                                           88036  03780015
+S99FLGS1 DS    XL2                                               88036  03790015
+S99ERR   DS    XL2                                               88036  03800015
+S99INF   DS    XL2                                               88036  03810015
+S99TULST DS    A                                                 88036  03820015
+         DS    XL4             RESERVED                          88036  03830015
+S99FLGS2 DS    XL2                                               88036  03840015
+         DS    XL2             THE REST OF IT                    88036  03850015
+S99TU    DS    A               DSN=                              88036  03860015
+         DS    A               DISP=SHR                          88036  03870015
+         DS    A               PASSWORD=                         88036  03880015
+         DS    A               DDNAME=                           88036  03890015
+         DS    4A              IN CASE WE WANT THEM              88036  03900015
+TUDSN    DS    XL4             DSN=, ONE OF THEM                 88036  03910015
+DSNLEN   DS    H                  LENGTH                         88036  03920015
+DSNM     DC    CL50' '                                           88036  03930074
+TUDISP   DC    Y(4,1,1,8*256)                                    88036  03940085
+TUVOL    DC    Y(X'0010',1,6)                                    88036  03941085
+TUSER    DC    CL6' '                                            88036  03950015
+TUDDN    DS    XL4             I TELL YOU THE DDNAME             88036  03960015
+         DS    H               LENGTH                            88036  03970015
+RETDDN   DS    CL8             THE DDNAME                        88036  03980015
+         DS    CL256                                             88036  03990015
+WORD     DS    F                                                 88036  04010015
+WRKDCB   DS    XL(WRKL)          MUST BE WORD ALIGNED            88036  04011079
+WRKEX    DC    A(*+X'87000004')                                  88036  04020015
+         FIX  'FOR X8 MAKE 26'                                    J40B  04021075
+&A       SETA  44*(1-&X8)+26*&X8                                        04022079
+DSNAM    DS    CL&A                                              88036  04030079
+         ORG   DSNAM+X'76'                                       88036  04040016
+VOLSER   DS    CL6                                               88036  04050016
+         ORG   DSNAM+176                                         88036  04060016
+         DS    0D                                                88036  04070015
+WKASIZE  EQU   *-WKAREA                                          88036  04080015
+         EJECT                                                   88036  04090015
+         COPY  UJECBS                                            88036  04100016
+         IEFPCCB                                                        04101099
+         EJECT                                                   88036  04110018
+         DAMCB TYPE=DSECT                                        88036  04120018
+         END   $JOLX8MI                                          88036  04130015
